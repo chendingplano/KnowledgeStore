@@ -1,0 +1,37 @@
+/.direnv/
+node_modules
+mise.local.toml
+/web/node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/web/.svelte-kit
+/web/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Paraglide
+/web/src/lib/paraglide
+
+/web/project.inlang/cache/
+
+/server/api/webbuild/*
+!/server/api/webbuild/.gitkeep
+/.cache/
+.worktrees/
+.worktrees/
