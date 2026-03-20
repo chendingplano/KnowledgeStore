@@ -10,3 +10,46 @@ Link: ```url https://sitandr.github.io/typst-examples-book/book/basics/tutorial/
 | - | bullet list |
 | + | numbered list |
 | $...$ | formula |
+
+## Link
+```text
+#let a_001 = link(
+    "<the-url>"
+)[#text(fill: blue)[Label]]
+```
+
+## Table
+```text
+#table(
+  columns: 3,
+  align: left,
+  [Name], [Description], [Documentation],
+  [Bicep], [Microsoft], [Azure-specific],
+```
+
+## Figure
+```text
+#figure(
+   image("Images/image_2026030101.png", width: 100%),
+   caption: [Hardware setup (#a_030105)],
+)
+```
+
+## Paragraphs
+```text
+#show heading.where(level: 1): set text(size: 18pt)
+#show heading.where(level: 1): it => pad(top: 4pt, it)
+
+#show heading.where(level: 2): set text(size: 14pt)
+#show heading.where(level: 2): it => pad(top: 4pt, it)
+
+#show heading.where(level: 3): set text(size: 14pt)
+#show heading.where(level: 3): it => pad(top: 4pt, it)
+```
+
+## Quote
+```text
+#quote(block: true, attribution:[#a_008])[
+"... having to discover it on their own. Both of those concerns are actually why LLMs.txt was a valuable idea, but it was the wrong implementation."
+]
+```

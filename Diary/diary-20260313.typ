@@ -6,6 +6,20 @@
 #show quote: set pad(x: 1em)
 #show raw.where(block: true): block.with(fill: luma(240), inset: 1em, radius: 0.5em, width: 100%)
 
+#set page(numbering: "i")
+#counter(page).update(1)
+
+= Table of Contents
+#outline()
+#pagebreak()
+
+= List of Figures
+#outline(
+  title: [],
+  target: figure.where(kind: image),
+)
+#pagebreak()
+
 #show heading: it => {
   set text(fill: blue) if it.level == 1
   if it.numbering != none {
@@ -34,10 +48,17 @@
 #show heading.where(level: 3): set text(size: 14pt)
 #show heading.where(level: 3): it => pad(top: 4pt, it)
 
+#show heading.where(level: 4): set text(size: 12pt)
+#show heading.where(level: 4): it => pad(top: 4pt, it)
+
 // #figure(
 //   image("Images/image_2026030101.png", width: 100%),
 //   caption: [Hardware setup (#a_030105)],
 // )
+
+#set page(numbering: "1")
+#counter(page).update(1)
+#counter(heading).update(0)
 
 = Claude Can Draw Charts Now
 
@@ -2064,7 +2085,7 @@ An entity is similar to a category in #a_013.
 - File References: a list of file names where the original context is stored
 - Docids: a list of docids for the records where the original context is stored
 
-= Note Attributes
+== Note Attributes
 
 - Brief Description
 - Detailed Description
@@ -2072,11 +2093,360 @@ An entity is similar to a category in #a_013.
 - Embedding (for semantic search)
 - List of nodes that have this attribute
 
-= Relation Attributes
+== Relation Attributes
 
 - Brief Description
 - Detailed Description
 - Keywords
 - Embedding (for semantic search)
 - List of relations that have this attribute
+
+= 2026/03/21 - RAG Guardrails
+
+#let a_015 = link(
+  "https://dzone.com/articles/rag-guardrails-for-enterprise-llm-deployments"
+)[#text(fill: blue)[Article]]
+
+#a_015 \
+Source: dzone
+
+== Force LLMs to Show the Work
+```python
+SYSTEM_PROMPT = """Answer using ONLY the provided context documents.
+
+Rules:
+1. Every factual claim MUST cite its source as [Doc X].
+2. If the context doesn't contain the answer, say so. Don't guess.
+3. If documents contradict each other, state both with their citations.
+4. Do not add information beyond what's in the documents.
+
+Context Documents:
+{context}
+
+Question: {query}
+"""
+```
+
+It is important to validate the citations.
+```python
+import re
+
+def validate_citations(response, num_docs):
+    citations = re.findall(r'\[Doc\s+(\d+)\]', response)
+
+    bad_refs = [c for c in citations if int(c) < 1 or int(c) > num_docs]
+
+    # find sentences that make factual claims but cite nothing
+    sentences = [s.strip() for s in re.split(r'[.!?]', response) if s.strip()]
+    uncited = []
+    for sent in sentences:
+        skip_phrases = ["i don't have", "based on the", "according to", "the context"]
+        if any(p in sent.lower() for p in skip_phrases):
+            continue
+        if not re.search(r'\[Doc\s+\d+\]', sent) and len(sent.split()) > 5:
+            uncited.append(sent)
+
+    return {
+        "valid": len(bad_refs) == 0 and len(uncited) == 0,
+        "bad_refs": bad_refs,
+        "uncited_claims": uncited
+    }
+```
+
+== Cross-LLM Check
+
+Sometimes, it may still make mistakes: the meaning of the cited content is different from the cited chunks. We can ask a smaller model: Does the source actually support this claim?
+
+```python
+def verify_consistency(claims, sources, threshold=0.5):
+    from transformers import pipeline
+    nli = pipeline("text-classification", model="cross-encoder/nli-deberta-v3-base")
+
+    problems = []
+    for claim, source in zip(claims, sources):
+        result = nli(f"{source} [SEP] {claim}")
+        if result[0]["label"] == "CONTRADICTION" and result[0]["score"] > threshold:
+            problems.append({
+                "claim": claim,
+                "source": source,
+                "confidence": result[0]["score"]
+            })
+
+    return problems
+```
+
+"This is the most expensive guardrail. DeBERTa inference adds 300-500ms per response, depending on how many claim-source pairs you’re checking. For our latency-sensitive paths, I run it async. The user gets the response immediately, and if the NLI check flags a contradiction, a correction fires within a few seconds. For compliance-critical paths (anything touching payroll calculations, tax rates, regulatory guidance), it runs synchronously. The extra half-second is worth it."
+
+== Stale Documents Are the Killers
+
+Some documents are constantly updated. When a document is updated, all the chunks need to
+be updated instantly.
+
+I don't quite understand what the author said. Any time when a document is updated, we need
+to update the chunks immediately. 
+
+== Teach the System to Say "I'm nNot Sure"
+
+```python
+def score_confidence(relevance_scores, citation_check, nli_flags, stale_chunks, total_chunks):
+    avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
+    cite_score = 1.0 if citation_check["valid"] else max(0, 1 - len(citation_check["uncited_claims"]) * 0.2)
+    consistency = max(0, 1.0 - len(nli_flags) * 0.3)
+    freshness = 1.0 - (len(stale_chunks) / total_chunks) if total_chunks else 0
+
+    score = 0.30 * avg_relevance + 0.25 * cite_score + 0.25 * consistency + 0.20 * freshness
+
+    if score >= 0.85:
+        return {"confidence": score, "action": "serve"}
+    elif score >= 0.60:
+        return {"confidence": score, "action": "serve_with_disclaimer"}
+    else:
+        return {"confidence": score, "action": "abstain"}
+```
+It uses multiple scores to calculate the final scores:
+- relevance score
+- citation score
+- consistency score
+- freshness score
+
+= 2026/03/21 - Run Qwen 3.5 on Local Machines
+
+#let a_016 = link(
+  "https://www.sharpai.org/benchmark/"
+)[#text(fill: blue)[Article]]
+
+#a_016 \
+Source: Hacker News
+
+Machine: MacPro with 64GB unified memory, M5 chip.
+
+#figure(
+   image("Images/image_2026032101.png", width: 100%),
+   caption: [Benchmark 01 (#a_016)],
+)
+
+#figure(
+   image("Images/image_2026032102.png", width: 100%),
+   caption: [Benchmark 02 (#a_016)],
+)
+
+= 2026/03/21 - HydraDB
+
+#let a_017 = link(
+  "https://docs.hydradb.com/"
+)[#text(fill: blue)[Article]]
+
+#a_017 \
+Source: Tou Tiao
+
+*Problems*
+#quote(block: true, attribution:[#a_017])[
+"Pure vector search has repeatedly failed to provide reliable enterprise-grade context on
+its own. Research from Google DeepMind and Stanford shows that embedding-only retrival systems
+often surface irrelevant, outdated, or misleading information, especially in complex 
+knowledge workflwos.
+]
+
+== Memory
+
+"In HydraDB, memories are structured units of contextual information that help your AI system"
+- Remember user preferences and past interactions
+- Provide personalized, context-aware responses
+- Adapt behavior over time
+- Improve relevance and accuracy across worksflows
+
+Memories are continuously updated, enriched, re-ranked and reused.
+All memories are dynamic, adaptive, and selv-evolving.
+
+== Types of Memories
+
+=== User Memories
+
+It is personal, user-specific context.
+- Preferences ("prefers concise answers")
+- Behavior ("often asks technical questions")
+- History ("previously worked on Project xyz")
+
+=== Knowledge Memories
+
+The is the major part of the database:
+- Slack threads
+- Emails
+- Diary
+- Notion pages
+
+=== Documents
+- Word, PDF, Excep, PPT, ...
+- ...
+
+=== Organization Memories
+
+Tenant-level memory shared across all agents. Organization memories are adaptive, self-evolving
+and dynamic. Users can add anything to organization memories.
+
+- Team roles
+- Internal workflows
+- Policies and playbooks
+- Security rules
+- ...
+
+=== Derived Memories
+
+Most of the derived memories are generated by LLMs.
+
+=== Reports
+
+They are normally generated by LLMs. Users may manually contribute, too.
+Reports are normally generated periodically, such as daily, weekly, monthly, etc.
+
+- Reports on personal activities
+- Reports on knowledgebase
+- Reports on ETL
+- Reports on customer activities
+- Reports on customer services
+- ...
+
+=== Bugs
+
+It is a database of bugs. Bugs may be manually created or automatically derived by LLMs.
+
+=== Questions
+
+This is a database of the questions users, which can be individual users or users in
+a team, in an organization unit, in an organization, or in the public.
+
+=== Standards
+
+The standards that are used in an environment.
+
+=== Formulas
+
+This is a repository of formulas used in an environment.
+
+== Not Just VectorDB
+
+HydraDB is more a memory system than a vector database:
+- Content Graphs instead of chunks
+- Understand the intent of queries
+- Consider user, tenant, and agent context (how?)
+- Traverse the graph to understand the relationships, linkages, and historical outcomes
+- Weighs recency, relevance, frequency, and semantic similarity
+- Rank memories based on how useful they are for the current task
+
+One thing HydraDB and I in common: traditional vector databases are flat.
+HydraDB treats memory like living context graph. But in my mind, memory and knowledge
+are two different things.
+
+Knowledge should not be flat. First of all, they should be hierarchical: higher levels
+are abstract and lower levels reveal details.
+
+It is, however, not pure hierarchical. Any node can connect to other nodes. They are
+essentially graphs. But don't forget that they are hierarchical first. We can call
+this type of graph *Hierarchical Graphs*.
+
+== File-Based Semantic Hierarchical Graph (SHG)
+
+One of the problems with vector databases is that we put all vectors into the same collection.
+This can easily mix unrelated but semantically close chunks together.
+
+One solution is to create an SHG. Leaves in an SHG are collections.
+If we have a chunk that discusses how penicillin was invented:
+- Level 1: Medicine
+- Level 2: History
+- Level 3: Antibiotics
+- Level 4: Penicillin (leaf)
+
+If Level 4 does not exist, it can find entries in Level 3: Antibiotics. It may not find penicillin
+but may find similar antibiotics.
+
+== Metadata: Structuring Memory for Deterministric Retrieval
+
+This is similar to the vision of File-Based Hiearchical Graph.
+
+== Retrieval
+
+Retrieval is the most important part of a knowledge system.
+- by metadata
+- by keywords (BM25)
+- by vector (semantics)
+
+In addition, these are what I want to have:
+- by SHG
+- by freshness
+- by intent
+- by topics
+- ???
+
+"retrieval shouldn't be vector search first. Recall should be intelligent,
+personalized, and context-aware, not just semantic search over embeddings."
+
+*Comments* 'retrieval shouldn't be vector search first.' I agree with this.
+Not only that, vectors should be organized. There should be multiple small, topic-based
+collections instead of one huge collection.
+
+The challenges are 'intelligent, personalized, and context-aware'
+
+This is how HydraDB retrieves:
+```text
+   1. Understands the intent of the query
+   2. Considers the user, tenant, and agent context
+   3. Traverses the memory graph to understand relationships and outcomes
+   4. Weighs recency, relevance, frequency, and semantic similarity
+   5. Ranks memories based on how useful they are for the current task
+```
+
+=== Customize Your Retrievals
+
+- recency_bias: prefer newer memories
+- search_alpha: balance semantic vs lexical
+- custom scoring functions
+- metadata constraints
+- BM25 (mine)
+- BM25 + Vector reranking weights
+- Model-based reranking: configure the model name
+
+*Thought* When design retrievals, it is very important not be too 'smart'. 
+The smartness (or intelligence) should not be in the database (at least should not be too much).
+LLMs are much better at being smart. A retrieval system should focus on providing tools, 
+and, more importantly, present the data (or information) for LLMs, and then for human users.
+
+For instance, the goals of HydraDB are 'intelligent, personalized, and context-aware'.
+These can be easily achieved by LLMs, not HydraDB or any databases in general.
+Given a query and the context, which includes what data we have and how they can be explored,
+LLMs will be much better than any databases in finding the niddle in the hey.
+
+What we need is a tool: SHG + search(...). The SHG is stored in files.
+Initially, it loads the first N levels (limited by size, such as 1000 bytes)
+of the tree. LLMs will use the tool `search(...)`, just like `ls`, to retrieve lower-level
+nodes until the leaves are hit. LLMs can then use `search(...)` to retrieve all the chunks.
+
+=== Collections
+
+*Multiplicity* One vector may be in multiple collections. Duplicate storage does use
+more space. But it can improve retrievals.
+
+
+=== Adaptive and Personalized retrieval
+
+Over time, the system leans which memories are actually helpful for a given user or workflow.
+This enables:
+- *Personalized Ranking*: two users asking the same question may get different context.
+  I am not sure whether this is important or how important it is.
+- *Implicit feedback loops*: memories that are frequently used, referenced, or lead to
+  successful outcomes are prioritized. This is important. The system should automatically 
+  detect it. Users may or may not tell us about whether a reference is useful. 
+  Implicit feedback requires the system is smart enough.
+
+= 2026/03/22 - Grafeo
+
+#let a_018 = link(
+  "https://github.com/GrafeoDB/grafeo"
+)[#text(fill: blue)[Article]]
+
+#a_018 \
+Source: Hacker News
+
+This is a new open-source graph database in Rust. It is kind of too new now. 
+It does have Go binding. We may want to use it in the future.
+
 
