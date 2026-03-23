@@ -2449,4 +2449,402 @@ Source: Hacker News
 This is a new open-source graph database in Rust. It is kind of too new now. 
 It does have Go binding. We may want to use it in the future.
 
+= 2026/03/22 - TIGERFS
+
+#let a_019 = link(
+  "https://tigerfs.io/"
+)[#text(fill: blue)[Article]]
+
+#a_019 \
+Source: Hacker News
+
+Tigerfs is a file system backed by PostgreSQL and a file system interface to PostgreSQL.
+It mounts a database as a directory. Every file is a real row. Writes are transactions.
+Multiple agents and humans can read and write concurrently with full ACID guarantees,
+locally or across machines. Any tool that works with files works out of the box.
+
+#table(
+  columns: 2,
+  align: left,
+  [System], [Explanation],
+  [Local Files], [ACID transactions and version history, instead of bare files with no coordination guarantees.],
+  [GIT], [Changes are visible immediately, with automatic version history. You don't need to pull, push, or merge.],
+  [S3], [Structured rows and ACID transactions, not blobs. You can query the data, not just retrieve it.],
+  [Database], [ Your agents already know how to work with files. You don't need client libraries or schemas to pass around.]
+)
+
+A good thing about Tigerfs is that you can mount an existing PostgreSQL database.
+
+#figure(
+   image("Images/image_2026032201.png", width: 100%),
+   caption: [Benchmark 02 (#a_019)],
+)
+
+== Shared Agent Workspace
+
+Multiple agents operate on the same knowledge base at the same time. 
+Every edit is versioned, so if one agent overrites another's work,
+you can recover it from .history/
+
+```text
+# agent A writes research findings
+cat > /mnt/db/kb/auth-analysis.md << 'EOF'
+---
+author: agent-a
+---
+OAuth 2.0 is the recommended approach...
+EOF
+
+# agent B reads immediately. no sync. no pull.
+cat /mnt/db/kb/auth-analysis.md
+```
+
+== Multi-Agent Task Queue
+
+todo/, doing/, and done/ are your three directories, and mv is your only API. 
+Moves are atomic database operations, so two agents can't claim the same task.
+
+```text
+# agent claims a task atomically
+mv /mnt/db/tasks/todo/fix-auth-bug.md \
+   /mnt/db/tasks/doing/fix-auth-bug.md
+
+# see what everyone is working on
+ls /mnt/db/tasks/doing/
+grep "author:" /mnt/db/tasks/doing/*.md
+```
+
+== Collaborative Docs
+
+A human drafts, an agent edits, another summarizes, all in the same directory,
+all visible immediately. History hows who changed what and when.
+
+```text
+# browse the full edit trail
+ls /mnt/db/docs/.history/proposal.md/
+
+# see what changed in the last edit
+diff /mnt/db/docs/.history/proposal.md/2026-02-25T100000Z \
+     /mnt/db/docs/proposal.md
+```
+
+== Quick Data Fixes
+
+Update a customer's email, toggle a feature flag, delete a test record.
+One shell command instead of opening a SQL client, remembering the schema,
+and writing a WHERE clause.
+
+```text
+# update a single column
+echo 'new@example.com' > /mnt/db/users/123/email.txt
+
+# update a full row via JSON
+echo '{"email":"a@b.com","name":"A"}' > /mnt/db/users/123.json
+
+# delete a record
+rm -r /mnt/db/users/456/
+
+# bulk-load from CSV
+cat data.csv > /mnt/db/orders/.import/.append/csv
+```
+
+== Data Analytics
+
+Stnadard Unix tools work on every table. For larger queries,
+chain filters and pagination into a single path to push the work into the database.
+
+```text
+# find shipped orders
+grep "shipped" /mnt/db/orders/*/status.txt
+
+# select specific columns via pipeline
+cat /mnt/db/orders/.filter/status/shipped\
+    /.columns/id,total,created_at/.export/csv
+
+# sum shipped order totals
+cat /mnt/db/orders/.filter/status/shipped\
+    /.columns/total/.export/csv | awk '{s+=$1} END {print s}'
+```
+
+= 2026/03/22 - Ralph and Cook
+
+#let a_020 = link(
+  "https://github.com/snarktank/ralph"
+)[#text(fill: blue)[Cook]]
+
+#let a_021 = link(
+  "https://github.com/rjcorwin/cook"
+)[#text(fill: blue)[Cook]]
+
+#a_020 \
+#a_021 \
+Source: Tou Tiao
+
+Ralph is an autonomous AI agent loo that runs AI coding tools (such as Claude Code)
+repeatly until all PRD items are complete. Each iteration is a fresh instance with
+clearn context. Memory persists via git history.
+
+Cook is a simple CLI for orchestrating Claude Code, Codex, and OpenCode. 
+It runs agents (licke Claude Code, Codex) in an automated "work → review → gate" loop
+until the task is done. It is basically an agent orchestrator for coding tasks.
+Instead of you prompt an AI once → get an answer → iterate manually, Cook does:
+- run the agent
+- review its output
+- decide whether to continue
+- repeat automatically
+
+= 2026/03/22 - Flash-KMeans
+
+#let a_022 = link(
+  "https://github.com/svg-project/flash-kmeans"
+)[#text(fill: blue)[GitHub]]
+
+#a_022 \
+Source: Hacker News
+
+KMeans is an important algorithm in AI. Flash KMeans can do it much faster.
+
+We can come back to this project when we want a faster KMeans.
+
+= 2026/03/22 - Jarvis
+
+#let a_023 = link(
+  "https://scalingintelligence.stanford.edu/blogs/openjarvis/"
+)[#text(fill: blue)[Article]]
+
+#let a_024 = link(
+  "https://github.com/open-jarvis/OpenJarvis"
+)[#text(fill: blue)[GitHub]]
+
+#a_023 \
+#a_024 \
+Source: Google
+
+This is a Personal AI project. It runs LLMs locally. Keep data locally. Runs AI locally.
+
+= 2026/03/22 - GStack
+
+#let a_025 = link(
+  "https://github.com/garrytan/gstack?ref=producthunt"
+)[#text(fill: blue)[GitHub]]
+
+#a_025 \
+Source: Google
+
+GStack is an open-source "Skill Pack" for Claude Code that turns one AI assistant into
+a team of specialized roles (CEO, Engineer, QA, etc.) to auto mate software development workflows.
+
+The core idea is "structure AI like a real engineering organization":
+- A CEO
+- An Engineering Manager
+- A QA Engineer
+- A Release Engineer
+
+All implemented as predefined "skills" (slash commands). It is basically:
+- A set of custom commands (skills) for Claude Code
+- Each command = a role + workflow pattern
+- Installed into your local dev environment or repo
+
+== Workflows
+
+A typical workflow:
+1. /plan-ceo-review → rethink problem
+2. /plan-eng-review → design solution
+3. (Claude builds feature)
+4. /review → find issues
+5. /browse → test UI
+6. /ship → deploy
+
+= 2026/03/22 - Harness Engineering
+
+#let a_026 = link(
+  "https://openai.com/index/harness-engineering/"
+)[#text(fill: blue)[OpenAI]]
+
+#let a_027 = link(
+  "https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html"
+)[#text(fill: blue)[Birgitta Bockeler]]
+
+#a_026 \
+Source: Hacker News
+
+This is an article from OpenAI. *Harness Engineering* is a new concept.
+
+= 2026/03/23 - TUI Studio
+
+#let a_027 = link(
+  "https://tui.studio/"
+)[#text(fill: blue)[WebSite]]
+
+#a_027 \
+Source: Hacker News
+
+One can build a TUI by its TUI Studio and then generate code to 6 frameworks.
+
+Reference only. Study it more when need it.
+
+= 2026/03/23 - Optimizing Content for Agents
+
+#let a_028 = link(
+  "https://cra.mr/optimizing-content-for-agents/"
+)[#text(fill: blue)[Article]]
+
+Keywords: Agent, Content \
+#a_028 \
+Source: Hacker News
+
+== Core Ideas
+
+"You should be optimizing content for agents, just as you optimize things for people.
+How you do that is an ever-evolving subject, but there are some common things we see:
+- Order of content
+- Content size
+- Depth of nodes"
+
+LLMs behave very differently when they are told information exists somewhere vs.
+having to discover it on their own.
+
+= 2026/03/23 - LLMs.txt
+
+Source: ChatGPT
+
+LLMs.txt is a proposed standard file (usually at /llms.txt) that gives LLMs a clean,
+structured summary of a website. It is typically a markdown file, placed at the root
+of a site (e.g., https://example.com/llms.txt). It contains a short description of the site,
+key links (docs, APIs, guides, etc.) and optional structure/usage hints.
+
+LLMs.txt is similar to robots.txt (tells crawlers what NOT to access), sitemap.xml
+(lists of all pages).
+
+*Example*
+```text
+# My Product Docs
+
+> Official documentation for developers
+
+## Guides
+- Getting Started: https://example.com/docs/start
+- Installation: https://example.com/docs/install
+
+## API
+- Reference: https://example.com/docs/api
+```
+
+== Docs
+
+The primary optimizations:
+
+1. Serve true markdown content - massive tokenization savings as well as improved accuracy
+2. Strip out things that only make sense in the context of the browser, especially navigation and JavaScript bits
+3. Optimize various pages to focus more on link hierarchy - our index, for example, is mostly a sitemap, completely different than non-markdown
+
+== Facts about Typst
+
+(from ChatGPT) Typst is relatively new (about 2023). It is still niche compared to markdown,
+HTML, LaTex, etc. LLMs have no problems in understanding Typst syntax but it is less robust,
+more likely to hallucinate.
+
+== Do LLMs Have Format Preferences
+
+Yes - very strong ones, in a statistical + structural efficiency sense.
+
+*Tier 1 - Best for LLMs*
+
+- Markdown
+- Plain text (well-structured)
+
+*Tier 2 - Very strong (structured)*
+- JSON
+- YAML
+
+*Tier 3 - Good but Noisy*
+
+- HTML
+- XML
+
+*Tier 4 - Specialized*
+
+- LaTex
+- Typst
+
+*Tier 5 - Bad for LLMs*
+
+- PDF
+- Word
+- PPT
+
+= 2026/03/23 - PageIndex
+
+#let a_029 = link(
+  "https://github.com/VectifyAI/PageIndex"
+)[#text(fill: blue)[GitHub]]
+
+#let a_030 = link(
+  "https://pageindex.ai/blog/pageindex-intro"
+)[#text(fill: blue)[Article]]
+
+#a_029 \
+#a_030 \
+Source: WeChat
+
+== Core Ideas
+
+It builds a `Tabel-of-Contents` tree structured index of documents. Retrieval
+is done by reasoning, or traverse through the tree.
+
+#figure(
+   image("Images/image_2026032301.png", width: 100%),
+   caption: [PageIndex (#a_029)],
+)
+
+== Overcoming the Limitations
+
+=== Query - Knowledge Space Mismatch
+
+LLMs uses reasoning to infer which section is likely to contain the answer.
+It can think about document structure.
+
+=== Semantic Similarity ≠ True Relevance
+
+Reasoning-based retrieval emphsizes contextual relevance, not just similarity.
+LLMs read Table of Contents (or Semantic Hierarchical Graph), interprets the query's intent,
+and navigates to sections that actually contain the answer, even if their
+language is different.
+
+=== Semantic Mismatch ≠ Not Relevant
+
+This is even more important than "Semantic Similarity ≠ True Relevance". 
+For instance, for the content:
+
+```text
+Table 5.3 summarizes the income, expenses, and distributions of the Reserve Banks for 2023 and 2022. Appendix G of this report, ‘Statistical Tables,’ provides more detailed information…
+```
+
+the chance to be retrieved by the query "Total value of deferred asserts" is low because
+the semantic similarity will be very low.
+
+The reasoning-based retriever can traverse the semantic tree, find the correct table,
+and returns the total deferred asset value
+=== Hard Chunking Breaks Semantic Integrity
+
+There is still chunking, but more by document structures. 
+Reasoning-based RAG retrieves semantically coherent sections (e.g., full pages, sections,
+or chapters). If the model detects that a section is incomplete, it iteratively fetches
+neighboring sections until context is sufficient.
+
+=== Inability to Integrate Chat History
+
+Retrieval is context-aware: LLms use prior conversation history to refine its understanding
+of the current question (this is very important). For instance, if the user previously
+asked about "financial assets", and now asks, "What about liabilities?", LLMs know
+the question is about the reliabilities of financial asserts. Not only that,
+it should look for reliabilities from the same document. It is up to LLMs to determine
+whether to retrieve other relevant information. This is called *Context-Aware Retrieval*.
+
+=== Poor Handling of In-Document References
+
+It is much easier to read the cross-references in the same document. Reasoning-based
+retrieval can follow references like a human reader. When it encounters a phrase
+like "see Appendix G", LLMs navigates the index tree to that section and retrieves
+the relevant data.
 
