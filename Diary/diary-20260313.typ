@@ -188,7 +188,7 @@ else:
     revert change
 ```
 
-So the entire evaluation system boils down to:
+So the entire *evaluation system* boils down to:
 
 > *minimize validation loss*
 
@@ -2848,3 +2848,26 @@ retrieval can follow references like a human reader. When it encounters a phrase
 like "see Appendix G", LLMs navigates the index tree to that section and retrieves
 the relevant data.
 
+= 2026/03/26 = Google Released Memory Compression Algorithm PolarQant
+
+#let a_031 = link(
+  "https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/"
+)[#text(fill: blue)[PolarQuant]]
+
+#a_031 \
+Source: TechCrunch
+
+It is just announced. We need to wait until it settles down. But it looks promising.
+
+= 2026/03/26 - Tokens and Transactions with AI
+
+#let a_032 = link(
+  "https://dzone.com/articles/tokens-and-transactions-with-ai"
+)[#text(fill: blue)[Article]]
+
+#a_032 \
+Source: dzone
+
+#quote(block: true, attribution:[#a_032])[
+For a database audience, the keynote underscores a fundamental shift: Data is no longer just stored and queried — it is continuously activated to power agentic systems. The talk highlights that the center of gravity is moving from traditional transactional and analytical databases toward AI-driven data platforms that unify structured, unstructured, and real-time data streams into a single operational fabric. Massive growth in AI infrastructure — driven by data center expansion and trillion-dollar-scale compute demand — signals that data systems must scale not just for queries, but for continuous inference and agent workflows. 
+]

@@ -51,17 +51,46 @@
 
 = Memory
 
-Memory is managed in files.
-- SOUL.md
-- PREFERENCE.md
-- SPECIALTIES.md
+== Definition
 
-== SOUL.md
+Memories are defined by the following properties:
+- ID (format to be determined)
+- Title
+- Create Time
+- Last Modify Time
+- Status: active, disabled, deleted
+- Recency
+- Read-Only
+- Source
+- Origin
+- Keywords
+- Categories
+- Keywords
+- Summary
+- Description
+- Content
+
+== Memory Storage
+
+Memories are stored in multiple dimensions:
+- Semantic Dimension (in SHG)
+- Time Dimension
+- Special Dimension
+
+=== Special Dimension
+
+This dimension organizes memories in specific files.
+
+==== SOUL.md
 
 It stores the basic information about a person, such as name, home address,
 phone number, spouse, children, other family members, etc.
 
-== FRIENDS.md
+==== PREFERENCE.md
+
+==== SPECIALTIES.md
+
+==== FRIENDS.md
 
 This is a list of a user's friends. Friends can be added explicitly or automatically.
 Users can say "<name> is my friend. Please remember it!"
@@ -69,16 +98,43 @@ Users can say "<name> is my friend. Please remember it!"
 To show all the fiends the agent has learned and memorized, you can say: "How all my friends in memory"
 or use the commands /memory, which should show a menu of memories. Select "friends".
 
-== INTERESTS.md
+==== INTERESTS.md
 
 This is a list of a user's interests. Interests can be added manually or automatically.
 To add an interest manually, you can say "Add \<interest\> as my interest to memory",
 or use the slash command and select memory -> interests.
 
-== Saved Memories
+=== Time Dimension - Chat History
 
-Users can ask agents to save Memory (an object). These are stored in SOUL.md.
+We may use the strategy that OpenClaw uses:
+- Store chat history in files, one per day
 
-== Chat History
+=== Semantic Dimension
 
-The 
+Memories are organized by topics (i.e., semantics).
+
+== Operations
+
+=== Add Memory
+
+Users can add memory at any time by saying: 
+```text
+Add the following to memory:
+<the content>
+```
+
+Users normally do not need to worry about how to organize (i.e., how to store) memories.
+LLMs will analyze the memory and put it into the right location in SHG.
+
+=== Delete Memory
+
+=== Enable Memory
+
+It enables disabled memory
+
+=== Disable Memory
+
+=== Query Memory
+
+== Retrieve Memories
+
