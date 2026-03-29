@@ -10,3 +10,7 @@ Codex uses the skill list provided in AGENTS.md for the current workspace/sessio
 6. If a named skill is missing/unreadable, it tells you briefly and falls back to a best-effort approach.
 
 In short: lookup comes from the preloaded skill registry in your instructions, and triggering happens by explicit mention or intent matching.
+
+# Plugins
+
+Source: https://developers.openai.com/codex/plugins

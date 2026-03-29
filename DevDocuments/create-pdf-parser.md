@@ -3,6 +3,15 @@ Use superpowers to create a PDF parser and save it in shared/go/api/parsers/pdf-
 - PDF Parser is a service, written in Go.
 - The service uses PaddleORC (https://github.com/PaddlePaddle/PaddleOCR.git) to parse PDF docs.  Note that Paddle OCR is alredy installed in ~/Workspace/ThirdParty/paddleocr (in the subdirectory PaddleOCR)
 - There is a database table: 'kb.inputs' that manages all the inputs. Each record in the table is an input, which can be a document (such as PDF, Word, Excel, PPT, text, markdown, etc.). The table has the following fields:
+- The service monitors the database table 'kb.inputs'. For 'type' = 'pdf' input, if its status does not have an entry whose "operation" is "parse", it will pick up the record and start parsing the doc.
+- Staging Directory: Input files are originally saved in the staging directory, specified by the env variable STAGING_DIR
+- Result Directory: PDF parser will generate some result files, such as one JSON file and one image for each page. Stored the result files in 'PDF_REPO_DIR/pdf_parser/record_id/', where 'PDF_REPO_DIR' is an environment variable and 'record_id' is the record's id. 
+- Backup Directory: After processing, the original file is copied to the result directory and the backup directory: DATA_BACKUP_DIR/pdf_files, where 'DATA_BACKUP_DIR' is an environment variable.
+- After parsing a PDF file, this service will update the field 'status'
+- There is an example file: /Users/cding/Workspace/ThirdParty/paddleocr/parse_pdf.py that shows how to use PaddleOCR to parse a PDF file.
+
+## kb.input Table
+
 | Field Name | Required | Explanation |
 |:-----------|:---------|:------------|
 | id | mandatory | Auto-incremented ID (integer) that identifies the record |
@@ -23,14 +32,16 @@ Use superpowers to create a PDF parser and save it in shared/go/api/parsers/pdf-
 | private_info | optional | A JSON document that stores additional private info |
 | notes | optional | Stores notes |
 | error_msg | optional | Stores error messages, such as processing error messages |
-- Status: various processing may be done on an input, such as parsing (for PDF, Word, etc.), analyzing, adding to knowledge, etc. Each operation is recorded as "operation": the type of the operation, "time": the time when the operation was performed, "status": success or failed, and "error": the error message. This field is a JSON of the following format:
+
+The field "status" is a JSON of the following format:
+```json
 [
     {"operation":"the-opr", "time":"timestamp-in-yyyymmdd hh:mm:ss", "status":"success or fail", "error":"error-msg"},
     {"operation":"the-opr", "time":"timestamp-in-yyyymmdd hh:mm:ss", "status":"success or fail", "error":"error-msg"},
     ...
 ]
-- The service monitors the database table 'kb.inputs'. For 'type' = 'pdf' input, if its status does not have an entry whose "operation" is "parse", it will pick up the record and start parsing the doc.
-- There are three directories: staging directory, repo directory, and backup directory. Input files are originally saved in the staging directory. After being processed, it is moved to the repo directory and the backup directory. The backup directory can be on a remote machine.
-- There can be multiple repo directories. When copying a file to the the file repo, the service should pick the least used repo directory, if multiple repo directories are configured.
-- After parsing a PDF file, this service will update the field 'status', copy the file to a repo directory, and back up the file to the backup directory
-- There is an example file: /Users/cding/Workspace/ThirdParty/paddleocr/parse_pdf.py that shows how to use PaddleOCR to parse a PDF file.
+```
+where:
+- 'operation' specifies the operation performed on the file, such as 'parsing', 'analyzing', 'adding to knowledge', etc.
+- 'time': the time when the operation was performed, 
+- 'status': success or failed, and "error": the error message.

@@ -2848,7 +2848,7 @@ retrieval can follow references like a human reader. When it encounters a phrase
 like "see Appendix G", LLMs navigates the index tree to that section and retrieves
 the relevant data.
 
-= 2026/03/26 = Google Released Memory Compression Algorithm PolarQant
+= 2026/03/26 - Google Memory Compression Algorithm PolarQant
 
 #let a_031 = link(
   "https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/"
@@ -2870,4 +2870,314 @@ Source: dzone
 
 #quote(block: true, attribution:[#a_032])[
 For a database audience, the keynote underscores a fundamental shift: Data is no longer just stored and queried — it is continuously activated to power agentic systems. The talk highlights that the center of gravity is moving from traditional transactional and analytical databases toward AI-driven data platforms that unify structured, unstructured, and real-time data streams into a single operational fabric. Massive growth in AI infrastructure — driven by data center expansion and trillion-dollar-scale compute demand — signals that data systems must scale not just for queries, but for continuous inference and agent workflows. 
+
+A key theme is the rise of “agentic architectures,” where data is embedded, indexed, and retrieved dynamically to support reasoning systems, making vector search, hybrid retrieval, and multimodal indexing first-class primitives. The keynote also implicitly reframes databases as part of an end-to-end AI stack — tightly coupled with compute, models, and orchestration layers — rather than standalone systems. This creates pressure on databases to evolve toward low-latency, context-aware, and semantically rich data access patterns.
 ]
+
+The most *important* take away from it:
+#quote(block: true, attribution:[#a_032])[
+  Finally, the emerging paradigm suggests that competitive advantage will hinge on how effectively platforms can turn raw data into actionable intelligence for autonomous agents, blending transactions, analytics, and AI into a unified system of execution.
+]
+
+From database evolvution point of view, databases "have to go beyond their roots and handle unstructured data - pure text,
+PDFs, images, and more. Time for databases to be reinvented. Again!"
+
+== Single Operational Fabric
+
+What is the `single operational fabric`? Is it still a database, or a legacy database (such as relational databases,
+graph databases, document-based databases, etc.)? A database that stores data in a propriatory format that no LLMs 
+can understand without additional helping mechanisms?
+
+In the era of AI, things should be designed not just for humans but for AI (or Agents). For databases, most legacy 
+databases require special way to access and manipulate, such as SQL for relational databases, JSON (ElasticSearch,
+MongoDB, etc.), Cypher (Neo4j), etc. They are not for agents.
+
+To turn them into a format that agents can understand and, more importantly, explore, an easy and straightforward way
+is to use plain text files. Legacy databases may still be needed and critical, but this file-based `single operational fabric`
+is equally important.
+
+I would imagine that there will be two `parallel` data stores: levacy database systems and file-based plain data store.
+The former is for the legacy apps and systems and the latter for agents and future agantic apps/systems.
+
+== Structured, Unstructured, Real-Time Data
+
+The file-based plain data store can easily combine structured, unstructured and real-time data into a uniform
+store. Note that in agents, there are no structured or unstructured. The only that that matters for agents is
+`understandability`. Agents (i.e., LLMs) are good at understanding natural languages (unstructured). Structured
+data need to be enriched with semantics. For instance, row-based relational databases can only be operated 
+through SQL but column-based relational databases can be stored in plain files.
+
+== Databases or Files
+
+The most critical question is: Shall we keep on using databases or we should consider files, too?
+Databases provide very important and useful data management functions and features, such as ACID,
+indices, scalability, reliability, etc. These are important not only to legacy apps but to agents, too.
+
+If this is the case, why we want to use files?
+
+== Token vs Transaction Computing
+
+"Enterprise computing has long been built around transactions - Boolean algegra over ACID. In other words,
+deterministic units of work are executed over structure data. Recent advances in AI, however,
+introducte a complementary unit of computation: tokens. *Tokens represent language, context, and reasoning*,
+enabling systems to interpret unstructured data and perform multi-step inference."
+
+== System of Records vs System of Cognition
+
+Enterprise systems have historically been defined by transactions and analytics (via data warehouses).
+A transaction encapsulates a unit of business logic. Analytical databases are optimized for analyzing large
+volumes of data to discover business insights.
+
+*Tokens* are the atomic units of language models. They represent fragments of meaning.
+
+Three critical components of token computing:
+- Information
+- Context
+- Reasoning
+
+SQL never considers 'context'. This is not a problem because this is exactly what it is designed for.
+There is no 'semantics' in SQL, nor needed. SQL is syntactical, deterministic, and structural. 
+It should be used when LLMs know exactly what they need and how a database is defined and constructed.
+When LLMs are not sure exactly how to retrieve/find relevant information (or LLMs need to explore instead
+of querying), especially when LLMs are not sure exactly whether and how the information they are looking
+for is stored in databases, a less strict data store that is intentially designed to `explore` instead of
+`query` can be critical.
+
+File-based stores are better suited for exploration, while databases are optimized for precise querying.
+Files are not "designed" for exploration - they are unconstrained enough to allow it.
+
+SQL, on the other hand, is syntactical, deterministic and structural. It has no semantics. SQL is best
+suited when you (or LLms) know what exists, where it is stored and how it is structured.
+
+When these assumptions are broken, or when LLMs do not know what tables to look for, what columns
+may contain the information it is looking for, how data are encoded, especially how data are
+broken up (due to database normalization) and how to join them, it is difficult (or brittle) for LLMs to 
+use SQL to get what they need. They may get wrong joins, missed data, hallucinated schema assumptions.
+This is where `exporation` shines.
+
+File-based stores enable exploration because they defer structure and semantics to interpretation time (by humans or LLMs), whereas databases require structure and semantics to be defined upfront for precise querying.
+
+*Files* have properties that support exploration.
+
+=== Self-contained meaning
+
+A file often carries structure and semantics together
+
+Example:
+
+```markdown
+# Order Processing
+
+We retry failed payments up to 3 times...
+
+No schema lookup needed.
+```
+
+=== Redundancy and Narrative
+
+Files are often:
+
+- verbose
+- repetitive
+- explanatory
+
+That’s bad for databases, but great for LLMs.
+
+=== Fuzzy Access Is Allowed
+
+You can:
+
+- keyword search
+- semantic search (embeddings)
+- skim multiple files
+
+Instead of:
+```sql
+SELECT ...
+```
+
+you do:
+```text
+“Find anything related to payment retries”
+```
+
+=== No Strict Contract
+
+Databases enforce:
+
+- schema
+- types
+- constraints
+
+Files allow:
+
+- partial info
+- inconsistent structure
+- evolving formats
+
+That flexibility enables exploration.
+
+*IMPORTANT* Files are not designed for exploration. They are schema-light, loosely structured artifacts that LLMs can
+reinterpret dynamically
+
+The real “exploration system” is:
+```text
+LLM + retrieval (search / embeddings / ranking)
+```
+
+=== A more precise model
+
+Instead of:
+```text
+Files = exploration
+DB = query
+```
+
+A better model is:
+
+Two axes:
+#table(align: left, columns: 3,
+[Dimension], [Files], [Databases],
+[Structure], 	[loose], [strict],
+[Access mode], 	[retrieval/search], [query],
+[Semantics], 	[embedded in text], [externalized in schema],
+[Determinism], 	[low], [high]
+)
+
+=== Real Distinction
+
+The deeper truth is:
+
+Databases → schema-first systems
+- meaning defined upfront
+- access via formal language (SQL)
+
+File + LLM → interpretation-first systems
+- meaning inferred at runtime
+- access via natural language + retrieval
+
+
+=== The Emerging Hybrid Pattern: Exploration Engine
+File-based stores lead to a powerful pattern:
+
+*Phase 1: Exploration (files)*
+- discover concepts
+- understand domain
+- locate relevant signals
+
+*Phase 2: Formalization (DB)*
+- define schema
+- enforce constraints
+- run precise operations
+
+Modern systems increasingly look like:
+
+```text
+[ Raw knowledge: files ]
+        ↓ (embedding/search)
+[ Exploration: LLM reasoning ]
+        ↓ (structuring)
+[ Database: system of record ]
+```
+
+This pattern encourages: *Exploration → then Query*
+
+- SQL world: “Truth is structured, find it precisely.”
+- LLM world: “Truth is messy, approximate it through context.”
+
+Both are valid — for different stages of knowing.
+
+= JSONata
+
+#let a_033 = link(
+  "https://github.com/jsonata-js/jsonata"
+)[#text(fill: blue)[GitHub]]
+
+#let a_034 = link(
+  "https://www.reco.ai/blog/we-rewrote-jsonata-with-ai"
+)[#text(fill: blue)[Article]]
+
+#let a_035 = link(
+  "https://blog.cloudflare.com/vinext/"
+)[#text(fill: blue)[CloudFlare]]
+
+#a_033 \
+#a_034 \
+#a_035 \
+Source: Hacker News
+
+This is an open-source project that implements a query langlage. It can be used to query
+big JSON docs.
+
+JSONata was originally implemented in TypeScript. In the author of #a_034 system, it
+costed about \$300K/year to use it because for each call, it needs to serialize it
+(they are using Go in the backend), sends it through the network, then retrieves
+the results from the network and unserializes it.
+
+It uses AI to re-write JSONata in Go. About 7 hours later, 13,000 lines of Go with
+1,778 passing test cases. Total token cost: \$400.
+
+The ROI? Previously, the system spends about \$25K per month. Now, it costs \$0.
+
+Another important improvement they observed: the initial implementation, it spins 
+up tens of thousands of goroutines to maximize concurrency (with all the added
+resources) in what would otherwise be a straightforward pipeline of micro-batches.
+That resulted in execssive memory and high CPU contention. 
+
+They optimized this portion (possibly through just-in-time batching). The results
+are: another \$18K/month off the bill.
+
+*Try It*
+```go
+go get github.com/recolabs/gnata
+
+expr, _ := gnata.Compile(`user.role = "admin" and user.loginCount > 100`)
+
+json := []byte(`{
+  "user": {
+    "email": "admin@example.com",
+    "role": "admin",
+    "loginCount": 247
+  }
+}`)
+
+result, _ := expr.EvalBytes(ctx, json)
+fmt.Println(result) // true
+```
+Actions: A candidate to add to DeepDoc.
+
+= 2026/03/28 - Matadisco
+
+#let a_035 = link(
+  "https://matadisco.org/"
+)[#text(fill: blue)[Article]]
+
+#a_035 \
+Source: Hacker News
+
+This is an open-source project using AT Protocol to publish data and retrieve data.
+For more information, refer to the HyperStore.typ.
+
+= 2026/03/28 - jai
+
+#let a_036 = link(
+  "https://jai.scs.stanford.edu/"
+)[#text(fill: blue)[Article]]
+
+#a_036 \
+Source: Hacker News
+
+Refer to /Users/cding/Workspace/KnowledgeStore/AI/JAI-LightWeightSandbox.md
+
+= 2026/03/28 - HyperAgents
+
+#let a_037 = link(
+  "https://github.com/facebookresearch/hyperagents"
+)[#text(fill: blue)[Article]]
+
+#a_037 \
+Source: Hacker News
+
+This is a Self-referential self-improving agents that can optimize for any computable task.
+
+
