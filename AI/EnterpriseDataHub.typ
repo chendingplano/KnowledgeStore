@@ -33,7 +33,8 @@
 #table(align: left, columns: 2,
   [Date], [Explanation],
   [2026/03/25], [Created, AIStore],
-  [2026/03/27], [Changed name from AIStore to HybridBase]
+  [2026/03/27], [Changed name from AIStore to HybridBase],
+  [2026/03/29], [Changed name from HybridStore to EnterpriseDataHub.typ]
 )
 
 #show heading: it => {
@@ -85,6 +86,8 @@
 
 = Hybrid Store
 
+== Design Principles
+
 It is a trend that AI systems tend to use files instead of databases. Databases provide very important and useful data
 management fucntions and features, such as ACID, indices, scalability, reliability, etc. These are important not only to
 legacy apps but to agents, too. But why many AI systems (LLMs, Agents) prefers file systems instead of databases?
@@ -92,6 +95,54 @@ legacy apps but to agents, too. But why many AI systems (LLMs, Agents) prefers f
 The short answer: *agents don’t inherently prefer files over databases* — they default to files because files match how LLMs
 *think, access context, and operate in simple environments*. Databases still matter a lot, but they solve a
 *different layer* of the problem.
+
+=== Principle 01: A Data Store for Both Human Users and Computers
+
+Most conventional systems, such as databases, applications, data structures (JSON, XML, etc.),
+HTML (web pages), PDF, Word, Excel, etc., are designed either for human users or computers.
+Enterprise Data Hub (EDH) provides a data store that is friendly for both human users and
+computers.
+
+=== Principle 02: Memory and Context
+
+Conventional systems mostly do not have the concept of context or memory (`Brain Memory`, not
+computer memory). EDH treats memory and context the same as data. They are just another form
+of data.
+
+=== Principle 03: Semantics
+
+A database table is a collection of records. There is no `standard` way of specifying 
+the meaning (i.e., semantics) of a table. This may not a big issue for databases because
+the real users of databases are humans. That is, it is human users who understand the meaning
+of a table, write statements to access the table, possibly through `standard` languages
+such as SQL, JSON, MCP, etc.
+
+EDH provides an array of mechanisms to enrich data stores with semantics, such as:
+- CLAUDE.md (from Claude Code)
+- SKILL.md (describe skills)
+- SOUL.md (from OpenClaw)
+- AGENT.md (describing agents)
+- READ.md (serving as an introduction to an entity or a package)
+- Sitemap (from HTML, describe the structure of a web site)
+- Robots.txt (from HTML, communicating a web site with crawlers)
+- And so on
+
+EHD does not enforce any of these, but it supports most of it.
+
+=== Principle 04: `Data IP Address`
+
+It is very close to `IP Addresses`:
+- Pure Digit strings (for machines), printed in the dot-notation (for human users)
+- Routable
+- Standardized
+- Compact and efficient
+- Huge Address Space (not suffering from IPv4 problems)
+
+This is called Docids (@ref-docid).
+
+=== Principle 05: Multi-Tenant
+
+EHD supports multi-tenants. Refer to @sec-multi-tenant
 
 == LLMs are `context machines,` not `query engines`
 
@@ -120,7 +171,6 @@ query DB → serialize rows → reformat → inject into prompt
 ```
 
 Files are *closer to the LLM’s native interface (text)*.
-
 
 == Simplicity and Aero Infrastructure
 
@@ -207,12 +257,76 @@ SELECT name, preference FROM customer_preferences ...
 
 Files are closer to *semantic documents*, which LLMs understand better.
 
+== Docids <ref-docid>
+
+Every data item is assigned a docid. There are three types of docids: 
+- Docid-8 (8-bytes unsigned integer) 
+- Docid-12 (12-bytes unsigned integer)
+- Docid-16 (16-bytes unsigned integer)
+
+*Docid Format*
+
+Docids have two parts:
+- Docid Type: the highest 8 bits
+- Address: the remaining bits
+
+*Docid-8* Format
+```text
+  Type Bits: 8 bits, 00xxxxxx, xxxxxx not used, can be used for customization
+  Cube ID: 8 bits, support up to 256 Cubes
+  Shard ID: 12 bits, support up to 4096 shards per cube
+  Offset: 36 bits, support up to 64 billion data entries per shard
+```
+
+Docid-8 address space is 2**62 (about 4 zillions)
+
+*Docid-12* Format
+
+Docid-12 docids are the same as Docid-8 except that Docid-12 supports multi-tenants,
+while Docid-8 is used for single-tenant.
+
+```text
+  Type Bits: 8 bits, 01xxxxxx, xxxxxx not used, can be used for customization
+  TenantID: 32 bits, support up to 4 billion tenants
+  Cube ID: 8 bits, support up to 256 Cubes
+  Shard ID: 12 bits, support up to 4096 shards per cube
+  Offset: 36 bits, support up to 64 billion data entries per shard
+```
+
+== Multi-Tenant <sec-multi-tenant>
+
+Data for different tenants are physically isolated. Users of one tenant cannot `physically`
+see files owned by users of another tenant unless data entries are explicitly marked
+as `public` or `shared`.
+
+=== Tenants
+
+A tenant is assigned a globally unique TenantID (an integer).
+
+=== Public Data Entries
+
+Files whose names are ended with "_pub" (for snake case) or "Pub" (for Pascal case)
+are treated as public data entries.
+
+(TBD).
+
+=== Assigning Docids
+
+Docids are assigned by the system automatically. Depending on how a data entry is created,
+docids are assigned differently.
+
+*By API*
+
+When an API is called to add a data entry, the system will automatically assign a docid
+to it.
+
+
 == Retrieval is shifting from SQL → embeddings + files
 
 A big shift:
 
-- Old world: **index → SQL query → rows**
-- Agent world: **embed → vector search → text chunks**
+- Old world: *index → SQL query → rows*
+- Agent world: *embed → vector search → text chunks*
 
 This stack often looks like:
 
@@ -220,7 +334,7 @@ This stack often looks like:
 files → chunk → embeddings → vector DB
 ```
 
-Even when a “database” is used (like vector DBs), the **source of truth is still files**.
+Even when a “database” is used (like vector DBs), the *source of truth is still files*.
 
 Files become the *canonical knowledge layer*.
 
@@ -238,7 +352,7 @@ Files + Git give you:
 
 That covers a surprising amount of what apps need.
 
-For many agent workflows, **Git replaces parts of a database**.
+For many agent workflows, *Git replaces parts of a database*.
 
 == Where databases still dominate (and should)
 
@@ -403,6 +517,11 @@ Hybrid Store is similar to data lake. The differences between data lakes and Hyb
 that data lakes are still designed for legacy applications, but Hybrid Store is mainly designed
 for human users and, more importantly, agents.
 
+#figure(
+   image("Images/image_2026032901.png", width: 100%),
+   caption: [Schema Migration (#a_26032901)],
+)
+
 == Explorability
 
 - What do we mean by explorability?
@@ -519,3 +638,28 @@ record matadisco {
     },
 }
 ```
+
+== 2026/03/29 - Building Centralized Master Data Hub
+
+#let a_26032901 = link(
+  "https://dzone.com/articles/centralized-master-data-hub"
+)[#text(fill: blue)[Article]]
+
+#a_26032901 \
+Source: dzone
+
+It is a central data hub for master data, not real data. This is different from Matadisco,
+which provides a central hub for metadata, not the data itself.
+
+- Central ownership of master data
+- Canonical, version-controlled schemas
+- API-only access to master data
+- Strong governance and auditability
+
+I am not sure whether we want API-only access. API-only accesses are biased toward machines,
+not human users.
+
+Instead of API-access only, if we offer files, or file-based accesses, it is good for
+both human users and machines (and AI).
+
+There is a trend to treat file-systems as API (refer to )

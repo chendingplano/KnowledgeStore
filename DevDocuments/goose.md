@@ -1,7 +1,7 @@
 # Goose Database Migration Module
 
-**Package path:** `github.com/chendingplano/shared/go/api/goose`
-**Source:** [`shared/go/api/goose/goose.go`](../../go/api/goose/goose.go)
+**Package path:** `github.com/chendingplano/shared/go/api/goose` \
+**Source:** [`shared/go/api/goose/goose.go`](../../go/api/goose/goose.go) \
 **Upstream:** [`github.com/pressly/goose/v3`](https://github.com/pressly/goose)
 
 This module wraps the [pressly/goose](https://github.com/pressly/goose) migration library and integrates it with the shared library's global database connections and `JimoLogger`. Applications that use `databaseutil.InitDB` can run migrations with as little as three lines of code.
@@ -104,38 +104,52 @@ ALTER TABLE documents DROP COLUMN IF EXISTS tags;
 
 If rolling back a migration is not meaningful (e.g. dropping a column that no longer exists), omit the `-- +goose Down` section entirely. Goose will return an error if `Down()` is called on such a migration.
 
----
+### Tracks
 
-## Configuration
+There are three migration tracks:
+- Project Track
+- Shared Track
+- Autotest Track
 
+#### Project Track
+
+Each project has its own migration track. This track is created in main.go, such as (it creates both the project track and shared track):
 ```go
-type Config struct {
-    // MigrationsFS is the filesystem that contains the .sql migration files.
-    // Defaults to os.DirFS("migrations") when nil.
-    // Can also be fs.Sub(embedFS, "migrations") for an embedded filesystem.
-    MigrationsFS fs.FS
+	project_db = ApiTypes.ProjectDBHandle
+	if project_db == nil {
+		logger.Error("project db is not set. System exit!!!!", "db_type", dbType)
+		os.Exit(1)
+	}
 
-    // MigrationsDir is the actual path to the migrations directory on disk.
-    // Defaults to the MIGRATION_DIR environment variable, or "migrations" if unset.
-    // Required when using CreateMigration or CreateAndApply; ignored otherwise.
-    // Must point to the same directory that MigrationsFS reads from.
-    // Example: "migrations" or "/app/migrations"
-    MigrationsDir string
+	logger.Info("Start Project Migrations")
+	err = sharedgoose.RunProjectMigrations(ctx, logger, migrate_cfg, project_db)
+	if err != nil {
+		logger.Error("failed to run project migrator. System exit!!!!", "error", err)
+		os.Exit(1)
+	}
 
-    // TableName overrides the version-tracking table name.
-    // Default: "goose_db_version"
-    TableName string
-
-    // Verbose enables verbose output from the goose library.
-    // Default: true
-    Verbose bool
-
-    // AllowOutOfOrder permits applying migrations whose version is lower
-    // than the current database version. Useful with feature branches.
-    // Default: true
-    AllowOutOfOrder bool
-}
+	logger.Info("Start Shared Migrations")
+	err = sharedgoose.RunSharedMigrations(ctx, logger, migrate_cfg, project_db)
+	if err != nil {
+		logger.Error("failed to run shared migrator. System exit!!!!", "error", err)
+		os.Exit(1)
+	}
 ```
+
+Project track keeps tracking schema changes on the project. It uses the following environment variables:
+| Name | Default | Explanation |
+|:-----|:--------|:------------|
+| PG_SCHEMA_NAMES | `public,shared` | Two schemas: public and shared |
+| PROJECT_MIGRATION_FS | `project_migrations` | Project migration file system |
+| PROJECT_MIGRATION_DIR | `project_migrations` | Project migration dir |
+| PG_MIGRATION_TNAME_PROJECT | `project_db_migrations` | Project migration table name |
+| SHARED_MIGRATION_FS | `shared_migrations` | Shared migration file system |
+| SHARED_MIGRATION_DIR | `shared_migrations` | Shared migration dir |
+| PG_MIGRATION_TNAME_SHARED | `shared_db_migration` | Project migration table name |
+| AUTOTESTER_MIGRATION_FS | `autotester_migrations` | Autotester migration file system |
+| AUTOTESTER_MIGRATION_DIR | `autotester_migrations` | Autotester migration dir |
+| PG_MIGRATION_TNAME_AUTOTESTER | `autotester_db_migration` | Autotester migration table name |
+---
 
 > **Why two separate fields?** `MigrationsFS` is a read-only `fs.FS` interface (which may be an embedded binary FS with no path on disk). `MigrationsDir` is the real filesystem path needed to *write* new files. When using `os.DirFS`, set both to the same directory path.
 
@@ -152,9 +166,34 @@ Embed your migration files into the binary so you never have to worry about depl
 ```
 myapp/
 ├── main.go
-└── migrations/
+└── project_migrations/
     ├── 20240101000001_create_users.sql
     └── 20240215143000_add_email_index.sql
+└── shared_migrations/
+    ├── 20240101000001_create_users.sql
+    └── 20240215143000_add_email_index.sql
+└── autotester_migrations/
+    ├── 20240101000001_create_users.sql
+    └── 20240215143000_add_email_index.sql
+```
+
+**Database Tables**
+There should be two databases:
+```text
+<project_db>
+    ├── Schema: public
+        ├── project_db_migrations
+        ├── project table 1
+        ├── project table 2
+        ├── ...
+    ├── Schema: shared
+        ├── project_db_migrations
+        ├── shared table 1
+        ├── shared table 2
+        ├── ...
+<autotester> 
+    ├── Schema: public
+        ├── autotester_db_migrations
 ```
 
 **Code:**

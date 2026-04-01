@@ -10,6 +10,8 @@ Link: ```url https://sitandr.github.io/typst-examples-book/book/basics/tutorial/
 | - | bullet list |
 | + | numbered list |
 | $...$ | formula |
+| Content \<ref-xxx\> | Create an in-doc reference point |
+| For xxx, refer to @ref-xxx | Reference to a reference point |
 
 ## Link
 ```text

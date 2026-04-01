@@ -1,0 +1,41 @@
+Use superpowers skill
+
+<Purpose>Given an input text file, use an LLM to analyze the content, break the content into chunks, extracts topics each chunk covers, create a 'Semantic Chunk' for each chunk and save each semantic chunk in a separate file</task>
+
+<Input>A text file. Each line is either an empty line or in the following format:
+   line-number type content coordinate
+where 
+  - 'page-no': an optional integer. If present (> 0), it is the page number of the content in its original document. page-no = 0 means there is no page number.
+  - 'line-number' is the line numbers: 1, 2, ...
+  - 'type' specifies the type of content. Its possible values are:
+    a. 'title': for chapters, sections, sub-sections, etc.
+    b. 'text': paragraphs
+    c. 'formula': for formulas
+    d. 'table': for tables
+  - 'content' is an ASCII string that is ended with a new line character ('\n') and no new line characters are inside the string.
+  - 'coordinate': optional. If present, it is the bounding box [x1, y1, x2, y2] of the content in the original file (normally an image or a PDF document). Empty string or "[]" indicate there is no coordinate.
+</Input>
+
+<Topic>
+Topics are centrally managed. A topic has the following attributes:
+- TopicName: a string that uniquely identifies a topic
+- Keywords: a group of keywords used for searching topics
+- Description: the description of the topic
+- Remarks: additional information about the topic
+- Vector: the embedding of the topic (i.e., topic description)
+- CreateTime: the time when the topic is created
+- Creator: it is either the LLM name if it is created by an LLM or user name if it is created by a human user
+
+</Topic>
+
+<SemanticChunk>
+A semantic chunk has the following attributes:
+- TopicName: identifies the topic. 
+- Keywords: a group of keywords to  
+
+</SemanticChunk>
+<ProcessLogic>
+- Step 1: Use an LLM to analyze the input. Note that the input may be quite big.
+- Step 2: Break the content into chunks, based on document structure (chapter, section, subsection, etc.). Keep each chunk with reasonable size, with some overlapping content.
+- Step 3: For each chunk, extracts the topics it covers. A chunk may cover more than one topic.
+- Step 4: Generate a 'Semantic Chunk'

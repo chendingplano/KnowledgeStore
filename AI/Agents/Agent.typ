@@ -6,6 +6,20 @@
 #show quote: set pad(x: 1em)
 #show raw.where(block: true): block.with(fill: luma(240), inset: 1em, radius: 0.5em, width: 100%)
 
+#set page(numbering: "i")
+#counter(page).update(1)
+
+= Table of Contents
+#outline()
+#pagebreak()
+
+= List of Figures
+#outline(
+  title: [],
+  target: figure.where(kind: image),
+)
+#pagebreak()
+
 #show heading: it => {
   set text(fill: blue) if it.level == 1
   if it.numbering != none {
@@ -36,6 +50,10 @@
 
 #show heading.where(level: 4): set text(size: 12pt)
 #show heading.where(level: 4): it => pad(top: 4pt, it)
+
+#set page(numbering: "1")
+#counter(page).update(1)
+#counter(heading).update(0)
 
 // #table(
 //  columns: 3,
@@ -148,7 +166,7 @@ I am thinking about making agent loops as modules that can be configured and cha
 
 Need to investivate the differences and details about agent loops.
 
-=== What Makes AI Assistant Different
+=== What Makes AI Assistant Different aaa
 
 Agent loop is at the heart of agents. But, on the other hand, agent loops are very abstractive, 
 agnostic about the domain, the purpose, and many other nuances of agents. 
@@ -178,6 +196,66 @@ The short answer is: NO!
 
 Because what matters is not the parts, but how they are composed and controlled.
 Even with identical LLM + tools + skills, agents can behave very differently du to many factors.
+
+=== Explorability <explorability>
+
+(TBD)
+
+=== `Brain`
+
+Harness will completement LLMs with local knowledge. This is used to be handled by RAG.
+Harness turns things around. Instead of using RAG to find the relevant information for LLMs,
+Harness manages the `external knowledge` in such a way that LLMs can effectively explore
+the knowledge base for the things they need.
+
+Knowledge base used to be handled by tools, such as vector databases, graph databases, 
+search engines (such as ElasticSearch) or even relational databases. They may still be important,
+but these are difficult to use and not designed for LLMs.
+
+File-based knowledge are much more explorable than these tools.
+
+=== Knowledge Base
+
+==== Diversity
+
+Knowledge Base should cover wide range of content, including:
+- Text
+- Documents
+- Web Pages (HTML)
+- Structured Data (JSON, XML, Markdown, Typst, LeTex, etc.)
+- Videos
+- Audios
+- Images
+- Chat history
+- Social Network Content
+- Blogs
+- ...
+
+==== Easy-to-Use
+
+Users can simply drop-to-knowledge.
+
+==== Read-Time
+
+Content becomes `knowledge` in real-time. The moment when new content is added into the system,
+it becomes `knowledge` nearly instantly.
+
+==== Knowledge Graph
+
+Semantic Entities (or entities for short) are connected in many dimensions:
+- Similarity
+- Workflow (can be useful for reasoning)
+- The opposite
+- and so on
+
+This is called `Knowledge Graph` (KG).
+
+==== Explorability
+
+Knowledge Base must support explorability (refer to @explorability)
+=== Multi-Agents
+
+(TBD)
 
 === Prompting / System Design
 
@@ -281,6 +359,22 @@ other agents try to solve all the warnings, including linting.
 
 Different agents may chunk (break down) problems differently.
 
+=== Testability
+
+(TBD)
+
+=== Heartbeat
+
+(TBD)
+
+=== Selv-Evolving
+
+(TBD)
+
+=== Trainability
+
+(TBD)
+
 == Tools
 
 Most agents work with a fixed set of tools to use. 
@@ -349,7 +443,7 @@ For more information about harness, please refer to HarnessEngineering.typ.
 #a_031
 
 #figure(
-  image("./Agent_image_01.png", width: 100%),
+  image("Images/image_2026032501.png", width: 100%),
   caption: [Multi-Agent Architecture (#a_031)],
 )
 

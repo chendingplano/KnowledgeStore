@@ -3180,4 +3180,84 @@ Source: Hacker News
 
 This is a Self-referential self-improving agents that can optimize for any computable task.
 
+= 2026/03/29 - Go Library: fsnotify
 
+#let a_038 = link(
+  "https://github.com/fsnotify/fsnotify"
+)[#text(fill: blue)[GitHub]]
+
+#a_038 \
+Source: Hacker News
+
+This is a Go library that provides cross-platform filesystem notifications on Windows,
+Linux, MacOS, BSD, and illumos.
+
+= 2026/03/29 - Git Model for Databases
+
+#let a_039 = link(
+  "https://datahike.io/notes/the-git-model-for-databases/"
+)[#text(fill: blue)[Article]]
+
+#a_039 \
+Source: Hacker News
+
+- Every write (transaction) produces a new snapshot. A snapshot is a snapshot of 
+  the database at the time of retrieving, plus the changes your process is making.
+- Branching: fork a database, make changes in isolation, merge back when ready.
+  This is the way how GIT works.
+- History: Most databases offer snapshot
+  isolation through MVCC, but those snapshots are ephemeral - garbage collected
+  after transaction commits. Datahike do not change snapshots (it appears). 
+  It keeps history by default. Every past state is addressable.
+- Create New Snapshot: I guess this is the way how it works: the database creates
+  a new snapshot at certain boundary or time. When a read wants to retrieve a
+  snapshot of the database, it can retrieve the current active snapshot plus 
+  the change history since the snapshot.
+
+= 2026/03/31 - Ollama and MLX
+
+#let a_040 = link(
+  "https://ollama.com/blog/mlx"
+)[#text(fill: blue)[Article]]
+
+#a_040 \
+Source: Hacker News
+
+Ollama 0.19 now runs faster on MacOS chips by leveraging Apple's MLX.
+
+= 2026/03/31 - Claude Code Token Efficiency
+
+#let a_041 = link(
+  "https://github.com/drona23/claude-token-efficient"
+)[#text(fill: blue)[Article]]
+
+#a_041 \
+Source: Hacker News
+#quote(block: true, attribution:[#a_041])[
+When you use Claude Code, every word Claude generates costs tokens. Most people never control how Claude responds - they just get whatever the model decides to output.
+
+By default, Claude:
+
+Opens every response with "Sure!", "Great question!", "Absolutely!"
+Ends with "I hope this helps! Let me know if you need anything!"
+Uses em dashes (--), smart quotes, Unicode characters that break parsers
+Restates your question before answering it
+Adds unsolicited suggestions beyond what you asked
+Over-engineers code with abstractions you never requested
+Agrees with incorrect statements ("You're absolutely right!")
+]
+
+All we need to do is to replace CLAUDE.md from this open-source project.
+
+= 2026/03/31 - Google Time Series Foundation Model
+
+#let a_042 = link(
+  "https://github.com/google-research/timesfm"
+)[#text(fill: blue)[Article]]
+
+#a_042 \
+Source: Hacker News
+
+TimesFM 2.5 (Released Sept. 2025) has only 200M parameters (down from 500M).
+
+Not sure how to use it. Not sure whether we need it.

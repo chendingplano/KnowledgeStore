@@ -378,7 +378,6 @@ Add the following environment variables in your project ```text mise.local.toml`
 PG_USER_NAME = "admin"
 PG_PASSWORD = "<password"
 PG_DB_NAME = "<project_db_name>"
-PG_DB_NAME_SHARED = "<shared_db_name>"
 PG_DB_NAME_AUTOTESTER = "<autotester_db_name>"
 PG_HOST = "127.0.0.1"
 PG_PORT = "5432"
