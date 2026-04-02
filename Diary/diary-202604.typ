@@ -131,3 +131,38 @@ Below is an example:
 )
 
 This is still in an alpha release. We can wait for it to mature. Not sure whether we can use it or not.
+
+= 2026/04/02 - Pretex
+
+#let a_0201 = link(
+  "https://github.com/chenglou/pretext"
+)[#text(fill: blue)[GitHub]]
+
+#a_0201 \
+Source: Hacker News
+
+This is an open-source TypeScript library to render text around objects.
+
+= 2026/04/02 - Let Codex Work for You 24 Hours
+
+#let a_0403 = link(
+  "https://github.com/thu-nmrc/OpenHarness-For-Codex"
+)[#text(fill: blue)[GitHub]]
+
+#a_0403 \
+Source: WeChat
+
+This is a Python code. Can be integrated with OpenClaw, to make Codex work for you 24 hours a day.
+
+One thing to notice that it has a file MISSION.md. You express what you want to do in this
+markdown doc. This is quite important.
+
+= 2026/04/02 - LangChain DeepAgents Harness
+
+#let a_0404 = link(
+  "https://mp.weixin.qq.com/s/jnKW_jxGbvlMzrW_T2GJ1A"
+)[#text(fill: blue)[Article]]
+
+This article uses LangChain DeepAgents to develop a `Harness`. When I have time, I may need to look at it.
+
+

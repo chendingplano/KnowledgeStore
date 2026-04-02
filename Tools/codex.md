@@ -11,6 +11,10 @@ Codex uses the skill list provided in AGENTS.md for the current workspace/sessio
 
 In short: lookup comes from the preloaded skill registry in your instructions, and triggering happens by explicit mention or intent matching.
 
+# AGENTS.md
+
+Codex uses AGENTS.md (similar to CLAUDE.md for Claude Code).
+
 # Plugins
 
 Source: https://developers.openai.com/codex/plugins

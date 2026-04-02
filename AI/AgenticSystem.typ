@@ -66,9 +66,6 @@
 //   caption: [Hardware setup (#a_030105)],
 // )
 
-#let r_001 = link(
-  "https://dzone.com/articles/ai-agents-vs-llms-choosing-the-right-tool-for-ai-t"
-)[#text(fill: blue)[AI Agents vs LLMs: Choosing the Right Tool for AI Tasks]]
 
 = Agent
 
@@ -330,6 +327,21 @@ This is where systems like coding agents really differ.
 
 This is often called Outcome-Oriented (vs. Response-Oriented).
 
+#let r_002 = link(
+  "https://mp.weixin.qq.com/s/jnKW_jxGbvlMzrW_T2GJ1A"
+)[#text(fill: blue)[LangChain DeepAgents and Harness]]
+
+LangChain DeepAgents (#r_002) has a HumanEval that has 160+ manually created checks.
+One can use these checks to determine the quality of the code created by AI.
+
+Karparthy (ref?) Autoresearch is another example. The main idea is to automate
+a process or a loop. In each iteration, it tries to improve the system, then run the valuation
+to determine to keep the changes (getting better) or abandon the changes (no improvements
+or getting worse).
+
+The most critical part is the evaluation package. Different applications, skills or
+the objects to create may require different evaluation criteria. 
+
 === Execution Environment
 
 Even if skills are the same:
@@ -374,6 +386,18 @@ Different agents may chunk (break down) problems differently.
 === Trainability
 
 (TBD)
+
+=== Tasks
+
+In the current framework, there are:
+- Agents
+- Skills
+- Plugins
+
+Different agents implement different harness for a specific type of tasks. I am not sure what plugins
+really are.
+
+What is *Task*?
 
 == Tools
 
@@ -566,5 +590,11 @@ A simple rule helps here: if you can clearly describe the task as a single quest
 
 == References
 
+#let r_001 = link(
+  "https://dzone.com/articles/ai-agents-vs-llms-choosing-the-right-tool-for-ai-t"
+)[#text(fill: blue)[1]]
 
-[1] #r_001, 2026/03/26, Source: dzone\ 
+1 AI Agents vs LLMs: Choosing the Right Tools for AI Tasks, 2026/03/26, Source: dzone
+
+2 2026/04/02, Source: WeChat
+
