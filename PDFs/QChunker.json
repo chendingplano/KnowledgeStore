@@ -1,0 +1,3316 @@
+{
+  "file name" : "QChunker.pdf",
+  "number of pages" : 12,
+  "author" : "Jihao Zhao; Daixuan Li; Pengfei Li; Shuaishuai Zu; Biao Qin; Hongyan Liu",
+  "title" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate",
+  "creation date" : "D:20260313004330+00'00'",
+  "modification date" : "D:20260313004330+00'00'",
+  "kids" : [ {
+    "type" : "heading",
+    "id" : 93,
+    "level" : "Doctitle",
+    "page number" : 1,
+    "bounding box" : [ 14.04, 221.02, 36.36, 570.98 ],
+    "heading level" : 1,
+    "font" : "Times-Roman",
+    "font size" : 20.0,
+    "text color" : "[0.5, 0.5, 0.5]",
+    "content" : "arXiv:2603.11650v1[cs.CL]12 Mar 2026"
+  }, {
+    "type" : "heading",
+    "id" : 62,
+    "level" : "Subtitle",
+    "page number" : 1,
+    "bounding box" : [ 53.813, 671.853, 558.181, 713.986 ],
+    "heading level" : 2,
+    "font" : "LinBiolinumTB",
+    "font size" : 17.215,
+    "text color" : "[0.0]",
+    "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate"
+  }, {
+    "type" : "paragraph",
+    "id" : 63,
+    "page number" : 1,
+    "bounding box" : [ 115.683, 649.56, 168.824, 666.082 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Jihao Zhao"
+  }, {
+    "type" : "paragraph",
+    "id" : 64,
+    "page number" : 1,
+    "bounding box" : [ 79.594, 602.252, 205.103, 651.885 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Information, Renmin University of China Beijing, China zhaojihao@ruc.edu.cn"
+  }, {
+    "type" : "paragraph",
+    "id" : 69,
+    "page number" : 1,
+    "bounding box" : [ 106.858, 579.22, 176.844, 595.742 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Shuaishuai Zu"
+  }, {
+    "type" : "paragraph",
+    "id" : 70,
+    "page number" : 1,
+    "bounding box" : [ 79.096, 531.911, 204.605, 581.545 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Information, Renmin University of China Beijing, China zushuaishuai@ruc.edu.cn"
+  }, {
+    "type" : "paragraph",
+    "id" : 65,
+    "page number" : 1,
+    "bounding box" : [ 279.611, 649.56, 333.385, 666.082 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Daixuan Li"
+  }, {
+    "type" : "paragraph",
+    "id" : 66,
+    "page number" : 1,
+    "bounding box" : [ 230.488, 602.252, 382.507, 651.885 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Smart Governance, Renmin University of China Suzhou, China lidaixuan2024@ruc.edu.cn"
+  }, {
+    "type" : "paragraph",
+    "id" : 71,
+    "page number" : 1,
+    "bounding box" : [ 282.827, 579.22, 328.676, 596.495 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Biao Qin∗"
+  }, {
+    "type" : "paragraph",
+    "id" : 72,
+    "page number" : 1,
+    "bounding box" : [ 244.257, 531.911, 368.839, 581.545 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Information, BRAIN, Renmin University of China Beijing, China qinbiao@ruc.edu.cn"
+  }, {
+    "type" : "paragraph",
+    "id" : 67,
+    "page number" : 1,
+    "bounding box" : [ 446.098, 649.56, 495.198, 666.082 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Pengfei Li"
+  }, {
+    "type" : "paragraph",
+    "id" : 68,
+    "page number" : 1,
+    "bounding box" : [ 407.893, 602.252, 533.402, 651.885 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Information, Renmin University of China Beijing, China pfli9411@gmail.com"
+  }, {
+    "type" : "paragraph",
+    "id" : 73,
+    "page number" : 1,
+    "bounding box" : [ 436.306, 579.22, 503.495, 596.495 ],
+    "font" : "LinLibertineT",
+    "font size" : 11.955,
+    "text color" : "[0.0]",
+    "content" : "Hongyan Liu∗"
+  }, {
+    "type" : "paragraph",
+    "id" : 74,
+    "page number" : 1,
+    "bounding box" : [ 400.003, 531.911, 540.555, 581.545 ],
+    "font" : "LinLibertineT",
+    "font size" : 9.963,
+    "text color" : "[0.0]",
+    "content" : "School of Economics and Management, Tsinghua University Beijing, China hyliu@tsinghua.edu.cn"
+  }, {
+    "type" : "heading",
+    "id" : 75,
+    "level" : "Subtitle",
+    "page number" : 1,
+    "bounding box" : [ 53.798, 510.908, 95.416, 525.548 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "Abstract"
+  }, {
+    "type" : "paragraph",
+    "id" : 76,
+    "page number" : 1,
+    "bounding box" : [ 53.467, 169.717, 295.565, 510.875 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The effectiveness upper bound of retrieval-augmented generation (RAG) is fundamentally constrained by the semantic integrity and information granularity of text chunks in its knowledge base. Moreover, domain documents are characterized by dense terminology and strong contextual dependencies, which exacerbate the semantic fragmentation of text chunks, thereby making it difficult to efficiently utilize their key information. To address these challenges, this paper proposesQChunker, which restructures the RAG paradigm from retrieval-augmentation to understanding-retrievalaugmentation. Firstly, QChunker models the text chunking as a composite task of text segmentation and knowledge completion to ensure the logical coherence and integrity of text chunks. Drawing inspiration from Hal Gregersen’s \"Questions Are the Answer\" theory, we design a multi-agent debate framework comprising four specialized components: a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework operates on the principle that questions serve as catalysts for profound insights. Through this pipeline, we successfully construct a high-quality dataset of 45K entries and transfer this capability to small language models. Additionally, to handle long evaluation chains and low efficiency in existing chunking evaluation methods, which overly rely on downstream QA tasks, we introduce a novel direct evaluation metric, ChunkScore. Both theoretical and experimental validations demonstrate that ChunkScore can directly and efficiently discriminate the quality of text chunks. Furthermore, during the text segmentation phase, we utilize document outlines for multi-path sampling to generate multiple candidate chunks and select the optimal solution employing ChunkScore. Extensive experimental results across four heterogeneous domains exhibit that QChunker effectively resolves aforementioned issues by providing RAG with more logically coherent and information-rich text"
+  }, {
+    "type" : "paragraph",
+    "id" : 78,
+    "page number" : 1,
+    "bounding box" : [ 53.798, 151.878, 119.501, 162.474 ],
+    "font" : "LinLibertineT",
+    "font size" : 6.974,
+    "text color" : "[0.0]",
+    "content" : "∗Corresponding author"
+  }, {
+    "type" : "paragraph",
+    "id" : 81,
+    "page number" : 1,
+    "bounding box" : [ 53.589, 107.184, 295.121, 125.973 ],
+    "font" : "LinLibertineT",
+    "font size" : 6.974,
+    "text color" : "[0.0]",
+    "content" : "This work is licensed under a Creative Commons Attribution 4.0 International License. WWW ’26, Dubai, United Arab Emirates."
+  }, {
+    "type" : "paragraph",
+    "id" : 82,
+    "page number" : 1,
+    "bounding box" : [ 53.317, 82.861, 186.747, 108.439 ],
+    "font" : "LinLibertineT",
+    "font size" : 6.974,
+    "text color" : "[0.0]",
+    "content" : "© 2026 Copyright held by the owner/author(s). ACM ISBN xxx/2026/04 https://doi.org/10.1145/xxx.xxx"
+  }, {
+    "type" : "paragraph",
+    "id" : 83,
+    "page number" : 1,
+    "bounding box" : [ 317.955, 468.347, 559.713, 524.573 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "chunks. Notably, this study also establishes a small-domain QA dataset concerning hazardous chemical safety, which fully reveals the significant value of RAG in specialized domains and the generalization capability of the QChunker framework. Our code is available at https://github.com/Robot2050/QChunker."
+  }, {
+    "type" : "heading",
+    "id" : 84,
+    "level" : "Subtitle",
+    "page number" : 1,
+    "bounding box" : [ 317.955, 444.602, 387.228, 459.242 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "CCS Concepts"
+  }, {
+    "type" : "paragraph",
+    "id" : 85,
+    "level" : "1",
+    "page number" : 1,
+    "bounding box" : [ 317.955, 426.018, 505.29, 444.569 ],
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "• Information systems → Document structure."
+  }, {
+    "type" : "heading",
+    "id" : 86,
+    "level" : "Subtitle",
+    "page number" : 1,
+    "bounding box" : [ 317.955, 408.433, 367.035, 423.073 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "Keywords"
+  }, {
+    "type" : "paragraph",
+    "id" : 87,
+    "page number" : 1,
+    "bounding box" : [ 317.686, 396.008, 546.715, 408.399 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Text Chunking; Multi-Agent Debate; Chunk Evaluation Metric"
+  }, {
+    "type" : "paragraph",
+    "id" : 88,
+    "page number" : 1,
+    "bounding box" : [ 317.66, 379.397, 404.654, 390.093 ],
+    "font" : "LinLibertineTB",
+    "font size" : 7.97,
+    "text color" : "[0.0]",
+    "content" : "ACM Reference Format:"
+  }, {
+    "type" : "paragraph",
+    "id" : 89,
+    "page number" : 1,
+    "bounding box" : [ 317.724, 330.15, 558.493, 381.015 ],
+    "font" : "LinLibertineT",
+    "font size" : 7.97,
+    "text color" : "[0.0]",
+    "content" : "Jihao Zhao, Daixuan Li, Pengfei Li, Shuaishuai Zu, Biao Qin, and Hongyan Liu. 2026. QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate. In Proceedings of the ACM Web Conference 2026 (WWW ’26), April 13–17, 2026, Dubai, United Arab Emirates. ACM, New York, NY, USA, 12 pages. https://doi.org/10.1145/xxx.xxx"
+  }, {
+    "type" : "heading",
+    "id" : 90,
+    "level" : "Subtitle",
+    "page number" : 1,
+    "bounding box" : [ 317.955, 302.992, 397.537, 317.632 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "1 Introduction"
+  }, {
+    "type" : "paragraph",
+    "id" : 91,
+    "page number" : 1,
+    "bounding box" : [ 317.686, 148.102, 559.718, 302.959 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Retrieval-Augmented Generation (RAG) is a prominent paradigm designed to mitigate inherent limitations of Large Language Models (LLMs), such as data staleness [23], factual hallucinations [6, 12, 56], and a lack of domain-specific knowledge [32, 38]. By coupling an external retriever with a generator, RAG enhances performance on knowledge-intensive tasks, such as open-domain question answering (QA) [28], enabling more precise and allowing it to produce more accurate and context-based responses [33, 41]. Although the efficacy of this retrieval-based strategy is well-established, its overall performance is critically dependent on the relevance and accuracy of the retrieved documents [30, 42]. The introduction of superfluous, irrelevant, or incomplete information through the retrieval process can fail to augment, and may even degrade, the quality of the final generated answer [40, 50]."
+  }, {
+    "type" : "paragraph",
+    "id" : 92,
+    "page number" : 1,
+    "bounding box" : [ 317.955, 82.349, 559.713, 149.534 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "In fact, the relevance and accuracy of retrieved documents largely depend on the text chunking step at the source of knowledge base construction [7, 29, 44]. Existing chunking methods, ranging from heuristic rules based on fixed-length and sentence boundaries [18, 35] to the use of semantic similarity models [24, 48], and even the recent approaches based on LLMs [15, 55], generally treat"
+  }, {
+    "type" : "header",
+    "id" : 94,
+    "page number" : 2,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 12,
+      "page number" : 2,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 95,
+    "page number" : 2,
+    "bounding box" : [ 53.368, 520.705, 295.561, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "chunking as an isolated and passive pre-processing step, rather than an active and forward-looking deep understanding process [37]. This flaw is particularly prominent when dealing with domain documents that are rich in terminology and have strong context dependencies. It can easily lead to semantic fragmentation, making it difficult to effectively utilize key information within text chunks. Typical manifestations include: (a) Lack of term definitions: A text chunk references professional terms, abbreviations, or symbols, but their definitions or explanations are located outside the chunk [3, 17]. (b) Lack of background knowledge: The prerequisite assumptions, background knowledge, or global settings required for understanding the text chunk are not included [10]. (c) Disruption of context dependencies: The logical reasoning within the chunk depends on key information from the preceding or following text. When these knowledge fragments are injected into LLMs, they not only fail to effectively enhance the models’ performance but also interfere with their internal reasoning processes [39]."
+  }, {
+    "type" : "paragraph",
+    "id" : 96,
+    "page number" : 2,
+    "bounding box" : [ 53.467, 356.321, 295.562, 522.137 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To break through the performance bottleneck in current RAG systems caused by poor text chunking, this paper proposes the QChunker framework for domain knowledge base construction. By simulating a pre-learning phase without specific task guidance, it encourages the model to go beyond simple text boundary identification and instead pursue a mastery of the deep logic and potential knowledge associations of the content. To achieve this goal, QChunker models text chunking as a compound task of text segmentation and knowledge completion. Given that questions are the key to unlocking deep insights [19], we design a multi-agent debate framework composed of a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework simulates the thinking process of experts when reading documents, autonomously segmenting and constructing high-quality text chunks from the original documents."
+  }, {
+    "type" : "paragraph",
+    "id" : 97,
+    "page number" : 2,
+    "bounding box" : [ 53.529, 82.349, 295.564, 357.753 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "In addition, addressing the drawbacks of existing chunking evaluation methods, which rely excessively on downstream tasks, have long evaluation chains, and are inefficient, we propose a new direct evaluation metric called ChunkScore. Unlike previous evaluation methods that rely on indirect signals, ChunkScore defines the quality of an ideal chunking scheme from two dimensions. At the micro level, it emphasizes logical independence, requiring clear boundaries between adjacent text chunks so that they form independent semantic units. At the macro level, it focuses on semantic dispersion, demanding that the entire set of text chunks comprehensively covers the core themes of the document in a low-redundancy manner. This metric has been proven through both theoretical and experimental validation to be capable of efficiently and accurately judging the quality of text chunks. More importantly, ChunkScore is not only an independent evaluation tool but also plays a crucial decision-making role in our QChunker framework. During the text segmentation stage, we use the document outline to conduct multi-path sampling to generate multiple candidate chunking schemes and ultimately rely on ChunkScore as the adjudicator to autonomously select the optimal solution, based on which we train small language models (SLMs) to implement the debate process. To further verify the effectiveness of the QChunker framework in real-world proprietary domains and contribute a domain-specific evaluation benchmark to the community, we construct a hazardous chemical safety dataset."
+  }, {
+    "type" : "paragraph",
+    "id" : 98,
+    "page number" : 2,
+    "bounding box" : [ 317.749, 553.581, 559.716, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To summarize, the contributions of our work are highlighted by the following points: (1) We propose QChunker, a text chunking framework based on multi-agent debate. It combines text segmentation and knowledge completion, aiming to address the issue of semantic fragmentation in domain RAG. (2) We design and validate ChunkScore, an efficient direct evaluation metric for the quality of text chunks, which is free from dependence on downstream tasks. (3) We construct and release a QChunker dataset containing 45K high-quality samples, as well as a small-domain QA dataset focused on hazardous chemical safety, providing valuable resources for community research. (4) Through benchmark tests in four heterogeneous domains, we systematically demonstrate the key value and potential of the QChunker framework in enabling RAG to serve specific domains."
+  }, {
+    "type" : "paragraph",
+    "id" : 99,
+    "page number" : 2,
+    "bounding box" : [ 317.955, 530.016, 407.213, 544.656 ],
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "2 Related Works"
+  }, {
+    "type" : "list",
+    "id" : 100,
+    "level" : "2",
+    "page number" : 2,
+    "bounding box" : [ 317.955, 259.157, 456.664, 528.965 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 2,
+      "bounding box" : [ 317.955, 514.325, 435.195, 528.965 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "2.1 Text Segmentation",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 61,
+        "page number" : 2,
+        "bounding box" : [ 317.525, 282.722, 559.721, 514.291 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Text segmentation is a foundational task in Natural Language Processing that involves partitioning text into meaningful, coherent units. This process is a critical prerequisite for downstream applications such as information retrieval [26, 31, 47] and text summarization [13, 34, 36]. A prominent approach leverages topic modeling to identify thematic shifts, which serve as segmentation boundaries [5, 25]. This category spans from classical probabilistic methods [8] to modern embedding-based models like Top2Vec [1] and BERTopic [20] that capture semantic relationships. Alternatively, text segmentation can be framed as a sequence labeling task. Zhang et al. [54], for example, utilize BERT to generate contextualized sentence representations and predict a segmentation decision after each sentence, thereby modeling long-range dependencies. Other strategies focus on document structure. Heuristic methods, implemented in frameworks like LangChain [27], employ techniques such as character-level, delimiter-based, and recursive splitting. While effective at preserving structural integrity, these approaches often lack deep contextual understanding. To overcome this limitation, semantic segmentation [24] utilizes text embeddings to group semantically coherent passages, identifying boundaries at points where embedding distances indicate a significant topic change."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 2,
+      "bounding box" : [ 317.955, 259.157, 456.664, 273.797 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "2.2 Text Chunking in RAG",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 101,
+    "page number" : 2,
+    "bounding box" : [ 317.641, 82.349, 559.72, 259.123 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Powered by complex internal architectures and reasoning mechanisms, LLMs have demonstrated exceptional performance on a wide array of language tasks [26, 55]. The RAG framework enhances these capabilities, particularly in knowledge-intensive domains, by augmenting the LLM’s input with externally retrieved text chunks [2, 16, 22, 52]. The efficacy of RAG is fundamentally dependent on the quality of its text chunking component. Suboptimal segmentation strategies can introduce incomplete context or irrelevant noise, which adversely affects the performance of downstream QA systems [53]. While conventional methods operate at the sentence or paragraph level [18, 35], more sophisticated approaches have been proposed. For instance, Chen et al. [11] introduce the Proposition as a retrieval granularity, defining them as atomic units of fact. Although this approach is highly effective for fact-based corpora like Wikipedia, its fine-grained nature can disrupt the contextual cohesion of narrative texts, leading to information loss. Another"
+  }, {
+    "type" : "header",
+    "id" : 102,
+    "page number" : 3,
+    "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 13,
+      "page number" : 3,
+      "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 103,
+    "page number" : 3,
+    "bounding box" : [ 53.798, 619.335, 295.561, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "advanced technique, LumberChunker [15], leverages an LLM to iteratively identify segmentation points. While this demonstrates the potential of LLM-driven chunking, its performance relies heavily on the model’s instruction-following fidelity and incurs significant computational costs. Following this trend, MoC [55] enables intelligent chunking with smaller models, yet it does not fully address the issue of semantic fragmentation and lacks a deep semantic understanding of the resulting text chunks."
+  }, {
+    "type" : "paragraph",
+    "id" : 104,
+    "page number" : 3,
+    "bounding box" : [ 53.798, 595.444, 231.322, 610.084 ],
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "3 Text Chunking for Domain RAG"
+  }, {
+    "type" : "list",
+    "id" : 105,
+    "level" : "3",
+    "page number" : 3,
+    "bounding box" : [ 53.798, 222.247, 257.842, 594.393 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 3,
+      "bounding box" : [ 53.798, 579.753, 173.984, 594.393 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "3.1 Problem Definition",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 54,
+        "page number" : 3,
+        "bounding box" : [ 53.368, 506.373, 295.035, 579.719 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "We define the text chunking task for domain-specific RAG as a composite function \uD835\uDC39, which maps an original domain-specific document \uD835\uDC37 to a set\uD835\uDC36∗ composed of high-quality text chunks. This process can be articulated as the functional composition of two core subtasks, namely text segmentation and knowledge completion, expressed as: \uD835\uDC39 = \uD835\uDC53com ◦ \uD835\uDC53seg."
+      }, {
+        "type" : "paragraph",
+        "id" : 55,
+        "page number" : 3,
+        "bounding box" : [ 53.26, 435.821, 295.426, 513.965 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Text Segmentation (\uD835\uDC53seg): This function aims to partition the original document \uD835\uDC37 into an optimal initial set of text chunks \uD835\uDC36. Let P(\uD835\uDC37) denote the set of all possible partitionings of document \uD835\uDC37. A specific partitioning \uD835\uDC36 ∈ P(\uD835\uDC37) is a collection of \uD835\uDC5B text chunks \uD835\uDC36 = {\uD835\uDC501,\uD835\uDC502, . . .,\uD835\uDC50\uD835\uDC5B} such that \uD835\uDC5B\uD835\uDC56=1 \uD835\uDC50\uD835\uDC56 = \uD835\uDC37 and for any\uD835\uDC56 ≠ \uD835\uDC57,\uD835\uDC50\uD835\uDC56 ∩\uD835\uDC50\uD835\uDC57 = ∅. The optimal partitioning \uD835\uDC36opt is determined by an evaluation function Φ:"
+      }, {
+        "type" : "paragraph",
+        "id" : 56,
+        "page number" : 3,
+        "bounding box" : [ 116.941, 415.917, 207.995, 434.468 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC36opt = \uD835\uDC53seg(\uD835\uDC37) = argmax"
+      }, {
+        "type" : "paragraph",
+        "id" : 57,
+        "page number" : 3,
+        "bounding box" : [ 180.25, 409.891, 205.828, 421.608 ],
+        "font" : "txsys",
+        "font size" : 6.575,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC36∈P(\uD835\uDC37)"
+      }, {
+        "type" : "paragraph",
+        "id" : 58,
+        "page number" : 3,
+        "bounding box" : [ 209.486, 415.917, 230.216, 431.895 ],
+        "font" : "LibertineMathMI",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Φ(\uD835\uDC36)."
+      }, {
+        "type" : "paragraph",
+        "id" : 59,
+        "page number" : 3,
+        "bounding box" : [ 53.529, 377.645, 295.556, 411.954 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "The evaluation function Φ(\uD835\uDC36) quantifies the overall quality of the partitioning \uD835\uDC36, with the objective of maximizing intra-chunk semantic cohesion and minimizing inter-chunk coupling."
+      }, {
+        "type" : "paragraph",
+        "id" : 60,
+        "page number" : 3,
+        "bounding box" : [ 53.709, 239.978, 295.034, 379.077 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Knowledge Completion (\uD835\uDC53com): This function takes the optimal initial partitioning \uD835\uDC36opt as input and enhances each text chunk \uD835\uDC50\uD835\uDC56 that may suffer from semantic deficiencies. For each \uD835\uDC50\uD835\uDC56 ∈ \uD835\uDC36opt, the completion process aims to extract a necessary knowledge set \uD835\uDC3E\uD835\uDC56 ⊂ \uD835\uDC37 \\ \uD835\uDC50\uD835\uDC56 from the global context of the original document \uD835\uDC37 and fuse it with the original text chunk to generate a semantically enhanced text chunk \uD835\uDC50\uD835\uDC56′. This process can be represented as: \uD835\uDC50\uD835\uDC56′ = \uD835\uDC50\uD835\uDC56 ⊕\uD835\uDC3E\uD835\uDC56. Here, ⊕ represents a non-trivial knowledge integration operator, which is not a simple text concatenation but rather a rewriting operation that maintains semantic coherence and stylistic consistency. Ultimately, the knowledge completion function outputs the enhanced set of text chunks \uD835\uDC36∗ = {\uD835\uDC501′,\uD835\uDC502′, . . .,\uD835\uDC50\uD835\uDC5B′ }."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 3,
+      "bounding box" : [ 53.798, 222.247, 257.842, 236.887 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "3.2 Question-Aware Multi-Agent Debate",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 106,
+    "page number" : 3,
+    "bounding box" : [ 53.467, 132.462, 295.564, 222.214 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To realize the composite task \uD835\uDC39 defined above, we design a questionaware multi-agent debate framework, the overall architecture of which is illustrated in Figure 1. This framework decomposes the complex text chunking task onto a set of specialized agents A = {\uD835\uDC34QG,\uD835\uDC34SEG,\uD835\uDC34IR,\uD835\uDC34KC} by simulating the cognitive process of an expert team composed of multiple roles. These agents handle the document sequentially within a structured workflow, collectively approximating the optimal solution \uD835\uDC36∗."
+  }, {
+    "type" : "list",
+    "id" : 107,
+    "level" : "3",
+    "page number" : 3,
+    "bounding box" : [ 53.798, 82.349, 295.557, 127.616 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 1,
+    "next list id" : 197,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 3,
+      "bounding box" : [ 53.798, 82.349, 295.557, 127.616 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.2.1 Question Outline Generator. \uD835\uDC34QG serves as the cognitive starting point of the entire framework, with its core responsibility being to simulate the in-depth analysis and exploration process of domain experts when engaging with a document. This process is not",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 108,
+    "page number" : 3,
+    "bounding box" : [ 317.955, 635.093, 558.204, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "a mere information extraction but rather an endeavor to establish a profound understanding of the intrinsic connections between the macro structure and micro arguments of the document. The functionality of this agent can be modeled as a mapping function that transforms the original document \uD835\uDC37 into a structured question outline Q:"
+  }, {
+    "type" : "paragraph",
+    "id" : 109,
+    "page number" : 3,
+    "bounding box" : [ 411.537, 622.649, 464.201, 641.2 ],
+    "font" : "txsys",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC34QG : \uD835\uDC37 ↦→ Q."
+  }, {
+    "type" : "paragraph",
+    "id" : 110,
+    "page number" : 3,
+    "bounding box" : [ 317.955, 537.736, 559.713, 626.839 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "These questions are designed to probe into the motivation, core assumptions, methodology, key conclusions, and their underlying logical chains within the document. The process of generating Q essentially compels the model to transition from a passive text processor to an active knowledge explorer, constructing an abstract understanding of the document’s knowledge system through self-inquiry and providing a crucial semantic prior for subsequent segmentation."
+  }, {
+    "type" : "list",
+    "id" : 111,
+    "level" : "4",
+    "page number" : 3,
+    "bounding box" : [ 317.955, 148.102, 558.205, 532.917 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 3,
+      "bounding box" : [ 317.955, 498.002, 558.205, 532.917 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.2.2 Text Segmenter. The core task of the \uD835\uDC34SEG is to implement an optimal partitioning \uD835\uDC36\uD835\uDC5C\uD835\uDC5D\uD835\uDC61 for the document \uD835\uDC37 based on the abstract knowledge structure constructed by \uD835\uDC34\uD835\uDC44\uD835\uDC3A:",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 46,
+        "page number" : 3,
+        "bounding box" : [ 317.955, 433.173, 558.201, 494.72 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC34SEG : (\uD835\uDC37, Q) ↦→ \uD835\uDC36opt. Searching directly throughout the entire partitioning space P(\uD835\uDC37) is computationally infeasible. Therefore, \uD835\uDC34SEG adopts a heuristic search and evaluation strategy, utilizing the question outline Q to effectively prune the search space."
+      }, {
+        "type" : "paragraph",
+        "id" : 47,
+        "page number" : 3,
+        "bounding box" : [ 317.955, 356.461, 559.713, 434.606 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Candidate Space Generation: By leveraging the semantic prior knowledge provided by the question outline Q, the agent generates a manageable yet higher-quality set of candidate partitionings S = {\uD835\uDC461,\uD835\uDC462, . . .,\uD835\uDC46\uD835\uDC5D} from the vast universal set P(\uD835\uDC37) through a multipath sampling strategy, where S ⊂ P(\uD835\uDC37). This step transforms the original global optimization problem into a selection problem on a highly relevant subset."
+      }, {
+        "type" : "paragraph",
+        "id" : 48,
+        "page number" : 3,
+        "bounding box" : [ 327.918, 344.865, 557.056, 357.893 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Evaluation and Selection: To rank each partitioning scheme \uD835\uDC46\uD835\uDC57"
+      }, {
+        "type" : "paragraph",
+        "id" : 49,
+        "page number" : 3,
+        "bounding box" : [ 317.686, 268.79, 559.587, 346.934 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "in the candidate set S, we introduce a specific evaluation function, ChunkScore, the detailed design of which is presented in Section 3.3. This function is a computable instance of the abstract evaluation function Φ, denoted as ΦCS. It takes a complete partitioning scheme \uD835\uDC46\uD835\uDC57 as input and returns a scalar score to assess its overall quality. Ultimately, the agent determines its output \uD835\uDC36opt by solving the following optimization problem:"
+      }, {
+        "type" : "paragraph",
+        "id" : 50,
+        "page number" : 3,
+        "bounding box" : [ 395.996, 251.78, 450.406, 264.902 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC36opt = argmax"
+      }, {
+        "type" : "paragraph",
+        "id" : 51,
+        "page number" : 3,
+        "bounding box" : [ 429.896, 240.571, 441.738, 252.439 ],
+        "font" : "txsym",
+        "font size" : 6.575,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC46∈S"
+      }, {
+        "type" : "paragraph",
+        "id" : 52,
+        "page number" : 3,
+        "bounding box" : [ 451.904, 246.351, 479.467, 262.329 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "ΦCS(\uD835\uDC46)."
+      }, {
+        "type" : "paragraph",
+        "id" : 53,
+        "page number" : 3,
+        "bounding box" : [ 317.955, 187.229, 559.717, 243.456 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "In this manner,\uD835\uDC34SEG transforms a theoretically intractable optimization problem into a tractable process of evaluation and selection on a superior candidate space generated under the guidance of Q, thereby efficiently obtaining a text partitioning scheme that approaches the theoretical optimum."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 3,
+      "bounding box" : [ 317.955, 148.102, 558.204, 182.411 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.2.3 Integrity Reviewer. The key task of \uD835\uDC34IR is to diagnose and identify potential knowledge incompleteness issues arising from the text segmentation process. In domain-specific texts, even when",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 112,
+    "page number" : 3,
+    "bounding box" : [ 317.955, 103.535, 558.204, 149.534 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "segmented along semantic boundaries, the resulting text chunks \uD835\uDC50\uD835\uDC56 may become difficult to understand or ambiguous when isolated from their global context. By performing a comparative analysis between \uD835\uDC50\uD835\uDC56 and \uD835\uDC37, \uD835\uDC34IR identifies potential information gaps."
+  }, {
+    "type" : "paragraph",
+    "id" : 113,
+    "page number" : 3,
+    "bounding box" : [ 317.955, 82.349, 558.376, 105.698 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "For each identified information gap, \uD835\uDC34IR determines whether the absence of such information substantially leads to inaccuracies or"
+  }, {
+    "type" : "header",
+    "id" : 114,
+    "page number" : 4,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 14,
+      "page number" : 4,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 137,
+    "page number" : 4,
+    "bounding box" : [ 361.757, 686.083, 422.965, 691.369 ],
+    "font" : "????Bold",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Integrity Reviewer"
+  }, {
+    "type" : "paragraph",
+    "id" : 125,
+    "page number" : 4,
+    "bounding box" : [ 170.562, 685.831, 262.498, 691.117 ],
+    "font" : "????Bold",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Question Outline Generator"
+  }, {
+    "type" : "paragraph",
+    "id" : 146,
+    "page number" : 4,
+    "bounding box" : [ 439.766, 684.937, 458.328, 690.222 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Reject"
+  }, {
+    "type" : "image",
+    "id" : 130,
+    "page number" : 4,
+    "bounding box" : [ 244.937, 649.693, 280.701, 685.457 ],
+    "source" : "QChunker_images/imageFile1.png"
+  }, {
+    "type" : "text block",
+    "id" : 116,
+    "page number" : 4,
+    "bounding box" : [ 60.919, 668.695, 114.175, 684.31 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 1,
+      "page number" : 4,
+      "bounding box" : [ 80.983, 672.475, 104.845, 677.761 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Finance"
+    }, {
+      "type" : "image",
+      "id" : 2,
+      "page number" : 4,
+      "bounding box" : [ 65.836, 670.034, 77.925, 682.123 ],
+      "source" : "QChunker_images/imageFile2.png"
+    } ]
+  }, {
+    "type" : "image",
+    "id" : 143,
+    "page number" : 4,
+    "bounding box" : [ 442.001, 670.041, 456.105, 684.146 ],
+    "source" : "QChunker_images/imageFile3.png"
+  }, {
+    "type" : "image",
+    "id" : 132,
+    "page number" : 4,
+    "bounding box" : [ 196.377, 652.404, 227.608, 683.634 ],
+    "source" : "QChunker_images/imageFile4.png"
+  }, {
+    "type" : "image",
+    "id" : 127,
+    "page number" : 4,
+    "bounding box" : [ 146.176, 652.308, 176.903, 683.035 ],
+    "source" : "QChunker_images/imageFile5.png"
+  }, {
+    "type" : "image",
+    "id" : 140,
+    "page number" : 4,
+    "bounding box" : [ 330.609, 650.797, 361.336, 681.524 ],
+    "source" : "QChunker_images/imageFile6.png"
+  }, {
+    "type" : "text block",
+    "id" : 155,
+    "page number" : 4,
+    "bounding box" : [ 497.996, 655.782, 551.252, 680.465 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 13,
+      "page number" : 4,
+      "bounding box" : [ 510.52, 659.311, 538.732, 674.167 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Question Outline"
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 142,
+    "page number" : 4,
+    "bounding box" : [ 377.636, 650.201, 418.442, 674.628 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.0, 0.0, 0.0]",
+    "content" : "Identification of Missing Information"
+  }, {
+    "type" : "text block",
+    "id" : 117,
+    "page number" : 4,
+    "bounding box" : [ 60.919, 650.335, 114.175, 665.95 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 3,
+      "page number" : 4,
+      "bounding box" : [ 79.735, 654.825, 110.466, 660.111 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Education"
+    }, {
+      "type" : "image",
+      "id" : 4,
+      "page number" : 4,
+      "bounding box" : [ 64.258, 652.601, 77.355, 665.698 ],
+      "source" : "QChunker_images/imageFile7.png"
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 147,
+    "page number" : 4,
+    "bounding box" : [ 438.255, 659.149, 459.839, 664.435 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Accept"
+  }, {
+    "type" : "image",
+    "id" : 144,
+    "page number" : 4,
+    "bounding box" : [ 442.001, 644.305, 456.105, 658.41 ],
+    "source" : "QChunker_images/imageFile8.png"
+  }, {
+    "type" : "caption",
+    "id" : 129,
+    "page number" : 4,
+    "bounding box" : [ 152.879, 643.771, 278.764, 649.161 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Simulate Domain Experts Questions"
+  }, {
+    "type" : "text block",
+    "id" : 119,
+    "page number" : 4,
+    "bounding box" : [ 60.92, 631.432, 114.175, 647.047 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 5,
+      "page number" : 4,
+      "bounding box" : [ 79.655, 635.002, 108.598, 640.287 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Industrial"
+    }, {
+      "type" : "image",
+      "id" : 6,
+      "page number" : 4,
+      "bounding box" : [ 65.332, 633.876, 75.91, 644.454 ],
+      "source" : "QChunker_images/imageFile9.png"
+    } ]
+  }, {
+    "type" : "text block",
+    "id" : 156,
+    "page number" : 4,
+    "bounding box" : [ 497.996, 617.692, 551.252, 642.374 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 14,
+      "page number" : 4,
+      "bounding box" : [ 505.482, 626.006, 543.775, 631.291 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Text Chunks"
+    } ]
+  }, {
+    "type" : "text block",
+    "id" : 120,
+    "page number" : 4,
+    "bounding box" : [ 60.92, 612.167, 114.175, 627.783 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 7,
+      "page number" : 4,
+      "bounding box" : [ 80.673, 616.121, 105.082, 621.406 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Medical"
+    }, {
+      "type" : "image",
+      "id" : 8,
+      "page number" : 4,
+      "bounding box" : [ 65.332, 614.01, 77.925, 626.603 ],
+      "source" : "QChunker_images/imageFile10.png"
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 126,
+    "page number" : 4,
+    "bounding box" : [ 189.956, 607.673, 243.104, 612.958 ],
+    "font" : "????Bold",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Text Segmenter"
+  }, {
+    "type" : "paragraph",
+    "id" : 138,
+    "page number" : 4,
+    "bounding box" : [ 354.705, 606.054, 430.017, 611.34 ],
+    "font" : "????Bold",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Knowledge Completer"
+  }, {
+    "type" : "text block",
+    "id" : 121,
+    "page number" : 4,
+    "bounding box" : [ 60.919, 593.594, 114.175, 609.209 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 9,
+      "page number" : 4,
+      "bounding box" : [ 81.462, 597.374, 98.598, 602.66 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "News"
+    }, {
+      "type" : "image",
+      "id" : 10,
+      "page number" : 4,
+      "bounding box" : [ 65.074, 595.449, 76.156, 606.531 ],
+      "source" : "QChunker_images/imageFile11.png"
+    } ]
+  }, {
+    "type" : "text block",
+    "id" : 157,
+    "page number" : 4,
+    "bounding box" : [ 497.996, 580.845, 551.252, 605.527 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 15,
+      "page number" : 4,
+      "bounding box" : [ 502.46, 584.374, 546.712, 599.23 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Rewritten Text Chunks"
+    } ]
+  }, {
+    "type" : "image",
+    "id" : 139,
+    "page number" : 4,
+    "bounding box" : [ 146.176, 569.511, 181.94, 605.275 ],
+    "source" : "QChunker_images/imageFile12.png"
+  }, {
+    "type" : "image",
+    "id" : 149,
+    "page number" : 4,
+    "bounding box" : [ 330.609, 572.748, 360.833, 602.971 ],
+    "source" : "QChunker_images/imageFile13.png"
+  }, {
+    "type" : "image",
+    "id" : 152,
+    "page number" : 4,
+    "bounding box" : [ 431.214, 572.003, 461.941, 602.73 ],
+    "source" : "QChunker_images/imageFile14.png"
+  }, {
+    "type" : "paragraph",
+    "id" : 136,
+    "page number" : 4,
+    "bounding box" : [ 184.518, 574.865, 217.768, 601.356 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Multi-path Sampling Parallel"
+  }, {
+    "type" : "image",
+    "id" : 134,
+    "page number" : 4,
+    "bounding box" : [ 221.775, 573.55, 272.651, 600.248 ],
+    "source" : "QChunker_images/imageFile15.png"
+  }, {
+    "type" : "paragraph",
+    "id" : 150,
+    "page number" : 4,
+    "bounding box" : [ 378.115, 574.084, 414.891, 598.511 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Information Verification & Filtering"
+  }, {
+    "type" : "text block",
+    "id" : 122,
+    "page number" : 4,
+    "bounding box" : [ 60.919, 574.452, 114.175, 590.068 ],
+    "kids" : [ {
+      "type" : "paragraph",
+      "id" : 11,
+      "page number" : 4,
+      "bounding box" : [ 81.496, 577.65, 105.915, 584.233 ],
+      "font" : "????Regular",
+      "font size" : 6.548,
+      "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+      "content" : "Law ..."
+    }, {
+      "type" : "image",
+      "id" : 12,
+      "page number" : 4,
+      "bounding box" : [ 64.828, 575.209, 77.925, 588.306 ],
+      "source" : "QChunker_images/imageFile16.png"
+    } ]
+  }, {
+    "type" : "caption",
+    "id" : 135,
+    "page number" : 4,
+    "bounding box" : [ 208.572, 564.404, 283.284, 569.69 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.0, 0.0, 0.0]",
+    "content" : "ChunkScore for Scoring"
+  }, {
+    "type" : "caption",
+    "id" : 153,
+    "page number" : 4,
+    "bounding box" : [ 431.3, 563.9, 460.174, 569.186 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Rewriting"
+  }, {
+    "type" : "paragraph",
+    "id" : 167,
+    "page number" : 4,
+    "bounding box" : [ 494.652, 548.699, 554.101, 563.555 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Segmentation and Completion Results"
+  }, {
+    "type" : "paragraph",
+    "id" : 123,
+    "page number" : 4,
+    "bounding box" : [ 66.038, 547.864, 108.355, 562.72 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Multi-domain Documents"
+  }, {
+    "type" : "image",
+    "id" : 166,
+    "page number" : 4,
+    "bounding box" : [ 422.883, 448.674, 555.362, 531.284 ],
+    "source" : "QChunker_images/imageFile17.png"
+  }, {
+    "type" : "image",
+    "id" : 163,
+    "page number" : 4,
+    "bounding box" : [ 304.363, 449.059, 412.663, 529.151 ],
+    "source" : "QChunker_images/imageFile18.png"
+  }, {
+    "type" : "image",
+    "id" : 159,
+    "page number" : 4,
+    "bounding box" : [ 59.256, 450.067, 164.534, 528.647 ],
+    "source" : "QChunker_images/imageFile19.png"
+  }, {
+    "type" : "image",
+    "id" : 161,
+    "page number" : 4,
+    "bounding box" : [ 176.781, 450.067, 294.149, 528.647 ],
+    "source" : "QChunker_images/imageFile20.png"
+  }, {
+    "type" : "paragraph",
+    "id" : 164,
+    "page number" : 4,
+    "bounding box" : [ 68.663, 428.481, 536.519, 434.05 ],
+    "font" : "????Regular",
+    "font size" : 6.548,
+    "text color" : "[0.09803921729326248, 0.09803921729326248, 0.09803921729326248]",
+    "content" : "Original Document Content Question Outline Optimal Text Segmentation Scheme Exhibition of Missing Information"
+  }, {
+    "type" : "heading",
+    "id" : 168,
+    "level" : "Subtitle",
+    "page number" : 4,
+    "bounding box" : [ 53.798, 383.3, 558.202, 406.292 ],
+    "heading level" : 4,
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Figure 1: Overview of the QChunker framework’s multi-agent debate process. The workflow comprises four key stages: questionoutline generation, text segmentation, integrity review, and knowledge completion, followed by a concrete example."
+  }, {
+    "type" : "paragraph",
+    "id" : 169,
+    "page number" : 4,
+    "bounding box" : [ 53.798, 279.031, 295.557, 368.134 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "comprehension barriers in the text chunk. Ultimately, a structured identification result of missing information within the text chunk is output, along with a definitive judgment on whether supplementary information is indeed required. This process strictly adheres to one principle: all information to be supplemented must be explicitly stated in the original document \uD835\uDC37, prohibiting any form of information extrapolation or creation. The functionality of this agent can be formalized as:"
+  }, {
+    "type" : "paragraph",
+    "id" : 170,
+    "page number" : 4,
+    "bounding box" : [ 129.081, 257.962, 218.34, 276.513 ],
+    "font" : "txsys",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC34IR : (\uD835\uDC50\uD835\uDC56,\uD835\uDC37) ↦→ (M\uD835\uDC56,\uD835\uDC4F\uD835\uDC56)."
+  }, {
+    "type" : "paragraph",
+    "id" : 171,
+    "page number" : 4,
+    "bounding box" : [ 53.709, 172.5, 295.557, 261.604 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The input consists of a text chunk under review\uD835\uDC50\uD835\uDC56 ∈ \uD835\uDC36opt and the original document \uD835\uDC37. The output is a tuple (M\uD835\uDC56,\uD835\uDC4F\uD835\uDC56). M\uD835\uDC56 represents a set of identified knowledge points that are crucial for understanding \uD835\uDC50\uD835\uDC56 but are missing within it: M\uD835\uDC56 = {\uD835\uDC5A\uD835\uDC56,1,\uD835\uDC5A\uD835\uDC56,2, . . . }. The core constraint is that for any \uD835\uDC5A ∈ M\uD835\uDC56, \uD835\uDC5A must be explicitly stated in \uD835\uDC37 \\ \uD835\uDC50\uD835\uDC56. \uD835\uDC4F\uD835\uDC56 ∈ {0, 1} is a Boolean judgment. When \uD835\uDC4F\uD835\uDC56 = 1, it indicates that \uD835\uDC50\uD835\uDC56 indeed suffers from inaccuracies due to missing information and requires knowledge completion."
+  }, {
+    "type" : "list",
+    "id" : 172,
+    "level" : "3",
+    "page number" : 4,
+    "bounding box" : [ 53.798, 145.043, 294.049, 168.393 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 1,
+    "next list id" : 183,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 4,
+      "bounding box" : [ 53.798, 145.043, 294.049, 168.393 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.2.4 Knowledge Completer. \uD835\uDC34KC serves as the final stage of the framework, responsible for executing the knowledge integration",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 173,
+    "page number" : 4,
+    "bounding box" : [ 53.798, 123.126, 294.045, 146.476 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "operator ⊕ to generate the final high-quality knowledge unit \uD835\uDC50\uD835\uDC56′. Its functionality can be expressed as:"
+  }, {
+    "type" : "paragraph",
+    "id" : 174,
+    "page number" : 4,
+    "bounding box" : [ 124.235, 102.057, 223.187, 120.608 ],
+    "font" : "txsys",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC34KC : (\uD835\uDC50\uD835\uDC56, M\uD835\uDC56,\uD835\uDC4F\uD835\uDC56 = 1) ↦→ \uD835\uDC50\uD835\uDC56′."
+  }, {
+    "type" : "paragraph",
+    "id" : 175,
+    "page number" : 4,
+    "bounding box" : [ 53.529, 82.349, 294.042, 105.698 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "This agent is activated if and only if \uD835\uDC4F\uD835\uDC56 = 1. Its workflow consists of two stages:"
+  }, {
+    "type" : "paragraph",
+    "id" : 176,
+    "page number" : 4,
+    "bounding box" : [ 317.955, 272.871, 559.718, 368.134 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Information Verification and Filtering: \uD835\uDC34KC first conducts a secondary review of M\uD835\uDC56 to verify the necessity and relevance of each piece of information: (a) whether the information is indeed critical for understanding \uD835\uDC50\uD835\uDC56; (b) whether the information is explicitly stated in the original document \uD835\uDC37; (c) whether supplementing this information would introduce irrelevant new topics not covered in \uD835\uDC50\uD835\uDC56. Based on the verification results, a final subset of knowledge to be supplemented, M\uD835\uDC56′ ⊆ M\uD835\uDC56, is selected."
+  }, {
+    "type" : "paragraph",
+    "id" : 177,
+    "page number" : 4,
+    "bounding box" : [ 317.552, 180.401, 559.719, 280.463 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Rewriting and Optimization: Rather than performing a simple concatenation of the qualified information, the knowledge completer executes a meticulous rewriting operation. It analyzes the internal syntactic structure and stylistic features of the text chunk \uD835\uDC50\uD835\uDC56 to identify the most appropriate position for seamlessly integrating the missing background knowledge or term explanations in the most natural manner. Ultimately, it outputs a complete, highquality text chunk \uD835\uDC50\uD835\uDC56′ that has undergone knowledge completion and optimization."
+  }, {
+    "type" : "heading",
+    "id" : 178,
+    "level" : "Subtitle",
+    "page number" : 4,
+    "bounding box" : [ 317.955, 149.568, 528.337, 164.208 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "3.3 Design and Validation of ChunkScore"
+  }, {
+    "type" : "paragraph",
+    "id" : 179,
+    "page number" : 4,
+    "bounding box" : [ 317.686, 82.349, 559.719, 149.534 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To effectively guide the optimization process of the text segmentation agent \uD835\uDC34SEG, we design a novel evaluation metric named ChunkScore, denoted as ΦCS, whose value lies in serving as a quantitative criterion for data selection, similar to a reward function in reinforcement learning. Unlike traditional evaluation paradigms that rely on downstream tasks, ChunkScore is a composite metric"
+  }, {
+    "type" : "header",
+    "id" : 180,
+    "page number" : 5,
+    "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 15,
+      "page number" : 5,
+      "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 181,
+    "page number" : 5,
+    "bounding box" : [ 53.798, 674.129, 294.276, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "capable of directly and efficiently quantifying the quality of any text partitioning scheme \uD835\uDC36 from two orthogonal dimensions: the micro-level and the macro-level."
+  }, {
+    "type" : "paragraph",
+    "id" : 182,
+    "page number" : 5,
+    "bounding box" : [ 53.798, 597.417, 295.337, 675.561 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The core idea of ChunkScore is that an ideal partitioning scheme must simultaneously satisfy two conditions: (1) Micro-level: The boundaries between adjacent text chunks must be clear, effectively demarcating independent semantic units, which we refer to as logical independence. (2) Macro-level: The entire collection of text chunks should cover the core information of the document in a low-redundancy manner, which we refer to as semantic dispersion."
+  }, {
+    "type" : "list",
+    "id" : 183,
+    "level" : "3",
+    "page number" : 5,
+    "bounding box" : [ 53.26, 507.175, 294.049, 591.479 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 1,
+    "previous list id" : 172,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 5,
+      "bounding box" : [ 53.26, 507.175, 294.049, 591.479 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.3.1 Logical Independence (LI). This metric aims to quantify the effectiveness of text chunks as independent semantic units. If the boundary between two adjacent text chunks\uD835\uDC50\uD835\uDC56−1 and\uD835\uDC50\uD835\uDC56 is clear, then the content of \uD835\uDC50\uD835\uDC56 should not be highly dependent on the context of \uD835\uDC50\uD835\uDC56−1. We utilize the perplexity of a language model to quantify this dependency. For any internal boundary in the partitioning scheme \uD835\uDC36 = {\uD835\uDC501,\uD835\uDC502, . . .,\uD835\uDC50\uD835\uDC3E}, we define its logical independence as:",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 185,
+    "page number" : 5,
+    "bounding box" : [ 175.039, 478.022, 219.119, 508.794 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "PPL(\uD835\uDC50\uD835\uDC56|\uD835\uDC50\uD835\uDC56−1) PPL(\uD835\uDC50\uD835\uDC56)"
+  }, {
+    "type" : "paragraph",
+    "id" : 184,
+    "page number" : 5,
+    "bounding box" : [ 125.287, 484.173, 171.749, 502.724 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "LI(\uD835\uDC50\uD835\uDC56,\uD835\uDC50\uD835\uDC56−1) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 187,
+    "page number" : 5,
+    "bounding box" : [ 220.494, 490.503, 222.467, 499.685 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : ","
+  }, {
+    "type" : "paragraph",
+    "id" : 188,
+    "page number" : 5,
+    "bounding box" : [ 53.467, 429.48, 294.047, 479.996 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "where PPL(\uD835\uDC50\uD835\uDC56) represents the perplexity of the language model on the text chunk \uD835\uDC50\uD835\uDC56 itself, measuring the internal linguistic coherence of \uD835\uDC50\uD835\uDC56. PPL(\uD835\uDC50\uD835\uDC56|\uD835\uDC50\uD835\uDC56−1) denotes the conditional perplexity of the model on \uD835\uDC50\uD835\uDC56 given the preceding text chunk \uD835\uDC50\uD835\uDC56−1 as context."
+  }, {
+    "type" : "paragraph",
+    "id" : 189,
+    "page number" : 5,
+    "bounding box" : [ 53.574, 368.975, 295.559, 436.161 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "When the boundary is clear and the two text chunks are semantically independent, the context provided by \uD835\uDC50\uD835\uDC56−1 offers limited assistance in predicting \uD835\uDC50\uD835\uDC56, and the LI metric approaches 1. Conversely, when the boundary is ambiguous and the two text chunks are strongly semantically related, \uD835\uDC50\uD835\uDC56−1 renders \uD835\uDC50\uD835\uDC56 highly predictable, and the LI metric approaches 0."
+  }, {
+    "type" : "paragraph",
+    "id" : 190,
+    "page number" : 5,
+    "bounding box" : [ 53.798, 336.098, 294.251, 370.407 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To obtain the overall logical independence score for the entire partitioning scheme\uD835\uDC36, we calculate the arithmetic mean of all \uD835\uDC3E −1 internal logical independence values:"
+  }, {
+    "type" : "heading",
+    "id" : 194,
+    "level" : "Subtitle",
+    "page number" : 5,
+    "bounding box" : [ 176.427, 294.267, 188.29, 333.755 ],
+    "heading level" : 5,
+    "font" : "txexs",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "∑︁\uD835\uDC3E"
+  }, {
+    "type" : "paragraph",
+    "id" : 192,
+    "page number" : 5,
+    "bounding box" : [ 153.362, 297.018, 173.734, 327.791 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "1 \uD835\uDC3E − 1"
+  }, {
+    "type" : "paragraph",
+    "id" : 196,
+    "page number" : 5,
+    "bounding box" : [ 189.784, 303.169, 230.167, 321.72 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "LI(\uD835\uDC50\uD835\uDC56,\uD835\uDC50\uD835\uDC56−1)."
+  }, {
+    "type" : "paragraph",
+    "id" : 191,
+    "page number" : 5,
+    "bounding box" : [ 117.524, 303.169, 150.247, 319.443 ],
+    "font" : "txsys",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "ΦLI(\uD835\uDC36) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 195,
+    "page number" : 5,
+    "bounding box" : [ 177.511, 299.833, 186.94, 308.92 ],
+    "font" : "txmiaX",
+    "font size" : 6.575,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC56=2"
+  }, {
+    "type" : "list",
+    "id" : 197,
+    "level" : "3",
+    "page number" : 5,
+    "bounding box" : [ 53.529, 222.733, 295.428, 296.079 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 1,
+    "previous list id" : 107,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 5,
+      "bounding box" : [ 53.529, 222.733, 295.428, 296.079 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.3.2 Semantic Dispersion (SD). Next, we define the metric for measuring macro-level chunking diversity: Semantic Dispersion. This metric aims to reward partitioning schemes that enable text chunks to be semantically distinguishable from each other and reduce information overlap. Given a pre-trained embedding model \uD835\uDC53embed, the calculation process for ΦSD(\uD835\uDC36) is as follows.",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 198,
+    "page number" : 5,
+    "bounding box" : [ 53.395, 185.014, 294.282, 230.325 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "First, the embedding model \uD835\uDC53embed is used to map each text chunk \uD835\uDC50\uD835\uDC56 in the partitioningscheme\uD835\uDC36 to a\uD835\uDC51-dimensionalreal-valued vector space R\uD835\uDC51. This process generates a compact semantic representation for each text chunk:"
+  }, {
+    "type" : "paragraph",
+    "id" : 199,
+    "page number" : 5,
+    "bounding box" : [ 106.673, 160.42, 241.017, 178.971 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "z\uD835\uDC56 = \uD835\uDC53embed(\uD835\uDC50\uD835\uDC56) ∈ R\uD835\uDC51, ∀\uD835\uDC56 ∈ {1, . . .,\uD835\uDC3E}."
+  }, {
+    "type" : "paragraph",
+    "id" : 200,
+    "page number" : 5,
+    "bounding box" : [ 53.467, 109.065, 295.562, 160.537 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "All the embedding vectors z\uD835\uDC56 of the text chunks are stacked columnwise to form an embedding matrix Z, which comprehensively captures the semantic information of the entire partitioning scheme Z = [z1, z2, . . ., z\uD835\uDC3E] ∈ R\uD835\uDC51×\uD835\uDC3E."
+  }, {
+    "type" : "paragraph",
+    "id" : 201,
+    "page number" : 5,
+    "bounding box" : [ 53.798, 82.349, 294.046, 116.657 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To measure the relationships among the embeddings of the text chunks, we calculate their Gram matrix Σ. To eliminate potential biases inherent in the embedding feature dimensions, we first define"
+  }, {
+    "type" : "paragraph",
+    "id" : 202,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 696.047, 413.357, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "a feature centering matrix"
+  }, {
+    "type" : "paragraph",
+    "id" : 204,
+    "page number" : 5,
+    "bounding box" : [ 442.684, 670.06, 447.523, 694.503 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "1 \uD835\uDC51"
+  }, {
+    "type" : "paragraph",
+    "id" : 206,
+    "page number" : 5,
+    "bounding box" : [ 448.941, 673.839, 468.848, 687.558 ],
+    "font" : "LinLibertineTZ",
+    "font size" : 6.575,
+    "text color" : "[0.0]",
+    "content" : "1\uD835\uDC511\uD835\uDC51⊤,"
+  }, {
+    "type" : "paragraph",
+    "id" : 203,
+    "page number" : 5,
+    "bounding box" : [ 407.22, 669.881, 439.945, 686.415 ],
+    "font" : "LibertineMathMI7",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "J\uD835\uDC51 = I\uD835\uDC51 −"
+  }, {
+    "type" : "paragraph",
+    "id" : 207,
+    "page number" : 5,
+    "bounding box" : [ 317.623, 635.301, 559.717, 669.61 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "where I\uD835\uDC51 is the \uD835\uDC51-dimensional identity matrix and 1\uD835\uDC51 is the \uD835\uDC51dimensional vector of all ones. The formula for calculating the Gram matrix"
+  }, {
+    "type" : "heading",
+    "id" : 208,
+    "level" : "Subtitle",
+    "page number" : 5,
+    "bounding box" : [ 401.395, 616.714, 474.61, 634.391 ],
+    "heading level" : 5,
+    "font" : "LinLibertineTZ",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Σ = Z⊤J\uD835\uDC51Z ∈ R\uD835\uDC3E×\uD835\uDC3E."
+  }, {
+    "type" : "paragraph",
+    "id" : 209,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 597.569, 558.437, 620.919 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Each element Σ\uD835\uDC56\uD835\uDC57 in the matrix Σ measures the semantic similarity between the \uD835\uDC56-th and \uD835\uDC57-th text chunks after feature centering."
+  }, {
+    "type" : "paragraph",
+    "id" : 210,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 575.651, 558.2, 599.001 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Finally, we define ΦSD(\uD835\uDC36) as the normalized log-determinant of the regularized Gram matrix:"
+  }, {
+    "type" : "paragraph",
+    "id" : 212,
+    "page number" : 5,
+    "bounding box" : [ 421.333, 549.665, 427.045, 574.107 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "1 \uD835\uDC3E"
+  }, {
+    "type" : "paragraph",
+    "id" : 214,
+    "page number" : 5,
+    "bounding box" : [ 430.541, 549.485, 492.883, 568.036 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "logdet(Σ + \uD835\uDEFCI\uD835\uDC3E)."
+  }, {
+    "type" : "paragraph",
+    "id" : 211,
+    "page number" : 5,
+    "bounding box" : [ 383.121, 549.485, 418.218, 565.759 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "ΦSD(\uD835\uDC36) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 215,
+    "page number" : 5,
+    "bounding box" : [ 317.623, 513.925, 559.72, 548.798 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "where \uD835\uDEFC is a small regularization constant (e.g., \uD835\uDEFC = 10−3) introduced to ensure matrix positive definiteness, and I\uD835\uDC3E is the \uD835\uDC3Edimensional identity matrix."
+  }, {
+    "type" : "paragraph",
+    "id" : 216,
+    "page number" : 5,
+    "bounding box" : [ 317.731, 459.13, 559.717, 515.357 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "According to matrix theory, the determinant of a matrix is equal to the product of its eigenvalues. If we let \uD835\uDF061, . . .,\uD835\uDF06\uD835\uDC3E be the eigenvalues of the matrix Σ + \uD835\uDEFCI\uD835\uDC3E, then ΦSD(\uD835\uDC36) can also be equivalently expressed as the arithmetic mean of the logarithms of the eigenvalues:"
+  }, {
+    "type" : "heading",
+    "id" : 220,
+    "level" : "Subtitle",
+    "page number" : 5,
+    "bounding box" : [ 441.104, 425.318, 452.967, 464.806 ],
+    "heading level" : 5,
+    "font" : "txexs",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "∑︁\uD835\uDC3E"
+  }, {
+    "type" : "paragraph",
+    "id" : 218,
+    "page number" : 5,
+    "bounding box" : [ 431.896, 434.4, 437.608, 458.842 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "1 \uD835\uDC3E"
+  }, {
+    "type" : "paragraph",
+    "id" : 222,
+    "page number" : 5,
+    "bounding box" : [ 454.461, 434.221, 482.32, 452.772 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "log(\uD835\uDF06\uD835\uDC56)."
+  }, {
+    "type" : "paragraph",
+    "id" : 217,
+    "page number" : 5,
+    "bounding box" : [ 393.684, 434.221, 428.781, 450.495 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "ΦSD(\uD835\uDC36) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 221,
+    "page number" : 5,
+    "bounding box" : [ 442.188, 430.884, 451.617, 439.971 ],
+    "font" : "txmiaX",
+    "font size" : 6.575,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC56=1"
+  }, {
+    "type" : "paragraph",
+    "id" : 223,
+    "page number" : 5,
+    "bounding box" : [ 317.686, 396.693, 558.204, 431.002 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "This form intuitively reveals the essence of ΦSD(\uD835\uDC36), which rewards partitioning schemes that enable the embeddings of text chunks to have large variances in all feature directions."
+  }, {
+    "type" : "list",
+    "id" : 224,
+    "level" : "4",
+    "page number" : 5,
+    "bounding box" : [ 317.749, 248.335, 559.714, 391.882 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 5,
+      "bounding box" : [ 317.955, 346.615, 559.714, 391.882 ],
+      "font" : "LinBiolinumTI",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "3.3.3 ChunkScore. The final ChunkScore is a weighted linear combination of the two aforementioned sub-metrics, forming a composite evaluation function capable of balancing macro-level and micro-level considerations:",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 43,
+        "page number" : 5,
+        "bounding box" : [ 366.645, 324.191, 509.418, 342.742 ],
+        "font" : "txsys",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "ΦCS(\uD835\uDC36) = \uD835\uDF06 · ΦLI(\uD835\uDC36) + (1 − \uD835\uDF06) · ΦSD(\uD835\uDC36),"
+      }, {
+        "type" : "paragraph",
+        "id" : 44,
+        "page number" : 5,
+        "bounding box" : [ 317.623, 292.17, 559.72, 326.479 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "where the hyperparameter \uD835\uDF06 ∈ [0, 1] is used to adjust the relative importance between logical independence and semantic discreteness. We provide a detailed exploration of its settings in Section"
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 5,
+      "bounding box" : [ 317.749, 248.335, 559.714, 293.602 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "4.5. In our framework, ΦCS serves as the ultimate optimization objective for the text segmentation agent \uD835\uDC34SEG, guiding it to find the most balanced text partitioning scheme that excels in both logical independence and content diversity.",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 225,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 187.297, 559.719, 243.524 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "3.3.4 Effectiveness of ΦSD(\uD835\uDC36). Although the validity of ΦLI(\uD835\uDC36) is based on language model perplexity and its principle is relatively intuitive, the construction of ΦSD(\uD835\uDC36) relies on more profound mathematical principles. In this paper, we justify its rationality from a geometric perspective."
+  }, {
+    "type" : "paragraph",
+    "id" : 226,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 110.585, 559.72, 188.73 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "A high-quality text partitioning scheme \uD835\uDC36high should exhibit semantic distinctiveness and complementarity among its members. Conversely, a low-quality partitioning scheme \uD835\uDC36low demonstrates semantic redundancy or overlap among its members. We will prove that ΦSD(\uD835\uDC36) can effectively distinguish between these two cases. Before proceeding with the proof, we first introduce a key mathematical lemmas."
+  }, {
+    "type" : "paragraph",
+    "id" : 227,
+    "page number" : 5,
+    "bounding box" : [ 317.955, 76.189, 558.204, 105.698 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Lemma 1 (Gram Matrix Determinant and Volume [14]). For a set of \uD835\uDC3E vectors V = {v1, . . ., v\uD835\uDC3E} where v\uD835\uDC56 ∈ R\uD835\uDC51, the corresponding"
+  }, {
+    "type" : "header",
+    "id" : 228,
+    "page number" : 6,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 16,
+      "page number" : 6,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 229,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 684.594, 294.937, 707.116 ],
+    "font" : "LinLibertineTI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Gram matrix G is defined as G\uD835\uDC56\uD835\uDC57 = v\uD835\uDC56⊤v\uD835\uDC57, i.e., G = V⊤V. The determinant of this matrix equals the squared volume of the \uD835\uDC3E-dimensional"
+  }, {
+    "type" : "paragraph",
+    "id" : 230,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 652.656, 226.824, 684.44 ],
+    "font" : "LinLibertineTI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "parallel polyhedra spanned by these vectors: det(G) = Vol\uD835\uDC3E2 ({v1, . . ., v\uD835\uDC3E})."
+  }, {
+    "type" : "paragraph",
+    "id" : 231,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 609.204, 294.043, 654.472 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Perspective of Geometric Analysis: We aim to demonstrate that maximizing ΦSD(\uD835\uDC36) is equivalent to maximizing the volume spanned by the embedding vectors of text chunks in the semantic space."
+  }, {
+    "type" : "paragraph",
+    "id" : 232,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 576.328, 295.56, 610.636 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "First, we revisit the matrix Σ = Z⊤J\uD835\uDC51Z in the core computational formula of ΦSD(\uD835\uDC36). Here, the feature centering matrix J\uD835\uDC51 is an orthogonal projection matrix, possessing the properties of symmetry"
+  }, {
+    "type" : "paragraph",
+    "id" : 233,
+    "page number" : 6,
+    "bounding box" : [ 53.467, 553.773, 295.029, 577.76 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "J\uD835\uDC51⊤ = J\uD835\uDC51 and idempotence J\uD835\uDC51J\uD835\uDC51 = J\uD835\uDC51. Utilizing these two properties, we can reconstruct Σ as follows:"
+  }, {
+    "type" : "paragraph",
+    "id" : 234,
+    "page number" : 6,
+    "bounding box" : [ 53.368, 369.542, 295.56, 550.613 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Σ = Z⊤J\uD835\uDC51Z = Z⊤(J\uD835\uDC51⊤J\uD835\uDC51)Z = (J\uD835\uDC51Z)⊤(J\uD835\uDC51Z). We define a new projected embedding matrix Zproj := J\uD835\uDC51Z = [J\uD835\uDC51z1, . . ., J\uD835\uDC51z\uD835\uDC3E]. Each column of this matrix is the projected result of the original embedding vector z\uD835\uDC56 after removing the feature mean. Therefore, the expression for Σ can be simplified to Σ = Z⊤projZproj. This form is precisely the standard Gram matrix of the projected vector set Zproj. According to Lemma 1, we can establish the following logical chain: For a high-quality partition \uD835\uDC36high, its members are semantically dissimilar, and the corresponding projected embedding vectors {J\uD835\uDC51z\uD835\uDC56}high tend to be linearly independent or even orthogonal in the space. The parallel polyhedra spanned by them has a relatively large \uD835\uDC3E-dimensional volume Vol\uD835\uDC3E. For a low-quality partition \uD835\uDC36low, its members exhibit semantic redundancy, and the corresponding projected embedding vectors {J\uD835\uDC51z\uD835\uDC56}low tend to be linearly dependent, resulting in a flattened parallel polyhedra spanned by them, with its \uD835\uDC3E-dimensional volume approaching zero."
+  }, {
+    "type" : "paragraph",
+    "id" : 235,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 330.505, 295.556, 371.906 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Thus, Vol\uD835\uDC3E2 ({J\uD835\uDC51z\uD835\uDC56}high) > Vol\uD835\uDC3E2 ({J\uD835\uDC51z\uD835\uDC56}low), which directly leads to det(Σhigh) > det(Σlow). Since the logarithmic function is monotonically increasing, we have ΦSD(\uD835\uDC36high) > ΦSD(\uD835\uDC36low)."
+  }, {
+    "type" : "paragraph",
+    "id" : 236,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 281.14, 295.559, 338.098 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "In conclusion, ΦSD serves as an effective and theoretically wellgrounded indicator for measuring the semantic dispersion of text chunks. Furthermore, in Appendix C, we provide an informationtheoretic proof based on entropy maximization, which further validates ΦSD as a principled metric for semantic dispersion."
+  }, {
+    "type" : "heading",
+    "id" : 237,
+    "level" : "Subtitle",
+    "page number" : 6,
+    "bounding box" : [ 53.798, 259.157, 266.395, 273.797 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "3.4 Training SLMs for the Chunking Task"
+  }, {
+    "type" : "paragraph",
+    "id" : 238,
+    "page number" : 6,
+    "bounding box" : [ 53.529, 191.938, 295.56, 259.123 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To transfer the powerful text segmentation and knowledge completion capabilities within the multi-agent debate framework to more lightweight models, we specifically train three SLMs. Each SLM utilizes 45K training data and is responsible for a core subtask in the chunking process, thereby reproducing the key functions of the complex framework in a modular manner."
+  }, {
+    "type" : "paragraph",
+    "id" : 239,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 141.942, 294.048, 193.37 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The primary task of the first SLM M\uD835\uDC3A\uD835\uDC52\uD835\uDC5B is to directly generate a complete question outline Q and the optimal text segmentation result\uD835\uDC36\uD835\uDC5C\uD835\uDC5D\uD835\uDC61 from the original document D in a single step. The final training data is available in the form (D, (Q,\uD835\uDC36\uD835\uDC5C\uD835\uDC5D\uD835\uDC61))."
+  }, {
+    "type" : "paragraph",
+    "id" : 240,
+    "page number" : 6,
+    "bounding box" : [ 53.798, 76.189, 295.559, 149.534 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The second SLM M\uD835\uDC37\uD835\uDC56\uD835\uDC60\uD835\uDC50 focuses on diagnosing whether there is information missing in text chunks. Trained as a discriminator, its task is to directly determine, based on D and \uD835\uDC50\uD835\uDC56, whether \uD835\uDC50\uD835\uDC56 suffers from inaccuracies or semantic ambiguities due to the absence of necessary contextual information. The third SLM M\uD835\uDC45\uD835\uDC52\uD835\uDC53 is responsible for performing the task of \uD835\uDC34\uD835\uDC3E\uD835\uDC36. When M\uD835\uDC37\uD835\uDC56\uD835\uDC60\uD835\uDC50 determines that"
+  }, {
+    "type" : "paragraph",
+    "id" : 241,
+    "page number" : 6,
+    "bounding box" : [ 317.552, 619.335, 559.72, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC50\uD835\uDC56 has missing information, M\uD835\uDC45\uD835\uDC52\uD835\uDC53 is activated. Its training process encompasses two interrelated objectives: (1) M\uD835\uDC45\uD835\uDC52\uD835\uDC53 needs to accurately identify the specific parts of \uD835\uDC50\uD835\uDC56 where semantic ambiguities arise due to missing information and locate the corresponding supplementary information from D. (2) Subsequently, based on this information, M\uD835\uDC45\uD835\uDC52\uD835\uDC53 rewrites the entire text chunk to generate a new, more comprehensive text chunk \uD835\uDC50\uD835\uDC56′. The detailed training process is presented in Appendix A."
+  }, {
+    "type" : "heading",
+    "id" : 242,
+    "level" : "Subtitle",
+    "page number" : 6,
+    "bounding box" : [ 317.955, 577.214, 520.81, 604.805 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "3.5 Dataset Construction for HazardousChemical Safety"
+  }, {
+    "type" : "paragraph",
+    "id" : 243,
+    "page number" : 6,
+    "bounding box" : [ 317.525, 520.954, 558.433, 577.18 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "We contribute a high-quality, small-domain hazardous chemical safety (HChemSafety) dataset for domain RAG. This not only reveals the significant value of RAG in specialized domains but also further highlights the generalization capability of the QChunker framework."
+  }, {
+    "type" : "paragraph",
+    "id" : 244,
+    "page number" : 6,
+    "bounding box" : [ 317.623, 323.693, 559.721, 522.386 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The construction of the HChemSafety dataset begins with collecting a comprehensive list that covers the names of common and high-risk chemicals. We then conduct targeted crawling of relevant documents to form a corpus. The documents that have undergone preliminary screening are further quantitatively scored using a text quality assessment model. We only retain the subset of documents with the highest scores for the subsequent refinement stage. Next, we employ the sliding window to assist LLMs in the refinement of the documents, resulting in the final version of HChemSafety documents. Afterwards, we once again leverage the information extraction capability of LLMs to perform named entity recognition and relation extraction on the documents, thereby constructing a HChemSafety knowledge graph. Finally, by retrieving the knowledge graph, we automatically generate a large number of QA pairs that cover different knowledge points and reasoning levels, forming the final retrieval QA dataset that can be used for a further evaluation of the performance of domain RAG systems. For details on dataset construction, please refer to Appendix E."
+  }, {
+    "type" : "paragraph",
+    "id" : 245,
+    "page number" : 6,
+    "bounding box" : [ 317.955, 294.524, 459.588, 309.164 ],
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4 Experiment and Analysis"
+  }, {
+    "type" : "heading",
+    "id" : 246,
+    "level" : "Subtitle",
+    "page number" : 6,
+    "bounding box" : [ 317.955, 278.833, 444.926, 293.473 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.1 Datasets and Metrics"
+  }, {
+    "type" : "paragraph",
+    "id" : 247,
+    "page number" : 6,
+    "bounding box" : [ 317.623, 145.86, 559.715, 278.799 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To evaluate text chunking for domain RAG, this study utilizes four benchmarks: CRUD [35] for the news domain, OmniEval [46] for finance, the multi-domain MultiFieldQA_zh [4], and our proprietary hazardous chemical safety dataset, HChemSafety. CRUD is specifically designed for long-answer generation. OmniEval provides a comprehensive assessment of RAG system quality through manually annotated data spanning 5 task types and 16 financial topics. MultiFieldQA_zh is a component of the LongBench suite. Performance is quantified using BLEU, ROUGE-L, and METEOR metrics, which respectively assess n-gram overlap, the longest common subsequence, and semantic similarity via synonyms and syntactic variations."
+  }, {
+    "type" : "heading",
+    "id" : 248,
+    "level" : "Subtitle",
+    "page number" : 6,
+    "bounding box" : [ 317.955, 116.691, 389.159, 131.331 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.2 Baselines"
+  }, {
+    "type" : "paragraph",
+    "id" : 249,
+    "page number" : 6,
+    "bounding box" : [ 317.955, 82.349, 559.72, 116.657 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "QChunker is evaluated against six representative text segmentation methods, categorized as rule-based, semantic-based, and LLMdriven. The rule-based approaches include Original Chunking [27],"
+  }, {
+    "type" : "header",
+    "id" : 250,
+    "page number" : 7,
+    "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 17,
+      "page number" : 7,
+      "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates."
+    } ]
+  }, {
+    "type" : "heading",
+    "id" : 251,
+    "level" : "Subtitle",
+    "page number" : 7,
+    "bounding box" : [ 53.502, 686.743, 559.295, 709.735 ],
+    "heading level" : 4,
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Table 1: Main experimental results are presented in four domain QA datasets. ROU. and MET. represent ROUGE-L and METEOR, respectively. The best result is in bold, and the second best result is underlined."
+  }, {
+    "type" : "paragraph",
+    "id" : 254,
+    "page number" : 7,
+    "bounding box" : [ 180.519, 658.956, 534.233, 670.808 ],
+    "font" : "LinLibertineTB",
+    "font size" : 8.831,
+    "text color" : "[0.0]",
+    "content" : "CRUD OmniEval MultiFieldQA HChemSafety"
+  }, {
+    "type" : "paragraph",
+    "id" : 253,
+    "page number" : 7,
+    "bounding box" : [ 58.705, 653.235, 136.174, 665.086 ],
+    "font" : "LinLibertineTB",
+    "font size" : 8.831,
+    "text color" : "[0.0]",
+    "content" : "Chunking Methods"
+  }, {
+    "type" : "paragraph",
+    "id" : 255,
+    "page number" : 7,
+    "bounding box" : [ 58.705, 532.048, 553.318, 657.855 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.831,
+    "text color" : "[0.0]",
+    "content" : "BLEU ROU. MET. BLEU ROU. MET. BLEU ROU. MET. BLEU ROU. MET. Original 0.5022 0.5654 0.7324 0.1906 0.2254 0.3904 0.1707 0.2315 0.3650 0.2282 0.2054 0.3152 Llama_index 0.5312 0.5896 0.7449 0.1969 0.2350 0.4040 0.1732 0.2363 0.3726 0.2477 0.2234 0.3213 Semantic Chunking 0.5188 0.5823 0.7434 0.1913 0.2240 0.3821 0.1609 0.2191 0.3468 0.2037 0.1891 0.2964 LumberChunker 0.5061 0.5701 0.7399 0.1997 0.2375 0.4085 0.1841 0.2426 0.3809 0.2298 0.2124 0.3402 MoC MetaChunker 0.5456 0.6031 0.7546 0.2042 0.2457 0.4141 0.1707 0.2255 0.3512 0.2525 0.2307 0.3449 Qwen2.5-14B 0.5329 0.5920 0.7502 0.2048 0.2473 0.4160 0.1883 0.2497 0.3827 0.2550 0.2250 0.3237 Qwen3-14B 0.5382 0.5953 0.7531 0.1907 0.2329 0.4080 0.1800 0.2412 0.3759 0.2419 0.2195 0.3311 QChunker-3B 0.5552 0.6114 0.7640 0.2193 0.2673 0.4348 0.1970 0.2613 0.4010 0.2792 0.2457 0.3654"
+  }, {
+    "type" : "paragraph",
+    "id" : 297,
+    "page number" : 7,
+    "bounding box" : [ 76.367, 513.655, 552.13, 531.927 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.831,
+    "text color" : "[0.0]",
+    "content" : "w/o M\uD835\uDC45\uD835\uDC52\uD835\uDC53 0.5433 0.6014 0.7601 0.2139 0.2555 0.4198 0.1935 0.2549 0.3889 0.2719 0.2427 0.3607"
+  }, {
+    "type" : "paragraph",
+    "id" : 311,
+    "page number" : 7,
+    "bounding box" : [ 53.467, 368.424, 295.564, 501.363 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "which divides text into fixed-length segments irrespective of sentence boundaries, and the Llama_index method [27], which respects sentence integrity while approximating a preset token threshold per chunk. The semantic-based method, Similarity Chunking [48], leverages sentence embeddings to partition text by grouping sentences with high semantic relevance. In the LLM-driven category, we compare against established frameworks like LumberChunker [15], which pioneered prompting a model to identify topic shifts, and MoC [55], a parameter-efficient paradigm using a router and meta-chunkers. Furthermore, to assess the impact of the underlying model, we conduct direct comparisons against the general-purpose LLMs, Qwen2.5-14B [43] and Qwen3-14B [51]."
+  }, {
+    "type" : "heading",
+    "id" : 312,
+    "level" : "Subtitle",
+    "page number" : 7,
+    "bounding box" : [ 53.798, 341.921, 196.391, 356.561 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.3 Implementation Details"
+  }, {
+    "type" : "paragraph",
+    "id" : 313,
+    "page number" : 7,
+    "bounding box" : [ 53.467, 165.112, 295.559, 341.887 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "In our methodology, the construction of the core training data and the HChemSafety dataset is facilitated by DeepSeek-R1 [21]. To foster diversity in the generated content, we set the temperature to 0.7 and top_p to 0.8. For the training of smaller models, we selected Qwen2.5-3B as the base model. During the model evaluation phase, we primarily utilized Qwen2.5-7B [43]. All language models employed in the experiments are the instruction versions, loaded with float16 precision to optimize computational efficiency. For retrieval-based QA, we construct a vector database using Milvus and choose bge-base-zh-v1.5 [49] as the embedding model. We configure top_k=8 to retrieve the most relevant contextual information. Apart from the differences in text chunking strategies, all other components of the RAG pipeline remain strictly identical. Data processing and the construction of all datasets are carried out using the Huawei Ascend AI technology stack, while model training and evaluation are executed on NVIDIA A800 80G GPUs."
+  }, {
+    "type" : "heading",
+    "id" : 314,
+    "level" : "Subtitle",
+    "page number" : 7,
+    "bounding box" : [ 53.798, 138.609, 170.056, 153.249 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.4 Main Experiments"
+  }, {
+    "type" : "paragraph",
+    "id" : 315,
+    "page number" : 7,
+    "bounding box" : [ 53.467, 82.349, 295.562, 138.575 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To comprehensively evaluate the effectiveness and generalization capability of our proposed QChunker framework, we conduct extensive experiments on QA datasets across four different domains. For training QChunker-3B, we use data from the first two datasets, while MultiFieldQA and HChemSafety are treated as out-of-domain"
+  }, {
+    "type" : "paragraph",
+    "id" : 316,
+    "page number" : 7,
+    "bounding box" : [ 317.525, 313.63, 559.72, 501.363 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "benchmarks. The experimental results are presented in Table 1. The QChunker framework consistently achieves optimal performance across all four datasets. The second-best performance is mostly obtained by the ablation variant w/o \uD835\uDC40ref (11/12 metrics) and MoC MetaChunker (1/12 metrics), indicating that the proposed components are non-trivial and each contributes to the final effectiveness. We additionally conducted three independent repeated experiments. QChunker outperforms all baseline methods under a t-test with \uD835\uDC5D < 0.05. Notably, on the HChemSafety dataset, which is constructed for this study and features a high degree of specialization and term density, the advantage of QChunker is particularly prominent. Its scores not only far surpass those of traditional methods but also outperform chunking strategies based on LLMs. This result indicates that the understanding-retrieval-augmentation paradigm of QChunker can effectively address the challenges of strong contextual dependencies and semantic fragmentation in domain-specific documents."
+  }, {
+    "type" : "paragraph",
+    "id" : 317,
+    "page number" : 7,
+    "bounding box" : [ 317.955, 138.287, 559.715, 315.062 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To investigate the contributions of the key components within the QChunker framework, we design an ablation experiment by removing the knowledge completion module M\uD835\uDC45\uD835\uDC52\uD835\uDC53 . This experiment aims to quantitatively validate the proposition proposed in our paper that \"text chunking is a composite task of segmentation and knowledge completion\". From the comparison of the last two rows in Table 1, it can be observed that although the performance of \uD835\uDC64/\uD835\uDC5C M\uD835\uDC45\uD835\uDC52\uD835\uDC53 still surpasses that of most benchmark methods, its performance on all metrics across all datasets is lower than that of the complete QChunker framework. For example, on the OmniEval dataset, the removal of the M\uD835\uDC45\uD835\uDC52\uD835\uDC53 module resulted in a decline in the METEOR score from 0.4348 to 0.4198. This demonstrates that merely performing high-quality text segmentation is insufficient, and semantic compensation and contextual reconstruction through M\uD835\uDC45\uD835\uDC52\uD835\uDC53 are crucial for generating truly information-rich text chunks that are easily comprehensible by downstream models."
+  }, {
+    "type" : "heading",
+    "id" : 318,
+    "level" : "Subtitle",
+    "page number" : 7,
+    "bounding box" : [ 317.955, 105.732, 478.253, 120.372 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.5 Exploration of ChunkScore"
+  }, {
+    "type" : "paragraph",
+    "id" : 319,
+    "page number" : 7,
+    "bounding box" : [ 317.686, 82.349, 558.372, 105.698 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To further validate the effectiveness of our proposed ChunkScore as a direct evaluation metric and determine the optimal value for"
+  }, {
+    "type" : "header",
+    "id" : 320,
+    "page number" : 8,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 18,
+      "page number" : 8,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "image",
+    "id" : 321,
+    "page number" : 8,
+    "bounding box" : [ 60.432, 561.553, 287.413, 708.315 ],
+    "source" : "QChunker_images/imageFile21.png"
+  }, {
+    "type" : "heading",
+    "id" : 322,
+    "level" : "Subtitle",
+    "page number" : 8,
+    "bounding box" : [ 53.798, 528.027, 294.047, 551.019 ],
+    "heading level" : 4,
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Figure 2: Correlation analysis between ChunkScore andROUGE-L performance on the CRUD Benchmark."
+  }, {
+    "type" : "image",
+    "id" : 323,
+    "page number" : 8,
+    "bounding box" : [ 55.386, 318.92, 292.464, 515.619 ],
+    "source" : "QChunker_images/imageFile22.png"
+  }, {
+    "type" : "heading",
+    "id" : 324,
+    "level" : "Subtitle",
+    "page number" : 8,
+    "bounding box" : [ 53.798, 285.393, 294.047, 308.385 ],
+    "heading level" : 4,
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Figure 3: Trends in perplexity variations between originaland rewritten text chunks across different LLMs."
+  }, {
+    "type" : "paragraph",
+    "id" : 325,
+    "page number" : 8,
+    "bounding box" : [ 53.368, 82.349, 295.565, 270.082 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "its internal hyperparameter \uD835\uDF06, we design a correlation analysis experiment on the CRUD benchmark. We adjust the value of \uD835\uDF06 within the range from 0.0 to 1.0 with a step size of 0.01. For each \uD835\uDF06 value, we calculate the Pearson correlation coefficient between the ChunkScores of multiple text chunk sets generated by different chunking strategies and the ROUGE-L performance in the downstream QA task. The experimental results are shown in Figure 2. When \uD835\uDF06 = 0.3, the correlation coefficient approaches 1.0. This indicates that when ChunkScore considers logical independence with a weight of 0.3 and semantic dispersion with a weight of 0.7, it exhibits the strongest discriminative ability and the highest correlation with QA performance. This also reveals that for high-quality text chunking, ensuring semantic dispersion among text chunks is more important than merely guaranteeing basic boundary clarity, provided that the basic boundary clarity is ensured. We further validate it on three additional datasets (analogous to Figure 2), and the results show that all correlation coefficients exceed 0.85."
+  }, {
+    "type" : "heading",
+    "id" : 326,
+    "level" : "Subtitle",
+    "page number" : 8,
+    "bounding box" : [ 317.955, 694.773, 540.053, 709.413 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "4.6 Effectiveness of Knowledge Completion"
+  }, {
+    "type" : "paragraph",
+    "id" : 327,
+    "page number" : 8,
+    "bounding box" : [ 317.955, 616.595, 559.713, 694.74 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "On the CRUD benchmark, we employ perplexity to more intuitively demonstrate the role of the knowledge completion module in QChunker. Perplexity is a crucial metric for measuring the intrinsic coherence and comprehensibility of text. A lower perplexity indicates that the language model makes more accurate predictions for the text sequence, meaning the logical structure of the text is clearer and more comprehensible for the model."
+  }, {
+    "type" : "paragraph",
+    "id" : 328,
+    "page number" : 8,
+    "bounding box" : [ 317.623, 496.047, 559.719, 618.027 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The experimental results are shown in Figure 3. Regardless of whether it is a model with a parameter scale of 1.5B or 7B, the perplexity of text chunks that have undergone knowledge completion is consistently lower than that of original text chunks. Specifically, the text chunks after knowledge completion not only have a lower overall mean value of perplexity but also exhibit less volatility. They avoid many perplexity peaks in original text chunks that are caused by context breaks. This phenomenon proves that the knowledge completion mechanism, by optimizing the internal context consistency of text chunks, pre-eliminates ambiguity points and information gaps that may lead to model comprehension obstacles."
+  }, {
+    "type" : "heading",
+    "id" : 329,
+    "level" : "Subtitle",
+    "page number" : 8,
+    "bounding box" : [ 317.955, 471.485, 390.85, 486.125 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "5 Conclusion"
+  }, {
+    "type" : "paragraph",
+    "id" : 330,
+    "page number" : 8,
+    "bounding box" : [ 317.686, 217.965, 559.72, 471.452 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "This paper addresses the core challenge in existing RAG systems due to semantic fragmentation of text chunks, and proposes the text chunking framework named QChunker. Drawing inspiration from the concept that \"questions serve as catalysts for deep insights,\" we design and implement a multi-agent debate framework comprising a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework not only constructs a training dataset containing 45K high-quality samples but also transfers this advanced capability to SLMs. Additionally, to address the inefficiency issues caused by the over-reliance of existing evaluation methods on downstream tasks, we introduce a direct evaluation metric called ChunkScore. Both theoretical analysis and experimental results demonstrate that ChunkScore can efficiently distinguish the quality of text chunks. Extensive experimental results across four heterogeneous domains indicate that QChunker outperforms existing methods in providing more logically coherent and information-rich text chunks. In particular, our knowledge completion mechanism effectively reduces the perplexity of text chunks through global semantic compensation. Furthermore, by constructing a specialized dataset in the field of hazardous chemical safety, this study demonstrates the generalization capability of the QChunker framework and its application value in serving specialized domains."
+  }, {
+    "type" : "heading",
+    "id" : 331,
+    "level" : "Subtitle",
+    "page number" : 8,
+    "bounding box" : [ 317.955, 193.403, 409.941, 208.043 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "Acknowledgments"
+  }, {
+    "type" : "paragraph",
+    "id" : 332,
+    "page number" : 8,
+    "bounding box" : [ 317.686, 82.349, 559.715, 193.37 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "This work was funded by the National Natural Science Foundation of China (No.62272466, U24A20233, 72572090), the Beijing Municipal Science and Technology Project (No. 2241100004224009), the Big Data and Responsible Artifcial Intelligence for National Governance of Renmin University of China, the Tsinghua University School of Economics and Management Research Grant. This research was also supported by Huawei’s Al Hundred Schools Program and was carried out using the Huawei Ascend AI technology stack. We also extend our thanks to Renzhe Xu and Hao Zou for their insightful discussions."
+  }, {
+    "type" : "header",
+    "id" : 333,
+    "page number" : 9,
+    "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 19,
+      "page number" : 9,
+      "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates."
+    } ]
+  }, {
+    "type" : "heading",
+    "id" : 334,
+    "level" : "Subtitle",
+    "page number" : 9,
+    "bounding box" : [ 53.798, 694.773, 108.147, 709.413 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "References"
+  }, {
+    "type" : "list",
+    "id" : 335,
+    "level" : "5",
+    "page number" : 9,
+    "bounding box" : [ 53.798, 88.091, 295.226, 695.487 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 25,
+    "next list id" : 336,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 677.495, 294.042, 695.487 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[1] Dimo Angelov. 2020. Top2vec: Distributed representations of topics. arXiv preprint arXiv:2008.09470 (2020).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 669.909, 295.116, 679.547 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[2] Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi.",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 36,
+        "level" : "6",
+        "page number" : 9,
+        "bounding box" : [ 69.234, 661.939, 295.115, 671.577 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "2024. Self-rag: Learning to retrieve, generate, and critique through self-reflection."
+      }, {
+        "type" : "paragraph",
+        "id" : 37,
+        "level" : "7",
+        "page number" : 9,
+        "bounding box" : [ 69.025, 653.969, 87.687, 663.607 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "(2024)."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 621.704, 294.047, 655.637 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[3] Tal August, Lucy Lu Wang, Jonathan Bragg, Marti A Hearst, Andrew Head, and Kyle Lo. 2023. Paper plain: Making medical research papers approachable to healthcare consumers with natural language processing. ACM Transactions on Computer-Human Interaction 30, 5 (2023), 1–38.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 589.824, 294.809, 623.756 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[4] Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan Zeng, Lei Hou, et al. 2023. Longbench: A bilingual, multitask benchmark for long context understanding. arXiv preprint arXiv:2308.14508 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 565.914, 294.739, 591.876 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[5] Bhagyashree Vyankatrao Barde and Anant Madhavrao Bainwad. 2017. An overview of topic modeling methods and tools. In 2017 International Conference on Intelligent Computing and Control Systems (ICICCS). IEEE, 745–750.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 534.033, 294.869, 567.966 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[6] Garbiel Bénédict, Ruqing Zhang, and Donald Metzler. 2023. Gen-ir@ sigir 2023: The first workshop on generative information retrieval. In Proceedings of the 46th International ACM SIGIR Conference on Research and Development in Information Retrieval. 3460–3463.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 510.123, 295.223, 536.085 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[7] Sinchana Ramakanth Bhat, Max Rudat, Jannis Spiekermann, and Nicolas FloresHerr. 2025. Rethinking Chunk Size For Long-Document Retrieval: A MultiDataset Analysis. arXiv preprint arXiv:2505.21700 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 494.183, 295.115, 512.175 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[8] David M Blei, Andrew Y Ng, and Michael I Jordan. 2003. Latent dirichlet allocation. Journal of machine Learning research 3, Jan (2003), 993–1022.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 57.041, 470.272, 294.206, 496.235 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[9] T Tony Cai, Tengyuan Liang, and Harrison H Zhou. 2015. Law of log determinant of sample covariance matrix and optimal estimation of differential entropy for high-dimensional Gaussian distributions. Journal of Multivariate Analysis 137",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 38,
+        "level" : "7",
+        "page number" : 9,
+        "bounding box" : [ 69.025, 462.686, 114.243, 472.324 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "(2015), 161–172."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 430.806, 294.255, 464.354 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[10] Jing Chen, Zhihua Wei, Jiaqi Wang, Rui Wang, Chuanyang Gong, Hongyun Zhang, and Duoqian Miao. 2024. Supplementing domain knowledge to BERT with semi-structured information of documents. Expert Systems with Applications 235 (2024), 121054.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 406.511, 295.226, 432.474 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[11] Tong Chen, Hongwei Wang, Sihao Chen, Wenhao Yu, Kaixin Ma, Xinran Zhao, Dong Yu, and Hongming Zhang. 2023. Dense x retrieval: What retrieval granularity should we use? arXiv preprint arXiv:2312.06648 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 367.045, 295.225, 408.563 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[12] Yuyan Chen, Qiang Fu, Yichen Yuan, Zhihao Wen, Ge Fan, Dayiheng Liu, Dongmei Zhang, Zhixu Li, and Yanghua Xiao. 2023. Hallucination detection: Robustly discerning reliable answers in large language models. In Proceedings of the 32nd ACM International Conference on Information and Knowledge Management. 245– 255.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 342.751, 295.116, 368.713 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[13] Sangwoo Cho, Kaiqiang Song, Xiaoyang Wang, Fei Liu, and Dong Yu. 2022. Toward unifying text segmentation and long document summarization. arXiv preprint arXiv:2210.16422 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 319.224, 294.044, 344.802 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[14] Madson C de Almeida, Eduardo N Asada, and Ariovaldo V Garcia. 2008. On the use of Gram matrix in observability analysis. IEEE Transactions on Power Systems 23, 1 (2008), 249–251.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 294.93, 295.121, 320.892 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[15] André V Duarte, João Marques, Miguel Graça, Miguel Freire, Lei Li, and Arlindo L Oliveira. 2024. LumberChunker: Long-Form Narrative Document Segmentation. arXiv preprint arXiv:2406.17526 (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 263.049, 294.042, 296.982 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[16] Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, Dasha Metropolitansky, Robert Osazuwa Ness, and Jonathan Larson. 2024. From local to global: A graph rag approach to query-focused summarization. arXiv preprint arXiv:2404.16130 (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 247.109, 294.042, 265.101 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[17] Pamela Faber and Pilar León-Araúz. 2016. Specialized knowledge representation and the parameterization of context. Frontiers in psychology 7 (2016), 196.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 223.199, 294.81, 249.161 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[18] Yunfan Gao, Yun Xiong, Xinyu Gao, Kangxiang Jia, Jinliu Pan, Yuxi Bi, Yi Dai, Jiawei Sun, and Haofen Wang. 2023. Retrieval-augmented generation for large language models: A survey. arXiv preprint arXiv:2312.10997 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 207.643, 295.116, 225.251 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[19] Hal Gregersen and Rick Adamson. 2018. Questions are the Answer. Vol. 15. HarperCollins Publishers.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 191.318, 294.042, 209.311 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[20] Maarten Grootendorst. 2022. BERTopic: Neural topic modeling with a class-based TF-IDF procedure. arXiv preprint arXiv:2203.05794 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 159.438, 294.868, 193.37 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[21] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. 2025. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 143.498, 294.867, 161.49 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[22] Zirui Guo, Lianghao Xia, Yanhua Yu, Tu Ao, and Chao Huang. 2024. Lightrag: Simple and fast retrieval-augmented generation. arXiv preprint arXiv:2410.05779",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 39,
+        "level" : "7",
+        "page number" : 9,
+        "bounding box" : [ 69.025, 135.912, 87.687, 145.55 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "(2024)."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 119.587, 294.869, 137.579 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[23] Hangfeng He, Hongming Zhang, and Dan Roth. 2022. Rethinking with retrieval: Faithful large language model inference. arXiv preprint arXiv:2301.00303 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 103.647, 294.742, 121.639 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[24] Greg Kamradt. 2024. Semantic chunking. https://github.com/FullStackRetrievalcom/RetrievalTutorials (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 53.798, 88.091, 294.044, 105.699 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[25] P Kherwa and P Bansal. 2020. Topic Modeling: A Comprehensive Review. EAI Endorsed Transactions on Scalable Information Systems, 7 (24), 1–16.",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "list",
+    "id" : 336,
+    "level" : "5",
+    "page number" : 9,
+    "bounding box" : [ 317.955, 74.506, 559.382, 706.197 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 25,
+    "previous list id" : 335,
+    "next list id" : 338,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 688.205, 558.333, 706.197 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[26] Minsang Kim and Seungjun Baek. 2025. Syntriever: How to train your retriever with synthetic data from llms. arXiv preprint arXiv:2502.03824 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 680.235, 520.432, 690.257 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[27] Langchain. 2023. https://github.com/langchain-ai/langchain (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 656.325, 559.379, 682.287 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[28] Angeliki Lazaridou, Elena Gribovskaya, Wojciech Stokowiec, and Nikolai Grigorev. 2022. Internet-augmented language models through few-shot prompting for open-domain question answering. arXiv preprint arXiv:2203.05115 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 624.444, 559.274, 658.377 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[29] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems 33 (2020), 9459–9474.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 608.504, 558.202, 626.496 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[30] Huayang Li, Yixuan Su, Deng Cai, Yan Wang, and Lemao Liu. 2022. A survey on retrieval-augmented text generation. arXiv preprint arXiv:2202.01110 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 584.594, 558.201, 610.556 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[31] Jing Li, Billy Chiu, Shuo Shang, and Ling Shao. 2020. Neural text segmentation and its application to sentiment analysis. IEEE Transactions on Knowledge and Data Engineering 34, 2 (2020), 828–842.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 552.713, 558.966, 586.645 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[32] Xianzhi Li, Samuel Chan, Xiaodan Zhu, Yulong Pei, Zhiqiang Ma, Xiaomo Liu, and Sameena Shah. 2023. Are ChatGPT and GPT-4 general-purpose solvers for financial text analytics? A study on several typical tasks. arXiv preprint arXiv:2305.05862 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 545.127, 559.272, 554.765 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[33] Weizhe Lin, Rexhina Blloshmi, Bill Byrne, Adrià de Gispert, and Gonzalo Iglesias.",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 34,
+        "level" : "6",
+        "page number" : 9,
+        "bounding box" : [ 333.391, 512.863, 558.204, 546.795 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "2023. LI-RAGE: Late Interaction Retrieval Augmented Generation with Explicit Signals for Open-Domain Table Question Answering. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers). 1557–1566."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 496.922, 559.279, 514.914 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[34] Michal Lukasik, Boris Dadachev, Gonçalo Simoes, and Kishore Papineni. 2020. Text segmentation by cross segment attention. arXiv preprint arXiv:2004.14535",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 35,
+        "level" : "7",
+        "page number" : 9,
+        "bounding box" : [ 333.182, 489.336, 351.844, 498.974 ],
+        "font" : "LinLibertineT",
+        "font size" : 6.974,
+        "text color" : "[0.0]",
+        "content" : "(2020)."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 457.072, 559.272, 491.004 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[35] Yuanjie Lyu, Zhiyu Li, Simin Niu, Feiyu Xiong, Bo Tang, Wenjin Wang, Hao Wu, Huanyong Liu, Tong Xu, and Enhong Chen. 2024. Crud-rag: A comprehensive chinese benchmark for retrieval-augmented generation of large language models. arXiv preprint arXiv:2401.17043 (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 433.161, 559.272, 459.124 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[36] Congbo Ma, Wei Emma Zhang, Mingyu Guo, Hu Wang, and Quan Z Sheng. 2022. Multi-document summarization via deep learning techniques: A survey. Comput. Surveys 55, 5 (2022), 1–37.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 409.251, 558.204, 435.213 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[37] Carlo Merola and Jaspinder Singh. 2025. Reconstructing Context: Evaluating Advanced Chunking Strategies for Retrieval-Augmented Generation. arXiv preprint arXiv:2504.19754 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 385.341, 558.205, 411.303 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[38] Xinyue Shen, Zeyuan Chen, Michael Backes, and Yang Zhang. 2023. In chatgpt we trust? measuring and characterizing the reliability of chatgpt. arXiv preprint arXiv:2304.08979 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 361.43, 558.204, 387.393 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[39] Boheng Sheng, Jiacheng Yao, Meicong Zhang, and Guoxiu He. 2025. Dynamic Chunking and Selection for Reading Comprehension of Ultra-Long Context in Large Language Models. arXiv preprint arXiv:2506.00773 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 329.934, 559.272, 363.482 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[40] Freda Shi, Xinyun Chen, Kanishka Misra, Nathan Scales, David Dohan, Ed H Chi, Nathanael Schärli, and Denny Zhou. 2023. Large language models can be easily distracted by irrelevant context. In International Conference on Machine Learning. PMLR, 31210–31227.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 298.054, 559.272, 331.602 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[41] Devendra Singh, Siva Reddy, Will Hamilton, Chris Dyer, and Dani Yogatama. 2021. End-to-end training of multi-document reader and retriever for open-domain question answering. Advances in Neural Information Processing Systems 34 (2021), 25968–25981.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 273.759, 558.201, 299.721 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[42] Chao-Hong Tan, Jia-Chen Gu, Chongyang Tao, Zhen-Hua Ling, Can Xu, Huang Hu, Xiubo Geng, and Daxin Jiang. 2022. TegTok: Augmenting text generation via task-specific and open-world knowledge. arXiv preprint arXiv:2203.08517 (2022).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 258.203, 558.202, 275.811 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[43] Qwen Team et al. 2024. Qwen2 technical report. arXiv preprint arXiv:2407.10671 2 (2024), 3.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 233.909, 559.273, 259.871 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[44] Haiyuan Wang, Deli Zhang, Jianmin Li, Zelong Feng, and Feng Zhang. 2025. Entropy-Optimized Dynamic Text Segmentation and RAG-Enhanced LLMs for Construction Engineering Knowledge Base. Applied Sciences 15, 6 (2025), 3134.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 202.028, 559.38, 235.961 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[45] Liangdong Wang, Bo-Wen Zhang, Chengwei Wu, Hanyu Zhao, Xiaofeng Shi, Shuhao Gu, Jijie Li, Quanyue Ma, TengFei Pan, and Guang Liu. 2024. Cci3. 0hq: a large-scale chinese dataset of high quality designed for pre-training large language models. arXiv preprint arXiv:2410.18505 (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 178.118, 559.275, 204.08 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[46] Shuting Wang, Jiejun Tan, Zhicheng Dou, and Ji-Rong Wen. 2024. Omnieval: An omnidirectional and automatic rag evaluation benchmark in financial domain. arXiv preprint arXiv:2412.13018 (2024).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 146.237, 558.972, 180.17 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[47] Shiguang Wu, Wenda Wei, Mengqi Zhang, Zhumin Chen, Jun Ma, Zhaochun Ren, Maarten de Rijke, and Pengjie Ren. 2024. Generative retrieval as multi-vector dense retrieval. In Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval. 1828–1838.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 122.327, 559.382, 148.289 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[48] Shitao Xiao, Zheng Liu, Peitian Zhang, and N Muennighof. 2023. C-pack: packaged resources to advance general Chinese embedding. 2023. arXiv preprint arXiv:2309.07597 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 90.447, 559.273, 124.379 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[49] Shitao Xiao, Zheng Liu, Peitian Zhang, Niklas Muennighoff, Defu Lian, and Jian-Yun Nie. 2024. C-pack: Packed resources for general chinese embeddings. In Proceedings of the 47th international ACM SIGIR conference on research and development in information retrieval. 641–649.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 9,
+      "bounding box" : [ 317.955, 74.506, 558.199, 92.499 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[50] Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, and Zhen-Hua Ling. 2024. Corrective retrieval augmented generation. arXiv preprint arXiv:2401.15884 (2024).",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "header",
+    "id" : 337,
+    "page number" : 10,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 20,
+      "page number" : 10,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "list",
+    "id" : 338,
+    "level" : "5",
+    "page number" : 10,
+    "bounding box" : [ 53.798, 536.773, 295.223, 706.197 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 6,
+    "previous list id" : 336,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 680.235, 294.81, 706.197 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[51] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 648.354, 295.223, 682.287 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[52] Diji Yang, Linda Zeng, Jinmeng Rao, and Yi Zhang. 2025. Knowing You Don’t Know: Learning When to Continue Search in Multi-round RAG through SelfPracticing. In Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval. 1305–1315.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 624.444, 294.046, 650.406 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[53] Wenhao Yu, Hongming Zhang, Xiaoman Pan, Kaixin Ma, Hongwei Wang, and Dong Yu. 2023. Chain-of-note: Enhancing robustness in retrieval-augmented language models. arXiv preprint arXiv:2311.09210 (2023).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 592.564, 295.221, 626.496 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[54] Qinglin Zhang, Qian Chen, Yali Li, Jiaqing Liu, and Wen Wang. 2021. Sequence model with self-adaptive sliding window for efficient spoken document segmentation. In 2021 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU). IEEE, 411–418.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 568.653, 294.175, 594.616 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[55] Jihao Zhao, Zhiyuan Ji, Zhaoxin Fan, Hanyu Wang, Simin Niu, Bo Tang, Feiyu Xiong, and Zhiyu Li. 2025. MoC: Mixtures of Text Chunking Learners for Retrieval-Augmented Generation System. arXiv preprint arXiv:2503.09600 (2025).",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 536.773, 294.048, 570.705 ],
+      "font" : "LinLibertineT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "[56] Guido Zuccon, Bevan Koopman, and Razia Shaik. 2023. Chatgpt hallucinates when attributing answers. In Proceedings of the Annual International ACM SIGIR Conference on Research and Development in Information Retrieval in the Asia Pacific Region. 46–51.",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "list",
+    "id" : 339,
+    "level" : "7",
+    "page number" : 10,
+    "bounding box" : [ 53.592, 244.734, 295.563, 527.446 ],
+    "numbering style" : "english letters",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.592, 335.997, 295.563, 527.446 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "A Detailed Model Training Configurations In this study, we adopt a full-parameter fine-tuning strategy for the three SLMs mentioned previously, namely M\uD835\uDC3A\uD835\uDC52\uD835\uDC5B, M\uD835\uDC37\uD835\uDC56\uD835\uDC60\uD835\uDC50, and M\uD835\uDC45\uD835\uDC52\uD835\uDC53 , with the aim of fully unleashing the potential of the models in their respective specific tasks. To ensure that each model can conduct sufficient learning, we construct training datasets containing 45K samples for them respectively. We select 1.0 × 10−5 as the learning rate and employ a cosine annealing strategy for dynamic adjustment. To stabilize the model’s convergence process in the early stage of training, we set a 10% warm-up phase. Considering the limitations of computational resources, we set the batch size per device to 2 and combine it with gradient accumulation over 16 steps. This approach helps improve the model’s generalization ability while ensuring training stability. Additionally, we enable BF16 mixed-precision training to enhance the training speed and reduce the GPU memory usage. The loss function utilized is as follows:",
+      "kids" : [ {
+        "type" : "paragraph",
+        "id" : 27,
+        "page number" : 10,
+        "bounding box" : [ 113.038, 314.013, 151.425, 330.287 ],
+        "font" : "txsys",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "LF(\uD835\uDF03) = −"
+      }, {
+        "type" : "paragraph",
+        "id" : 28,
+        "page number" : 10,
+        "bounding box" : [ 152.271, 314.192, 156.79, 338.634 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "1 \uD835\uDF0F"
+      }, {
+        "type" : "paragraph",
+        "id" : 30,
+        "page number" : 10,
+        "bounding box" : [ 159.48, 305.111, 171.343, 344.599 ],
+        "font" : "txexs",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "∑︁\uD835\uDF0F"
+      }, {
+        "type" : "paragraph",
+        "id" : 31,
+        "page number" : 10,
+        "bounding box" : [ 160.334, 310.676, 170.256, 319.763 ],
+        "font" : "txmiaX",
+        "font size" : 6.575,
+        "text color" : "[0.0]",
+        "content" : "\uD835\uDC61=1"
+      }, {
+        "type" : "paragraph",
+        "id" : 32,
+        "page number" : 10,
+        "bounding box" : [ 172.837, 314.013, 234.533, 332.564 ],
+        "font" : "LibertineMathMI",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "log\uD835\uDC43(\uD835\uDC5C\uD835\uDC61|\uD835\uDC5C<\uD835\uDC61,\uD835\uDC60;\uD835\uDF03)"
+      }, {
+        "type" : "paragraph",
+        "id" : 33,
+        "page number" : 10,
+        "bounding box" : [ 53.798, 267.179, 295.028, 312.447 ],
+        "font" : "LinLibertineT",
+        "font size" : 8.966,
+        "text color" : "[0.0]",
+        "content" : "Here, \uD835\uDC5C\uD835\uDC61 represents the \uD835\uDC61-th token in the target sequence \uD835\uDC5C, \uD835\uDC5C<\uD835\uDC61 denotes the prefix of the target sequence up to position \uD835\uDC61 − 1, \uD835\uDC60 is the input context, \uD835\uDF03 signifies the learnable parameters of the SLM, and \uD835\uDF0F represents the total length of the target output sequence \uD835\uDC5C."
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.798, 244.734, 204.933, 259.374 ],
+      "font" : "LinLibertineTB",
+      "font size" : 10.909,
+      "text color" : "[0.0]",
+      "content" : "B Main Experimental Details",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 340,
+    "page number" : 10,
+    "bounding box" : [ 53.467, 221.351, 295.035, 244.701 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "In our experiments, we employ a total of five baseline methods, with their specific configurations detailed as follows:"
+  }, {
+    "type" : "list",
+    "id" : 341,
+    "level" : "8",
+    "page number" : 10,
+    "bounding box" : [ 53.646, 87.289, 193.387, 220.865 ],
+    "numbering style" : "english letters",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 54.184, 207.837, 193.387, 220.865 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "(a) Rule-based Chunking Methods",
+      "kids" : [ {
+        "type" : "list",
+        "id" : 26,
+        "level" : "9",
+        "page number" : 10,
+        "bounding box" : [ 67.53, 98.885, 295.564, 209.906 ],
+        "numbering style" : "unordered",
+        "number of list items" : 2,
+        "list items" : [ {
+          "type" : "list item",
+          "page number" : 10,
+          "bounding box" : [ 67.53, 175.597, 294.215, 209.906 ],
+          "font" : "txsys",
+          "font size" : 8.966,
+          "text color" : "[0.0]",
+          "content" : "• Original [27]: This method divides long texts into segments of a fixed length, such as two hundred Chinese characters or words, without considering sentence boundaries.",
+          "kids" : [ ]
+        }, {
+          "type" : "list item",
+          "page number" : 10,
+          "bounding box" : [ 67.53, 98.885, 295.564, 177.029 ],
+          "font" : "txsys",
+          "font size" : 8.966,
+          "text color" : "[0.0]",
+          "content" : "• Llama_index [27]: This method considers both sentence completeness and token counts during segmentation. It prioritizes maintaining sentence boundaries while ensuring that the number of tokens in each chunk are close to a preset threshold. We use the SimpleNodeParser function from Llama_index, adjusting the chunk_size parameter to control segment length.",
+          "kids" : [ ]
+        } ]
+      } ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 53.646, 87.289, 185.219, 100.317 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "(b) Dynamic Chunking Methods",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "list",
+    "id" : 342,
+    "level" : "9",
+    "page number" : 10,
+    "bounding box" : [ 331.687, 509.746, 559.719, 708.438 ],
+    "numbering style" : "unordered",
+    "number of list items" : 3,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 331.687, 630.294, 559.719, 708.438 ],
+      "font" : "txsys",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "• Similarity Chunking [48]: Utilizes pre-trained sentence embedding models to calculate the cosine similarity between sentences. By setting a similarity threshold, sentences with lower similarity are selected as segmentation points, ensuring that sentences within each chunk are highly semantically related. This method employs the SemanticSplitterNodeParser from Llama_index.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 331.687, 586.458, 558.201, 631.726 ],
+      "font" : "txsys",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "• LumberChunker [15]: Leverages the reasoning capabilities of LLMs to predict suitable segmentation points within the text. We utilize Qwen2.5 models with 14B parameters, set to full precision.",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 331.687, 509.746, 559.717, 587.89 ],
+      "font" : "txsys",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "• MoC MetaChunker [55]: MoC trains a lightweight chunker model to automatically learn how to partition long texts into semantically coherent chunks without relying on fixed lengths or predefined rules. Compared to traditional heuristic methods, MetaChunker demonstrates stronger cross-task generalization capabilities, particularly in downstream tasks such as RAG, serving as the strongest baseline.",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 343,
+    "page number" : 10,
+    "bounding box" : [ 317.955, 343.444, 559.72, 509.26 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To ensure a fair and unbiased evaluation of different text chunking methods, we design a rigorous set of controlled variable experiments. The primary objective of this study is to verify the impact of distinct chunking strategies on downstream task performance in isolation. Therefore, our foremost control strategy is to standardize the output chunk lengths across all methods. Specifically, we adopt the average chunk length of 178 tokens produced by LumberChunker as the basic chunk length. Given that different chunking algorithms may not precisely align average chunk length to exactly 178 tokens when handling text boundaries, we introduce a secondary constraint on the total context length in retrieval-based QA tasks. This ensures that the cumulative context length fed into the generative model remains strictly fixed at 178×8 = 1424 tokens. During the final QA generation phase, all methods utilize the same pre-trained language model as the generator."
+  }, {
+    "type" : "paragraph",
+    "id" : 344,
+    "page number" : 10,
+    "bounding box" : [ 317.623, 266.732, 559.721, 344.877 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "By implementing rigorous and uniform control over the aforementioned variables (i.e., the average length of text chunks, the total length of retrieved context, and the generation model), we effectively isolate the text chunking method as the sole experimental variable. This ensures that the final performance comparison can truthfully and objectively reflect the inherent strengths and weaknesses of different chunking methods."
+  }, {
+    "type" : "heading",
+    "id" : 345,
+    "level" : "Subtitle",
+    "page number" : 10,
+    "bounding box" : [ 317.955, 244.287, 509.039, 258.927 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "C Perspective of Information Theory"
+  }, {
+    "type" : "paragraph",
+    "id" : 346,
+    "page number" : 10,
+    "bounding box" : [ 317.955, 187.379, 559.583, 244.254 ],
+    "font" : "LinLibertineTI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Lemma 2 (Log-Determinant and Differential Entropy [9]). For a random variable X following a multivariate Gaussian distribution N(\uD835\uDF41, Σ′), its differential entropy \uD835\uDC3B\uD835\uDC51\uD835\uDC52(X) has the following linear relationship with the log-determinant of the covariance matrix Σ′:"
+  }, {
+    "type" : "list",
+    "id" : 348,
+    "level" : "10",
+    "page number" : 10,
+    "bounding box" : [ 361.319, 164.622, 365.488, 189.234 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 361.319, 176.843, 365.488, 189.234 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "1",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 361.319, 164.622, 365.488, 177.013 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "2",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "list",
+    "id" : 353,
+    "level" : "10",
+    "page number" : 10,
+    "bounding box" : [ 504.506, 164.622, 508.675, 189.234 ],
+    "numbering style" : "arabic numbers",
+    "number of list items" : 2,
+    "list items" : [ {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 504.506, 176.843, 508.675, 189.234 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "1",
+      "kids" : [ ]
+    }, {
+      "type" : "list item",
+      "page number" : 10,
+      "bounding box" : [ 504.506, 164.622, 508.675, 177.013 ],
+      "font" : "LinLibertineT",
+      "font size" : 8.966,
+      "text color" : "[0.0]",
+      "content" : "2",
+      "kids" : [ ]
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 350,
+    "page number" : 10,
+    "bounding box" : [ 453.727, 164.622, 458.566, 186.195 ],
+    "font" : "LibertineMathMI",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC51 2"
+  }, {
+    "type" : "paragraph",
+    "id" : 349,
+    "page number" : 10,
+    "bounding box" : [ 368.178, 164.613, 450.884, 183.164 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "log (2\uD835\uDF0B\uD835\uDC52)\uD835\uDC51 det(Σ′) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 352,
+    "page number" : 10,
+    "bounding box" : [ 461.478, 164.613, 501.316, 183.164 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "log(2\uD835\uDF0B\uD835\uDC52) +"
+  }, {
+    "type" : "paragraph",
+    "id" : 354,
+    "page number" : 10,
+    "bounding box" : [ 511.365, 164.613, 553.31, 183.164 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "logdet(Σ′)."
+  }, {
+    "type" : "paragraph",
+    "id" : 347,
+    "page number" : 10,
+    "bounding box" : [ 322.515, 164.612, 358.03, 181.146 ],
+    "font" : "LibertineMathMI7",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "\uD835\uDC3B\uD835\uDC51\uD835\uDC52(X) ="
+  }, {
+    "type" : "paragraph",
+    "id" : 355,
+    "page number" : 10,
+    "bounding box" : [ 317.955, 118.843, 558.203, 164.11 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Perspective of Information Theory: We aim to show that maximizing ΦSD(\uD835\uDC36) is equivalent to maximizing the differential entropy of the empirical distribution of the text-chunk embedding set, that is, maximizing its information content and uncertainty."
+  }, {
+    "type" : "paragraph",
+    "id" : 356,
+    "page number" : 10,
+    "bounding box" : [ 317.955, 75.007, 558.601, 120.275 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "We regard the set of embedding vectors of text chunks Z = {z1, . . ., z\uD835\uDC3E} as samples drawn from an underlying multivariate data distribution. In this view, the matrix Σ serves as an estimate of the covariance of this sample distribution."
+  }, {
+    "type" : "header",
+    "id" : 357,
+    "page number" : 11,
+    "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 21,
+      "page number" : 11,
+      "bounding box" : [ 53.798, 722.784, 558.199, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates."
+    } ]
+  }, {
+    "type" : "paragraph",
+    "id" : 358,
+    "page number" : 11,
+    "bounding box" : [ 53.798, 579.691, 295.562, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "According to Lemma 2, there is a positive correlation between ΦSD(\uD835\uDC36) and the differential entropy \uD835\uDC3B\uD835\uDC51\uD835\uDC52. For a high-quality partition\uD835\uDC36high, its semantic diversity implies that the embedding vectors Zhigh are widely distributed and have high dispersion in the semantic space. Its empirical distribution has high variance and high uncertainty, thus corresponding to a relatively high differential entropy \uD835\uDC3B\uD835\uDC51\uD835\uDC52(PZhigh). For a low-quality partition \uD835\uDC36low, its semantic redundancy implies that the embedding vectors Zlow are highly clustered in a few regions of the space. Its empirical distribution has low variance and low uncertainty, thus corresponding to a relatively low differential entropy \uD835\uDC3B\uD835\uDC51\uD835\uDC52(PZlow)."
+  }, {
+    "type" : "paragraph",
+    "id" : 359,
+    "page number" : 11,
+    "bounding box" : [ 53.619, 546.206, 296.293, 587.283 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Since ΦSD(\uD835\uDC36) ∝ logdet(Σ), and logdet(Σ) is a decisive componentofthedifferentialentropy,itfollows directly that\uD835\uDC3B\uD835\uDC51\uD835\uDC52(PZhigh) > \uD835\uDC3B\uD835\uDC51\uD835\uDC52(PZlow) leads to ΦSD(\uD835\uDC36high) > ΦSD(\uD835\uDC36low)."
+  }, {
+    "type" : "heading",
+    "id" : 360,
+    "level" : "Subtitle",
+    "page number" : 11,
+    "bounding box" : [ 53.798, 517.069, 277.947, 544.66 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "D An Illustrative Example of the QChunkerFramework"
+  }, {
+    "type" : "paragraph",
+    "id" : 361,
+    "page number" : 11,
+    "bounding box" : [ 53.798, 362.178, 295.564, 517.035 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Figure 4 illustrates QChunker’s question-aware multi-agent workflow for building high-quality RAG chunks: given a domain document, a Question Outline Generator first produces expert-style guiding questions that capture the document’s key concepts and logic; a Text Segmenter then uses this outline to perform multipath sampling over candidate segmentations, scores each candidate with ChunkScore, and selects the best chunking scheme; next, an Integrity Reviewer checks each chunk against the full document to pinpoint missing definitions or required context and decides whether rewriting is necessary; finally, a Knowledge Completer verifies and filters the missing items strictly from the original text and rewrites the chunk to seamlessly integrate essential background, yielding coherent, self-contained, information-rich chunks for downstream retrieval and generation."
+  }, {
+    "type" : "heading",
+    "id" : 362,
+    "level" : "Subtitle",
+    "page number" : 11,
+    "bounding box" : [ 53.798, 326.88, 255.802, 354.472 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "E In-Depth Construction Process of theHChemSafety Dataset"
+  }, {
+    "type" : "paragraph",
+    "id" : 363,
+    "page number" : 11,
+    "bounding box" : [ 53.529, 259.661, 294.212, 326.847 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "To address the challenges of high knowledge barriers and urgent information demands in the field of hazardous chemical safety, we develop the HChemSafety dataset. This dataset aims to fill the gap of a high-quality, domain-specific QA dataset currently lacking in the hazardous chemical safety, providing a solid foundation for evaluating LLM applications."
+  }, {
+    "type" : "heading",
+    "id" : 364,
+    "level" : "Subtitle",
+    "page number" : 11,
+    "bounding box" : [ 53.798, 237.315, 244.664, 251.955 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "E.1 Data Acquisition and Refinement"
+  }, {
+    "type" : "paragraph",
+    "id" : 365,
+    "page number" : 11,
+    "bounding box" : [ 53.529, 104.342, 295.56, 237.281 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "The construction of the HChemSafety dataset begins with systematically establishing an initial name repository that comprehensively covers common and high-risk chemicals. Subsequently, by programmatically generating search engine query links, we systematically acquire relevant web page entries, primarily focusing on three types of authoritative platforms: chemical professional platforms, encyclopedic resources, and academic databases. We cluster source URLs based on formatting patterns and design a multi-stage web content cleaning pipeline. First, structural cleaning is performed using DOM tree analysis to identify and remove non-core content areas such as navigation bars, sidebars, footers, and advertising regions, ensuring only the main content area is retained. Second,"
+  }, {
+    "type" : "paragraph",
+    "id" : 366,
+    "page number" : 11,
+    "bounding box" : [ 317.955, 599.533, 559.714, 708.438 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "functional cleaning employs regular expressions and HTML parsers to thoroughly eliminate all interactive elements, including complete removal of <script> and <style> tags, along with stripping all event-handling attributes such as onclick to eliminate dynamic page function interference. Finally, attribute cleaning simplifies the web structure by removing all ID attributes and deleting non-essential class attributes. The cleaned documents then undergo quality assessment. We introduce a fine-grained scoring mechanism based on LLMs [45], assigning each document a precise score from 0 to 5 and selecting samples with scores greater than 3."
+  }, {
+    "type" : "paragraph",
+    "id" : 367,
+    "page number" : 11,
+    "bounding box" : [ 317.955, 511.862, 559.718, 600.965 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "For the filtered high-quality documents, a text refinement process combining sliding windows and LLMs is implemented. This process first segments long documents using text windows with overlapping regions to ensure contextual coherence and prevent critical information loss at boundaries. Each text window is then processed by DeepSeek-V3. Subsequently, the system fuses processing results across all windows, transforming raw web page text into high-value documents."
+  }, {
+    "type" : "heading",
+    "id" : 368,
+    "level" : "Subtitle",
+    "page number" : 11,
+    "bounding box" : [ 317.955, 476.466, 540.599, 504.057 ],
+    "heading level" : 3,
+    "font" : "LinLibertineTB",
+    "font size" : 10.909,
+    "text color" : "[0.0]",
+    "content" : "E.2 Knowledge Graph Construction and QA Pair Generation"
+  }, {
+    "type" : "paragraph",
+    "id" : 369,
+    "page number" : 11,
+    "bounding box" : [ 317.641, 354.452, 559.722, 476.432 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "After completing text refinement, we construct the HChemSafety domain-specific knowledge graph to provide a structured knowledge foundation for subsequent QA pair generation. Knowledge extraction and graph construction constitute the core processes of this workflow. We employ LLMs for entity recognition and relation extraction, achieving end-to-end knowledge acquisition. The extracted triplets are imported into the Neo4j graph database to build the knowledge graph. In this graph, nodes represent entities, while edges denote relationships between entities, thereby more clearly revealing complex interrelations among properties, chemicals, and between chemicals and their properties."
+  }, {
+    "type" : "paragraph",
+    "id" : 370,
+    "page number" : 11,
+    "bounding box" : [ 317.955, 244.863, 559.186, 355.884 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Based on the constructed knowledge graph, we systematically generate QA pairs covering diverse knowledge points and reasoning levels: Single-hop QA: Generated directly from a single triplet in the graph. Multi-hop QA: Requires reasoning across multiple edges in the graph. Aggregative QA: Necessitates summarizing information from multiple nodes. Boolean QA: Answers are \"yes\" or \"no\". The generated QA pairs are stored in JSON format, including questions, standard answers, and reference content. Each QA pair is directly derived from the knowledge graph, ensuring answer accuracy and traceability."
+  }, {
+    "type" : "paragraph",
+    "id" : 371,
+    "page number" : 11,
+    "bounding box" : [ 317.955, 102.397, 559.721, 246.295 ],
+    "font" : "LinLibertineT",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Ultimately, we construct a comprehensive hazardous chemical safety dataset comprising three main components: (a) A largescale QA dataset containing 135K QA pairs, systematically integrated from professional literature, industry standards, and technical manuals to ensure question professionalism and answer authoritativeness. (b) A retrieval corpus consisting of 35K high-quality, clearly structured chemical documents, specifically designed for RAG systems to provide reliable external knowledge sources for fact-checking and answer generation. (c) A curated evaluation set of 19K representative questions, covering various types from basic factual QA to complex safety emergency protocols, enabling assessment of model capabilities in knowledge retrieval, information integration, and specialized reasoning."
+  }, {
+    "type" : "header",
+    "id" : 372,
+    "page number" : 12,
+    "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+    "kids" : [ {
+      "type" : "heading",
+      "id" : 22,
+      "page number" : 12,
+      "bounding box" : [ 53.464, 722.784, 558.201, 730.881 ],
+      "heading level" : 6,
+      "font" : "LinBiolinumT",
+      "font size" : 6.974,
+      "text color" : "[0.0]",
+      "content" : "WWW ’26, April 13–17, 2026, Dubai, United Arab Emirates. Jihao Zhao, et al."
+    } ]
+  }, {
+    "type" : "image",
+    "id" : 373,
+    "page number" : 12,
+    "bounding box" : [ 53.798, 209.76, 558.218, 708.32 ],
+    "source" : "QChunker_images/imageFile23.png"
+  }, {
+    "type" : "heading",
+    "id" : 374,
+    "level" : "Subtitle",
+    "page number" : 12,
+    "bounding box" : [ 116.025, 187.193, 495.976, 199.226 ],
+    "heading level" : 4,
+    "font" : "LinLibertineTB",
+    "font size" : 8.966,
+    "text color" : "[0.0]",
+    "content" : "Figure 4: Output example of the QChunker framework when processing chemical documents."
+  } ]
+}

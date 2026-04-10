@@ -67,539 +67,9 @@
 // )
 
 
-= Agent
+= Artifact Store
 
-*High-Level Memtal Model*
-
-```text
-[ User Interface ]
-        ↓
-[ AI Assistant (product layer) ]
-        ↓
-[ Orchestrator / Agent Engine ]
-        ↓
-[ Agent Loop(s) ]
-        ↓
-[ Tools / Skills / Plugins ]
-        ↓
-[ Memory Systems ]
-        ↓
-[ LLM (stateless reasoning core) ]
-```
-
-*Agent*
-```text
-   Agent = LLM
-         + Skills (tools)
-         + Loop Policy
-         + Prompting Strategy
-         + Memory System
-         + Planning
-         + Reflection Mechanisms
-```
-
-Depending on the complexity, agents may be classified by complexity.
-
-A modern agentic system can be viewed as:
-```text 
-    LLM + Skill + Tools + Iteration + Friendly Dataset + Strong Backend
-```
-
-*Level 1 App Agent (minimal, most useful)*
-```
-  Agent = LLM + tool usage loop
-```
-
-This is what most frameworks (LangChain, etc.) implement. It is called App Agent because
-each such agent implements a specific feature (or app).
-
-*Example - PR reviewer agent*
-```text
-  Input: GitHub PR
-
-  Skills:
-    1. fetch diff
-    2. run tests
-    3. static analysis
-
-  Loop:
-    analyze → comment → refine
-```
-
-That’s a real “agent”. Note that most app agents can be implemented through skills.
-That is probably the reason why OpenAI team YouTubed "Don't Create Agents. Create Skills".
-
-When to create an agent and when to create a skill? This can be very simple: can you implement
-the `agent` that you want to create by skills? If yes, create skills instead.
-
-Creating an agent normally implies that you want to change some of the characteristics of agents
-(see below for Agent Loop), such as memory management.
-
-*Level 2 (structured agent)*
-```
-  Agent = planner + tools + memory + execution loop
-```
-It adds planning step, tool selection and state tracking.
-
-*Level 3 (product agent)*
-```text
-  agent = full system (Codex, Claude Code, OpenClaw, OpenCode, etc.)
-```
-
-It includes user interfaces, infrastructures, scaliing and reliability engineering.
-
-== Agent Loop
-
-This is the defining feature of agents:
-```text
-while not done:
-    think (LLM)
-    decide action
-    execute tool
-    observe result
-```
-
-The agent loop is very important. Different agents may have different agent loops.
-Most existing agents have one and only one agent loop.
-
-I am thinking about making agent loops as modules that can be configured and changed by users at runtime.
-
-*TODO*:
-
-Need to investivate the differences and details about agent loops.
-
-=== What Makes AI Assistant Different aaa
-
-Agent loop is at the heart of agents. But, on the other hand, agent loops are very abstractive, 
-agnostic about the domain, the purpose, and many other nuances of agents. 
-- Domain-agnostic
-- Task-agnostic
-- Architecture-agnostic
-
-One agent may: 
-```text
-write code → tests → fixes, repeat until the maxi retries is reached or all problems are fixed.
-```
-Another agent may:
-```text
-writes once → stops
-```
-
-In other word, all agents share the same computational skeleton. This is similar to:
-- All programs run on CPUs
-- All neural nets do matrix multiplications
-
-In this sense, can we save "All agents are made equal" in the core?
-For instance, both Codex and Claude Code are coding assistent (agent). 
-If Claude Code and Codex both use the same LLM (hypothetically) and use the same skills, 
-they are essentially the same: in terms of what they can do and the quality of doing them?
-
-The short answer is: NO!
-
-Because what matters is not the parts, but how they are composed and controlled.
-Even with identical LLM + tools + skills, agents can behave very differently du to many factors.
-
-=== Explorability <explorability>
-
-(TBD)
-
-=== `Brain`
-
-Harness will completement LLMs with local knowledge. This is used to be handled by RAG.
-Harness turns things around. Instead of using RAG to find the relevant information for LLMs,
-Harness manages the `external knowledge` in such a way that LLMs can effectively explore
-the knowledge base for the things they need.
-
-Knowledge base used to be handled by tools, such as vector databases, graph databases, 
-search engines (such as ElasticSearch) or even relational databases. They may still be important,
-but these are difficult to use and not designed for LLMs.
-
-File-based knowledge are much more explorable than these tools.
-
-=== Knowledge Base
-
-==== Diversity
-
-Knowledge Base should cover wide range of content, including:
-- Text
-- Documents
-- Web Pages (HTML)
-- Structured Data (JSON, XML, Markdown, Typst, LeTex, etc.)
-- Videos
-- Audios
-- Images
-- Chat history
-- Social Network Content
-- Blogs
-- ...
-
-==== Easy-to-Use
-
-Users can simply drop-to-knowledge.
-
-==== Read-Time
-
-Content becomes `knowledge` in real-time. The moment when new content is added into the system,
-it becomes `knowledge` nearly instantly.
-
-==== Knowledge Graph
-
-Semantic Entities (or entities for short) are connected in many dimensions:
-- Similarity
-- Workflow (can be useful for reasoning)
-- The opposite
-- and so on
-
-This is called `Knowledge Graph` (KG).
-
-==== Explorability
-
-Knowledge Base must support explorability (refer to @explorability)
-=== Multi-Agents
-
-(TBD)
-
-=== Prompting / System Design
-
-Two agents can use the same LLM but:
-
-- different system prompts
-- different instructions
-- different constraints
-
-Example:
-- One agent: “be cautious, ask before acting”
-- Another: “act aggressively and autonomously”
-
-👉 Same brain, different personality & behavior
-
-=== Loop Strategy
-
-The loop is abstract - but its implementation is not:
-- How many steps allowed
-- When to stop
-- When to retry
-- Error recovery strategy
-- Relfection
-- Self-critique
-
-=== Memory 
-
-Even with the same tools, different memory implementation has big impact on the final results.
-- What gets remembered
-- How it is retrieved
-- When it is injected
-
-=== Tool Usage Strategy
-
-Same tools ≠ same usage. LLMs decide:
-- When to use tools
-- Which tools to use
-- How to chain them
-
-
-These are in the details of agent loops.
-
-=== Decition Making
-
-There can be quite a few places where agents may need to make decisions:
-- When there are too many errors
-- Unexpected happens
-- Abnormal conditions, especially malicious attempts are detected
-- Violating the guardrails
-- Tasks/skills spent too long time
-- ...
-
-=== Planning vs Reactive Behavior
-
-Aome agents may plan ahead (multi-step decomposition), while other agents may act step-by-step without planning.
-This dramatically affects:
-- Correctness
-- Efficiency
-- Robustness
-
-With two agents both plan, they may plan tasks at different levels, depth, etc.
-
-=== Evaluation and Feedback Loops
-
-Advanced agents include:
-- Self-critique
-- Test execution
-- Scoring
-- Re-planning
-
-This is where systems like coding agents really differ.
-
-This is often called Outcome-Oriented (vs. Response-Oriented).
-
-#let r_002 = link(
-  "https://mp.weixin.qq.com/s/jnKW_jxGbvlMzrW_T2GJ1A"
-)[#text(fill: blue)[\[2\]]]
-
-LangChain DeepAgents (#r_002) has a HumanEval that has 160+ manually created checks.
-One can use these checks to determine the quality of the code created by AI.
-
-Karparthy (ref?) Autoresearch is another example. The main idea is to automate
-a process or a loop. In each iteration, it tries to improve the system, then run the valuation
-to determine to keep the changes (getting better) or abandon the changes (no improvements
-or getting worse).
-
-The most critical part is the evaluation package. Different applications, skills or
-the objects to create may require different evaluation criteria. 
-
-=== Execution Environment
-
-Even if skills are the same:
-- Sandbox vs real system
-- Latency
-- Parallelism
-- Caching
-
-=== Conditional or Branching
-
-Complex workflow is normally not linear or straight. This can be driven by a decision tree,
-by a graph, or whatever mechanisms it can use to accomplish complex tasks.
-
-=== Retry Logic
-
-When unexpected or errors happen, different agents may retry differently.
-One agent may give up whatever being done and re-do it from scratch. 
-Another agent may repair or improve what were done. One may ask users for assistance or
-opinions, while others may just decide to do it automatically.
-
-=== Error Handling
-
-Agents may interpret errors differently. Some agents may ignore all the warnings while
-other agents try to solve all the warnings, including linting.
-
-=== Chunking Problems
-
-Different agents may chunk (break down) problems differently.
-
-=== Testability
-
-(TBD)
-
-=== Heartbeat
-
-(TBD)
-
-=== Selv-Evolving
-
-(TBD)
-
-=== Trainability
-
-(TBD)
-
-=== Tasks
-
-In the current framework, there are:
-- Agents
-- Skills
-- Plugins
-
-Different agents implement different harness for a specific type of tasks. I am not sure what plugins
-really are.
-
-What is *Task*?
-
-== Tools
-
-Most agents work with a fixed set of tools to use. 
-We may want to implement a method that lets LLMs express the tools they wish to have.
-The idea is that LLMs are the brain. When we want LLMs solve problems, they need to use tools.
-The tools should contain not only the existing tools, but also a special tool: Meta Tool,
-or a tool that is used by LLMs to express the tools they need.
-
-This can be important when we ask LLMs to solve specific problems through skills.
-If a skill wants to debug a third-party app, the LLM may need to access its logs, its documents,
-its configurations, its execution environment, related regulations and laws, etc.
-LLMs can, of course, ask human users for help. Human users may be able to help, if it is a simple
-thing, such as pointing a file or a directory where the documents reside. But two problems, if not more:
-1. Human users get involved (affecting automation)
-2. Human users may not be good at engineering. They may not be able to help.
-
-Asking tools that are not available yet will interrupt the current workflow, possibly halt the task.
-But developing new tools is a way to evolve the AI system. Once the desired tool, upon request,
-is developed, LLMs will be able to solve the same/similar tasks in the future without human users
-involved.
-
-== Meta Agent
-
-(Note: *Meta Agent* is not a common concept! I may change it in the future when a better name arises.)
-A *Meta Agent* is a computing paradigm that treats an agent, or even a group of agents, as computing blocks.
-It may:
-- iterate on the same agent (such as Ralph Loop)
-- coordinate multiple agents (i.e., multi-agent systems)
-- combine conventional programs and agents
-
-=== Ralph Loop
-
-This is a higher-level loop. Conceptually, it runs on top of the agent loop, forcing the agent
-to re-do or re-think what it has done, aiming at achieving better results by simply repeating
-what were done.
-
-Conceptually, ralph loop may use different methods in subsequent loops. One example is to
-use one LLM or one agent loop for as the initial run. The next run uses a different LLM
-to review the implementation. If it found something to fix/improve, do it.
-
-Another important aspect of ralph loop is introducing a Test Expert (skill).
-It reviews the implementation and the tests to determine whether the test is sound and thorough.
-If not, it can add additional tests.
-
-In other word, ralph loops are not just repeating. It handles the same task from different
-answers, using different tools or methods, using different LLMs, etc.
-
-== Harness 
-
-Harness is the infrastructrue that connects LLM + tools + memory + execution. It includes:
-- Prompt construction
-- Tool wiring
-- Retries
-- Logging
-- Memory injection
-- Safety checks
-
-For more information about harness, please refer to HarnessEngineering.typ.
-
-== Multi-Agent Architecture
-
-#let a_031 = link(
-  "https://dzone.com/articles/scalable-agentic-ai-assistants-graph"
-)[#text(fill: blue)[Agentic Architecture]]
-
-#a_031
-
-#figure(
-  image("Images/image_2026032501.png", width: 100%),
-  caption: [Multi-Agent Architecture (#a_031)],
-)
-
-In this architecture, there are:
-- Supervisor
-- Worker
-
-=== Supervisor
-
-The supervisor examines an incoming request and decides which agent is best to handle it. It then
-routes the request to the agent.
-
-There should be a default agent that handles requests that are not for other agents.
-
-```python
-# Orchestrator State Management
-state = {
-    "user_id": "abc123",
-    "conversation_history": last_3_turns, # Not entire history
-    "current_domain": "payments",
-    "session_context": {
-        "merchant_id": "merch_789",
-        "date_range": "last_30_days"
-    }
-}
-async def orchestrate(query: str, state: dict):
-    # Initialize supervisor based on domain
-    supervisor = get_supervisor(state["current_domain"])
-    # Pass minimal context, not everything
-    result = await supervisor.route_and_execute(
-        query=query,
-        context=state["session_context"]
-    )
-    # Update state for next turn
-    state["conversation_history"].append(result)
-    return result
-```
-
-In the above code, `state.current_main` is `payments`. Who sets it? I guess the workflow is:
-```text
-  Request
-    ↓
-  Type of Request (by LLM)
-    ↓
-  Payment
-    ↓
-  Route to Payment
-    ↓
-   ...
-```
-
-=== Skills or Agents
-
-Are workers agents or skills? Ideally, there are Payment Agent, Dispute Agent,
-and Analytics Agent. Each with its own agent loop, history, memory management, set of tools to use, etc.
-An agent is like an app.
-
-
-=== Skill (Worker)
-
-The author calls it worker. I think workers can be implemented as skills.
-
-"Because workers are narrowly scoped, they are easier to test, easier to reason about, 
-and easier to extend. Adding a new capability means adding a new worker, not refactoring the entire system."
-
-```python
-class PaymentWorker:
-    """Handles payment-related queries only"""
-    
-    def __init__(self, tools: List[Tool]):
-        self.tools = {
-            "lookup": PaymentLookupTool(),
-            "stats": PaymentStatsTool(),
-            "export": PaymentExportTool()
-        }
-    
-    async def process(self, query: str, context: Context):
-        # Single responsibility: payment lookups only
-        tool_name = self._select_tool(query)
-        tool = self.tools[tool_name]
-        
-        # Execute with merchant-specific context
-        result = await tool.execute(
-            query=query,
-            merchant_id=context.merchant_id,
-            filters=self._extract_filters(query)
-        )
-        
-        return self._format_response(result)
-    
-    def _select_tool(self, query: str) -> str:
-        """Simple keyword matching for tool selection"""
-        if "export" in query.lower():
-            return "export"
-        elif any(word in query.lower() for word in ["total", "sum", "count"]):
-            return "stats"
-        else:
-            return "lookup"
-```
-
-=== Graphs
-
-If an agent is complex enough, it can have its own sub-agents. The author suggests using graphs.
-My opinion is that it should be flat (that is exactly what `pi` design: no sub-agents). 
-When receiving a request, it just ask LLMs to classify the request based on all the agents (and
-sub-agents, which are also agents). We may present a graph to LLMs. But LLMs always return
-either a valid agent or `not found`, which falls back to the default agent.
-
-== Cost of Agents
-
-=== Complex Systems Fail in Complext Ways
-
-#let r_001 = link(
-  "https://dzone.com/articles/ai-agents-vs-llms-choosing-the-right-tool-for-ai-t"
-)[#text(fill: blue)[\[1\]]]
-
-#quote(block: true, attribution:[#r_001])[
-Source: Richard Cook, “How Complex Systems Fail”
-
-This is why many agent demos look impressive but collapse under real production constraints. Determinism, observability, and cost control become more difficult as autonomy increases.
-
-A simple rule helps here: if you can clearly describe the task as a single question, you probably do not need an agent.
-]
-
-== Knowledge Base
-
-`Knowledge Base` refers to the storage in which all knowledge-related data are stored.
+`Artifact Store` refers to the storage in which all knowledge-related data (artifacts) are stored.
 
 A modern agentic system is
 #block(
@@ -641,8 +111,6 @@ What we want is not “file-based vs database-based.” The real design choice i
 )[
 *What interface should the LLM see, and what substrate should the backend use?*
 ]
-
-
 
 Build MKBP as:
 #block(
@@ -691,7 +159,7 @@ But underneath, we can use whatever is strongest for each job:
 
  *Fake filesystem outside, serious distributed system inside.*
 
-=== File-Shaped Interface Is Still the Best Front Door
+== File-Shaped Interface Is Still the Best Front Door
 
 Files and docs are “friendly” not because they are technically superior, but because they match
 how LLMs explore information.
@@ -766,13 +234,13 @@ Examples of the illusion:
 
 But the implementation is not a POSIX tree.
 
-=== Knowledge OS
+== Knowledge OS
 
 Design MKBP as a *knowledge OS*, not as a raw database and not as a thin CLI.
 
 A good mental model is 4 layers:
 
-==== Artifact layer
+=== Artifact layer
 
 This layer defines what LLMs and user see.
 
@@ -794,7 +262,7 @@ Each artifact has:
 - version history
 - permissions
 
-==== Semantic layer
+=== Semantic layer
 
 What makes artifacts LLM-friendly.
 
@@ -810,7 +278,7 @@ This adds:
 - canonical names / aliases
 - relationship graph
 
-==== Retrieval/query layer
+=== Retrieval/query layer
 
 How the system is actually searched.
 
@@ -825,7 +293,7 @@ This supports:
 - citation generation
 - hybrid retrieval
 
-==== Storage/control layer
+=== Storage/control layer
 
 The strong backend. This includes:
 
@@ -841,7 +309,7 @@ The strong backend. This includes:
 
 That separation gives you both friendliness and strength.
 
-==== CLI, Tools, File-Tree
+=== CLI, Tools, File-Tree
 
 The system should support all: CLI, tools, and file-tree, with the correct order:
 
@@ -935,7 +403,7 @@ That is what makes a system LLM-friendly.
 
 
 Those all either become brittle or too low-level.
-==== Strong Backend
+=== Strong Backend
 
 A strong backend is not just scalable storage. For MKBP it means five things:
 
@@ -996,7 +464,7 @@ We can add new data types and workflows later. This is where a file-like artifac
 a rigid row-first model.
 
 
-=== Architecture for MKBP
+== Architecture for MKBP
 
 A good starting design could be:
 
@@ -1046,9 +514,9 @@ A good starting design could be:
 - collect
 - publish
 
-=== Design
+== Design
 
-==== Design goal
+=== Design goal
 
 MKBP should feel like this to users and agents:
 
@@ -1068,7 +536,7 @@ The core design is:
  *filesystem-like exploration outside, artifact-aware semantics underneath, strong backend inside*
 ]
 
-==== Artifact layer
+=== Artifact layer
 
 Artifacts are the first-class objects visible to users and LLMs.
 
@@ -1095,7 +563,7 @@ Each artifact has:
 - version history
 - access policy
 
-==== Semantic layer
+=== Semantic layer
 
 These are the derived structures for retrieval and reasoning.
 
@@ -1109,7 +577,7 @@ Examples:
 - embeddings
 - canonical aliases
 
-==== Retrieval layer
+=== Retrieval layer
 
 This layer solves how knowledge is found. It supports:
 
@@ -1121,7 +589,7 @@ This layer solves how knowledge is found. It supports:
 - reranking
 - passage citation
 
-==== Control layer
+=== Control layer
 
 This layer is responsible for making it safe and debuggable. It supports:
 
@@ -1133,7 +601,7 @@ This layer is responsible for making it safe and debuggable. It supports:
 - ingestion jobs
 - retries
 
-==== Storage layer
+=== Storage layer
 
 This is the real substrate. We will consider:
 
@@ -1147,7 +615,7 @@ This is the real substrate. We will consider:
 
 The data model should be small and durable.
 
-==== Artifact
+=== Artifact
 
 This is the main object. Possible fields:
 
@@ -1200,7 +668,7 @@ Most artifacts are immutable content snapshot. Fields include:
 
 This is critical. The artifact is the identity; the version is the immutable state.
 
-==== Chunk
+=== Chunk
 
 Chunks are the retrieval unit. Chunks include the fields:
 
@@ -1219,7 +687,7 @@ Chunks are the retrieval unit. Chunks include the fields:
 
 Chunks are derived, not canonical.
 
-==== Source
+=== Source
 
 It answers Where something came from. Fields include:
 
@@ -1230,7 +698,7 @@ It answers Where something came from. Fields include:
 - `captured_at`
 - `source_metadata` JSONB
 
-==== Entity
+=== Entity
 
 Entity is the canonical named thing extracted or curated. Fields include:
 
@@ -1244,7 +712,7 @@ Entity is the canonical named thing extracted or curated. Fields include:
 - `created_at`
 - `updated_at`
 
-==== Relation
+=== Relation
 
 Relation is the typed edge between entities and/or artifacts. Fields include:
 
@@ -1270,7 +738,7 @@ Example predicates:
 - `related_to`
 - `owned_by`
 
-==== Collection
+=== Collection
 
 Collection is the logical grouping. Fields include:
 
@@ -1283,7 +751,7 @@ Collection is the logical grouping. Fields include:
 
 Collections give the folder/project feel without using literal folders as the only organizational model.
 
-==== Citation
+=== Citation
 
 This is the reusable grounding object. Fields include:
 
@@ -1297,7 +765,7 @@ This is the reusable grounding object. Fields include:
 - `quoted_text` optional cached excerpt
 - `locator_text` like “page 4, paragraph 2”
 
-==== Job
+=== Job
 
 Job is for ingestion and background derivation. Fields include:
 
@@ -1312,7 +780,7 @@ Job is for ingestion and background derivation. Fields include:
 - `started_at`
 - `completed_at`
 
-==== Access Policy
+=== Access Policy
 
 Access Policy controls who can access which and when. Do not bolt this on later. Fields include:
 
@@ -1325,7 +793,7 @@ Access Policy controls who can access which and when. Do not bolt this on later.
 - `effect` (`allow`, `deny`)
 
 
-==== Internal Storage Choices
+=== Internal Storage Choices
 
 A strong practical split:
 
@@ -1346,11 +814,11 @@ For V1, we can focus on the following:
 
 This will get surprisingly far while keeping things simple.
 
-=== API design
+== API design
 
 The API is *artifact-centric* and *LLM-safe*. Do not expose raw DB tables as the public API.
 
-==== Ingestion APIs
+=== Ingestion APIs
 
 *`POST /artifacts`*
 
@@ -1388,7 +856,7 @@ It imports from file/blob/external URL.
 
 It creates a new version.
 
-==== Read APIs
+=== Read APIs
 
 *`GET /artifacts/{id}`*
 
@@ -1415,7 +883,7 @@ Example:
 `GET /artifacts/by-path?path=/projects/mkbp/notes/vision.md`
 ```
 
-==== Search APIs
+=== Search APIs
 
 *`POST /search`*
 
@@ -1462,7 +930,7 @@ Response:
 
 Given an artifact or entity, expand neighbors.
 
-==== Entity and relation APIs
+=== Entity and relation APIs
 
 *`GET /entities/{id}`*
 
@@ -1474,7 +942,7 @@ Input a name, get canonical entity.
 
 *`POST /relations`*
 
-==== Citation APIs
+=== Citation APIs
 
 *`POST /citations/render`*
 
@@ -1505,7 +973,7 @@ Response:
 }
 ```
 
-==== Derived artifact APIs
+=== Derived artifact APIs
 
 `POST /artifacts/{id}/derive-summary`
 
@@ -1522,7 +990,7 @@ Every derived artifact should carry:
 - citation set
 - derivation job ID
 
-==== LLM Tool Surface
+=== LLM Tool Surface
 
 The LLM should not call every API directly. Give it a smaller tool layer.
 
@@ -1578,7 +1046,7 @@ Very useful for reasoning over evolving knowledge.
 
 That set is enough for many agent workflows.
 
-==== CLI design
+=== CLI design
 
 The CLI should mirror the mental model and map to the APIs.
 
@@ -1651,7 +1119,7 @@ mkbp reindex /projects/mkbp/architecture.md
 mkbp doctor
 ```
 
-=== Draft/publish workflow
+== Draft/publish workflow
 
 This matters a lot for LLM safety. Do not let agents silently overwrite canonical knowledge.
 
@@ -1670,7 +1138,7 @@ So:
 
 This single decision will save many problems later.
 
-=== Retrieval Strategy
+== Retrieval Strategy
 
 Use a hybrid retrieval stack.
 
@@ -1708,7 +1176,7 @@ Example:
 }
 ```
 
-=== Provenance model
+== Provenance model
 
 This is one of the most important parts of MKBP. Every artifact should be traceable. For a synthesized note, store:
 
@@ -1727,12 +1195,12 @@ That lets you answer:
 
 Without provenance, an LLM knowledge base becomes untrustworthy.
 
-== Minimal First Version Worth Building
+= Minimal First Version Worth Building
 
 Do not build the whole thing first. Build the smallest version that proves the architecture.
 
-=== Version 1 (V1)
-==== V1 Goal
+== Version 1 (V1)
+=== V1 Goal
 
 A local or single-tenant system that can:
 
@@ -1747,7 +1215,7 @@ A local or single-tenant system that can:
 
 That is enough to validate the model.
 
-==== V1 Storage
+=== V1 Storage
 
 - Postgres
 - local filesystem or S3-compatible bucket
@@ -1756,13 +1224,13 @@ That is enough to validate the model.
 - one API service
 - one worker
 
-==== V1 Artifact Types
+=== V1 Artifact Types
 
 - markdown
 - text
 - pdf
 
-==== V1 APIs
+=== V1 APIs
 
 Must-have:
 
@@ -1776,7 +1244,7 @@ Must-have:
 - create draft derived note
 - publish draft
 
-==== V1 CLI
+=== V1 CLI
 
 Must-have:
 
@@ -1792,7 +1260,7 @@ mkbp new note
 mkbp publish
 ```
 
-==== V1 LLM Tools
+=== V1 LLM Tools
 
 Must-have:
 
@@ -1804,7 +1272,7 @@ Must-have:
 
 That is enough to support real assistant workflows.
 
-==== V1 Relational Schema Sketch
+=== V1 Relational Schema Sketch
 
 A compact Postgres schema could start like this.
 
@@ -1891,7 +1359,7 @@ A compact Postgres schema could start like this.
 
 We can add entities/relations in V2 if V1 is doc-centric.
 
-==== What to postpone until V2
+=== What to postpone until V2
 
 Do not do these in V1 unless truly necessary:
 
@@ -1912,7 +1380,7 @@ V1 should prove:
 - retrieval works
 - LLM tools feel natural
 
-==== Recommended Implementation Order
+=== Recommended Implementation Order
 
 *Step 1*
 
@@ -1948,7 +1416,7 @@ Derived notes with provenance
 
 That order will get us to usefulness quickly.
 
-==== The Essence of the Design
+=== The Essence of the Design
 
 The key MKBP idea is:
 
@@ -1969,7 +1437,7 @@ That combination is what makes a backend both LLM-friendly and strong.
 
 If you want, I can turn this into a one-page RFC next, or sketch the exact Postgres tables and REST endpoints in more implementation detail.
 
-=== Examples
+== Examples
 
 These examples assume:
 1. What user wants
@@ -1990,7 +1458,7 @@ The systems provide the following LLM-facing tools:
 - `create_note(parent_path, title, content, citations?)`
 - `render_citations(references)`
 
-==== Example 1: Find the current answer in messy project docs
+=== Example 1: Find the current answer in messy project docs
 
 *User Query*
 
@@ -2175,7 +1643,7 @@ A good answer might be:
 
 That answer is useful because the LLM explored rather than guessed.
 
-==== Example 2: Answer a cross-document question the system was not explicitly designed for
+=== Example 2: Answer a cross-document question the system was not explicitly designed for
 
 *What user wants*
 ```text
@@ -2326,7 +1794,7 @@ That is important because the system may not have a single canonical “because�
 
 That is a real cross-document synthesis answer.
 
-==== Example 3: Create a new derived note after exploring the KB
+=== Example 3: Create a new derived note after exploring the KB
 
 *What user wants*
 ```text
@@ -2548,7 +2016,7 @@ So the backend must be strong in exactly the places the LLM is weak:
 - exposing safe write paths
 - supporting verification
 
-=== Nevigation
+== Nevigation
 
 One issue in the above examples is that the system (MKBP) did not give LLMs a 'file-based' interface at all. 
 In these examples, LLMs must 'guess' correctly that my knowledge base has a collection '/projects/mkbp'. 
@@ -2568,8 +2036,9 @@ As an example, I asked Codex: "Where does Qwen Code store its logs?". What Codex
 - Codex then tries (explores) the sub-directory 'debug', ... 
 - It finally found the location where logs are stored. 
 
-Explorability is extremely important. How to improve MKBP to improve the explorability? LLMs should be able to 
-*walk the space* and form hypotheses from visible structure, not only query a hidden index.
+Explorability is extremely important. How to improve MKBP to improve the explorability? 
+LLMs should be able to *walk the space* and form hypotheses from visible structure, 
+not only query a hidden index.
 
 The Qwen Code example is exactly the right model. The agent did not know the answer, and it did not know the schema. 
 It succeeded because the environment exposed:
@@ -2592,7 +2061,7 @@ It should also present a *navigable, file-like world*.
 
 So the LLM-facing surface should have two complementary modes:
 
-==== Navigation Tools
+=== Navigation Tools
 
 The most commonly used tools for nagivating the knowledge base is:
 
@@ -2611,15 +2080,15 @@ Once LLMs located the `targets`, look-up type of tools may be used, like:
 - `find_related`
 - `render_citations`
 
-=== Explorability
+== Explorability
 
 To improve MKBP explorability, make the knowledge base look less like a hidden search service
-and more like a **navigable knowledge filesystem**: paths, listings, previews, relative traversal,
+and more like a *navigable knowledge filesystem*: paths, listings, previews, relative traversal,
 grep/find-like tools, and neighbor hints should become first-class.
 
 For an LLM, explorability comes from six properties.
 
-==== Visible structure
+=== Visible structure
 
 The agent can see what exists nearby.
 
@@ -2632,7 +2101,7 @@ Example:
 
 Without this, it must guess hidden namespaces.
 
-==== 2. Meaningful Names
+=== 2. Meaningful Names
 
 Paths and names carry semantics.
 
@@ -2644,7 +2113,7 @@ Examples:
 
 These names are clues.
 
-==== 3. Cheap Incremental Inspection
+=== 3. Cheap Incremental Inspection
 
 The agent can inspect without paying the cost of full retrieval.
 
@@ -2656,7 +2125,7 @@ Examples:
 - preview first lines
 - preview child counts
 
-==== Locality
+=== Locality
 
 Once the agent finds one useful thing, nearby things are likely useful too.
 
@@ -2664,7 +2133,7 @@ Example:
 
 If it finds `/projects/mkbp/rfcs/rfc-003-versioning.md`, then `/projects/mkbp/rfcs/` is probably worth listing.
 
-==== Hypothesis-driven Traversal
+=== Hypothesis-driven Traversal
 
 The system should support “maybe it’s here” exploration.
 
@@ -2674,7 +2143,7 @@ Example:
 - “decision might be in `rfcs`”
 - “implementation details might be in `architecture`”
 
-==== Safe Failure
+=== Safe Failure
 
 Bad guesses should be cheap and informative, not catastrophic.
 
@@ -2684,7 +2153,7 @@ Example:
 - “Directory exists but contains no readable files”
 - “Access denied to 2 items, 8 items visible”
 
-=== The design change MKBP needs
+== The design change MKBP needs
 
 Add a *path-native exploration API* as a first-class interface. Not just collections and IDs.
 The primary world the LLM sees should look like a knowledge filesystem.
@@ -2827,7 +2296,7 @@ Given a useful artifact, suggest likely next places to inspect:
 
 This is a guided “what next?” explorer.
 
-==== Exploration Loop
+=== Exploration Loop
 
 With those tools, the LLM can behave much more naturally.
 
@@ -2855,7 +2324,7 @@ A natural agent flow becomes:
 
 That is much closer to how a coding agent works in a repository.
 
-==== Collections and File-Trees
+=== Collections and File-Trees
 
 Do not remove collections internally. They are still useful in the backend. But externally, 
 prefer *paths* as the primary abstraction.
@@ -2869,7 +2338,7 @@ Internally, collections remain organizational metadata. Externally, expose them 
 
 But the LLM does not need to know that.
 
-==== Path model for MKBP
+=== Path model for MKBP
 
 You should introduce a real logical path layer.
 
@@ -2953,7 +2422,7 @@ Example:
 
 That makes exploration much more effective.
 
-==== Natural Affordance
+=== Natural Affordance
 
 Add “natural affordances” borrowed from shell/repo workflows. If we want MKBP to feel natural to
 coding agents, borrow familiar operations.
@@ -2995,7 +2464,7 @@ Show richer file metadata.
 
 These are all psychologically natural for agents trained heavily on code and shell contexts.
 
-==== Session-Local Working Context
+=== Session-Local Working Context
 
 This is another important improvement. The system should let the LLM maintain a working directory
 or working set.
@@ -3022,7 +2491,7 @@ So tools could support:
 
 That makes the interaction much more natural.
 
-==== Search should become path-aware, not path-free
+=== Search should become path-aware, not path-free
 
 Your concern is exactly right: a pure semantic search interface throws away the natural structure.
 So search results should always include:
@@ -3044,7 +2513,7 @@ Even better, let search optionally return a *path trail*:
 
 This helps the LLM re-anchor itself in the KB structure.
 
-==== Improved MKBP Tool Set
+=== Improved MKBP Tool Set
 
 *Exploration tools*
 
@@ -3073,7 +2542,7 @@ This helps the LLM re-anchor itself in the KB structure.
 
 That is much more “natural” than starting from abstract collection filters.
 
-==== Case Studies
+=== Case Studies
 
 Old flow:
 
@@ -3092,7 +2561,7 @@ New flow:
 The new flow is slower in the best case, but much more robust in unfamiliar territory. 
 That tradeoff is worth it for exploration-heavy tasks.
 
-==== Hybrid Strategy
+=== Hybrid Strategy
 
 *When to navigate vs when to search*
 
@@ -3114,27 +2583,27 @@ So MKBP should support this policy:
 - the agent already has a good path anchor
 - exact file location is not important
 
-=== Index for Explorability
+== Index for Explorability
 
 To make this work well, the backend needs a few extra indexes.
 
-==== Path index
+=== Path index
 
 Fast lookup by exact path, prefix, glob, and fuzzy path name.
 
-==== Directory materialization
+=== Directory materialization
 
 Fast children listing, child counts, summaries.
 
-==== Preview cache
+=== Preview cache
 
 Headings, first paragraphs, metadata previews.
 
-==== Neighborhood graph
+=== Neighborhood graph
 
 Sibling, parent, topic-linked, recent-nearby suggestions.
 
-==== Path aliases
+=== Path aliases
 
 Multiple natural entry points.
 
@@ -3146,9 +2615,9 @@ Example:
 
 This reduces brittle path guessing.
 
-=== Design Rules
+== Design Rules
 
-==== Ontology
+=== Ontology
 
 The KB should not ask the LLM to guess a hidden ontology. Instead, it should expose a world
 where the ontology is *legible through structure*.
@@ -3163,17 +2632,14 @@ That means:
 
 This is why files and repos are such good environments for agents.
 
-==== logical path tree as primary interface
-==== path-native APIs
-==== shell-like exploration affordances
-==== curated plus computed directories
-==== working path/session memory
-==== preview and neighbor suggestion capabilities
+=== logical path tree as primary interface
+=== path-native APIs
+=== shell-like exploration affordances
+=== curated plus computed directories
+=== working path/session memory
+=== preview and neighbor suggestion capabilities
 
 
 == References
 
-#r_001 AI Agents vs LLMs: Choosing the Right Tools for AI Tasks, 2026/03/26, Source: dzone
-
-#r_002 LangChain DeepAgents, 2026/04/02, Source: WeChat
 

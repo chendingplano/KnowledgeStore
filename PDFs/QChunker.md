@@ -1,0 +1,614 @@
+# arXiv:2603.11650v1[cs.CL]12 Mar 2026
+
+## QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate
+
+Jihao Zhao
+
+School of Information, Renmin University of China Beijing, China zhaojihao@ruc.edu.cn
+
+Shuaishuai Zu
+
+School of Information, Renmin University of China Beijing, China zushuaishuai@ruc.edu.cn
+
+Daixuan Li
+
+School of Smart Governance, Renmin University of China Suzhou, China lidaixuan2024@ruc.edu.cn
+
+Biao Qin∗
+
+School of Information, BRAIN, Renmin University of China Beijing, China qinbiao@ruc.edu.cn
+
+Pengfei Li
+
+School of Information, Renmin University of China Beijing, China pfli9411@gmail.com
+
+Hongyan Liu∗
+
+School of Economics and Management, Tsinghua University Beijing, China hyliu@tsinghua.edu.cn
+
+### Abstract
+
+The effectiveness upper bound of retrieval-augmented generation (RAG) is fundamentally constrained by the semantic integrity and information granularity of text chunks in its knowledge base. Moreover, domain documents are characterized by dense terminology and strong contextual dependencies, which exacerbate the semantic fragmentation of text chunks, thereby making it difficult to efficiently utilize their key information. To address these challenges, this paper proposesQChunker, which restructures the RAG paradigm from retrieval-augmentation to understanding-retrievalaugmentation. Firstly, QChunker models the text chunking as a composite task of text segmentation and knowledge completion to ensure the logical coherence and integrity of text chunks. Drawing inspiration from Hal Gregersen’s "Questions Are the Answer" theory, we design a multi-agent debate framework comprising four specialized components: a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework operates on the principle that questions serve as catalysts for profound insights. Through this pipeline, we successfully construct a high-quality dataset of 45K entries and transfer this capability to small language models. Additionally, to handle long evaluation chains and low efficiency in existing chunking evaluation methods, which overly rely on downstream QA tasks, we introduce a novel direct evaluation metric, ChunkScore. Both theoretical and experimental validations demonstrate that ChunkScore can directly and efficiently discriminate the quality of text chunks. Furthermore, during the text segmentation phase, we utilize document outlines for multi-path sampling to generate multiple candidate chunks and select the optimal solution employing ChunkScore. Extensive experimental results across four heterogeneous domains exhibit that QChunker effectively resolves aforementioned issues by providing RAG with more logically coherent and information-rich text
+
+chunks. Notably, this study also establishes a small-domain QA dataset concerning hazardous chemical safety, which fully reveals the significant value of RAG in specialized domains and the generalization capability of the QChunker framework. Our code is available at https://github.com/Robot2050/QChunker.
+
+### CCS Concepts
+
+• Information systems → Document structure.
+
+### Keywords
+
+Text Chunking; Multi-Agent Debate; Chunk Evaluation Metric
+
+ACM Reference Format:
+
+Jihao Zhao, Daixuan Li, Pengfei Li, Shuaishuai Zu, Biao Qin, and Hongyan Liu. 2026. QChunker: Learning Question-Aware Text Chunking for Domain RAG via Multi-Agent Debate. In Proceedings of the ACM Web Conference 2026 (WWW ’26), April 13–17, 2026, Dubai, United Arab Emirates. ACM, New York, NY, USA, 12 pages. https://doi.org/10.1145/xxx.xxx
+
+### 1 Introduction
+
+Retrieval-Augmented Generation (RAG) is a prominent paradigm designed to mitigate inherent limitations of Large Language Models (LLMs), such as data staleness [23], factual hallucinations [6, 12, 56], and a lack of domain-specific knowledge [32, 38]. By coupling an external retriever with a generator, RAG enhances performance on knowledge-intensive tasks, such as open-domain question answering (QA) [28], enabling more precise and allowing it to produce more accurate and context-based responses [33, 41]. Although the efficacy of this retrieval-based strategy is well-established, its overall performance is critically dependent on the relevance and accuracy of the retrieved documents [30, 42]. The introduction of superfluous, irrelevant, or incomplete information through the retrieval process can fail to augment, and may even degrade, the quality of the final generated answer [40, 50].
+
+In fact, the relevance and accuracy of retrieved documents largely depend on the text chunking step at the source of knowledge base construction [7, 29, 44]. Existing chunking methods, ranging from heuristic rules based on fixed-length and sentence boundaries [18, 35] to the use of semantic similarity models [24, 48], and even the recent approaches based on LLMs [15, 55], generally treat
+
+chunking as an isolated and passive pre-processing step, rather than an active and forward-looking deep understanding process [37]. This flaw is particularly prominent when dealing with domain documents that are rich in terminology and have strong context dependencies. It can easily lead to semantic fragmentation, making it difficult to effectively utilize key information within text chunks. Typical manifestations include: (a) Lack of term definitions: A text chunk references professional terms, abbreviations, or symbols, but their definitions or explanations are located outside the chunk [3, 17]. (b) Lack of background knowledge: The prerequisite assumptions, background knowledge, or global settings required for understanding the text chunk are not included [10]. (c) Disruption of context dependencies: The logical reasoning within the chunk depends on key information from the preceding or following text. When these knowledge fragments are injected into LLMs, they not only fail to effectively enhance the models’ performance but also interfere with their internal reasoning processes [39].
+
+To break through the performance bottleneck in current RAG systems caused by poor text chunking, this paper proposes the QChunker framework for domain knowledge base construction. By simulating a pre-learning phase without specific task guidance, it encourages the model to go beyond simple text boundary identification and instead pursue a mastery of the deep logic and potential knowledge associations of the content. To achieve this goal, QChunker models text chunking as a compound task of text segmentation and knowledge completion. Given that questions are the key to unlocking deep insights [19], we design a multi-agent debate framework composed of a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework simulates the thinking process of experts when reading documents, autonomously segmenting and constructing high-quality text chunks from the original documents.
+
+In addition, addressing the drawbacks of existing chunking evaluation methods, which rely excessively on downstream tasks, have long evaluation chains, and are inefficient, we propose a new direct evaluation metric called ChunkScore. Unlike previous evaluation methods that rely on indirect signals, ChunkScore defines the quality of an ideal chunking scheme from two dimensions. At the micro level, it emphasizes logical independence, requiring clear boundaries between adjacent text chunks so that they form independent semantic units. At the macro level, it focuses on semantic dispersion, demanding that the entire set of text chunks comprehensively covers the core themes of the document in a low-redundancy manner. This metric has been proven through both theoretical and experimental validation to be capable of efficiently and accurately judging the quality of text chunks. More importantly, ChunkScore is not only an independent evaluation tool but also plays a crucial decision-making role in our QChunker framework. During the text segmentation stage, we use the document outline to conduct multi-path sampling to generate multiple candidate chunking schemes and ultimately rely on ChunkScore as the adjudicator to autonomously select the optimal solution, based on which we train small language models (SLMs) to implement the debate process. To further verify the effectiveness of the QChunker framework in real-world proprietary domains and contribute a domain-specific evaluation benchmark to the community, we construct a hazardous chemical safety dataset.
+
+To summarize, the contributions of our work are highlighted by the following points: (1) We propose QChunker, a text chunking framework based on multi-agent debate. It combines text segmentation and knowledge completion, aiming to address the issue of semantic fragmentation in domain RAG. (2) We design and validate ChunkScore, an efficient direct evaluation metric for the quality of text chunks, which is free from dependence on downstream tasks. (3) We construct and release a QChunker dataset containing 45K high-quality samples, as well as a small-domain QA dataset focused on hazardous chemical safety, providing valuable resources for community research. (4) Through benchmark tests in four heterogeneous domains, we systematically demonstrate the key value and potential of the QChunker framework in enabling RAG to serve specific domains.
+
+2 Related Works
+
+- 2.1 Text Segmentation
+
+Text segmentation is a foundational task in Natural Language Processing that involves partitioning text into meaningful, coherent units. This process is a critical prerequisite for downstream applications such as information retrieval [26, 31, 47] and text summarization [13, 34, 36]. A prominent approach leverages topic modeling to identify thematic shifts, which serve as segmentation boundaries [5, 25]. This category spans from classical probabilistic methods [8] to modern embedding-based models like Top2Vec [1] and BERTopic [20] that capture semantic relationships. Alternatively, text segmentation can be framed as a sequence labeling task. Zhang et al. [54], for example, utilize BERT to generate contextualized sentence representations and predict a segmentation decision after each sentence, thereby modeling long-range dependencies. Other strategies focus on document structure. Heuristic methods, implemented in frameworks like LangChain [27], employ techniques such as character-level, delimiter-based, and recursive splitting. While effective at preserving structural integrity, these approaches often lack deep contextual understanding. To overcome this limitation, semantic segmentation [24] utilizes text embeddings to group semantically coherent passages, identifying boundaries at points where embedding distances indicate a significant topic change.
+
+- 2.2 Text Chunking in RAG
+
+
+Powered by complex internal architectures and reasoning mechanisms, LLMs have demonstrated exceptional performance on a wide array of language tasks [26, 55]. The RAG framework enhances these capabilities, particularly in knowledge-intensive domains, by augmenting the LLM’s input with externally retrieved text chunks [2, 16, 22, 52]. The efficacy of RAG is fundamentally dependent on the quality of its text chunking component. Suboptimal segmentation strategies can introduce incomplete context or irrelevant noise, which adversely affects the performance of downstream QA systems [53]. While conventional methods operate at the sentence or paragraph level [18, 35], more sophisticated approaches have been proposed. For instance, Chen et al. [11] introduce the Proposition as a retrieval granularity, defining them as atomic units of fact. Although this approach is highly effective for fact-based corpora like Wikipedia, its fine-grained nature can disrupt the contextual cohesion of narrative texts, leading to information loss. Another
+
+advanced technique, LumberChunker [15], leverages an LLM to iteratively identify segmentation points. While this demonstrates the potential of LLM-driven chunking, its performance relies heavily on the model’s instruction-following fidelity and incurs significant computational costs. Following this trend, MoC [55] enables intelligent chunking with smaller models, yet it does not fully address the issue of semantic fragmentation and lacks a deep semantic understanding of the resulting text chunks.
+
+3 Text Chunking for Domain RAG
+
+- 3.1 Problem Definition
+
+We define the text chunking task for domain-specific RAG as a composite function 𝐹, which maps an original domain-specific document 𝐷 to a set𝐶∗ composed of high-quality text chunks. This process can be articulated as the functional composition of two core subtasks, namely text segmentation and knowledge completion, expressed as: 𝐹 = 𝑓com ◦ 𝑓seg.
+
+Text Segmentation (𝑓seg): This function aims to partition the original document 𝐷 into an optimal initial set of text chunks 𝐶. Let P(𝐷) denote the set of all possible partitionings of document 𝐷. A specific partitioning 𝐶 ∈ P(𝐷) is a collection of 𝑛 text chunks 𝐶 = {𝑐1,𝑐2, . . .,𝑐𝑛} such that 𝑛𝑖=1 𝑐𝑖 = 𝐷 and for any𝑖 ≠ 𝑗,𝑐𝑖 ∩𝑐𝑗 = ∅. The optimal partitioning 𝐶opt is determined by an evaluation function Φ:
+
+𝐶opt = 𝑓seg(𝐷) = argmax
+
+𝐶∈P(𝐷)
+
+Φ(𝐶).
+
+The evaluation function Φ(𝐶) quantifies the overall quality of the partitioning 𝐶, with the objective of maximizing intra-chunk semantic cohesion and minimizing inter-chunk coupling.
+
+Knowledge Completion (𝑓com): This function takes the optimal initial partitioning 𝐶opt as input and enhances each text chunk 𝑐𝑖 that may suffer from semantic deficiencies. For each 𝑐𝑖 ∈ 𝐶opt, the completion process aims to extract a necessary knowledge set 𝐾𝑖 ⊂ 𝐷 \ 𝑐𝑖 from the global context of the original document 𝐷 and fuse it with the original text chunk to generate a semantically enhanced text chunk 𝑐𝑖′. This process can be represented as: 𝑐𝑖′ = 𝑐𝑖 ⊕𝐾𝑖. Here, ⊕ represents a non-trivial knowledge integration operator, which is not a simple text concatenation but rather a rewriting operation that maintains semantic coherence and stylistic consistency. Ultimately, the knowledge completion function outputs the enhanced set of text chunks 𝐶∗ = {𝑐1′,𝑐2′, . . .,𝑐𝑛′ }.
+
+- 3.2 Question-Aware Multi-Agent Debate
+
+
+To realize the composite task 𝐹 defined above, we design a questionaware multi-agent debate framework, the overall architecture of which is illustrated in Figure 1. This framework decomposes the complex text chunking task onto a set of specialized agents A = {𝐴QG,𝐴SEG,𝐴IR,𝐴KC} by simulating the cognitive process of an expert team composed of multiple roles. These agents handle the document sequentially within a structured workflow, collectively approximating the optimal solution 𝐶∗.
+
+- 3.2.1 Question Outline Generator. 𝐴QG serves as the cognitive starting point of the entire framework, with its core responsibility being to simulate the in-depth analysis and exploration process of domain experts when engaging with a document. This process is not
+
+
+a mere information extraction but rather an endeavor to establish a profound understanding of the intrinsic connections between the macro structure and micro arguments of the document. The functionality of this agent can be modeled as a mapping function that transforms the original document 𝐷 into a structured question outline Q:
+
+𝐴QG : 𝐷 ↦→ Q.
+
+These questions are designed to probe into the motivation, core assumptions, methodology, key conclusions, and their underlying logical chains within the document. The process of generating Q essentially compels the model to transition from a passive text processor to an active knowledge explorer, constructing an abstract understanding of the document’s knowledge system through self-inquiry and providing a crucial semantic prior for subsequent segmentation.
+
+- 3.2.2 Text Segmenter. The core task of the 𝐴SEG is to implement an optimal partitioning 𝐶𝑜𝑝𝑡 for the document 𝐷 based on the abstract knowledge structure constructed by 𝐴𝑄𝐺:
+
+𝐴SEG : (𝐷, Q) ↦→ 𝐶opt. Searching directly throughout the entire partitioning space P(𝐷) is computationally infeasible. Therefore, 𝐴SEG adopts a heuristic search and evaluation strategy, utilizing the question outline Q to effectively prune the search space.
+
+Candidate Space Generation: By leveraging the semantic prior knowledge provided by the question outline Q, the agent generates a manageable yet higher-quality set of candidate partitionings S = {𝑆1,𝑆2, . . .,𝑆𝑝} from the vast universal set P(𝐷) through a multipath sampling strategy, where S ⊂ P(𝐷). This step transforms the original global optimization problem into a selection problem on a highly relevant subset.
+
+Evaluation and Selection: To rank each partitioning scheme 𝑆𝑗
+
+in the candidate set S, we introduce a specific evaluation function, ChunkScore, the detailed design of which is presented in Section 3.3. This function is a computable instance of the abstract evaluation function Φ, denoted as ΦCS. It takes a complete partitioning scheme 𝑆𝑗 as input and returns a scalar score to assess its overall quality. Ultimately, the agent determines its output 𝐶opt by solving the following optimization problem:
+
+𝐶opt = argmax
+
+𝑆∈S
+
+ΦCS(𝑆).
+
+In this manner,𝐴SEG transforms a theoretically intractable optimization problem into a tractable process of evaluation and selection on a superior candidate space generated under the guidance of Q, thereby efficiently obtaining a text partitioning scheme that approaches the theoretical optimum.
+
+- 3.2.3 Integrity Reviewer. The key task of 𝐴IR is to diagnose and identify potential knowledge incompleteness issues arising from the text segmentation process. In domain-specific texts, even when
+
+
+segmented along semantic boundaries, the resulting text chunks 𝑐𝑖 may become difficult to understand or ambiguous when isolated from their global context. By performing a comparative analysis between 𝑐𝑖 and 𝐷, 𝐴IR identifies potential information gaps.
+
+For each identified information gap, 𝐴IR determines whether the absence of such information substantially leads to inaccuracies or
+
+Integrity Reviewer
+
+Question Outline Generator
+
+Reject
+
+![image 1](QChunker_images/imageFile1.png)
+
+|Finance<br><br>![image 2](QChunker_images/imageFile2.png)|
+|---|
+
+
+![image 3](QChunker_images/imageFile3.png)
+
+![image 4](QChunker_images/imageFile4.png)
+
+![image 5](QChunker_images/imageFile5.png)
+
+![image 6](QChunker_images/imageFile6.png)
+
+|Question Outline|
+|---|
+
+
+Identification of Missing Information
+
+|Education<br><br>![image 7](QChunker_images/imageFile7.png)|
+|---|
+
+
+Accept
+
+![image 8](QChunker_images/imageFile8.png)
+
+Simulate Domain Experts Questions
+
+|Industrial<br><br>![image 9](QChunker_images/imageFile9.png)|
+|---|
+
+
+|Text Chunks|
+|---|
+
+
+|Medical<br><br>![image 10](QChunker_images/imageFile10.png)|
+|---|
+
+
+Text Segmenter
+
+Knowledge Completer
+
+|News<br><br>![image 11](QChunker_images/imageFile11.png)|
+|---|
+
+
+|Rewritten Text Chunks|
+|---|
+
+
+![image 12](QChunker_images/imageFile12.png)
+
+![image 13](QChunker_images/imageFile13.png)
+
+![image 14](QChunker_images/imageFile14.png)
+
+Multi-path Sampling Parallel
+
+![image 15](QChunker_images/imageFile15.png)
+
+Information Verification & Filtering
+
+|Law ...<br><br>![image 16](QChunker_images/imageFile16.png)|
+|---|
+
+
+ChunkScore for Scoring
+
+Rewriting
+
+Segmentation and Completion Results
+
+Multi-domain Documents
+
+![image 17](QChunker_images/imageFile17.png)
+
+![image 18](QChunker_images/imageFile18.png)
+
+![image 19](QChunker_images/imageFile19.png)
+
+![image 20](QChunker_images/imageFile20.png)
+
+Original Document Content Question Outline Optimal Text Segmentation Scheme Exhibition of Missing Information
+
+#### Figure 1: Overview of the QChunker framework’s multi-agent debate process. The workflow comprises four key stages: questionoutline generation, text segmentation, integrity review, and knowledge completion, followed by a concrete example.
+
+comprehension barriers in the text chunk. Ultimately, a structured identification result of missing information within the text chunk is output, along with a definitive judgment on whether supplementary information is indeed required. This process strictly adheres to one principle: all information to be supplemented must be explicitly stated in the original document 𝐷, prohibiting any form of information extrapolation or creation. The functionality of this agent can be formalized as:
+
+𝐴IR : (𝑐𝑖,𝐷) ↦→ (M𝑖,𝑏𝑖).
+
+The input consists of a text chunk under review𝑐𝑖 ∈ 𝐶opt and the original document 𝐷. The output is a tuple (M𝑖,𝑏𝑖). M𝑖 represents a set of identified knowledge points that are crucial for understanding 𝑐𝑖 but are missing within it: M𝑖 = {𝑚𝑖,1,𝑚𝑖,2, . . . }. The core constraint is that for any 𝑚 ∈ M𝑖, 𝑚 must be explicitly stated in 𝐷 \ 𝑐𝑖. 𝑏𝑖 ∈ {0, 1} is a Boolean judgment. When 𝑏𝑖 = 1, it indicates that 𝑐𝑖 indeed suffers from inaccuracies due to missing information and requires knowledge completion.
+
+- 3.2.4 Knowledge Completer. 𝐴KC serves as the final stage of the framework, responsible for executing the knowledge integration
+
+
+operator ⊕ to generate the final high-quality knowledge unit 𝑐𝑖′. Its functionality can be expressed as:
+
+𝐴KC : (𝑐𝑖, M𝑖,𝑏𝑖 = 1) ↦→ 𝑐𝑖′.
+
+This agent is activated if and only if 𝑏𝑖 = 1. Its workflow consists of two stages:
+
+Information Verification and Filtering: 𝐴KC first conducts a secondary review of M𝑖 to verify the necessity and relevance of each piece of information: (a) whether the information is indeed critical for understanding 𝑐𝑖; (b) whether the information is explicitly stated in the original document 𝐷; (c) whether supplementing this information would introduce irrelevant new topics not covered in 𝑐𝑖. Based on the verification results, a final subset of knowledge to be supplemented, M𝑖′ ⊆ M𝑖, is selected.
+
+Rewriting and Optimization: Rather than performing a simple concatenation of the qualified information, the knowledge completer executes a meticulous rewriting operation. It analyzes the internal syntactic structure and stylistic features of the text chunk 𝑐𝑖 to identify the most appropriate position for seamlessly integrating the missing background knowledge or term explanations in the most natural manner. Ultimately, it outputs a complete, highquality text chunk 𝑐𝑖′ that has undergone knowledge completion and optimization.
+
+### 3.3 Design and Validation of ChunkScore
+
+To effectively guide the optimization process of the text segmentation agent 𝐴SEG, we design a novel evaluation metric named ChunkScore, denoted as ΦCS, whose value lies in serving as a quantitative criterion for data selection, similar to a reward function in reinforcement learning. Unlike traditional evaluation paradigms that rely on downstream tasks, ChunkScore is a composite metric
+
+capable of directly and efficiently quantifying the quality of any text partitioning scheme 𝐶 from two orthogonal dimensions: the micro-level and the macro-level.
+
+The core idea of ChunkScore is that an ideal partitioning scheme must simultaneously satisfy two conditions: (1) Micro-level: The boundaries between adjacent text chunks must be clear, effectively demarcating independent semantic units, which we refer to as logical independence. (2) Macro-level: The entire collection of text chunks should cover the core information of the document in a low-redundancy manner, which we refer to as semantic dispersion.
+
+- 3.3.1 Logical Independence (LI). This metric aims to quantify the effectiveness of text chunks as independent semantic units. If the boundary between two adjacent text chunks𝑐𝑖−1 and𝑐𝑖 is clear, then the content of 𝑐𝑖 should not be highly dependent on the context of 𝑐𝑖−1. We utilize the perplexity of a language model to quantify this dependency. For any internal boundary in the partitioning scheme 𝐶 = {𝑐1,𝑐2, . . .,𝑐𝐾}, we define its logical independence as:
+
+
+PPL(𝑐𝑖|𝑐𝑖−1) PPL(𝑐𝑖)
+
+LI(𝑐𝑖,𝑐𝑖−1) =
+
+,
+
+where PPL(𝑐𝑖) represents the perplexity of the language model on the text chunk 𝑐𝑖 itself, measuring the internal linguistic coherence of 𝑐𝑖. PPL(𝑐𝑖|𝑐𝑖−1) denotes the conditional perplexity of the model on 𝑐𝑖 given the preceding text chunk 𝑐𝑖−1 as context.
+
+When the boundary is clear and the two text chunks are semantically independent, the context provided by 𝑐𝑖−1 offers limited assistance in predicting 𝑐𝑖, and the LI metric approaches 1. Conversely, when the boundary is ambiguous and the two text chunks are strongly semantically related, 𝑐𝑖−1 renders 𝑐𝑖 highly predictable, and the LI metric approaches 0.
+
+To obtain the overall logical independence score for the entire partitioning scheme𝐶, we calculate the arithmetic mean of all 𝐾 −1 internal logical independence values:
+
+##### ∑︁𝐾
+
+1 𝐾 − 1
+
+LI(𝑐𝑖,𝑐𝑖−1).
+
+ΦLI(𝐶) =
+
+𝑖=2
+
+- 3.3.2 Semantic Dispersion (SD). Next, we define the metric for measuring macro-level chunking diversity: Semantic Dispersion. This metric aims to reward partitioning schemes that enable text chunks to be semantically distinguishable from each other and reduce information overlap. Given a pre-trained embedding model 𝑓embed, the calculation process for ΦSD(𝐶) is as follows.
+
+
+First, the embedding model 𝑓embed is used to map each text chunk 𝑐𝑖 in the partitioningscheme𝐶 to a𝑑-dimensionalreal-valued vector space R𝑑. This process generates a compact semantic representation for each text chunk:
+
+z𝑖 = 𝑓embed(𝑐𝑖) ∈ R𝑑, ∀𝑖 ∈ {1, . . .,𝐾}.
+
+All the embedding vectors z𝑖 of the text chunks are stacked columnwise to form an embedding matrix Z, which comprehensively captures the semantic information of the entire partitioning scheme Z = [z1, z2, . . ., z𝐾] ∈ R𝑑×𝐾.
+
+To measure the relationships among the embeddings of the text chunks, we calculate their Gram matrix Σ. To eliminate potential biases inherent in the embedding feature dimensions, we first define
+
+a feature centering matrix
+
+1 𝑑
+
+1𝑑1𝑑⊤,
+
+J𝑑 = I𝑑 −
+
+where I𝑑 is the 𝑑-dimensional identity matrix and 1𝑑 is the 𝑑dimensional vector of all ones. The formula for calculating the Gram matrix
+
+##### Σ = Z⊤J𝑑Z ∈ R𝐾×𝐾.
+
+Each element Σ𝑖𝑗 in the matrix Σ measures the semantic similarity between the 𝑖-th and 𝑗-th text chunks after feature centering.
+
+Finally, we define ΦSD(𝐶) as the normalized log-determinant of the regularized Gram matrix:
+
+1 𝐾
+
+logdet(Σ + 𝛼I𝐾).
+
+ΦSD(𝐶) =
+
+where 𝛼 is a small regularization constant (e.g., 𝛼 = 10−3) introduced to ensure matrix positive definiteness, and I𝐾 is the 𝐾dimensional identity matrix.
+
+According to matrix theory, the determinant of a matrix is equal to the product of its eigenvalues. If we let 𝜆1, . . .,𝜆𝐾 be the eigenvalues of the matrix Σ + 𝛼I𝐾, then ΦSD(𝐶) can also be equivalently expressed as the arithmetic mean of the logarithms of the eigenvalues:
+
+##### ∑︁𝐾
+
+1 𝐾
+
+log(𝜆𝑖).
+
+ΦSD(𝐶) =
+
+𝑖=1
+
+This form intuitively reveals the essence of ΦSD(𝐶), which rewards partitioning schemes that enable the embeddings of text chunks to have large variances in all feature directions.
+
+- 3.3.3 ChunkScore. The final ChunkScore is a weighted linear combination of the two aforementioned sub-metrics, forming a composite evaluation function capable of balancing macro-level and micro-level considerations:
+
+ΦCS(𝐶) = 𝜆 · ΦLI(𝐶) + (1 − 𝜆) · ΦSD(𝐶),
+
+where the hyperparameter 𝜆 ∈ [0, 1] is used to adjust the relative importance between logical independence and semantic discreteness. We provide a detailed exploration of its settings in Section
+
+- 4.5. In our framework, ΦCS serves as the ultimate optimization objective for the text segmentation agent 𝐴SEG, guiding it to find the most balanced text partitioning scheme that excels in both logical independence and content diversity.
+
+
+3.3.4 Effectiveness of ΦSD(𝐶). Although the validity of ΦLI(𝐶) is based on language model perplexity and its principle is relatively intuitive, the construction of ΦSD(𝐶) relies on more profound mathematical principles. In this paper, we justify its rationality from a geometric perspective.
+
+A high-quality text partitioning scheme 𝐶high should exhibit semantic distinctiveness and complementarity among its members. Conversely, a low-quality partitioning scheme 𝐶low demonstrates semantic redundancy or overlap among its members. We will prove that ΦSD(𝐶) can effectively distinguish between these two cases. Before proceeding with the proof, we first introduce a key mathematical lemmas.
+
+Lemma 1 (Gram Matrix Determinant and Volume [14]). For a set of 𝐾 vectors V = {v1, . . ., v𝐾} where v𝑖 ∈ R𝑑, the corresponding
+
+Gram matrix G is defined as G𝑖𝑗 = v𝑖⊤v𝑗, i.e., G = V⊤V. The determinant of this matrix equals the squared volume of the 𝐾-dimensional
+
+parallel polyhedra spanned by these vectors: det(G) = Vol𝐾2 ({v1, . . ., v𝐾}).
+
+Perspective of Geometric Analysis: We aim to demonstrate that maximizing ΦSD(𝐶) is equivalent to maximizing the volume spanned by the embedding vectors of text chunks in the semantic space.
+
+First, we revisit the matrix Σ = Z⊤J𝑑Z in the core computational formula of ΦSD(𝐶). Here, the feature centering matrix J𝑑 is an orthogonal projection matrix, possessing the properties of symmetry
+
+J𝑑⊤ = J𝑑 and idempotence J𝑑J𝑑 = J𝑑. Utilizing these two properties, we can reconstruct Σ as follows:
+
+Σ = Z⊤J𝑑Z = Z⊤(J𝑑⊤J𝑑)Z = (J𝑑Z)⊤(J𝑑Z). We define a new projected embedding matrix Zproj := J𝑑Z = [J𝑑z1, . . ., J𝑑z𝐾]. Each column of this matrix is the projected result of the original embedding vector z𝑖 after removing the feature mean. Therefore, the expression for Σ can be simplified to Σ = Z⊤projZproj. This form is precisely the standard Gram matrix of the projected vector set Zproj. According to Lemma 1, we can establish the following logical chain: For a high-quality partition 𝐶high, its members are semantically dissimilar, and the corresponding projected embedding vectors {J𝑑z𝑖}high tend to be linearly independent or even orthogonal in the space. The parallel polyhedra spanned by them has a relatively large 𝐾-dimensional volume Vol𝐾. For a low-quality partition 𝐶low, its members exhibit semantic redundancy, and the corresponding projected embedding vectors {J𝑑z𝑖}low tend to be linearly dependent, resulting in a flattened parallel polyhedra spanned by them, with its 𝐾-dimensional volume approaching zero.
+
+Thus, Vol𝐾2 ({J𝑑z𝑖}high) > Vol𝐾2 ({J𝑑z𝑖}low), which directly leads to det(Σhigh) > det(Σlow). Since the logarithmic function is monotonically increasing, we have ΦSD(𝐶high) > ΦSD(𝐶low).
+
+In conclusion, ΦSD serves as an effective and theoretically wellgrounded indicator for measuring the semantic dispersion of text chunks. Furthermore, in Appendix C, we provide an informationtheoretic proof based on entropy maximization, which further validates ΦSD as a principled metric for semantic dispersion.
+
+### 3.4 Training SLMs for the Chunking Task
+
+To transfer the powerful text segmentation and knowledge completion capabilities within the multi-agent debate framework to more lightweight models, we specifically train three SLMs. Each SLM utilizes 45K training data and is responsible for a core subtask in the chunking process, thereby reproducing the key functions of the complex framework in a modular manner.
+
+The primary task of the first SLM M𝐺𝑒𝑛 is to directly generate a complete question outline Q and the optimal text segmentation result𝐶𝑜𝑝𝑡 from the original document D in a single step. The final training data is available in the form (D, (Q,𝐶𝑜𝑝𝑡)).
+
+The second SLM M𝐷𝑖𝑠𝑐 focuses on diagnosing whether there is information missing in text chunks. Trained as a discriminator, its task is to directly determine, based on D and 𝑐𝑖, whether 𝑐𝑖 suffers from inaccuracies or semantic ambiguities due to the absence of necessary contextual information. The third SLM M𝑅𝑒𝑓 is responsible for performing the task of 𝐴𝐾𝐶. When M𝐷𝑖𝑠𝑐 determines that
+
+𝑐𝑖 has missing information, M𝑅𝑒𝑓 is activated. Its training process encompasses two interrelated objectives: (1) M𝑅𝑒𝑓 needs to accurately identify the specific parts of 𝑐𝑖 where semantic ambiguities arise due to missing information and locate the corresponding supplementary information from D. (2) Subsequently, based on this information, M𝑅𝑒𝑓 rewrites the entire text chunk to generate a new, more comprehensive text chunk 𝑐𝑖′. The detailed training process is presented in Appendix A.
+
+### 3.5 Dataset Construction for HazardousChemical Safety
+
+We contribute a high-quality, small-domain hazardous chemical safety (HChemSafety) dataset for domain RAG. This not only reveals the significant value of RAG in specialized domains but also further highlights the generalization capability of the QChunker framework.
+
+The construction of the HChemSafety dataset begins with collecting a comprehensive list that covers the names of common and high-risk chemicals. We then conduct targeted crawling of relevant documents to form a corpus. The documents that have undergone preliminary screening are further quantitatively scored using a text quality assessment model. We only retain the subset of documents with the highest scores for the subsequent refinement stage. Next, we employ the sliding window to assist LLMs in the refinement of the documents, resulting in the final version of HChemSafety documents. Afterwards, we once again leverage the information extraction capability of LLMs to perform named entity recognition and relation extraction on the documents, thereby constructing a HChemSafety knowledge graph. Finally, by retrieving the knowledge graph, we automatically generate a large number of QA pairs that cover different knowledge points and reasoning levels, forming the final retrieval QA dataset that can be used for a further evaluation of the performance of domain RAG systems. For details on dataset construction, please refer to Appendix E.
+
+4 Experiment and Analysis
+
+### 4.1 Datasets and Metrics
+
+To evaluate text chunking for domain RAG, this study utilizes four benchmarks: CRUD [35] for the news domain, OmniEval [46] for finance, the multi-domain MultiFieldQA_zh [4], and our proprietary hazardous chemical safety dataset, HChemSafety. CRUD is specifically designed for long-answer generation. OmniEval provides a comprehensive assessment of RAG system quality through manually annotated data spanning 5 task types and 16 financial topics. MultiFieldQA_zh is a component of the LongBench suite. Performance is quantified using BLEU, ROUGE-L, and METEOR metrics, which respectively assess n-gram overlap, the longest common subsequence, and semantic similarity via synonyms and syntactic variations.
+
+### 4.2 Baselines
+
+QChunker is evaluated against six representative text segmentation methods, categorized as rule-based, semantic-based, and LLMdriven. The rule-based approaches include Original Chunking [27],
+
+#### Table 1: Main experimental results are presented in four domain QA datasets. ROU. and MET. represent ROUGE-L and METEOR, respectively. The best result is in bold, and the second best result is underlined.
+
+CRUD OmniEval MultiFieldQA HChemSafety
+
+Chunking Methods
+
+BLEU ROU. MET. BLEU ROU. MET. BLEU ROU. MET. BLEU ROU. MET. Original 0.5022 0.5654 0.7324 0.1906 0.2254 0.3904 0.1707 0.2315 0.3650 0.2282 0.2054 0.3152 Llama_index 0.5312 0.5896 0.7449 0.1969 0.2350 0.4040 0.1732 0.2363 0.3726 0.2477 0.2234 0.3213 Semantic Chunking 0.5188 0.5823 0.7434 0.1913 0.2240 0.3821 0.1609 0.2191 0.3468 0.2037 0.1891 0.2964 LumberChunker 0.5061 0.5701 0.7399 0.1997 0.2375 0.4085 0.1841 0.2426 0.3809 0.2298 0.2124 0.3402 MoC MetaChunker 0.5456 0.6031 0.7546 0.2042 0.2457 0.4141 0.1707 0.2255 0.3512 0.2525 0.2307 0.3449 Qwen2.5-14B 0.5329 0.5920 0.7502 0.2048 0.2473 0.4160 0.1883 0.2497 0.3827 0.2550 0.2250 0.3237 Qwen3-14B 0.5382 0.5953 0.7531 0.1907 0.2329 0.4080 0.1800 0.2412 0.3759 0.2419 0.2195 0.3311 QChunker-3B 0.5552 0.6114 0.7640 0.2193 0.2673 0.4348 0.1970 0.2613 0.4010 0.2792 0.2457 0.3654
+
+w/o M𝑅𝑒𝑓 0.5433 0.6014 0.7601 0.2139 0.2555 0.4198 0.1935 0.2549 0.3889 0.2719 0.2427 0.3607
+
+which divides text into fixed-length segments irrespective of sentence boundaries, and the Llama_index method [27], which respects sentence integrity while approximating a preset token threshold per chunk. The semantic-based method, Similarity Chunking [48], leverages sentence embeddings to partition text by grouping sentences with high semantic relevance. In the LLM-driven category, we compare against established frameworks like LumberChunker [15], which pioneered prompting a model to identify topic shifts, and MoC [55], a parameter-efficient paradigm using a router and meta-chunkers. Furthermore, to assess the impact of the underlying model, we conduct direct comparisons against the general-purpose LLMs, Qwen2.5-14B [43] and Qwen3-14B [51].
+
+### 4.3 Implementation Details
+
+In our methodology, the construction of the core training data and the HChemSafety dataset is facilitated by DeepSeek-R1 [21]. To foster diversity in the generated content, we set the temperature to 0.7 and top_p to 0.8. For the training of smaller models, we selected Qwen2.5-3B as the base model. During the model evaluation phase, we primarily utilized Qwen2.5-7B [43]. All language models employed in the experiments are the instruction versions, loaded with float16 precision to optimize computational efficiency. For retrieval-based QA, we construct a vector database using Milvus and choose bge-base-zh-v1.5 [49] as the embedding model. We configure top_k=8 to retrieve the most relevant contextual information. Apart from the differences in text chunking strategies, all other components of the RAG pipeline remain strictly identical. Data processing and the construction of all datasets are carried out using the Huawei Ascend AI technology stack, while model training and evaluation are executed on NVIDIA A800 80G GPUs.
+
+### 4.4 Main Experiments
+
+To comprehensively evaluate the effectiveness and generalization capability of our proposed QChunker framework, we conduct extensive experiments on QA datasets across four different domains. For training QChunker-3B, we use data from the first two datasets, while MultiFieldQA and HChemSafety are treated as out-of-domain
+
+benchmarks. The experimental results are presented in Table 1. The QChunker framework consistently achieves optimal performance across all four datasets. The second-best performance is mostly obtained by the ablation variant w/o 𝑀ref (11/12 metrics) and MoC MetaChunker (1/12 metrics), indicating that the proposed components are non-trivial and each contributes to the final effectiveness. We additionally conducted three independent repeated experiments. QChunker outperforms all baseline methods under a t-test with 𝑝 < 0.05. Notably, on the HChemSafety dataset, which is constructed for this study and features a high degree of specialization and term density, the advantage of QChunker is particularly prominent. Its scores not only far surpass those of traditional methods but also outperform chunking strategies based on LLMs. This result indicates that the understanding-retrieval-augmentation paradigm of QChunker can effectively address the challenges of strong contextual dependencies and semantic fragmentation in domain-specific documents.
+
+To investigate the contributions of the key components within the QChunker framework, we design an ablation experiment by removing the knowledge completion module M𝑅𝑒𝑓 . This experiment aims to quantitatively validate the proposition proposed in our paper that "text chunking is a composite task of segmentation and knowledge completion". From the comparison of the last two rows in Table 1, it can be observed that although the performance of 𝑤/𝑜 M𝑅𝑒𝑓 still surpasses that of most benchmark methods, its performance on all metrics across all datasets is lower than that of the complete QChunker framework. For example, on the OmniEval dataset, the removal of the M𝑅𝑒𝑓 module resulted in a decline in the METEOR score from 0.4348 to 0.4198. This demonstrates that merely performing high-quality text segmentation is insufficient, and semantic compensation and contextual reconstruction through M𝑅𝑒𝑓 are crucial for generating truly information-rich text chunks that are easily comprehensible by downstream models.
+
+### 4.5 Exploration of ChunkScore
+
+To further validate the effectiveness of our proposed ChunkScore as a direct evaluation metric and determine the optimal value for
+
+![image 21](QChunker_images/imageFile21.png)
+
+#### Figure 2: Correlation analysis between ChunkScore andROUGE-L performance on the CRUD Benchmark.
+
+![image 22](QChunker_images/imageFile22.png)
+
+#### Figure 3: Trends in perplexity variations between originaland rewritten text chunks across different LLMs.
+
+its internal hyperparameter 𝜆, we design a correlation analysis experiment on the CRUD benchmark. We adjust the value of 𝜆 within the range from 0.0 to 1.0 with a step size of 0.01. For each 𝜆 value, we calculate the Pearson correlation coefficient between the ChunkScores of multiple text chunk sets generated by different chunking strategies and the ROUGE-L performance in the downstream QA task. The experimental results are shown in Figure 2. When 𝜆 = 0.3, the correlation coefficient approaches 1.0. This indicates that when ChunkScore considers logical independence with a weight of 0.3 and semantic dispersion with a weight of 0.7, it exhibits the strongest discriminative ability and the highest correlation with QA performance. This also reveals that for high-quality text chunking, ensuring semantic dispersion among text chunks is more important than merely guaranteeing basic boundary clarity, provided that the basic boundary clarity is ensured. We further validate it on three additional datasets (analogous to Figure 2), and the results show that all correlation coefficients exceed 0.85.
+
+### 4.6 Effectiveness of Knowledge Completion
+
+On the CRUD benchmark, we employ perplexity to more intuitively demonstrate the role of the knowledge completion module in QChunker. Perplexity is a crucial metric for measuring the intrinsic coherence and comprehensibility of text. A lower perplexity indicates that the language model makes more accurate predictions for the text sequence, meaning the logical structure of the text is clearer and more comprehensible for the model.
+
+The experimental results are shown in Figure 3. Regardless of whether it is a model with a parameter scale of 1.5B or 7B, the perplexity of text chunks that have undergone knowledge completion is consistently lower than that of original text chunks. Specifically, the text chunks after knowledge completion not only have a lower overall mean value of perplexity but also exhibit less volatility. They avoid many perplexity peaks in original text chunks that are caused by context breaks. This phenomenon proves that the knowledge completion mechanism, by optimizing the internal context consistency of text chunks, pre-eliminates ambiguity points and information gaps that may lead to model comprehension obstacles.
+
+### 5 Conclusion
+
+This paper addresses the core challenge in existing RAG systems due to semantic fragmentation of text chunks, and proposes the text chunking framework named QChunker. Drawing inspiration from the concept that "questions serve as catalysts for deep insights," we design and implement a multi-agent debate framework comprising a question outline generator, text segmenter, integrity reviewer, and knowledge completer. This framework not only constructs a training dataset containing 45K high-quality samples but also transfers this advanced capability to SLMs. Additionally, to address the inefficiency issues caused by the over-reliance of existing evaluation methods on downstream tasks, we introduce a direct evaluation metric called ChunkScore. Both theoretical analysis and experimental results demonstrate that ChunkScore can efficiently distinguish the quality of text chunks. Extensive experimental results across four heterogeneous domains indicate that QChunker outperforms existing methods in providing more logically coherent and information-rich text chunks. In particular, our knowledge completion mechanism effectively reduces the perplexity of text chunks through global semantic compensation. Furthermore, by constructing a specialized dataset in the field of hazardous chemical safety, this study demonstrates the generalization capability of the QChunker framework and its application value in serving specialized domains.
+
+### Acknowledgments
+
+This work was funded by the National Natural Science Foundation of China (No.62272466, U24A20233, 72572090), the Beijing Municipal Science and Technology Project (No. 2241100004224009), the Big Data and Responsible Artifcial Intelligence for National Governance of Renmin University of China, the Tsinghua University School of Economics and Management Research Grant. This research was also supported by Huawei’s Al Hundred Schools Program and was carried out using the Huawei Ascend AI technology stack. We also extend our thanks to Renzhe Xu and Hao Zou for their insightful discussions.
+
+### References
+
+- [1] Dimo Angelov. 2020. Top2vec: Distributed representations of topics. arXiv preprint arXiv:2008.09470 (2020).
+- [2] Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi.
+
+2024. Self-rag: Learning to retrieve, generate, and critique through self-reflection.
+
+(2024).
+
+- [3] Tal August, Lucy Lu Wang, Jonathan Bragg, Marti A Hearst, Andrew Head, and Kyle Lo. 2023. Paper plain: Making medical research papers approachable to healthcare consumers with natural language processing. ACM Transactions on Computer-Human Interaction 30, 5 (2023), 1–38.
+- [4] Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan Zeng, Lei Hou, et al. 2023. Longbench: A bilingual, multitask benchmark for long context understanding. arXiv preprint arXiv:2308.14508 (2023).
+- [5] Bhagyashree Vyankatrao Barde and Anant Madhavrao Bainwad. 2017. An overview of topic modeling methods and tools. In 2017 International Conference on Intelligent Computing and Control Systems (ICICCS). IEEE, 745–750.
+- [6] Garbiel Bénédict, Ruqing Zhang, and Donald Metzler. 2023. Gen-ir@ sigir 2023: The first workshop on generative information retrieval. In Proceedings of the 46th International ACM SIGIR Conference on Research and Development in Information Retrieval. 3460–3463.
+- [7] Sinchana Ramakanth Bhat, Max Rudat, Jannis Spiekermann, and Nicolas FloresHerr. 2025. Rethinking Chunk Size For Long-Document Retrieval: A MultiDataset Analysis. arXiv preprint arXiv:2505.21700 (2025).
+- [8] David M Blei, Andrew Y Ng, and Michael I Jordan. 2003. Latent dirichlet allocation. Journal of machine Learning research 3, Jan (2003), 993–1022.
+- [9] T Tony Cai, Tengyuan Liang, and Harrison H Zhou. 2015. Law of log determinant of sample covariance matrix and optimal estimation of differential entropy for high-dimensional Gaussian distributions. Journal of Multivariate Analysis 137
+
+(2015), 161–172.
+
+- [10] Jing Chen, Zhihua Wei, Jiaqi Wang, Rui Wang, Chuanyang Gong, Hongyun Zhang, and Duoqian Miao. 2024. Supplementing domain knowledge to BERT with semi-structured information of documents. Expert Systems with Applications 235 (2024), 121054.
+- [11] Tong Chen, Hongwei Wang, Sihao Chen, Wenhao Yu, Kaixin Ma, Xinran Zhao, Dong Yu, and Hongming Zhang. 2023. Dense x retrieval: What retrieval granularity should we use? arXiv preprint arXiv:2312.06648 (2023).
+- [12] Yuyan Chen, Qiang Fu, Yichen Yuan, Zhihao Wen, Ge Fan, Dayiheng Liu, Dongmei Zhang, Zhixu Li, and Yanghua Xiao. 2023. Hallucination detection: Robustly discerning reliable answers in large language models. In Proceedings of the 32nd ACM International Conference on Information and Knowledge Management. 245– 255.
+- [13] Sangwoo Cho, Kaiqiang Song, Xiaoyang Wang, Fei Liu, and Dong Yu. 2022. Toward unifying text segmentation and long document summarization. arXiv preprint arXiv:2210.16422 (2022).
+- [14] Madson C de Almeida, Eduardo N Asada, and Ariovaldo V Garcia. 2008. On the use of Gram matrix in observability analysis. IEEE Transactions on Power Systems 23, 1 (2008), 249–251.
+- [15] André V Duarte, João Marques, Miguel Graça, Miguel Freire, Lei Li, and Arlindo L Oliveira. 2024. LumberChunker: Long-Form Narrative Document Segmentation. arXiv preprint arXiv:2406.17526 (2024).
+- [16] Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, Dasha Metropolitansky, Robert Osazuwa Ness, and Jonathan Larson. 2024. From local to global: A graph rag approach to query-focused summarization. arXiv preprint arXiv:2404.16130 (2024).
+- [17] Pamela Faber and Pilar León-Araúz. 2016. Specialized knowledge representation and the parameterization of context. Frontiers in psychology 7 (2016), 196.
+- [18] Yunfan Gao, Yun Xiong, Xinyu Gao, Kangxiang Jia, Jinliu Pan, Yuxi Bi, Yi Dai, Jiawei Sun, and Haofen Wang. 2023. Retrieval-augmented generation for large language models: A survey. arXiv preprint arXiv:2312.10997 (2023).
+- [19] Hal Gregersen and Rick Adamson. 2018. Questions are the Answer. Vol. 15. HarperCollins Publishers.
+- [20] Maarten Grootendorst. 2022. BERTopic: Neural topic modeling with a class-based TF-IDF procedure. arXiv preprint arXiv:2203.05794 (2022).
+- [21] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. 2025. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 (2025).
+- [22] Zirui Guo, Lianghao Xia, Yanhua Yu, Tu Ao, and Chao Huang. 2024. Lightrag: Simple and fast retrieval-augmented generation. arXiv preprint arXiv:2410.05779
+
+(2024).
+
+- [23] Hangfeng He, Hongming Zhang, and Dan Roth. 2022. Rethinking with retrieval: Faithful large language model inference. arXiv preprint arXiv:2301.00303 (2022).
+- [24] Greg Kamradt. 2024. Semantic chunking. https://github.com/FullStackRetrievalcom/RetrievalTutorials (2024).
+- [25] P Kherwa and P Bansal. 2020. Topic Modeling: A Comprehensive Review. EAI Endorsed Transactions on Scalable Information Systems, 7 (24), 1–16.
+
+
+- [26] Minsang Kim and Seungjun Baek. 2025. Syntriever: How to train your retriever with synthetic data from llms. arXiv preprint arXiv:2502.03824 (2025).
+- [27] Langchain. 2023. https://github.com/langchain-ai/langchain (2023).
+- [28] Angeliki Lazaridou, Elena Gribovskaya, Wojciech Stokowiec, and Nikolai Grigorev. 2022. Internet-augmented language models through few-shot prompting for open-domain question answering. arXiv preprint arXiv:2203.05115 (2022).
+- [29] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems 33 (2020), 9459–9474.
+- [30] Huayang Li, Yixuan Su, Deng Cai, Yan Wang, and Lemao Liu. 2022. A survey on retrieval-augmented text generation. arXiv preprint arXiv:2202.01110 (2022).
+- [31] Jing Li, Billy Chiu, Shuo Shang, and Ling Shao. 2020. Neural text segmentation and its application to sentiment analysis. IEEE Transactions on Knowledge and Data Engineering 34, 2 (2020), 828–842.
+- [32] Xianzhi Li, Samuel Chan, Xiaodan Zhu, Yulong Pei, Zhiqiang Ma, Xiaomo Liu, and Sameena Shah. 2023. Are ChatGPT and GPT-4 general-purpose solvers for financial text analytics? A study on several typical tasks. arXiv preprint arXiv:2305.05862 (2023).
+- [33] Weizhe Lin, Rexhina Blloshmi, Bill Byrne, Adrià de Gispert, and Gonzalo Iglesias.
+
+2023. LI-RAGE: Late Interaction Retrieval Augmented Generation with Explicit Signals for Open-Domain Table Question Answering. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers). 1557–1566.
+
+- [34] Michal Lukasik, Boris Dadachev, Gonçalo Simoes, and Kishore Papineni. 2020. Text segmentation by cross segment attention. arXiv preprint arXiv:2004.14535
+
+(2020).
+
+- [35] Yuanjie Lyu, Zhiyu Li, Simin Niu, Feiyu Xiong, Bo Tang, Wenjin Wang, Hao Wu, Huanyong Liu, Tong Xu, and Enhong Chen. 2024. Crud-rag: A comprehensive chinese benchmark for retrieval-augmented generation of large language models. arXiv preprint arXiv:2401.17043 (2024).
+- [36] Congbo Ma, Wei Emma Zhang, Mingyu Guo, Hu Wang, and Quan Z Sheng. 2022. Multi-document summarization via deep learning techniques: A survey. Comput. Surveys 55, 5 (2022), 1–37.
+- [37] Carlo Merola and Jaspinder Singh. 2025. Reconstructing Context: Evaluating Advanced Chunking Strategies for Retrieval-Augmented Generation. arXiv preprint arXiv:2504.19754 (2025).
+- [38] Xinyue Shen, Zeyuan Chen, Michael Backes, and Yang Zhang. 2023. In chatgpt we trust? measuring and characterizing the reliability of chatgpt. arXiv preprint arXiv:2304.08979 (2023).
+- [39] Boheng Sheng, Jiacheng Yao, Meicong Zhang, and Guoxiu He. 2025. Dynamic Chunking and Selection for Reading Comprehension of Ultra-Long Context in Large Language Models. arXiv preprint arXiv:2506.00773 (2025).
+- [40] Freda Shi, Xinyun Chen, Kanishka Misra, Nathan Scales, David Dohan, Ed H Chi, Nathanael Schärli, and Denny Zhou. 2023. Large language models can be easily distracted by irrelevant context. In International Conference on Machine Learning. PMLR, 31210–31227.
+- [41] Devendra Singh, Siva Reddy, Will Hamilton, Chris Dyer, and Dani Yogatama. 2021. End-to-end training of multi-document reader and retriever for open-domain question answering. Advances in Neural Information Processing Systems 34 (2021), 25968–25981.
+- [42] Chao-Hong Tan, Jia-Chen Gu, Chongyang Tao, Zhen-Hua Ling, Can Xu, Huang Hu, Xiubo Geng, and Daxin Jiang. 2022. TegTok: Augmenting text generation via task-specific and open-world knowledge. arXiv preprint arXiv:2203.08517 (2022).
+- [43] Qwen Team et al. 2024. Qwen2 technical report. arXiv preprint arXiv:2407.10671 2 (2024), 3.
+- [44] Haiyuan Wang, Deli Zhang, Jianmin Li, Zelong Feng, and Feng Zhang. 2025. Entropy-Optimized Dynamic Text Segmentation and RAG-Enhanced LLMs for Construction Engineering Knowledge Base. Applied Sciences 15, 6 (2025), 3134.
+- [45] Liangdong Wang, Bo-Wen Zhang, Chengwei Wu, Hanyu Zhao, Xiaofeng Shi, Shuhao Gu, Jijie Li, Quanyue Ma, TengFei Pan, and Guang Liu. 2024. Cci3. 0hq: a large-scale chinese dataset of high quality designed for pre-training large language models. arXiv preprint arXiv:2410.18505 (2024).
+- [46] Shuting Wang, Jiejun Tan, Zhicheng Dou, and Ji-Rong Wen. 2024. Omnieval: An omnidirectional and automatic rag evaluation benchmark in financial domain. arXiv preprint arXiv:2412.13018 (2024).
+- [47] Shiguang Wu, Wenda Wei, Mengqi Zhang, Zhumin Chen, Jun Ma, Zhaochun Ren, Maarten de Rijke, and Pengjie Ren. 2024. Generative retrieval as multi-vector dense retrieval. In Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval. 1828–1838.
+- [48] Shitao Xiao, Zheng Liu, Peitian Zhang, and N Muennighof. 2023. C-pack: packaged resources to advance general Chinese embedding. 2023. arXiv preprint arXiv:2309.07597 (2023).
+- [49] Shitao Xiao, Zheng Liu, Peitian Zhang, Niklas Muennighoff, Defu Lian, and Jian-Yun Nie. 2024. C-pack: Packed resources for general chinese embeddings. In Proceedings of the 47th international ACM SIGIR conference on research and development in information retrieval. 641–649.
+- [50] Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, and Zhen-Hua Ling. 2024. Corrective retrieval augmented generation. arXiv preprint arXiv:2401.15884 (2024).
+
+
+- [51] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 (2025).
+- [52] Diji Yang, Linda Zeng, Jinmeng Rao, and Yi Zhang. 2025. Knowing You Don’t Know: Learning When to Continue Search in Multi-round RAG through SelfPracticing. In Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval. 1305–1315.
+- [53] Wenhao Yu, Hongming Zhang, Xiaoman Pan, Kaixin Ma, Hongwei Wang, and Dong Yu. 2023. Chain-of-note: Enhancing robustness in retrieval-augmented language models. arXiv preprint arXiv:2311.09210 (2023).
+- [54] Qinglin Zhang, Qian Chen, Yali Li, Jiaqing Liu, and Wen Wang. 2021. Sequence model with self-adaptive sliding window for efficient spoken document segmentation. In 2021 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU). IEEE, 411–418.
+- [55] Jihao Zhao, Zhiyuan Ji, Zhaoxin Fan, Hanyu Wang, Simin Niu, Bo Tang, Feiyu Xiong, and Zhiyu Li. 2025. MoC: Mixtures of Text Chunking Learners for Retrieval-Augmented Generation System. arXiv preprint arXiv:2503.09600 (2025).
+- [56] Guido Zuccon, Bevan Koopman, and Razia Shaik. 2023. Chatgpt hallucinates when attributing answers. In Proceedings of the Annual International ACM SIGIR Conference on Research and Development in Information Retrieval in the Asia Pacific Region. 46–51.
+
+
+- A Detailed Model Training Configurations In this study, we adopt a full-parameter fine-tuning strategy for the three SLMs mentioned previously, namely M𝐺𝑒𝑛, M𝐷𝑖𝑠𝑐, and M𝑅𝑒𝑓 , with the aim of fully unleashing the potential of the models in their respective specific tasks. To ensure that each model can conduct sufficient learning, we construct training datasets containing 45K samples for them respectively. We select 1.0 × 10−5 as the learning rate and employ a cosine annealing strategy for dynamic adjustment. To stabilize the model’s convergence process in the early stage of training, we set a 10% warm-up phase. Considering the limitations of computational resources, we set the batch size per device to 2 and combine it with gradient accumulation over 16 steps. This approach helps improve the model’s generalization ability while ensuring training stability. Additionally, we enable BF16 mixed-precision training to enhance the training speed and reduce the GPU memory usage. The loss function utilized is as follows:
+
+LF(𝜃) = −
+
+1 𝜏
+
+∑︁𝜏
+
+𝑡=1
+
+log𝑃(𝑜𝑡|𝑜<𝑡,𝑠;𝜃)
+
+Here, 𝑜𝑡 represents the 𝑡-th token in the target sequence 𝑜, 𝑜<𝑡 denotes the prefix of the target sequence up to position 𝑡 − 1, 𝑠 is the input context, 𝜃 signifies the learnable parameters of the SLM, and 𝜏 represents the total length of the target output sequence 𝑜.
+
+- B Main Experimental Details
+
+
+In our experiments, we employ a total of five baseline methods, with their specific configurations detailed as follows:
+
+- (a) Rule-based Chunking Methods
+
+- • Original [27]: This method divides long texts into segments of a fixed length, such as two hundred Chinese characters or words, without considering sentence boundaries.
+- • Llama_index [27]: This method considers both sentence completeness and token counts during segmentation. It prioritizes maintaining sentence boundaries while ensuring that the number of tokens in each chunk are close to a preset threshold. We use the SimpleNodeParser function from Llama_index, adjusting the chunk_size parameter to control segment length.
+
+
+- (b) Dynamic Chunking Methods
+
+
+- • Similarity Chunking [48]: Utilizes pre-trained sentence embedding models to calculate the cosine similarity between sentences. By setting a similarity threshold, sentences with lower similarity are selected as segmentation points, ensuring that sentences within each chunk are highly semantically related. This method employs the SemanticSplitterNodeParser from Llama_index.
+- • LumberChunker [15]: Leverages the reasoning capabilities of LLMs to predict suitable segmentation points within the text. We utilize Qwen2.5 models with 14B parameters, set to full precision.
+- • MoC MetaChunker [55]: MoC trains a lightweight chunker model to automatically learn how to partition long texts into semantically coherent chunks without relying on fixed lengths or predefined rules. Compared to traditional heuristic methods, MetaChunker demonstrates stronger cross-task generalization capabilities, particularly in downstream tasks such as RAG, serving as the strongest baseline.
+
+
+To ensure a fair and unbiased evaluation of different text chunking methods, we design a rigorous set of controlled variable experiments. The primary objective of this study is to verify the impact of distinct chunking strategies on downstream task performance in isolation. Therefore, our foremost control strategy is to standardize the output chunk lengths across all methods. Specifically, we adopt the average chunk length of 178 tokens produced by LumberChunker as the basic chunk length. Given that different chunking algorithms may not precisely align average chunk length to exactly 178 tokens when handling text boundaries, we introduce a secondary constraint on the total context length in retrieval-based QA tasks. This ensures that the cumulative context length fed into the generative model remains strictly fixed at 178×8 = 1424 tokens. During the final QA generation phase, all methods utilize the same pre-trained language model as the generator.
+
+By implementing rigorous and uniform control over the aforementioned variables (i.e., the average length of text chunks, the total length of retrieved context, and the generation model), we effectively isolate the text chunking method as the sole experimental variable. This ensures that the final performance comparison can truthfully and objectively reflect the inherent strengths and weaknesses of different chunking methods.
+
+### C Perspective of Information Theory
+
+Lemma 2 (Log-Determinant and Differential Entropy [9]). For a random variable X following a multivariate Gaussian distribution N(𝝁, Σ′), its differential entropy 𝐻𝑑𝑒(X) has the following linear relationship with the log-determinant of the covariance matrix Σ′:
+
+- 1
+
+- 2
+
+
+- 1
+
+- 2
+
+
+𝑑 2
+
+log (2𝜋𝑒)𝑑 det(Σ′) =
+
+log(2𝜋𝑒) +
+
+logdet(Σ′).
+
+𝐻𝑑𝑒(X) =
+
+Perspective of Information Theory: We aim to show that maximizing ΦSD(𝐶) is equivalent to maximizing the differential entropy of the empirical distribution of the text-chunk embedding set, that is, maximizing its information content and uncertainty.
+
+We regard the set of embedding vectors of text chunks Z = {z1, . . ., z𝐾} as samples drawn from an underlying multivariate data distribution. In this view, the matrix Σ serves as an estimate of the covariance of this sample distribution.
+
+According to Lemma 2, there is a positive correlation between ΦSD(𝐶) and the differential entropy 𝐻𝑑𝑒. For a high-quality partition𝐶high, its semantic diversity implies that the embedding vectors Zhigh are widely distributed and have high dispersion in the semantic space. Its empirical distribution has high variance and high uncertainty, thus corresponding to a relatively high differential entropy 𝐻𝑑𝑒(PZhigh). For a low-quality partition 𝐶low, its semantic redundancy implies that the embedding vectors Zlow are highly clustered in a few regions of the space. Its empirical distribution has low variance and low uncertainty, thus corresponding to a relatively low differential entropy 𝐻𝑑𝑒(PZlow).
+
+Since ΦSD(𝐶) ∝ logdet(Σ), and logdet(Σ) is a decisive componentofthedifferentialentropy,itfollows directly that𝐻𝑑𝑒(PZhigh) > 𝐻𝑑𝑒(PZlow) leads to ΦSD(𝐶high) > ΦSD(𝐶low).
+
+### D An Illustrative Example of the QChunkerFramework
+
+Figure 4 illustrates QChunker’s question-aware multi-agent workflow for building high-quality RAG chunks: given a domain document, a Question Outline Generator first produces expert-style guiding questions that capture the document’s key concepts and logic; a Text Segmenter then uses this outline to perform multipath sampling over candidate segmentations, scores each candidate with ChunkScore, and selects the best chunking scheme; next, an Integrity Reviewer checks each chunk against the full document to pinpoint missing definitions or required context and decides whether rewriting is necessary; finally, a Knowledge Completer verifies and filters the missing items strictly from the original text and rewrites the chunk to seamlessly integrate essential background, yielding coherent, self-contained, information-rich chunks for downstream retrieval and generation.
+
+### E In-Depth Construction Process of theHChemSafety Dataset
+
+To address the challenges of high knowledge barriers and urgent information demands in the field of hazardous chemical safety, we develop the HChemSafety dataset. This dataset aims to fill the gap of a high-quality, domain-specific QA dataset currently lacking in the hazardous chemical safety, providing a solid foundation for evaluating LLM applications.
+
+### E.1 Data Acquisition and Refinement
+
+The construction of the HChemSafety dataset begins with systematically establishing an initial name repository that comprehensively covers common and high-risk chemicals. Subsequently, by programmatically generating search engine query links, we systematically acquire relevant web page entries, primarily focusing on three types of authoritative platforms: chemical professional platforms, encyclopedic resources, and academic databases. We cluster source URLs based on formatting patterns and design a multi-stage web content cleaning pipeline. First, structural cleaning is performed using DOM tree analysis to identify and remove non-core content areas such as navigation bars, sidebars, footers, and advertising regions, ensuring only the main content area is retained. Second,
+
+functional cleaning employs regular expressions and HTML parsers to thoroughly eliminate all interactive elements, including complete removal of <script> and <style> tags, along with stripping all event-handling attributes such as onclick to eliminate dynamic page function interference. Finally, attribute cleaning simplifies the web structure by removing all ID attributes and deleting non-essential class attributes. The cleaned documents then undergo quality assessment. We introduce a fine-grained scoring mechanism based on LLMs [45], assigning each document a precise score from 0 to 5 and selecting samples with scores greater than 3.
+
+For the filtered high-quality documents, a text refinement process combining sliding windows and LLMs is implemented. This process first segments long documents using text windows with overlapping regions to ensure contextual coherence and prevent critical information loss at boundaries. Each text window is then processed by DeepSeek-V3. Subsequently, the system fuses processing results across all windows, transforming raw web page text into high-value documents.
+
+### E.2 Knowledge Graph Construction and QA Pair Generation
+
+After completing text refinement, we construct the HChemSafety domain-specific knowledge graph to provide a structured knowledge foundation for subsequent QA pair generation. Knowledge extraction and graph construction constitute the core processes of this workflow. We employ LLMs for entity recognition and relation extraction, achieving end-to-end knowledge acquisition. The extracted triplets are imported into the Neo4j graph database to build the knowledge graph. In this graph, nodes represent entities, while edges denote relationships between entities, thereby more clearly revealing complex interrelations among properties, chemicals, and between chemicals and their properties.
+
+Based on the constructed knowledge graph, we systematically generate QA pairs covering diverse knowledge points and reasoning levels: Single-hop QA: Generated directly from a single triplet in the graph. Multi-hop QA: Requires reasoning across multiple edges in the graph. Aggregative QA: Necessitates summarizing information from multiple nodes. Boolean QA: Answers are "yes" or "no". The generated QA pairs are stored in JSON format, including questions, standard answers, and reference content. Each QA pair is directly derived from the knowledge graph, ensuring answer accuracy and traceability.
+
+Ultimately, we construct a comprehensive hazardous chemical safety dataset comprising three main components: (a) A largescale QA dataset containing 135K QA pairs, systematically integrated from professional literature, industry standards, and technical manuals to ensure question professionalism and answer authoritativeness. (b) A retrieval corpus consisting of 35K high-quality, clearly structured chemical documents, specifically designed for RAG systems to provide reliable external knowledge sources for fact-checking and answer generation. (c) A curated evaluation set of 19K representative questions, covering various types from basic factual QA to complex safety emergency protocols, enabling assessment of model capabilities in knowledge retrieval, information integration, and specialized reasoning.
+
+![image 23](QChunker_images/imageFile23.png)
+
+#### Figure 4: Output example of the QChunker framework when processing chemical documents.
+

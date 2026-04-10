@@ -1,0 +1,5318 @@
+[
+    {
+        "page_no": 1,
+        "block_label": "text",
+        "block_content": "ICS 11.020",
+        "block_bbox": [137, 147, 254, 172 ],
+        "block_id": 0
+    },
+    {
+        "page_no": 1,
+        "block_label": "text",
+        "block_content": "C 05",
+        "block_bbox": [136, 178, 191, 204],
+        "block_id": 1
+    },
+    {
+        "page_no": 1,
+        "block_label": "doc_title",
+        "block_content": "团体标准",
+        "block_bbox": [415, 287, 846, 374 ],
+        "block_id": 2
+    },
+    {
+        "page_no": 1,
+        "block_label": "text",
+        "block_content": "T/CADERM 5003–2019",
+        "block_bbox": [748, 420, 1063, 456 ],
+        "block_id": 3
+    },
+    {
+        "page_no": 1,
+        "block_label": "doc_title",
+        "block_content": "国家级突发中毒事件卫生应急处置队建设规范",
+        "block_bbox": [155, 739, 1052, 875 ],
+        "block_id": 4
+    },
+    {
+        "page_no": 1,
+        "block_label": "doc_title",
+        "block_content": "Specifications of setting up health emergency rescue team for disposal\nnational emergency poisoning incidents",
+        "block_bbox": [177, 892, 1024, 992 ],
+        "block_id": 5
+    },
+    {
+        "page_no": 1,
+        "block_label": "text",
+        "block_content": "2019-05-01 发布",
+        "block_bbox": [136, 1420, 373, 1452 ],
+        "block_id": 6
+    },
+    {
+        "page_no": 1,
+        "block_label": "text",
+        "block_content": "2019-05-12 实施",
+        "block_bbox": [851, 1418, 1091, 1452 ],
+        "block_id": 7
+    },
+    {
+        "page_no": 1,
+        "block_label": "doc_title",
+        "block_content": "中国医学救援协会 发布",
+        "block_bbox": [311, 1508, 875, 1564 ],
+        "block_id": 8
+    },
+    {
+        "page_no": 2,
+        "block_label": "header",
+        "block_content": "T/CADERM 5003—2019",
+        "block_bbox": [900, 143, 1081, 165 ],
+        "block_id": 0
+    },
+    {
+        "page_no": 2,
+        "block_label": "paragraph_title",
+        "block_content": "目次",
+        "block_bbox": [544, 235, 678, 278 ],
+        "block_id": 1
+    },
+    {
+        "page_no": 2,
+        "block_label": "content",
+        "block_content": "前言.....II  \n1 范围.....1  \n2 规范性引用文件.....1  \n3 术语和定义.....1  \n4 队伍建设.....2  \n4.1 队员配备.....2  \n4.2 装备配备.....4  \n4.3 基础设施建设.....5  \n5 队伍管理.....5  \n5.1 队员管理.....5  \n5.2 装备和物资管理.....8  \n5.3 信息管理.....9  \n5.4 资料管理.....10  \n5.5 队伍奖惩及保障.....11  \n6 应急预案与技术方案建设.....11  \n7 应急处置.....11  \n7.1 准备阶段.....11  \n7.2 出发阶段.....11  \n7.3 现场展开.....12  \n7.4 现场处置.....13  \n7.5 响应终止.....15  \n8 培训演练.....15  \n8.1 一般原则.....15  \n8.2 队伍培训.....15  \n8.3 队伍演练.....15  \n附录 A（资料性附录） 突发中毒事件应急队队伍装备目录.....17  \n附录 B（资料性附录） 常用特效解毒药.....24  \n附录 C（规范性附录） 个体防护装备配备表.....25  \n参考文献.....27",
+        "block_bbox": [133, 328, 1074, 1364 ],
+        "block_id": 2
+    },
+    {
+        "page_no": 2,
+        "block_label": "number",
+        "block_content": "I",
+        "block_bbox": [1046, 1549, 1059, 1569 ],
+        "block_id": 3
+    },
+    {
+        "page_no": 3,
+        "block_label": "header",
+        "block_content": "T/CADERM 5003—2019",
+        "block_bbox": [900, 143, 1081, 164 ],
+        "block_id": 0
+    },
+    {
+        "page_no": 3,
+        "block_label": "paragraph_title",
+        "block_content": "前言",
+        "block_bbox": [541, 245, 676, 282 ],
+        "block_id": 1
+    },
+    {
+        "page_no": 3,
+        "block_label": "text",
+        "block_content": "本标准按照GB/T 1.1—2009给出的规则起草。",
+        "block_bbox": [179, 353, 594, 379 ],
+        "block_id": 2
+    },
+    {
+        "page_no": 3,
+        "block_label": "text",
+        "block_content": "本标准由中国医学救援协会提出并归口。",
+        "block_bbox": [178, 384, 554, 410 ],
+        "block_id": 3
+    },
+    {
+        "block_label": "text",
+        "block_content": "本标准起草单位：北京市疾病预防控制中心、中国疾病预防控制中心、职业卫生与中毒控制所、重庆市职业病防治院、贵州省人民医院、中国人民解放军总医院第五临床中心、天津大学灾难医学研究院、天津市职业病防治院。",
+        "block_bbox": [137, 415, 1080, 504 ],
+        "block_id": 4
+    },
+    {
+        "page_no": 3,
+        "block_label": "text",
+        "block_content": "本标准主要起草人：王如刚、王东、乔宏、宁芳、马宁、贺雄、松凯、赵丽杰、李锡太、孙承业、邱泽武、周静、张宏顺、刘永生、赖晓东、王世松、李扬、陈辉、王元林、侯世科、樊毫军、赵艳梅、范斌、史军、刘子泉。",
+        "block_bbox": [137, 509, 1078, 599 ],
+        "block_id": 5
+    },
+    {
+        "page_no": 3,
+        "block_label": "footer",
+        "block_content": "全国团体标准信息平台",
+        "block_bbox": [238, 1178, 864, 1247 ],
+        "block_id": 6
+    },
+    {
+        "page_no": 3,
+        "block_label": "number",
+        "block_content": "II",
+        "block_bbox": [1036, 1549, 1060, 1570 ],
+        "block_id": 7
+    },
+    {
+        "page_no": 4,
+        "block_label": "header",
+        "block_content": "T/CADERM 5003-2019",
+        "block_bbox": [914, 114, 1108, 137 ],
+        "block_id": 0
+    },
+    {
+        "page_no": 4,
+        "block_label": "doc_title",
+        "block_content": "国家级突发中毒事件卫生应急处置队建设规范",
+        "block_bbox": [291, 215, 937, 253 ],
+        "block_id": 1
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "1 范围",
+        "block_bbox": [138, 313, 220, 339 ],
+        "block_id": 2
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "本标准规定了国家突发中毒事件卫生应急处置队伍的人员、装备、管理、预案与技术方案、培训与演练等建设要求。",
+        "block_bbox": [137, 375, 1090, 434 ],
+        "block_id": 3
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "本标准适用于各级人民政府、行业主管部门及有关单位组建的突发中毒事件卫生应急处置队伍。",
+        "block_bbox": [177, 437, 1058, 466 ],
+        "block_id": 4
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "2 规范性引用文件",
+        "block_bbox": [137, 499, 325, 527],
+        "block_id": 5
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "下列文件对于本文件的应用是必不可少的。凡是注日期的引用文件，仅注日期的版本适用于本文件。凡是不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。",
+        "block_bbox": [138, 562, 1088, 621 ],
+        "block_id": 6
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "GB/T 18664 呼吸防护用品的选择、使用与维护",
+        "block_bbox": [178, 624, 620, 652 ],
+        "block_id": 7
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "GB 24539-2009 防护服装 化学防护服通用技术要求",
+        "block_bbox": [179, 656, 661, 683 ],
+        "block_id": 8
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "GA/T 623 消防培训基地训练设施建设标准",
+        "block_bbox": [179, 687, 588, 713],
+        "block_id": 9
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "国家卫生应急队伍管理办法（试行）",
+        "block_bbox": [180, 718, 513, 745 ],
+        "block_id": 10
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "卫生应急队伍装备参考目录（试行）",
+        "block_bbox": [181, 749, 514, 776 ],
+        "block_id": 11
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "全国医疗机构卫生应急工作规范（试行）",
+        "block_bbox": [180, 780, 555, 807 ],
+        "block_id": 12
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "全国疾控机构卫生应急工作规范（试行）",
+        "block_bbox": [180, 811, 556, 839 ],
+        "block_id": 13
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "卫生部突发中毒卫生卫生应急预案",
+        "block_bbox": [182, 843, 503, 869 ],
+        "block_id": 14
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "3 术语和定义",
+        "block_bbox": [138, 905, 282, 932 ],
+        "block_id": 15
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "下列术语和定义适用于本标准。",
+        "block_bbox": [180, 967, 469, 994 ],
+        "block_id": 16
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "3.1",
+        "block_bbox": [138, 1000, 176, 1024 ],
+        "block_id": 17
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "突发中毒事件 poisoning incidents",
+        "block_bbox": [176, 1031, 536, 1057 ],
+        "block_id": 18
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "在短时间内，毒物通过一定方式作用于特定人群造成的群发性健康影响事件。",
+        "block_bbox": [178, 1061, 890, 1090 ],
+        "block_id": 19
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "3.2",
+        "block_bbox": [138, 1094, 179, 1117 ],
+        "block_id": 20
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "卫生应急 health emergency response",
+        "block_bbox": [180, 1124, 547, 1151 ],
+        "block_id": 21
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "为了预防突发公共卫生事件的发生，控制、减轻和消除突发公共卫生事件和其他突发公共事件引起的危害，所采取的一切活动的总称。",
+        "block_bbox": [138, 1154, 1090, 1214 ],
+        "block_id": 22
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "3.3",
+        "block_bbox": [139, 1219, 178, 1242 ],
+        "block_id": 23
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "检伤分类 triage",
+        "block_bbox": [177, 1250, 347, 1275 ],
+        "block_id": 24
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "突发群体性事件中短时间内出现大量伤病员，现有医疗资源不能满足救治需求时，依据病人病情严重程度和对资源的需求，确定其医疗救治顺序的过程。",
+        "block_bbox": [138, 1279, 1090, 1337 ],
+        "block_id": 25
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "3.4",
+        "block_bbox": [139, 1345, 179, 1367 ],
+        "block_id": 26
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "洗消 decontamination",
+        "block_bbox": [169, 1374, 400, 1399 ],
+        "block_id": 27,
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "对接触过化学有毒有害物质的人员、装备、物资等进行清除毒物污染的措施。",
+        "block_bbox": [166, 1405, 878, 1432 ],
+        "block_id": 28,
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "3.5",
+        "block_bbox": [138, 1439, 179, 1461 ],
+        "block_id": 29,
+    },
+    {
+        "page_no": 4,
+        "block_label": "paragraph_title",
+        "block_content": "特效解毒剂 specific antidote",
+        "block_bbox": [178, 1483, 494, 1510 ],
+        "block_id": 30,
+    },
+    {
+        "page_no": 4,
+        "block_label": "text",
+        "block_content": "针对毒物的中毒发病机理，解除其毒作用的药物。",
+        "block_bbox": [178, 1529, 637, 1556 ],
+        "block_id": 31,
+    },
+    {
+        "page_no": 4,
+        "block_label": "number",
+        "block_content": "3",
+        "block_bbox": [1094, 1565, 1108, 1584 ],
+        "block_id": 32,
+    },
+    {
+        "page_no": 5,
+        "block_label": "header",
+        "block_content": "T/CADERM 5003-2019",
+        "block_bbox": [913, 114, 1108, 137 ],
+        "block_id": 0,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.6",
+        "block_bbox": [138, 149, 179, 171 ],
+        "block_id": 1,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "个体防护装备 personal protective equipment",
+        "block_bbox": [179, 179, 632, 204 ],
+        "block_id": 2,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "从业人员为预防物理、化学、生物等外界因素伤害所穿戴、配备和使用的各种护品的总称。",
+        "block_bbox": [179, 210, 1015, 236 ],
+        "block_id": 3,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.7",
+        "block_bbox": [138, 243, 178, 265 ],
+        "block_id": 4,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "立即威胁生命和健康浓度 immediately dangerous to life or health concentration",
+        "block_bbox": [178, 273, 900, 298 ],
+        "block_id": 5,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "指有害环境中空气污染物浓度达到某种危险水平，如可致命、可永久损害健康或可使人立即丧失逃生能力。",
+        "block_bbox": [137, 304, 1091, 361 ],
+        "block_id": 6,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.8",
+        "block_bbox": [139, 368, 178, 389 ],
+        "block_id": 7,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "热区 hot zone",
+        "block_bbox": [179, 398, 328, 422 ],
+        "block_id": 8,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "立即威胁生命和健康浓度（IDLH）环境；突发中毒事件危险度一级和二级的现场核心区域，区域范围通过实时监测或模型分析确定。",
+        "block_bbox": [138, 428, 1090, 486 ],
+        "block_id": 9,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.9",
+        "block_bbox": [139, 492, 178, 514 ],
+        "block_id": 10,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "温区 temperature zone",
+        "block_bbox": [179, 524, 408, 548 ],
+        "block_id": 11,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "紧挨热区外的区域，危害因数大于等于1或存在潜在健康危害的区域且非IDLH环境。",
+        "block_bbox": [179, 552, 942, 580 ],
+        "block_id": 12,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.10",
+        "block_bbox": [138, 586, 188, 608 ],
+        "block_id": 13,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "冷区 cold zone",
+        "block_bbox": [179, 616, 334, 640 ],
+        "block_id": 14,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "是热区和温区以外的区域，没有受到有毒物质沾染、或沾染浓度不能形成危害的区域。",
+        "block_bbox": [177, 645, 970, 672 ],
+        "block_id": 15,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.11",
+        "block_bbox": [138, 681, 185, 702 ],
+        "block_id": 16,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "携气式呼吸器 self-contained breathing apparatus",
+        "block_bbox": [
+              177,
+              709,
+              631,
+              735
+            ],
+            "block_id": 17,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "佩戴者携带空气瓶、氧气瓶或生氧器等作为气源的隔绝式呼吸防护用品。",
+        "block_bbox": [
+              177,
+              739,
+              848,
+              767
+            ],
+        "block_id": 18,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.12",
+        "block_bbox": [
+              139,
+              772,
+              188,
+              795
+            ],
+        "block_id": 19,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "全面罩 full mask",
+        "block_bbox": [
+              180,
+              803,
+              341,
+              828
+            ],
+        "block_id": 20,
+    },
+    {
+        "page_no": 5,
+        "block_label": "text",
+        "block_content": "与头部密合，能覆盖口和鼻，或覆盖口、鼻和下颌的面罩。",
+        "block_bbox": [
+              180,
+              833,
+              722,
+              861
+            ],
+        "block_id": 21,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "3.13",
+        "block_bbox": [
+              139,
+              867,
+              189,
+              889
+            ],
+        "block_id": 22,
+    },
+    {
+        "page_no": 5,
+        "block_label": "paragraph_title",
+        "block_content": "过滤式呼吸防护用品 air-purifying respiratory protective equipment",
+        "block_bbox": [
+              178,
+              897,
+              791,
+              922
+            ],
+        "block_id": 23,
+    },
+    {
+        "page_no": 5,
+            "block_label": "text",
+            "block_content": "能把吸入的作业环境空气通过净化部件的吸附、吸收、催化或过滤等作用，除去其中有害物质后作为气源的呼吸防护用品。",
+            "block_bbox": [
+              138,
+              927,
+              1089,
+              985
+            ],
+            "block_id": 24,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "3.14",
+            "block_bbox": [
+              139,
+              990,
+              189,
+              1014
+            ],
+            "block_id": 25,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "气密型防护服（A级防护服） gas-tight protective ensembles",
+            "block_bbox": [
+              177,
+              1021,
+              737,
+              1047
+            ],
+            "block_id": 26,
+    },
+    {
+        "page_no": 5,
+            "block_label": "text",
+            "block_content": "带有头罩、视窗和手部足部防护的单件躯体防护用品，可以配置自携带式呼吸器或长管式呼吸器，为穿着者提供对有害气体、液体和蒸汽的防护。",
+            "block_bbox": [
+              138,
+              1052,
+              1076,
+              1110
+            ],
+            "block_id": 27,
+    },
+    {
+        "page_no": 5,
+            "block_label": "text",
+            "block_content": "注：气密型防护服需要满足气密性测试的要求。",
+            "block_bbox": [
+              178,
+              1114,
+              617,
+              1140
+            ],
+            "block_id": 28,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "3.15",
+            "block_bbox": [
+              139,
+              1148,
+              188,
+              1170
+            ],
+            "block_id": 29,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "喷射液体防护服（B级防护服）liquid chemical jet tight protective clothing",
+            "block_bbox": [
+              179,
+              1177,
+              864,
+              1205
+            ],
+            "block_id": 30,
+    },
+    {
+        "page_no": 5,
+            "block_label": "text",
+            "block_content": "能够避免一定压力下大量连续流动的液态化学品穿透的防护服。",
+            "block_bbox": [
+              179,
+              1208,
+              760,
+              1234
+            ],
+            "block_id": 31,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "3.16",
+            "block_bbox": [
+              139,
+              1241,
+              189,
+              1264
+            ],
+            "block_id": 32,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "发溅液体防护服（C级防护服）liquid chemical spray tight protective clothing",
+            "block_bbox": [
+              179,
+              1270,
+              884,
+              1297
+            ],
+            "block_id": 33,
+    },
+    {
+        "page_no": 5,
+            "block_label": "text",
+            "block_content": "防护低压或无压液体化学品伤害的躯体防护用品。",
+            "block_bbox": [
+              179,
+              1302,
+              637,
+              1329
+            ],
+            "block_id": 34,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "4 队伍建设",
+            "block_bbox": [
+              137,
+              1364,
+              261,
+              1390
+            ],
+            "block_id": 35,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "4.1 队员",
+            "block_bbox": [
+              137,
+              1426,
+              241,
+              1452
+            ],
+            "block_id": 36,
+    },
+    {
+        "page_no": 5,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.1 组建与职责",
+            "block_bbox": [
+              137,
+              1473,
+              308,
+              1499
+            ],
+            "block_id": 37,
+    },
+    {
+        "page_no": 5,
+            "block_label": "number",
+            "block_content": "4",
+            "block_bbox": [
+              139,
+              1566,
+              153,
+              1583
+            ],
+            "block_id": 38,
+    },
+    {
+        "page_no": 6,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+    },
+    {
+        "page_no": 6,
+            "block_label": "image",
+            "block_content": "",
+            "block_bbox": [
+              264,
+              169,
+              853,
+              582
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 6,
+            "block_label": "figure_title",
+            "block_content": "图1 国家突发中毒事件卫生应急处置队组成框架图",
+            "block_bbox": [
+              399,
+              614,
+              870,
+              640
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "由多个医疗卫生机构选拔人员组成，设队长1名、副队长2名，专业涉及应急管理、急诊医生、职业医学、中毒控制、食品卫生、环境卫生、流行病学、毒理学、中毒检测、心理学、健康教育、护理学、中毒防护、通讯保障、后勤保障等类别组成。组成人数在30~60人，并1:2配备后备队。一般分为指挥协调、现场调查、检伤分类、去污洗消、急救医疗、毒物检测、心理、健康教育、通讯保障、后勤保障等小组。其主要职责为：",
+            "block_bbox": [
+              137,
+              646,
+              1091,
+              797
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "a）按照国务院卫生行政部门的指令，参加国内重特大突发中毒事件和不明原因事件的现场处置；协助开展重特大自然灾害、事故灾难、社会安全事件等与中毒相关的现场卫生应急处置行动。",
+            "block_bbox": [
+              163,
+              801,
+              1088,
+              861
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "b) 地方卫生行政部门邀请，经国务院卫生行政部门同意，协助参与当地突发中毒事件和其他突发事件与中毒相关的现场卫生应急处置工作；",
+            "block_bbox": [
+              163,
+              865,
+              1089,
+              923
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "c) 受国务院卫生行政部门指派，参加与中毒卫生应急相关的国际活动；",
+            "block_bbox": [
+              165,
+              927,
+              833,
+              953
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "d) 向国务院卫生行政部门和委托建设单位提出有关卫生应急工作建议；",
+            "block_bbox": [
+              166,
+              958,
+              832,
+              984
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "e) 参与研究、制定国家队伍建设、发展规划和相关技术方案；",
+            "block_bbox": [
+              165,
+              990,
+              749,
+              1016
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "f) 开展突发中毒事件卫生应急培训、演练等活动；",
+            "block_bbox": [
+              166,
+              1021,
+              644,
+              1047
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "g) 为全国各级中毒卫生应急处置队伍开展中毒卫生应急培训和演练提供技术支持；",
+            "block_bbox": [
+              166,
+              1052,
+              938,
+              1078
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "h) 参与平急结合行动，参与卫生应急宣传与教育、重大活动保障、对口支援、巡诊义诊活动等活动。",
+            "block_bbox": [
+              166,
+              1083,
+              1087,
+              1111
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 6,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.2 遴选、退出及审批程序",
+            "block_bbox": [
+              136,
+              1161,
+              417,
+              1187
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "i) 承担国务院卫生行政部门交办的其他工作。",
+            "block_bbox": [
+              166,
+              1114,
+              604,
+              1141
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "队员的遴选和退出按照自愿的原则，按照本人自愿申请，所在单位推荐，委托建设单位审定，报国务院卫生行政部门备案的程序进行。原则上队员每3年调整一次，符合条件且有意愿继续工作的可继续留任。因健康或其他原因不能履行其职责和义务者，经所在单位批准并经卫生行政部门审核同意后可终止任用，同时遴选增补队员，并报国务院卫生行政部门备案。",
+            "block_bbox": [
+              137,
+              1208,
+              1090,
+              1328
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 6,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.2.1 队员的遴选",
+            "block_bbox": [
+              139,
+              1334,
+              324,
+              1357
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "①有意愿自愿加入应急队伍；",
+            "block_bbox": [
+              138,
+              1364,
+              404,
+              1389
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "②热爱卫生应急事业；",
+            "block_bbox": [
+              138,
+              1395,
+              343,
+              1420
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "③忠实履行职责和义务、爱岗敬业；",
+            "block_bbox": [
+              137,
+              1426,
+              467,
+              1451
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "④具有奉献和团队精神。",
+            "block_bbox": [
+              137,
+              1458,
+              363,
+              1483
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "⑤年龄小于50岁，身心健康；",
+            "block_bbox": [
+              137,
+              1490,
+              416,
+              1514
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 6,
+            "block_label": "text",
+            "block_content": "⑥工作态度端正，具有良好的组织纪律性；",
+            "block_bbox": [
+              138,
+              1520,
+              531,
+              1546
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 6,
+            "block_label": "number",
+            "block_content": "5",
+            "block_bbox": [
+              1094,
+              1566,
+              1108,
+              1583
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 7,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "⑦具备队伍工作所需要的专业技能；",
+            "block_bbox": [
+              136,
+              146,
+              468,
+              173
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "⑧在专业岗位工作 2 年以上；",
+            "block_bbox": [
+              137,
+              177,
+              405,
+              204
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "⑨近5年内未受过任何形式的处罚；",
+            "block_bbox": [
+              137,
+              209,
+              469,
+              236
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "⑩参加过大型活动保障、灾害救援、重大突发事件应急处置等工作的优先入选。",
+            "block_bbox": [
+              136,
+              241,
+              869,
+              268
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.2.2 队员退出",
+            "block_bbox": [
+              138,
+              280,
+              307,
+              306
+            ],
+            "block_id": 5,
+          },
+          {
+            "block_label": "text",
+            "block_content": "①未经请假批准，无故不参加应急培训演练，或不参加救援任务的；",
+            "block_bbox": [
+              136,
+              318,
+              763,
+              345
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "②执行任务期间或接受培训演练期间，不遵守组织纪律、不服从组织安排、扰乱正常培训工作和救援工作的；",
+            "block_bbox": [
+              137,
+              349,
+              1090,
+              406
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "③身心健康原因，经鉴定（医院诊断证明）不适合参加卫生应急队的；",
+            "block_bbox": [
+              137,
+              410,
+              786,
+              439
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "④家庭原因，不能继续参加国家卫生应急队伍的；",
+            "block_bbox": [
+              137,
+              443,
+              597,
+              470
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "⑤年龄超过50岁的；",
+            "block_bbox": [
+              138,
+              475,
+              333,
+              502
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.2.3 审批程序",
+            "block_bbox": [
+              138,
+              537,
+              309,
+              562
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "①填写队员申报表格；",
+            "block_bbox": [
+              137,
+              568,
+              343,
+              594
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "②将申报表上交至依托管理单位进行预审；",
+            "block_bbox": [
+              137,
+              599,
+              534,
+              626
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "③队伍管理部门将申报表上报卫生行政部门审查；",
+            "block_bbox": [
+              136,
+              630,
+              593,
+              657
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "④卫生行政部门批准后备案，成为正式队员；",
+            "block_bbox": [
+              137,
+              661,
+              552,
+              688
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "队长由依托管理单位推荐，由卫生行政部门批准任命。",
+            "block_bbox": [
+              137,
+              692,
+              637,
+              721
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.1.2.4 退出程序",
+            "block_bbox": [
+              139,
+              731,
+              307,
+              759
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "①符合队员退出条件的队员，填写退出申请表，提交依托单位，经审核后提交委托建设单位卫生行政部门批准后退出国家队伍；",
+            "block_bbox": [
+              137,
+              769,
+              1089,
+              829
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "②符合队员退出条件的队员，由依托单位直接报委托建设单位卫生行政部门批准后直接除名；",
+            "block_bbox": [
+              138,
+              834,
+              995,
+              861
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "③队员退出后，将卫生应急队下发的所有装备清点上交，丢失和损坏物品要求有书面说明。同时，取消一切队员应享有的福利待遇。",
+            "block_bbox": [
+              137,
+              863,
+              1089,
+              925
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.2 装备配备",
+            "block_bbox": [
+              137,
+              973,
+              283,
+              1001
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "突发中毒事件应急处置装备的配备，应根据现场分区和事故风险评估结果，遵照“统一规划、分级储备、确保急需、突出重点、品种齐全、动态储备”的原则，根据中毒应急救援队伍承担的任务，按照《卫生应急队伍装备参考目录（试行）》进行配置，装备的种类包括应急通讯指挥装备（参见附录A1）、专业处置类装备（参见附录A2）、后勤保障装备（参见附录A3）、常用特效解毒药（参见附录B）、个体防护装备（参见附录C）",
+            "block_bbox": [
+              136,
+              1021,
+              1090,
+              1174
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.3 基础设施建设",
+            "block_bbox": [
+              137,
+              1223,
+              324,
+              1251
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.3.1 应急基础设施建设要求",
+            "block_bbox": [
+              136,
+              1270,
+              419,
+              1297
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "基础设施建设项目由房屋建筑、场地、装备等构成。其中：房屋建筑包括业务用房和辅助用房；业务用房包括：应急信息指挥中心、办公室、会议室、培训中心、实验室、档案室、资料室、值班室、通讯室、宿舍、活动室、车库和体能训练室。辅助用房包括：餐厅、厨房、浴室、盥洗室、厕所、晾衣室、锅炉房、物资储备库和维护室等。场地包括：室外训练和演练场等。",
+            "block_bbox": [
+              136,
+              1316,
+              1091,
+              1439
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 7,
+            "block_label": "paragraph_title",
+            "block_content": "4.3.2 应急物资储备仓库建设要求",
+            "block_bbox": [
+              136,
+              1458,
+              463,
+              1484
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 7,
+            "block_label": "text",
+            "block_content": "应配备专用物资储备仓库。其容积能够容纳装备与物资分门别类摆放，环境控制条件符合物资装备存放条件。",
+            "block_bbox": [
+              137,
+              1504,
+              1090,
+              1563
+            ],
+            "block_id": 27,
+          },
+          {
+        "page_no": 7,
+            "block_label": "number",
+            "block_content": "6",
+            "block_bbox": [
+              139,
+              1567,
+              155,
+              1584
+            ],
+            "block_id": 28,
+          },
+          {
+        "page_no": 8,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "4.3.3 训练场建设要求",
+            "block_bbox": [
+              136,
+              147,
+              357,
+              173
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "队伍建设单位可自建训练场，也可临时或长期租赁训练场地。训练场应具备理论培训、体能训练、野外生存、应急演练等条件。训练场场地应满足车辆和设备展开要求，还应包括生物安全隔离区。场地建设标准可参考GA/T 623的规定。",
+            "block_bbox": [
+              136,
+              194,
+              1078,
+              284
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5 队伍管理",
+            "block_bbox": [
+              137,
+              318,
+              262,
+              345
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5.1 队员管理",
+            "block_bbox": [
+              137,
+              381,
+              283,
+              407
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.1 档案管理",
+            "block_bbox": [
+              136,
+              428,
+              289,
+              455
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "应建立队员档案，制定档案管理规范。队员档案收集内容应包括个人基本信息、联系方式、外语水平、国内外培训情况、专业、特长、从事卫生应急工作主要经历、定期体检情况、疫苗接种史、直系亲属或紧急联系人相关信息等。宜对档案进行数字化管理，管理规范可参照DB11/T 765.1和DB11/T 765.2的规定。",
+            "block_bbox": [
+              136,
+              474,
+              1091,
+              595
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "应建立应急队伍人员档案，其主要内容包括姓名、性别、出生日期、所在单位、健康状况、身高体重、血型、药物过敏史；衣裤鞋尺码、内容、要求和记录等。以及历次应急培训、演练及实际应急工作参与情况。",
+            "block_bbox": [
+              136,
+              599,
+              1090,
+              689
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.2 日常管理",
+            "block_bbox": [
+              136,
+              708,
+              294,
+              734
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.2.1 机构、人员设置与建设",
+            "block_bbox": [
+              138,
+              755,
+              440,
+              785
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "a) 突发中毒事件应急处置队伍指挥机构设在所在委托建设单位卫生行政部门，总队长、副总队长分别由委托建设单位卫生行政部门主要和主管领导担任，日常管理机构设在委托建设单位行政部门应急办公室，管理执行机构设在依托单位。",
+            "block_bbox": [
+              136,
+              801,
+              1088,
+              892
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "b)队员来自医疗卫生机构专业人员和管理人员，平时承担所在单位日常工作，战时承担卫生应急处置任务。",
+            "block_bbox": [
+              137,
+              895,
+              1089,
+              952
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "c) 建立专家定期例会、突发中毒事件现场处置会商制度，为现场处置提供决策和技术建议；建立演习、演练总结点评制度，为队伍的现场处置能力提供专业支持，指导国家队伍的建设和发展。",
+            "block_bbox": [
+              139,
+              958,
+              1089,
+              1017
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "d) 委托建设单位接到国家卫计委调派命令后，在规定的时间内完成集结，前往指定地点开展卫生应急救援工作。紧急情况下可采取先调用，候补手续的方式通知队员所在单位。",
+            "block_bbox": [
+              137,
+              1021,
+              1089,
+              1079
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "e) 队员在执行任务时，服从突发中毒事件现场指挥部指挥，遵守现场管理规定和相关工作规范，保持与委托建设单位卫生行政部门的通信联络，报告工作进展情况；现场工作实行队长负责制，队员服从队长领导，认真履行各自职责；任务完成后，由队长负责提交现场工作报告和相关文字、影像等资料。",
+            "block_bbox": [
+              136,
+              1083,
+              1090,
+              1173
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "f) 队员应保持 24 小时通信畅通。当联系方式变更时，及时通知本队队长、所在单位和依托单位，确保队伍数据库信息准确和传递畅通。",
+            "block_bbox": [
+              137,
+              1177,
+              1090,
+              1234
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "g) 队伍队旗设置统一标识管理：旗帜第一行是“卫生系统统一形象标识（横向标准组合）”图案，第二行是国家卫生应急队伍名称“国家突发中毒事件应急处置队伍”，第三行是队伍委托建设单位名称。",
+            "block_bbox": [
+              137,
+              1239,
+              1091,
+              1297
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 8,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.2.2 队伍日常管理规范",
+            "block_bbox": [
+              199,
+              1317,
+              461,
+              1343
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "应建立队伍日常管理规范，将队员日常备勤、应急值守、出席例会、外出、请销假、保密和安全管理、培训演练及设备装备运维等纳入日常管理，不断完善队伍的后勤和安全保障体系；",
+            "block_bbox": [
+              136,
+              1364,
+              1089,
+              1422
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "a) 建立日常备勤和应急值守制度，明确值守人员职责、工作内容和要求，安排足够队员着装备勤，配备相应器材和交通工具，保障随时执行突发中毒事件卫生应急处置紧急任务；",
+            "block_bbox": [
+              136,
+              1426,
+              1079,
+              1485
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 8,
+            "block_label": "text",
+            "block_content": "b) 建立请销假制度和值班记录制度，详细记录值班期间发生的重要事项及其处置情况，值班队员人员必须坚守岗位，切实履行职责，做好保密和安全工作，并严格执行请销假制度，严格控制队员外出。",
+            "block_bbox": [
+              138,
+              1489,
+              1089,
+              1547
+            ],
+            "block_id": 20,
+          },
+          {
+            "block_label": "number",
+            "block_content": "7",
+            "block_bbox": [
+              1093,
+              1565,
+              1108,
+              1584
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 9,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "c) 建立例会制度，应急队员应积极参加工作例会，掌握会议内容，并依照有关规定及时处理相关问题，并认真做好记录。记录包括：会议的时间、地点、内容、以及根据会议内容及要求进行具体处理的结果等。",
+            "block_bbox": [
+              136,
+              147,
+              1091,
+              236
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "d) 建立培训及演练管理制度，要求队员积极参加培训及演练，做好考勤考核，不断提升卫生应急处置能力。加强应急预案和工作程序以及车辆、仪器设备、通讯器材、个人防护装备、后勤保障装备等的培训和演练。",
+            "block_bbox": [
+              137,
+              241,
+              1091,
+              329
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.3 执行任务期间管理",
+            "block_bbox": [
+              174,
+              350,
+              417,
+              377
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "应建立队伍执行任务期间的管理规范，将队员参加重要活动保障、培训演练、应急响应和现场处置期间的出勤、外出安全、请销假、保密和安全管理、每日任务执行和完成情况等纳入管理。",
+            "block_bbox": [
+              137,
+              397,
+              1089,
+              455
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "应制定参加重要活动保障期间、培训演练期间、应急响应期间的队员管理制度。",
+            "block_bbox": [
+              177,
+              459,
+              910,
+              486
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4 平急结合管理",
+            "block_bbox": [
+              175,
+              505,
+              376,
+              532
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4.1 一般要求",
+            "block_bbox": [
+              178,
+              554,
+              335,
+              578
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "队员平时由所在单位管理，完成单位安排的工作。接到培训、演练、现场处置等任务时，接受队长的调派和管理。",
+            "block_bbox": [
+              138,
+              584,
+              1089,
+              642
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "每年应制定平急结合管理工作计划，年底应有工作总结。",
+            "block_bbox": [
+              178,
+              646,
+              702,
+              673
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4.2 日常工作",
+            "block_bbox": [
+              179,
+              679,
+              339,
+              703
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "推进卫生应急社会参与，工作内容：卫生应急队通过多种形式，深入到有关企事业单位、社会团体、农村、社区、学校、家庭开展预防中毒、防病防灾和自救互救知识宣传教育活动，普及预防中毒知识和技能；开展5.12卫生应急主题日活动，培训卫生应急志愿者等。工作要求：活动形式可以是讲座、问卷调查、现场技能培训等。每次活动后应及时开展效果的评估工作，评估主要对活动前后相关知识的知晓情况、活动满意度，开展活动次数 $ \\geq $2次/年。",
+            "block_bbox": [
+              136,
+              709,
+              1091,
+              861
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4.3 大型活动保障",
+            "block_bbox": [
+              179,
+              866,
+              384,
+              890
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "a) 风险评估：活动举办前基于活动特征开展突发中毒事件卫生保障需求分析与评估，举办期间开展中毒事件现场快速风险评估。",
+            "block_bbox": [
+              138,
+              896,
+              1089,
+              954
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "b)公共卫生监督：依法对餐饮食品安全、公共场所卫生、饮用水卫生实施监督监测。",
+            "block_bbox": [
+              177,
+              958,
+              949,
+              984
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "c) 医学救援：启动中毒救治基地，同时开展现场医疗救治，在重要庆典活动现场设置医疗站点，组成急救网络，配备医疗救治力量，开展医疗救治、病人转运和应急医疗救援。",
+            "block_bbox": [
+              138,
+              990,
+              1089,
+              1047
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "d) 中毒事件防控: 强化监测系统，开展症状监测和健康监测；开展健康干预活动(健康教育与促进等); 开展中毒因子监测；开通实验室网络检测绿色通道。",
+            "block_bbox": [
+              137,
+              1052,
+              1086,
+              1109
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "e) 应急人员和物资准备: 启动院前急救、卫生监督和应急队员应急值守，应急车辆及物资准备齐全，做好处置突发中毒事件的准备。",
+            "block_bbox": [
+              137,
+              1114,
+              1079,
+              1171
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4.4 巡诊义诊",
+            "block_bbox": [
+              179,
+              1178,
+              340,
+              1202
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "a) 工作内容: 运用多种便携式仪器设备如 B 超、心电图、血压计等进行健康咨询活动，普及中毒预防知识和技能，指导预防有毒动植物和农药及化学物质等中毒知识，进行健康知识的讲解和宣传等活动；",
+            "block_bbox": [
+              138,
+              1208,
+              1089,
+              1265
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "b) 工作要求: 应急队员组成巡诊义诊工作组，制定具体的工作方案和实施细则，协调相关专业应急队员、必要设施物资、场所时间等，每年开展巡诊义诊  $ \\geq $ 2 次。",
+            "block_bbox": [
+              139,
+              1271,
+              1089,
+              1327
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.4.5 对口支援或队伍交流",
+            "block_bbox": [
+              179,
+              1334,
+              446,
+              1358
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "a) 工作内容：国家卫生应急队组建卫生应急小分队，与有关省市、地区建立对口支援机制，协助开展中毒事件调查处置和人员培训演练指导等。包括人员派驻、中毒事件调查、中毒临床诊疗、进修培训、卫生应急演练、应急共建、业务指导等；",
+            "block_bbox": [
+              137,
+              1365,
+              1089,
+              1452
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 9,
+            "block_label": "text",
+            "block_content": "b) 工作要求：协助各省、市（州）、区（市、县）卫生行政部门制定对口支援方案并组织实施。对口支援双方应当协商确定派驻人员的专业、数量和时间，统筹安排人员工作，每年开展工作 $ \\geq $1项。",
+            "block_bbox": [
+              137,
+              1459,
+              1090,
+              1516
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 9,
+            "block_label": "paragraph_title",
+            "block_content": "5.1.5 保密和安全管理",
+            "block_bbox": [
+              166,
+              1536,
+              385,
+              1561
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 9,
+            "block_label": "number",
+            "block_content": "8",
+            "block_bbox": [
+              139,
+              1567,
+              154,
+              1583
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 10,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "应建立队员保密和安全管理规范。应急队员应遵守安全保密守则，不得在任何场合泄露与应急工作任务有关的文件、资料和内容。队员日常工作和外出执行任务期间的保密和安全管理应遵守《中华人民共和国保守国家秘密法》、《中华人民共和国保守国家秘密法实施条例》、《卫生工作中国家秘密及其密级具体范围的规定》等法律法规的规定。",
+            "block_bbox": [
+              135,
+              147,
+              1093,
+              268
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2 装备和物资管理",
+            "block_bbox": [
+              136,
+              287,
+              346,
+              314
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.1 一般要求",
+            "block_bbox": [
+              164,
+              334,
+              323,
+              360
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "委托建设单位参照《卫生应急队伍装备参考目录（试行）》，对突发中毒事件应急处置队伍装备和物资配置、购置、使用、调配、维修、保养、更新改造及报废进行总体管理，制订装备和物资管理制度，纳入固定资产管理，不得出租、转让和用于其他经营活动。",
+            "block_bbox": [
+              136,
+              381,
+              1089,
+              470
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "按照国家卫计委要求对队伍装备、标识、服装、队旗、通讯等进行统一规范管理，定期进行检查。",
+            "block_bbox": [
+              177,
+              474,
+              1082,
+              501
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "按照 “平战结合、优先应急、科学维护、控制使用” 的原则，开展日常维护与计划检定相结合，维修、改造与更新相结合，充分发挥其应急效能。",
+            "block_bbox": [
+              136,
+              506,
+              1091,
+              563
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "队员所在单位对卫生应急装备进行管理、使用、维护、保养等工作，保证装备技术状态完好随时可用；采用平战结合管理模式，平时可以使用的物资和药品，按照一定比例使用，并及时补充完备。",
+            "block_bbox": [
+              137,
+              567,
+              1089,
+              627
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.2 采购管理",
+            "block_bbox": [
+              164,
+              646,
+              317,
+              672
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "队伍装备应纳入固定资产管理，并按政府采购政策进行采购。",
+            "block_bbox": [
+              178,
+              700,
+              742,
+              728
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "a）以满足应急队伍的实际需要为前提，经充分调研和论证后，确定购置装备和物资清单。清单需明确所需购置装备的名称、参考型号、数量及初步询价情况，并需注明该装备的用途。按照采购审批程序进行采购。新增种类和增加扩大原有储备量的应急装备还应提交委托建设单位卫生行政部门备案。",
+            "block_bbox": [
+              176,
+              739,
+              1091,
+              861
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "b) 采购流程和方法应遵守国家相关的法律法规以及相关制度。",
+            "block_bbox": [
+              178,
+              865,
+              750,
+              892
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "c）所采购的应急装备和物资须接受依托单位及第三方的验收，验收合格后方可确认接收，并纳入应急装备的日常管理。。",
+            "block_bbox": [
+              177,
+              895,
+              1089,
+              954
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.3 仓储规范",
+            "block_bbox": [
+              165,
+              973,
+              322,
+              1000
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "仓储规范的要求如下：",
+            "block_bbox": [
+              182,
+              1021,
+              384,
+              1046
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "a）应建立药品、装备与器材贮存管理规范，进行集中与动态储备管理。",
+            "block_bbox": [
+              177,
+              1052,
+              834,
+              1078
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "b) 药品、装备与器材应有专门仓库，标识清晰，并符合贮存条件与管理。",
+            "block_bbox": [
+              177,
+              1084,
+              856,
+              1109
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "c）按照任务设定携行、运行和留存进行编组，并依据使用组别进行标识，按照库、区、架、层分门别类存放。",
+            "block_bbox": [
+              178,
+              1114,
+              1088,
+              1170
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "d）应对易耗品出入库仓储、应急物资的购买、保养、使用情况及药品有效期建帐管理。",
+            "block_bbox": [
+              179,
+              1176,
+              983,
+              1203
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "e）各类应急物资应在合适其存放的条件下保管储存，且保存场所相对独立，配有24小时监控录像。",
+            "block_bbox": [
+              179,
+              1208,
+              1088,
+              1234
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "f）应急药品和消毒洗消物资贮存时间有限，应由委托建设单位指定机构贮存，并动态补充。",
+            "block_bbox": [
+              178,
+              1239,
+              1024,
+              1266
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.4 维护、保养和更新规范",
+            "block_bbox": [
+              165,
+              1285,
+              449,
+              1312
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.4.1 一般要求",
+            "block_bbox": [
+              179,
+              1334,
+              341,
+              1358
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "建立应急装备与物资维护、保养与更新的制度。应急车辆应定期拉练保养，应急设备与仪器应有相关使用记录。应急物资应有保养记录。",
+            "block_bbox": [
+              138,
+              1365,
+              1089,
+              1421
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 10,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.4.2 日常要求",
+            "block_bbox": [
+              178,
+              1427,
+              341,
+              1451
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 10,
+            "block_label": "text",
+            "block_content": "a) 建立应急装备档案，对应急装备的种类、数量及工作状态进行总体管理，对需要进行维护或者报废更新的设备及耗材提出申请，并定期组织开展应急装备的检查保养工作，对应急装备的日常维护和保养开展督导检查。",
+            "block_bbox": [
+              136,
+              1458,
+              1090,
+              1546
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 10,
+            "block_label": "number",
+            "block_content": "9",
+            "block_bbox": [
+              1093,
+              1565,
+              1108,
+              1583
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 11,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "b) 相关业务科室负责所管辖的专业处置设备、个人防护设备和相关检测仪器进行日常保养和定期检定，确保其处于正常的工作状态。",
+            "block_bbox": [
+              136,
+              147,
+              1091,
+              205
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "c) 通过信息化管理手段，共享设备的保存及使用状态、维护周期、报废时限等必要信息，规范设备的管理与应急调用。",
+            "block_bbox": [
+              137,
+              210,
+              1090,
+              267
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "d) 发现需补充日常消耗物资，应根据相关的采购规定予以补充。",
+            "block_bbox": [
+              177,
+              272,
+              761,
+              299
+            ],
+            "block_id": 3,
+                760,
+                292
+              ],
+              [
+                760,
+                272
+              ],
+              [
+                183,
+                272
+              ]
+            ]
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "e) 应急装备如需报废，应符合相关规章制度，并向委托建设单位备案。",
+            "block_bbox": [
+              177,
+              303,
+              824,
+              329
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "f) 应急装备如需要第三方承担的维护和保养的，应根据相关规定与其签订服务合同。合同中应明确其服务内容，如因其工作失误，导致应急装备损坏或延误应急处置的，应追究其法律责任。",
+            "block_bbox": [
+              137,
+              334,
+              1090,
+              393
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.5 调用管理",
+            "block_bbox": [
+              136,
+              411,
+              290,
+              438
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "医学救援",
+            "block_bbox": [
+              462,
+              409,
+              788,
+              485
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.5.1 一般要求",
+            "block_bbox": [
+              178,
+              459,
+              341,
+              484
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "a) 应制定应急装备与物资调用管理规定，应急装备和物资可在应急演练、培训和处置中使用，每次使用前和归还后应做好登记，不得私自使用。调用管理的要求如下：",
+            "block_bbox": [
+              138,
+              489,
+              1089,
+              549
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "b) 应建立队伍装备和物资的调用管理规范，由专人负责，实行调用登记制度。",
+            "block_bbox": [
+              177,
+              552,
+              886,
+              580
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "c)出入库管理按照 GB/T 21071 的规定执行。",
+            "block_bbox": [
+              178,
+              584,
+              576,
+              611
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "d)接到调用任务应制定使用计划，确定调用种类和数量，上报队长同意后根据调用管理规范进行出入库登记后调用。",
+            "block_bbox": [
+              137,
+              614,
+              1088,
+              673
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.2.5.2 日常要求",
+            "block_bbox": [
+              178,
+              684,
+              355,
+              712
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "a) 应确定本次行动所需应急装备的种类和数量，经相关领导批准后，启用应急装备。",
+            "block_bbox": [
+              206,
+              731,
+              989,
+              759
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "b) 应急装备的使用必须按照其操作规程，执行任务过程中特殊应急装备应由专人负责保管。",
+            "block_bbox": [
+              204,
+              770,
+              1044,
+              798
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "c) 执行任务前与完成任务后均需对应急装备的种类和数量进行清点，对应急装备的使用状态进行检查，统计损耗情况并及时补充。",
+            "block_bbox": [
+              165,
+              802,
+              1089,
+              860
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "d) 使用应急装备必须经过相应的培训，特殊仪器或设备的使用者需取得相应的资质。如因非工作原因造成应急装备的遗失或损坏，应按照相关规定进行处理。",
+            "block_bbox": [
+              165,
+              864,
+              1089,
+              925
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.3 信息管理",
+            "block_bbox": [
+              137,
+              942,
+              283,
+              970
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.3.1 一般要求",
+            "block_bbox": [
+              163,
+              990,
+              317,
+              1017
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "应制定信息管理制度，确保信息报送的时效性、准确性和科学性。应确定专人负责信息收集、整理、分析，明确信息审核、发布方式，实施对外宣传归口管理。队伍人员、物资装备变动情况实施年度报告。",
+            "block_bbox": [
+              137,
+              1036,
+              1089,
+              1096
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 11,
+            "block_label": "paragraph_title",
+            "block_content": "5.3.2 具体要求",
+            "block_bbox": [
+              164,
+              1114,
+              323,
+              1141
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "a）委托建设单位负责队伍信息的总体管理和对外发布；",
+            "block_bbox": [
+              177,
+              1161,
+              687,
+              1187
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "b）队伍管理单位负责上报队伍的日常管理、培训演练、执行任务等信息；",
+            "block_bbox": [
+              177,
+              1191,
+              853,
+              1219
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "c）队员及所在单位定期向队伍管理单位上报队员动态信息，一旦队员个人信息发生变化，应及时通报管理单位；",
+            "block_bbox": [
+              179,
+              1223,
+              1089,
+              1281
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "d) 信息的主要内容包括：",
+            "block_bbox": [
+              180,
+              1286,
+              413,
+              1312
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "①队员动态信息；",
+            "block_bbox": [
+              208,
+              1318,
+              370,
+              1342
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "②专业设备动态信息；",
+            "block_bbox": [
+              208,
+              1348,
+              413,
+              1373
+            ],
+            "block_id": 27,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "③物资储备动态信息：储备物资的名称、数量、用途、有效期、储备地点、出入库情况、更新及使用情况等；",
+            "block_bbox": [
+              207,
+              1380,
+              1090,
+              1435
+            ],
+            "block_id": 28,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "④培训演练信息：培训演练计划、培训演练的基本情况（时间、地点、内容、参加人员等）；",
+            "block_bbox": [
+              207,
+              1441,
+              1065,
+              1468
+            ],
+            "block_id": 29,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "⑤救援任务信息：接到任务后及时上报队伍准备情况，包括人员、装备、物资等情况，并实时报告队伍任务执行进度和队员情况等信息。",
+            "block_bbox": [
+              206,
+              1473,
+              1090,
+              1530
+            ],
+            "block_id": 30,
+          },
+          {
+        "page_no": 11,
+            "block_label": "text",
+            "block_content": "e) 报告要求：",
+            "block_bbox": [
+              180,
+              1537,
+              320,
+              1562
+            ],
+            "block_id": 31,
+          },
+          {
+        "page_no": 11,
+            "block_label": "number",
+            "block_content": "10",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 32,
+          },
+          {
+        "page_no": 12,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "①日常管理信息每季度上报，包括专业设备信息、物资储备信息、培训演练执行进度等信息；",
+            "block_bbox": [
+              206,
+              146,
+              1063,
+              173
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "②实时信息要求实时更新，包括队员信息变更、执行任务情况信息等。",
+            "block_bbox": [
+              206,
+              178,
+              856,
+              204
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "③所有信息在上报过程中要求不予公开，所有信息出口为委托建设单位，其他单位或个人未经批准，不得对外公开有关队伍的所有信息。",
+            "block_bbox": [
+              207,
+              210,
+              1090,
+              267
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.4 资料管理",
+            "block_bbox": [
+              137,
+              288,
+              283,
+              314
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.4.1 一般要求",
+            "block_bbox": [
+              164,
+              334,
+              323,
+              360
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "应制定资料管理规定，以维护队伍档案完整性、可追溯性，按照“分类标准、归档及时、排列有序、层次清楚、整理规范”的原则，妥善保管队伍队员信息、培训、演练、执行任务、物资、装备等档案，便于高效、有序的利用信息；应明确资料管理人员，管理内容及范围。",
+            "block_bbox": [
+              136,
+              381,
+              1088,
+              472
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.4.2 日常工作",
+            "block_bbox": [
+              164,
+              489,
+              323,
+              516
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "a) 委托建设单位负责队伍档案管理总体组织工作；",
+            "block_bbox": [
+              165,
+              537,
+              645,
+              563
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "b) 日常管理机构负责队伍档案建立、保管、更新等具体实施工作，并做好档案的安全、保密、保护工作；队员所在单位配合完成档案的管理工作。",
+            "block_bbox": [
+              164,
+              567,
+              1090,
+              626
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "c) 档案管理内容：",
+            "block_bbox": [
+              166,
+              631,
+              350,
+              657
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "①队伍档案包括队员的申请信息、健康信息、受培训信息、执行任务信息等人员信息资料；",
+            "block_bbox": [
+              207,
+              661,
+              1042,
+              688
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "②设备仪器的状态信息、使用说明、维修信息、使用信息等资料；",
+            "block_bbox": [
+              208,
+              694,
+              813,
+              720
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "③物资的购买更新信息、用途用量、实用信息等。",
+            "block_bbox": [
+              208,
+              724,
+              665,
+              750
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "d) 工作要求：",
+            "block_bbox": [
+              166,
+              756,
+              312,
+              782
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "①档案归档前进行真实性核查；",
+            "block_bbox": [
+              205,
+              786,
+              497,
+              813
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "②档案按队伍分类存档，专人负责档案的管理，定期和更新档案中的信息；",
+            "block_bbox": [
+              205,
+              817,
+              896,
+              844
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "③建立纸质档案的同时建立电子档案，电子档案应有专属设备进行储存，永久存放。\n④建立并执行档案的查（借）阅制度。",
+            "block_bbox": [
+              205,
+              848,
+              979,
+              903
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.5 队伍奖惩及保障",
+            "block_bbox": [
+              138,
+              926,
+              347,
+              953
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.5.1 总体要求",
+            "block_bbox": [
+              165,
+              973,
+              322,
+              1001
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "建立奖惩机制，规定队伍和队员的权利和义务，队员的权利与义务应符合《国家卫生应急队伍管理办法（试行）》的规定。",
+            "block_bbox": [
+              137,
+              1021,
+              1089,
+              1078
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "应急队员来自医疗卫生机构的在职人员，平时承担所在单位的日常工作，应急时承担卫生应急处置任务。队员所在单位应积极支持队员参加卫生应急培训、演练及卫生应急工作；保障队员在执行卫生应急任务期间的工资、津贴、奖金及其他福利待遇。",
+            "block_bbox": [
+              137,
+              1083,
+              1090,
+              1173
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "5.5.2 具体规定",
+            "block_bbox": [
+              165,
+              1192,
+              323,
+              1219
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "a）制定奖惩管理办法，奖励与处罚应按照公开、公正的原则，受奖励或处罚的个人或集体由日常管理机构审核后上报委托建设单位进行奖励或处罚。",
+            "block_bbox": [
+              178,
+              1238,
+              1089,
+              1296
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "b）对做出突出贡献的集体和个人，按照国家有关规定给予相应表彰和奖励。在同等条件下，对卫生应急队员职称晋升、评先选优等方面予以适当倾斜。",
+            "block_bbox": [
+              178,
+              1302,
+              1089,
+              1359
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 12,
+            "block_label": "text",
+            "block_content": "c）队员本人或所在单位不服从调派、不认真履职、违反相关制度和纪律、无故缺席培训和演练者，经委托技术单位核实确认，报委托建设单位批准后，予以除名，对其所在单位予以通报。如因失职等原因造成突发事件危害扩大，产生严重后果的，依法处罚并追究相关责任。",
+            "block_bbox": [
+              178,
+              1364,
+              1089,
+              1454
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 12,
+            "block_label": "paragraph_title",
+            "block_content": "6 应急预案与技术方案建设",
+            "block_bbox": [
+              138,
+              1489,
+              408,
+              1515
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 12,
+            "block_label": "number",
+            "block_content": "11",
+            "block_bbox": [
+              1085,
+              1565,
+              1108,
+              1584
+            ],
+            "block_id": 27,
+          },
+          {
+        "page_no": 13,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "6.1 应根据突发中毒事件处置特点，组织编制各类突发中毒事件处置卫生应急处置预案。",
+            "block_bbox": [
+              135,
+              147,
+              963,
+              173
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "6.2 应组织进行应急预案的培训、演练，评估应急预案的适用性、充分性。",
+            "block_bbox": [
+              135,
+              178,
+              839,
+              204
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "6.3 应定期评审应急预案，及时修订应急预案。",
+            "block_bbox": [
+              136,
+              210,
+              588,
+              236
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "6.4 应建立突发中毒事件卫生应急处置、个人防护、应急装备等操作规程和技术方案，并不断修订完善。",
+            "block_bbox": [
+              136,
+              241,
+              1088,
+              268
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7 应急响应",
+            "block_bbox": [
+              137,
+              303,
+              262,
+              329
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.1 准备阶段",
+            "block_bbox": [
+              137,
+              365,
+              284,
+              393
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "为保障现场应急处置工作的顺利开展，需配备相应的交通工具、个人携行装备、防护装备、现场调查取证器材、消杀器械等，在参与国家级应急救援工作时还应携带必要的现金（当地食宿、交通费用等）、为队员购买必须保险、以及相应的个人药品等，以确保救援工作的有序开展。",
+            "block_bbox": [
+              137,
+              411,
+              1090,
+              503
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2 出发阶段",
+            "block_bbox": [
+              137,
+              521,
+              283,
+              549
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.1 应急响应",
+            "block_bbox": [
+              158,
+              567,
+              316,
+              594
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.1.1 工作内容",
+            "block_bbox": [
+              178,
+              614,
+              356,
+              644
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "a) 国家卫生应急队接到卫生行政部门的应急响应命令后，应立即根据事件发展情况及时进行风险评估，对事件可能的发生趋势进行预测，形成初步工作方案，开展人员、技术、物资和后勤保障等准备；",
+            "block_bbox": [
+              137,
+              661,
+              1089,
+              722
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "b) 确定应急工作组专业构成、参加人员，确定组员的职责和分工，并迅速集结；",
+            "block_bbox": [
+              175,
+              724,
+              911,
+              751
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "c) 根据现场特点开展物资准备，包括个人防护，标本采集、保存和运送，现场快速检测，预防和救治药物，洗消器械，调查取证器材，调查表、参考资料、健康宣教资料、通讯设备、电脑、现场联系资料等。",
+            "block_bbox": [
+              137,
+              756,
+              1090,
+              846
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.1.2 工作要求",
+            "block_bbox": [
+              180,
+              865,
+              356,
+              892
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "应急队员接到应急命令后，应于 2 小时内到达指定地点集合，并携带应急物资赴现场开展工作。",
+            "block_bbox": [
+              199,
+              912,
+              1079,
+              940
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2 人员和物资投送",
+            "block_bbox": [
+              157,
+              958,
+              373,
+              984
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2.1 人员和物资编组",
+            "block_bbox": [
+              179,
+              1006,
+              403,
+              1031
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "根据具体任务要求，确定应急队员和物资的基本编成，明确后方前送、现地采购的设备和物资，分批运送",
+            "block_bbox": [
+              137,
+              1036,
+              1089,
+              1094
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2.2 物资远距离投送方案制定",
+            "block_bbox": [
+              178,
+              1100,
+              489,
+              1125
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "应根据突发事件发生情况确定投送装备和物资的数量、品种、投送方式和路线，制定详细的投送方案。",
+            "block_bbox": [
+              137,
+              1130,
+              1088,
+              1191
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2.3 人员和物资投送机制建立",
+            "block_bbox": [
+              179,
+              1193,
+              489,
+              1218
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "要制定人员和物资投送计划和相关工作流程，保证应急工作中人员和物资高速、安全、准确投送。",
+            "block_bbox": [
+              178,
+              1223,
+              1077,
+              1252
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2.4 运输方式选择",
+            "block_bbox": [
+              179,
+              1256,
+              385,
+              1280
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "按应急装备的用途、使用的紧急情况、使用范围，同时充分考虑运输途中的地理条件，选择铁路、公路、航空、水路及管道等运输方式。",
+            "block_bbox": [
+              138,
+              1286,
+              1078,
+              1344
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.2.5 运输途中突发事件处置预案制定",
+            "block_bbox": [
+              178,
+              1349,
+              551,
+              1374
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 13,
+            "block_label": "text",
+            "block_content": "根据运输物资特点和运输要求、结合运输途中的实际情况制定突发事件处置预案，确保机动途中保障。",
+            "block_bbox": [
+              136,
+              1380,
+              1091,
+              1438
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.3 组织指挥",
+            "block_bbox": [
+              166,
+              1458,
+              317,
+              1484
+            ],
+            "block_id": 27,
+          },
+          {
+        "page_no": 13,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.3.1 现场组织指挥编组",
+            "block_bbox": [
+              179,
+              1504,
+              439,
+              1530
+            ],
+            "block_id": 28,
+          },
+          {
+        "page_no": 13,
+            "block_label": "number",
+            "block_content": "12",
+            "block_bbox": [
+              139,
+              1565,
+              163,
+              1584
+            ],
+            "block_id": 29,
+          },
+          {
+        "page_no": 14,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "根据突发中毒事件情况，进行现场组织指挥编组，成立指挥协调组、现场急救组、毒物检测组、监督组、检伤分类组、去污洗消组、紧急救治组、后送组、担架组、后勤保障组等。",
+            "block_bbox": [
+              136,
+              147,
+              1091,
+              206
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.3.2 工作制度",
+            "block_bbox": [
+              178,
+              225,
+              357,
+              251
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "建立应急启动与终止制度、现场队伍工作管理制度、评估制度、应急作业计划制度、信息通报制度、例会制度、应急保障制度等。",
+            "block_bbox": [
+              136,
+              272,
+              1089,
+              331
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.2.3.3 工作要求",
+            "block_bbox": [
+              178,
+              350,
+              356,
+              377
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "卫生应急队在启动应急响应的同时即应以正式文件的形式确定成立应急作业管理架构，建立应急作业工作机制，并任命应急指挥官。后续可根据突发事件变化情况和应对工作开展情况适时对应急作业管理框架进行适当调整，也可根据实际情况对相关工作制度进行及时调整。",
+            "block_bbox": [
+              137,
+              397,
+              1091,
+              487
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.3 现场展开",
+            "block_bbox": [
+              137,
+              505,
+              282,
+              533
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.3.1 工作内容",
+            "block_bbox": [
+              165,
+              552,
+              317,
+              580
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "应急队到达现场后，根据任务类型、地形和道路条件选择展开地点、形式，按功能要素划分指挥、调查、救治、检测、洗消、生活、保障等区域。",
+            "block_bbox": [
+              137,
+              599,
+              1077,
+              659
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.3.2 工作要求",
+            "block_bbox": [
+              164,
+              677,
+              317,
+              705
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "成立生活保障组，下设场地建设、水电保障、支援保障等小组，负责营地建设；制定相应工作流程，确保工作区域部署合理。",
+            "block_bbox": [
+              137,
+              723,
+              1088,
+              785
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.4 现场处置",
+            "block_bbox": [
+              138,
+              802,
+              283,
+              829
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.4.1 工作内容和要求",
+            "block_bbox": [
+              165,
+              848,
+              381,
+              876
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "工作内容包括核实事件信息、现场检伤分类、终止毒物吸收继续、现场洗消、现场复苏、现场支持治疗和护理以及中毒患者的转运等。",
+            "block_bbox": [
+              137,
+              895,
+              1089,
+              955
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.4.1.1 核实事件信息",
+            "block_bbox": [
+              178,
+              974,
+              397,
+              1001
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "卫生应急队伍抵达现场首先当立即与当地有关部门召开会议，了解事件最新进展和相关背景信息，商定现场工作计划和实施方案，制定和实施初步控制措施。并再次进行信息核实，通过走访当地群众，访视伤员，收集和分析临床资料，收集和分析检测数据；综合临床信息、检测信息，对事件性质做出初步判断。",
+            "block_bbox": [
+              136,
+              1021,
+              1089,
+              1143
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 14,
+            "block_label": "paragraph_title",
+            "block_content": "7.4.1.2 开展现场医疗卫生救援",
+            "block_bbox": [
+              179,
+              1161,
+              482,
+              1188
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "在初步调查的基础上根据现场情况全力开展医疗救治工作。在实施医疗卫生救援过程中，既要积极开展救治，又要注重自我防护，确保安全。",
+            "block_bbox": [
+              137,
+              1208,
+              1089,
+              1265
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "a) 检伤分类：依据“先救命后治伤、先救重后救轻”的原则开展工作，按照国际统一的标准对伤病员进行初次检伤分类，分别用绿、黄、红、黑四种颜色，对轻、重、危重伤病员和死亡人员进行标记，标明在伤病员或死亡人员的手腕或脚踝等显要部位，以便后续救治辨认或采取相应的措施。",
+            "block_bbox": [
+              136,
+              1270,
+              1090,
+              1360
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "b) 分级、分区处理：在检伤分类的基础上，开辟安全区域，充分利用现场条件设立特定功能分区，将不同级别的伤病员分区、分级进行急救处理，各区应标有明显的标志牌及相应的色带或色旗。",
+            "block_bbox": [
+              137,
+              1364,
+              1090,
+              1422
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 14,
+            "block_label": "text",
+            "block_content": "初检分类区：选择现场附近一个安全、明亮、宽敞的区域，将所有伤病员最先集中在该处，进行快速检伤分类并标示不同的色别后，按级别立即送至相应的区域处理。该区域一般使用白底红十字标志色标识；",
+            "block_bbox": [
+              136,
+              1426,
+              1091,
+              1515
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 14,
+            "block_label": "number",
+            "block_content": "13",
+            "block_bbox": [
+              1085,
+              1565,
+              1109,
+              1585
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 15,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "重伤病员处理区：设立在临近初检分类区，用于临时接收红标危重伤病员，由医务人员酌情给予必要的救治。该区域一般使用红色标识和黄色标识；",
+            "block_bbox": [
+              137,
+              148,
+              1090,
+              204
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "轻伤病员接收区：设在空旷安全场地，只接收绿标轻伤员，不需要医务人员立即进行特别处理，可提供简单包扎用敷料、绷带、饮食等。该区域一般使用绿色标识；",
+            "block_bbox": [
+              137,
+              210,
+              1090,
+              267
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "急救车辆待命区：为急救车单独开辟的停车场及道路，便于急救车出入。由专人负责统一指挥调度急救车，急救驾驶员在协助急救的同时应随时待命；",
+            "block_bbox": [
+              137,
+              272,
+              1089,
+              329
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "临时停尸区：该区域仅用于停放黑标濒死或已死亡的伤病员。该区域一般使用黑色标识。",
+            "block_bbox": [
+              178,
+              334,
+              995,
+              360
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "c) 终止毒物吸收：对于经过呼吸道吸收导致中毒的病例，应尽快移出中毒现场，至中毒环境的上风口空气新鲜、流通处，保持呼吸道畅通，接受进一步诊治；针对消化道吸收的中毒病例，根据病情，立即采用催吐、洗胃和导泻等方法以排除尚未吸收的毒物；对于化学物污染身体并可能通过皮肤吸收引起中毒的患者，应当去除被污染的衣物，尽可能早期进行洗消。",
+            "block_bbox": [
+              138,
+              366,
+              1090,
+              485
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "d) 现场洗消：依据不同洗消对象和部位选用不同的洗消方法，对人员、场地、物品和设施等及时、彻底、有效地去除毒物污染。",
+            "block_bbox": [
+              138,
+              490,
+              1079,
+              548
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "e) 现场复苏：对于突发中毒导致呼吸、心搏骤停的患者进行现场复苏。",
+            "block_bbox": [
+              178,
+              553,
+              828,
+              579
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "f) 现场支持治疗和护理：根据毒物特点选择必要的治疗手段，包括：病因治疗（特效解毒剂治疗）、对症治疗、支持治疗等。",
+            "block_bbox": [
+              138,
+              584,
+              1088,
+              642
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 15,
+            "block_label": "paragraph_title",
+            "block_content": "g) 中毒患者的转运：",
+            "block_bbox": [
+              178,
+              646,
+              362,
+              672
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "①为了使伤病员得到及时有效的专科治疗，保证救治质量，当现场环境处于危险或在伤病员情况允许时，对符合转送条件的伤病员，要尽快转送并做好以下工作：",
+            "block_bbox": [
+              167,
+              678,
+              1090,
+              736
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "②保证现场转运资源的集中使用和伤病员的合理分流，在现场医疗救援指挥部的统一安排下，明确专人负责协调管理、有序运作；",
+            "block_bbox": [
+              166,
+              740,
+              1089,
+              798
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "③坚持先重后轻的转运原则，优先转运红标危重和黄标重伤员，绿标轻伤员可暂缓转运；",
+            "block_bbox": [
+              203,
+              802,
+              1025,
+              829
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "④病人分流应本着“就近就急、专科特点和尊重病人意愿”的原则，根据医疗机构承受能力和专科特点以及地理位置合理统筹安排，合理分流病人，任何医疗机构不得以任何理由拒诊、拒收伤病员；",
+            "block_bbox": [
+              164,
+              834,
+              1090,
+              892
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "⑤根据伤病员的不同分级、转运救护车的不同功能和急救医生的不同资历经验，进行合理的组合，使有限的资源得到充分利用，保证转运安全、有效；",
+            "block_bbox": [
+              162,
+              896,
+              1087,
+              954
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "⑥保证院前与院内联络及时有效，认真填写伤病员转送信息并提交接纳的医疗机构，同时报现场医疗卫生应急指挥部汇总，及时通知收治伤病员的医疗机构，做好接收伤病员和救治准备；",
+            "block_bbox": [
+              163,
+              958,
+              1090,
+              1017
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "⑦充分做好转运前的准备，正确把握指征及时机，包括伤病员的准备、救护车及其他运输工具、物资及抢救设备的准备、医护人员、通讯联络的准备等；",
+            "block_bbox": [
+              165,
+              1022,
+              1086,
+              1078
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "⑧在转送途中，医护人员必须密切观察伤病员病情变化，并确保治疗持续进行；在转送时要科学搬运，避免造成二次损伤。",
+            "block_bbox": [
+              166,
+              1082,
+              1090,
+              1142
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 15,
+            "block_label": "paragraph_title",
+            "block_content": "7.4.2 卫生处置",
+            "block_bbox": [
+              175,
+              1161,
+              334,
+              1188
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "根据情况协助卫生计生行政主管部门和疾病预防控制机构，组织有关专业机构和人员，开展卫生学调查和评价、卫生执法监督，采取有效的预防控制措施，防止各类突发事件造成的次生或衍生公共卫生事件的发生。",
+            "block_bbox": [
+              138,
+              1208,
+              1091,
+              1296
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "a）及时报告可能构成或已发生的突发公共卫生事件相关信息，并根据防控需要开展应急监测。",
+            "block_bbox": [
+              177,
+              1302,
+              1044,
+              1328
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "b）中毒病人的现场抢救、运送、诊断、治疗（包括医疗垃圾和废物的处理等）。",
+            "block_bbox": [
+              177,
+              1334,
+              918,
+              1359
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "c）配合疾病预防控制机构开展流行病学调查工作。",
+            "block_bbox": [
+              179,
+              1364,
+              646,
+              1390
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "d）开展病例、部分重点（高危）人群的健康监测、医学观察、留验等工作。",
+            "block_bbox": [
+              179,
+              1395,
+              874,
+              1421
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 15,
+            "block_label": "text",
+            "block_content": "e）协助开展症状监测、健康教育等相关中毒防控工作。",
+            "block_bbox": [
+              178,
+              1426,
+              688,
+              1453
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 15,
+            "block_label": "paragraph_title",
+            "block_content": "7.4.3 心理干预",
+            "block_bbox": [
+              176,
+              1473,
+              328,
+              1499
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 15,
+            "block_label": "number",
+            "block_content": "14",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 16,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "及时开展中毒预防控制工作，针对被救助者的年龄、性别、文化背景的差异制定个性化的救援方案。同时为救援人员提供必要的心理干预和咨询工作，必要时做好心理随访工作。",
+            "block_bbox": [
+              137,
+              147,
+              1089,
+              206
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "7.5 响应终止",
+            "block_bbox": [
+              137,
+              225,
+              283,
+              251
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "突发中毒事件卫生应急响应的终止必须同时符合以下条件：突发中毒事件危害源和相关危险因素得到有效控制，无同源性新发中毒病例出现，多数中毒病人病情得到基本控制。",
+            "block_bbox": [
+              136,
+              272,
+              1090,
+              330
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "响应终止程序：",
+            "block_bbox": [
+              178,
+              334,
+              322,
+              359
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "a）国家卫生应急队伍完成卫生应急任务后，队长在评估现场工作后，向现场指挥部提出撤离请示，经现场指挥部批准后，方可撤离。",
+            "block_bbox": [
+              177,
+              365,
+              1086,
+              423
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "b) 队长负责收集组员提交的各类资料，如现场应急处置调查工作报告、现场风险评估报告、个案调查表等文字和影响资料。",
+            "block_bbox": [
+              177,
+              428,
+              1089,
+              485
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "c）由队长按照任务下达单位要求，提交现场资料，或向有关部门、单位进行相关工作移交。",
+            "block_bbox": [
+              178,
+              489,
+              1024,
+              517
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "d) 队伍撤离。",
+            "block_bbox": [
+              179,
+              522,
+              310,
+              547
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "e）事件总结评估，包括处理环节中的经验教训。",
+            "block_bbox": [
+              179,
+              552,
+              624,
+              579
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "f）队员休整，按照任务工作量，队员可进行1-2周的休整。",
+            "block_bbox": [
+              179,
+              583,
+              729,
+              611
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "g) 应急物资的清点与补充。队长负责对本次应急任务进行物品清点评估，耗材按相关要求进行补充、设备装备仪器进行维护保养，以确保下一次任务的有效开展。",
+            "block_bbox": [
+              178,
+              614,
+              1088,
+              673
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8 培训演练",
+            "block_bbox": [
+              137,
+              708,
+              264,
+              734
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8.1 一般原则",
+            "block_bbox": [
+              138,
+              770,
+              283,
+              799
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "按照“统一规划、分类实施、突出重点、适应需求”的原则有计划地开展应急演练。",
+            "block_bbox": [
+              177,
+              815,
+              951,
+              846
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8.2 队伍培训",
+            "block_bbox": [
+              138,
+              865,
+              284,
+              892
+            ],
+            "block_id": 15,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "制定年度队伍培训方案，规定培训方式、对象、内容、频次、形式和策划、实施、总结和评估、各类记录等。",
+            "block_bbox": [
+              136,
+              912,
+              1088,
+              970
+            ],
+            "block_id": 16,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "理论知识培训应学习国家和省市颁布的有关法律法规和规范，如近年来国家卫生部颁布的《卫生部突发中毒事件卫生应急预案》《突发中毒事件医疗卫生应急人员防护导则》，及突发中毒事件卫生应急处置技术方案，掌握常见毒物的毒理学、洗消防护和诊治方面的知识，熟悉救援队的各种方案、预案。",
+            "block_bbox": [
+              137,
+              973,
+              1091,
+              1064
+            ],
+            "block_id": 17,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8.3 队伍演练",
+            "block_bbox": [
+              138,
+              1082,
+              283,
+              1110
+            ],
+            "block_id": 18,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "应急队伍每年至少演练一次。演练视情况进行整体方案的综合演练、或就响应程序、通讯联络、伤员分类、现场急救、采样检测技术、防护措施、污染监测与去污、伤员转运、指挥系统等分系统的局部演练。根据需要可以进行桌面演练和实地演练。应制定演练方案，演练脚本，及时进行演练评估和总结。",
+            "block_bbox": [
+              137,
+              1129,
+              1091,
+              1221
+            ],
+            "block_id": 19,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8.3.1 防护训练",
+            "block_bbox": [
+              157,
+              1239,
+              311,
+              1266
+            ],
+            "block_id": 20,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "主要包括：",
+            "block_bbox": [
+              180,
+              1286,
+              280,
+              1311
+            ],
+            "block_id": 21,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "a）在现场展开地域的选择到救治过程中的个人防护技术要求。",
+            "block_bbox": [
+              177,
+              1316,
+              750,
+              1343
+            ],
+            "block_id": 22,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "b）个人防护器材的培训主要包括了解防护器材的防护性能，掌握各级别的防护服穿戴方法，以及污染后洗消和储存方法等。",
+            "block_bbox": [
+              176,
+              1348,
+              1090,
+              1406
+            ],
+            "block_id": 23,
+          },
+          {
+        "page_no": 16,
+            "block_label": "paragraph_title",
+            "block_content": "8.3.2 应急处置技术训练",
+            "block_bbox": [
+              165,
+              1426,
+              402,
+              1453
+            ],
+            "block_id": 24,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "主要包括：",
+            "block_bbox": [
+              180,
+              1473,
+              279,
+              1498
+            ],
+            "block_id": 25,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "a）采样检测技术以及可能在污染情况下救治伤员，或者是尽可能减少伤病员造成的二次污染。",
+            "block_bbox": [
+              178,
+              1504,
+              1045,
+              1530
+            ],
+            "block_id": 26,
+          },
+          {
+        "page_no": 16,
+            "block_label": "text",
+            "block_content": "b）不同场所检测分析技术、洗消技术和穿戴防护服后施救以及污染伤口的处置是训练的重点内容。",
+            "block_bbox": [
+              177,
+              1535,
+              1085,
+              1563
+            ],
+            "block_id": 27,
+          },
+          {
+        "page_no": 16,
+            "block_label": "number",
+            "block_content": "15",
+            "block_bbox": [
+              1085,
+              1565,
+              1109,
+              1584
+            ],
+            "block_id": 28,
+          },
+          {
+        "page_no": 17,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 17,
+            "block_label": "paragraph_title",
+            "block_content": "8.3.3 应急处置流程演练",
+            "block_bbox": [
+              165,
+              147,
+              400,
+              173
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 17,
+            "block_label": "text",
+            "block_content": "主要包括：",
+            "block_bbox": [
+              181,
+              194,
+              279,
+              218
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 17,
+            "block_label": "text",
+            "block_content": "a）人员组成、设备器材与应急处置技术的准备，现场组织指挥、快速展开、各组协调配合等步骤。",
+            "block_bbox": [
+              178,
+              225,
+              1085,
+              251
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 17,
+            "block_label": "text",
+            "block_content": "b）演练的主要内容包括各应急处置组人员分工、设备器材展开、伤病员救治程序等。",
+            "block_bbox": [
+              177,
+              256,
+              962,
+              283
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 17,
+            "block_label": "seal",
+            "block_content": "",
+            "block_bbox": [
+              136,
+              356,
+              1109,
+              1318
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 17,
+            "block_label": "number",
+            "block_content": "16",
+            "block_bbox": [
+              140,
+              1565,
+              163,
+              1584
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 18,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 18,
+            "block_label": "paragraph_title",
+            "block_content": "附 录 A",
+            "block_bbox": [
+              564,
+              215,
+              668,
+              239
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 18,
+            "block_label": "paragraph_title",
+            "block_content": "(资料性附录)0",
+            "block_bbox": [
+              545,
+              246,
+              698,
+              270
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 18,
+            "block_label": "paragraph_title",
+            "block_content": "突发中毒事件应急队队伍装备目录",
+            "block_bbox": [
+              453,
+              276,
+              775,
+              302
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 18,
+            "block_label": "paragraph_title",
+            "block_content": "A.1 突发中毒事件应急队伍中毒处置类装备目录",
+            "block_bbox": [
+              177,
+              336,
+              649,
+              361
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 18,
+            "block_label": "figure_title",
+            "block_content": "表 A1 应急通讯指挥装备类目录",
+            "block_bbox": [
+              466,
+              368,
+              773,
+              393
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 18,
+            "block_label": "table",
+            "block_content": "<table><tr><td>序号</td><td>品名</td><td>规格</td><td>单位</td><td>数量</td><td>备注</td></tr><tr><td>1</td><td>通讯设备</td><td></td><td></td><td></td><td></td></tr><tr><td>1.1</td><td>移动电话</td><td></td><td>部</td><td>2部/队</td><td></td></tr><tr><td>1.2</td><td>移动传真机</td><td></td><td>台</td><td>1台/队</td><td></td></tr><tr><td>1.3</td><td>对讲机</td><td></td><td>台</td><td>1/3人</td><td></td></tr><tr><td>1.4</td><td>海事卫星mini-m站</td><td></td><td>套</td><td>1套/队</td><td>通话、传真</td></tr><tr><td></td><td>或海事卫星M4站</td><td></td><td>套</td><td>1套/队</td><td>通话、传真、图像传输</td></tr><tr><td>1.5</td><td>亚星电话和铱星电话</td><td></td><td>部</td><td>2部/队</td><td></td></tr><tr><td>1.6</td><td>GPS全球定位仪</td><td></td><td>台</td><td>3台/队</td><td>根据情况选用</td></tr><tr><td>2</td><td>办公设备</td><td></td><td></td><td></td><td></td></tr><tr><td>2.1</td><td>笔记本电脑（含办公软件、无线上网卡）</td><td></td><td>台</td><td>2台/队</td><td>抗机械损伤、防水、多频网络、防病毒</td></tr><tr><td>2.2</td><td>多功能打印机</td><td></td><td>台</td><td>1</td><td>打印、复印、传真一体</td></tr><tr><td>2.3</td><td>无线局域网套件</td><td></td><td>套</td><td>2套/队</td><td></td></tr><tr><td>2.4</td><td>移动存储器</td><td></td><td>个</td><td>2个/队</td><td>防震、加密</td></tr><tr><td>2.5</td><td>办公用品（纸、笔等）</td><td></td><td></td><td></td><td>视情况决定</td></tr><tr><td>2.6</td><td>电池</td><td>各型号</td><td>节</td><td>若干</td><td></td></tr><tr><td>2.7</td><td>受援地区或受援国地图</td><td></td><td>幅</td><td>2幅/队</td><td></td></tr><tr><td>2.8</td><td>受援地电子地图</td><td></td><td>套</td><td>1</td><td></td></tr><tr><td>2.9</td><td>手持扩音器</td><td></td><td>个</td><td>2个/队</td><td></td></tr><tr><td>2.10</td><td>国际等相羊磁带</td><td></td><td>盘</td><td>2盘/队</td><td>1盘备用</td></tr><tr><td>2.11</td><td>录音笔</td><td></td><td>支</td><td>2支/队</td><td></td></tr><tr><td>2.12</td><td>录音机</td><td></td><td>套</td><td>1套/队</td><td></td></tr><tr><td>2.13</td><td>便携式<img src=\"imgs/img_in_seal_box_294_1121_592_1306.jpg\" alt=\"Image\"\" /></td><td></td><td>台</td><td>1台/队</td><td></td></tr><tr><td>2.14</td><td>数码摄</td><td></td><td>台</td><td>1台/队</td><td></td></tr><tr><td>2.15</td><td>数码照</td><td></td><td>台</td><td>2台/队</td><td></td></tr><tr><td>3</td><td>指挥车辆</td><td></td><td></td><td></td><td></td></tr><tr><td>3.1</td><td>越野车</td><td></td><td>台</td><td>1台/队</td><td>装载通信指挥平台</td></tr></table>",
+            "block_bbox": [
+              136,
+              413,
+              1076,
+              1375
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 18,
+            "block_label": "number",
+            "block_content": "表 A2",
+            "block_bbox": [
+              482,
+              1504,
+              535,
+              1525
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 18,
+            "block_label": "footer",
+            "block_content": "专业处置类装备目录",
+            "block_bbox": [
+              481,
+              1501,
+              746,
+              1526
+            ],
+            "block_id": 8,
+          },
+          {
+            "block_label": "number",
+            "block_content": "17",
+            "block_bbox": [
+              1085,
+              1565,
+              1108,
+              1585
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 19,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1108,
+              136
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 19,
+            "block_label": "table",
+            "block_content": "<table><tr><td>序号</td><td>品名</td><td>规格</td><td>单位</td><td>数量</td><td>备注</td></tr><tr><td>1</td><td>个体防护装备</td><td></td><td></td><td></td><td></td></tr><tr><td>1.1</td><td>呼吸防护</td><td></td><td></td><td></td><td></td></tr><tr><td>1.1.1</td><td>常见气体报警器</td><td></td><td>套</td><td>1套/人</td><td>氧气、氨气、氯气、硫化氢、苯蒸气、甲醛、TVOC、一氧化碳种类、量程满足各类气体的IDHL值，配有不充电电池</td></tr><tr><td>1.1.2</td><td>呼吸防护器</td><td>半面型</td><td>套</td><td>1套/人</td><td>配相应的滤毒盒/罐、滤棉</td></tr><tr><td></td><td></td><td>全面型</td><td>套</td><td>1套/人</td><td>配相应的滤毒盒/罐、滤棉</td></tr><tr><td>1.1.3</td><td>动力送风呼吸防护器</td><td></td><td>套</td><td>2套/队</td><td>配相应的滤毒盒/罐</td></tr><tr><td>1.1.4</td><td>携气式呼吸防护器</td><td></td><td>套</td><td>1套/人</td><td></td></tr><tr><td>1.1.5</td><td>备用气罐</td><td></td><td>个</td><td>1个/人</td><td></td></tr><tr><td>1.1.6</td><td>充气泵</td><td></td><td>台</td><td>2台/队</td><td></td></tr><tr><td>1.2</td><td>防护服</td><td></td><td></td><td></td><td></td></tr><tr><td>1.2.1</td><td>A级防护服</td><td>大中小</td><td>套</td><td>1套/人</td><td></td></tr><tr><td>1.2.2</td><td>B级防护服</td><td>大中小</td><td>套</td><td>1套/人</td><td></td></tr><tr><td>1.2.3</td><td>C级防护服</td><td>大中小</td><td>套</td><td>2套/人</td><td></td></tr><tr><td>1.3</td><td>眼防护</td><td></td><td></td><td></td><td></td></tr><tr><td>1.3.1</td><td>防护眼镜/眼罩/护目镜</td><td></td><td>副</td><td>2副/人</td><td></td></tr><tr><td>1.4</td><td>手防护</td><td></td><td></td><td></td><td></td></tr><tr><td>1.4.1</td><td>复合膜防护手套（不同规格）</td><td></td><td>副</td><td>2副/人</td><td></td></tr><tr><td>1.4.2</td><td>防切割手套</td><td></td><td>副</td><td>2副/人</td><td></td></tr><tr><td>1.4.3</td><td>乳胶手套</td><td></td><td>副</td><td>2副/人/工作日</td><td></td></tr><tr><td>1.5</td><td>脚防护</td><td></td><td></td><td></td><td></td></tr><tr><td>1.5.1</td><td>各种防护鞋/防护靴</td><td></td><td>双</td><td>1双/人/种</td><td>具有防护酸、碱、有机溶剂等功能</td></tr><tr><td>1.5.2</td><td>防护鞋套</td><td></td><td>双</td><td>4双/人</td><td></td></tr><tr><td>2</td><td>现场样本采集、保存装备</td><td></td><td></td><td></td><td></td></tr><tr><td>2.1</td><td>环境样本</td><td></td><td></td><td></td><td></td></tr><tr><td>2.1.1</td><td>气体采样泵（罐）、收集装置</td><td></td><td>套</td><td>20</td><td></td></tr><tr><td>2.1.2</td><td>土壤收集瓶、收集袋</td><td></td><td>个</td><td>100</td><td></td></tr><tr><td>2.1.3</td><td>水收集试管、瓶</td><td>各种规格</td><td>个</td><td>100</td><td></td></tr><tr><td>2.1.4</td><td>残留物收集容器</td><td></td><td>个</td><td>200</td><td></td></tr><tr><td>2.1.5</td><td>化学品采集容器</td><td></td><td>套</td><td>2</td><td></td></tr></table>",
+            "block_bbox": [
+              132,
+              145,
+              1089,
+              1537
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 19,
+            "block_label": "number",
+            "block_content": "18",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 20,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1107,
+              136
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 20,
+            "block_label": "table",
+            "block_content": "<table><tr><td>2.1.6</td><td>水质采样仪</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.1.7</td><td>气体采样仪</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.1.8</td><td>空气微生物采样仪</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.1.9</td><td>集尘采样仪</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.2</td><td>生物样本</td><td></td><td></td><td></td><td></td></tr><tr><td>2.2.1</td><td>呕吐物样本采样袋</td><td></td><td>个</td><td>200</td><td></td></tr><tr><td>2.2.2</td><td>粪便采样器</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.2.3</td><td>血、尿、便样本采集试管、瓶、袋</td><td></td><td>个</td><td>600</td><td>各200个</td></tr><tr><td>2.2.4</td><td>组织样本容器</td><td></td><td>个</td><td>200</td><td></td></tr><tr><td>2.2.5</td><td>动物样本采集袋</td><td></td><td>个</td><td>100</td><td></td></tr><tr><td>2.2.6</td><td>植物样本采集盒</td><td></td><td>个</td><td>100</td><td></td></tr><tr><td>2.2.7</td><td>人乳样本采集</td><td></td><td></td><td>40</td><td></td></tr><tr><td>2.2.8</td><td>可疑食物采样容器</td><td></td><td></td><td>40</td><td></td></tr><tr><td>2.3</td><td>样本保存、运输</td><td></td><td></td><td></td><td></td></tr><tr><td>2.3.1</td><td>样本保存箱</td><td></td><td>个</td><td>8</td><td></td></tr><tr><td>2.3.2</td><td>运送培养基</td><td></td><td>个</td><td>200</td><td></td></tr><tr><td>2.3.3</td><td>液氮低温保存箱</td><td></td><td>个</td><td>2</td><td></td></tr><tr><td>2.3.4</td><td>普通冰箱</td><td>40L</td><td>台</td><td>1</td><td></td></tr><tr><td>2.3.5</td><td>现场快速鉴定、检测装备</td><td></td><td></td><td></td><td></td></tr><tr><td>2.3.6</td><td>中毒鉴定检测车</td><td></td><td>辆</td><td>1</td><td>配备相应设备</td></tr><tr><td>2.3.7</td><td>气体检测仪（配相关有毒气体传感器）</td><td></td><td>套</td><td>3</td><td>包括氧气、一氧化碳、二氧化碳、硫化氢、氯气、磷化氢、氨气、氰化物、光气、氮氧化物、甲醛、苯蒸气、TVOC等多种气体的检测器，单通道或多通道，量程大于各类气体的IDHL值。</td></tr><tr><td>2.3.8</td><td>化学法毒物快速检测箱</td><td></td><td>套</td><td>5</td><td>常见毒物、药物、战剂的化学法或简单仪器分析</td></tr><tr><td>2.3.9</td><td>检气管</td><td></td><td>套</td><td>3</td><td>包括多种物质的检气管，量程大于各类物质的IDHL值</td></tr><tr><td>2.3.10</td><td>气相色谱/质谱仪</td><td>便携/车载式</td><td>套</td><td>1</td><td></td></tr><tr><td>2.3.11</td><td>气象仪</td><td></td><td>套</td><td>1</td><td>温度计、气压计、风速仪、风向仪、声纳计1套</td></tr></table>",
+            "block_bbox": [
+              133,
+              145,
+              1083,
+              1548
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 20,
+            "block_label": "number",
+            "block_content": "19",
+            "block_bbox": [
+              1085,
+              1566,
+              1108,
+              1584
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 21,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              115,
+              1108,
+              136
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 21,
+            "block_label": "table",
+            "block_content": "<table><tr><td>2.3.12</td><td>水质快速检测仪</td><td></td><td>套</td><td>2</td><td>余氯比色计、浊度计、pH计、色度仪、温度计</td></tr><tr><td>2.3.13</td><td>PM2.5 测定仪</td><td></td><td>套</td><td>2</td><td></td></tr><tr><td>2.3.14</td><td>红外检测仪</td><td></td><td>套</td><td>1</td><td></td></tr><tr><td>4</td><td>其他装备</td><td></td><td></td><td></td><td></td></tr><tr><td>4.1</td><td>毒物查询系统</td><td></td><td></td><td></td><td></td></tr><tr><td>4.2</td><td>查毒用笔记本电脑</td><td></td><td>台</td><td>1</td><td>含 Tomes plus、化救通、MSDS 库等软件</td></tr><tr><td>4.3</td><td>洗消及环境处理</td><td></td><td></td><td></td><td></td></tr><tr><td>4.4</td><td>便携式冲洗器</td><td></td><td>台</td><td>2</td><td></td></tr><tr><td>4.5</td><td>泄漏物控制材料</td><td></td><td></td><td>若干</td><td></td></tr><tr><td>4.6</td><td>清除毒物</td><td></td><td></td><td></td><td></td></tr><tr><td>4.7</td><td>洗眼器</td><td>便携</td><td>套</td><td>2</td><td></td></tr><tr><td>4.8</td><td>重伤员皮肤洗消装置</td><td></td><td>台</td><td>1</td><td></td></tr></table>",
+            "block_bbox": [
+              138,
+              138,
+              1040,
+              656
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 21,
+            "block_label": "figure_title",
+            "block_content": "A3 后勤保障装备目录",
+            "block_bbox": [
+              504,
+              691,
+              724,
+              717
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 21,
+            "block_label": "figure_title",
+            "block_content": "表 A3.1 个人携行装备目录",
+            "block_bbox": [
+              483,
+              760,
+              734,
+              786
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 21,
+            "block_label": "table",
+            "block_content": "<table><tr><td>序号</td><td>品名</td><td></td><td>规格</td><td>单位</td><td>备注</td></tr><tr><td>1</td><td>服装类</td><td></td><td></td><td></td><td></td></tr><tr><td>1.1</td><td>救援队队服</td><td></td><td></td><td></td><td>防水、防风、透湿</td></tr><tr><td></td><td>冬春服</td><td></td><td>大中小</td><td>套</td><td></td></tr><tr><td></td><td>夏秋服</td><td></td><td>大中小</td><td>套</td><td></td></tr><tr><td>1.2</td><td>反光识别背心</td><td></td><td></td><td></td><td></td></tr><tr><td>1.3</td><td>帽子</td><td></td><td></td><td></td><td></td></tr><tr><td>2</td><td>生活携行类</td><td></td><td></td><td></td><td>视情况携带下列物资</td></tr><tr><td>2.1</td><td>背囊</td><td></td><td></td><td>个</td><td>防水</td></tr><tr><td>2.2</td><td>腰包</td><td></td><td>防水型</td><td>个</td><td>装证件、救生哨等随身物品</td></tr><tr><td>2.3</td><td>洗漱包</td><td></td><td></td><td>个</td><td>含牙刷、牙膏等洗漱用品</td></tr><tr><td>2.4</td><td>药盒</td><td></td><td>便携式</td><td>个</td><td>含个人常用药品</td></tr><tr><td>2.5</td><td>身份识别牌</td><td></td><td></td><td>个</td><td>身份、职务分类——统一制作</td></tr><tr><td>2.6</td><td>工作笔记本</td><td></td><td></td><td>个</td><td></td></tr><tr><td>2.7</td><td>签字笔</td><td></td><td></td><td>支</td><td></td></tr><tr><td>2.8</td><td>工作手册</td><td></td><td></td><td>册</td><td>卫生应急工作手册</td></tr><tr><td>2.9</td><td>手电</td><td></td><td></td><td>个</td><td></td></tr><tr><td>2.10</td><td>头灯</td><td></td><td></td><td>个</td><td></td></tr><tr><td>2.11</td><td>驱蚊剂</td><td></td><td></td><td>瓶</td><td></td></tr><tr><td>2.12</td><td>防晒霜</td><td></td><td></td><td>瓶</td><td></td></tr><tr><td>2.13</td><td>水壶（或水袋）</td><td></td><td></td><td>个</td><td>选用军品，可背可挎带</td></tr></table>",
+            "block_bbox": [
+              138,
+              788,
+              1081,
+              1539
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 21,
+            "block_label": "number",
+            "block_content": "20",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 22,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              913,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 22,
+            "block_label": "table",
+            "block_content": "<table><tr><td>2.14</td><td>太阳镜</td><td></td><td>副</td><td></td></tr><tr><td>2.15</td><td>救护绳</td><td></td><td>根</td><td></td></tr><tr><td>2.16</td><td>便携多功能刀</td><td></td><td>把</td><td></td></tr><tr><td>2.17</td><td>救生哨</td><td></td><td>个</td><td></td></tr><tr><td>2.18</td><td>带指北针计时器</td><td></td><td>块</td><td></td></tr><tr><td>2.19</td><td>防风打火机</td><td></td><td>个</td><td></td></tr><tr><td>2.20</td><td>消毒纸巾</td><td></td><td>包</td><td></td></tr><tr><td>2.21</td><td>野战饭盒</td><td></td><td>个</td><td>含勺、筷</td></tr><tr><td>2.22</td><td>脸盆</td><td></td><td>个</td><td>便</td></tr><tr><td>2.23</td><td>睡袋</td><td></td><td>个</td><td>院</td></tr><tr><td>2.24</td><td>毛毯</td><td></td><td>条</td><td></td></tr><tr><td>2.25</td><td>毛巾被</td><td></td><td>条</td><td></td></tr><tr><td>2.26</td><td>蚊帐</td><td></td><td>顶</td><td><img src=\"imgs/img_in_seal_box_762_442_1061_713.jpg\" alt=\"Image\"\" /></td></tr><tr><td>2.27</td><td>充气垫</td><td></td><td>个</td><td></td></tr><tr><td>2.28</td><td>救生烟火棒</td><td></td><td>个</td><td></td></tr><tr><td>2.29</td><td>雨衣</td><td></td><td>件</td><td></td></tr></table>",
+            "block_bbox": [
+              137,
+              144,
+              1077,
+              713
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 22,
+            "block_label": "figure_title",
+            "block_content": "表 A3.2 后勤保障装备目录",
+            "block_bbox": [
+              474,
+              779,
+              742,
+              804
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 22,
+            "block_label": "table",
+            "block_content": "<table><tr><td>序号</td><td>品名</td><td>规格</td><td>单位</td><td>数量</td><td>备注</td></tr><tr><td>1</td><td>宿营</td><td></td><td></td><td></td><td></td></tr><tr><td>1.1</td><td>住宿帐篷</td><td>网架结构</td><td>顶</td><td>1顶/6人</td><td>大于24平方米</td></tr><tr><td>1.2</td><td>指挥帐篷</td><td>网架结构</td><td>顶</td><td>1</td><td>35平方米左右</td></tr><tr><td>1.3</td><td>保障帐篷</td><td>网架结构</td><td>顶</td><td>2</td><td>库房、厨房</td></tr><tr><td>1.4</td><td>单人、双人、叁人帐篷</td><td></td><td></td><td>根据情况定</td><td>双层隔热、底层防水</td></tr><tr><td>1.5</td><td>冷暖风机</td><td>20KW</td><td>台</td><td>1台/帐篷</td><td></td></tr><tr><td>1.6</td><td>水桶</td><td></td><td>个</td><td>1个/帐篷</td><td></td></tr><tr><td>1.7</td><td>折叠桌</td><td></td><td>张</td><td>1张/帐篷</td><td></td></tr><tr><td>1.8</td><td>折叠椅</td><td></td><td>把</td><td>1把/人</td><td></td></tr><tr><td>1.9</td><td>折叠床</td><td></td><td>张</td><td>1张/人</td><td></td></tr><tr><td>1.10</td><td>塑料布</td><td></td><td>张</td><td>1张/人</td><td></td></tr><tr><td>1.11</td><td>厕所帐篷</td><td></td><td>顶</td><td>1</td><td></td></tr><tr><td>1.12</td><td>围布（含杆）</td><td></td><td>米</td><td>100</td><td></td></tr><tr><td>1.13</td><td>晾衣绳（杆）</td><td></td><td>套</td><td>1</td><td></td></tr><tr><td>1.14</td><td>不锈钢暖瓶</td><td>5磅</td><td>个</td><td>1个/帐篷</td><td></td></tr><tr><td>1.15</td><td>垃圾袋</td><td></td><td>个</td><td>6/帐篷/日</td><td></td></tr><tr><td>1.16</td><td>警戒带（红、黄、绿）</td><td>500米×3种</td><td>套</td><td>1</td><td></td></tr><tr><td>1.17</td><td>警戒杆</td><td></td><td>根</td><td>若干</td><td></td></tr><tr><td>1.18</td><td>警示标识</td><td></td><td>套</td><td>若干</td><td></td></tr><tr><td>1.19</td><td>洗涤用品</td><td></td><td>瓶</td><td>若干</td><td></td></tr><tr><td>1.20</td><td>洗浴装置</td><td></td><td>套</td><td>2</td><td></td></tr></table>",
+            "block_bbox": [
+              137,
+              805,
+              1083,
+              1555
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 22,
+            "block_label": "number",
+            "block_content": "21",
+            "block_bbox": [
+              1084,
+              1565,
+              1108,
+              1584
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 22,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1108,
+              136
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 22,
+            "block_label": "table",
+            "block_content": "<table><tr><td>2</td><td>供电照明</td><td></td><td></td><td></td><td></td></tr><tr><td>2.1</td><td>移动电站</td><td>30KW</td><td>台</td><td>1</td><td>挂车式</td></tr><tr><td>2.2</td><td>发电机</td><td>2KW、5KW</td><td>台</td><td>4</td><td>各2台</td></tr><tr><td>2.3</td><td>防水配电盘</td><td></td><td>台</td><td>1</td><td></td></tr><tr><td>2.4</td><td>电缆搅盘</td><td></td><td>个</td><td>4</td><td></td></tr><tr><td>2.5</td><td>电线</td><td></td><td>米</td><td>2000</td><td></td></tr><tr><td>2.6</td><td>防水接线板</td><td></td><td>个</td><td>1个/帐篷</td><td></td></tr><tr><td>2.7</td><td>节能灯（个灯头）</td><td></td><td>个</td><td>2个/帐篷</td><td></td></tr><tr><td>2.8</td><td>油桶</td><td></td><td></td><td></td><td></td></tr><tr><td>2.9</td><td>月球灯</td><td></td><td></td><td></td><td></td></tr><tr><td>2.10</td><td>爆闪标示</td><td></td><td></td><td></td><td></td></tr><tr><td>2.11</td><td>国际转接</td><td></td><td></td><td></td><td></td></tr><tr><td>2.12</td><td>车用逆变压器（12V-220V）</td><td></td><td>个</td><td>2</td><td></td></tr><tr><td>2.13</td><td>太阳能充电器、手动充电器</td><td></td><td>个</td><td>2</td><td></td></tr><tr><td>3</td><td>炊具</td><td></td><td></td><td></td><td></td></tr><tr><td>3.1</td><td>炊具组套</td><td></td><td>套</td><td>套/15人</td><td></td></tr><tr><td>3.2</td><td>电热水壶</td><td></td><td>个</td><td>4</td><td></td></tr><tr><td>3.3</td><td>软体储水壶</td><td>1立方米</td><td>个</td><td>3</td><td></td></tr><tr><td>3.4</td><td>净水装置</td><td></td><td>套</td><td>3</td><td>可供30人</td></tr><tr><td>3.5</td><td>水袋</td><td></td><td>个</td><td>2个/帐篷</td><td>带喷头</td></tr><tr><td>4</td><td>食品</td><td></td><td></td><td></td><td></td></tr><tr><td>4.1</td><td>主副食</td><td></td><td></td><td>10天量</td><td>含适量自热食品</td></tr><tr><td>4.2</td><td>压缩干粮</td><td>50g</td><td>块</td><td>1块/人/天</td><td></td></tr><tr><td>4.3</td><td>矿泉水</td><td>500ml</td><td>瓶</td><td>5瓶/人/天</td><td></td></tr><tr><td>4.4</td><td>方便面</td><td></td><td>包</td><td>1包/人/天</td><td></td></tr><tr><td>5</td><td>工具设备</td><td></td><td></td><td></td><td></td></tr><tr><td>5.1</td><td>斧子</td><td></td><td>把</td><td>2</td><td></td></tr><tr><td>5.2</td><td>细铁丝</td><td></td><td>公斤</td><td>10</td><td></td></tr><tr><td>5.3</td><td>尼龙绳</td><td></td><td>米</td><td>1000</td><td></td></tr><tr><td>5.4</td><td>折叠梯</td><td></td><td>个</td><td>2</td><td></td></tr><tr><td>5.5</td><td>后勤包</td><td></td><td>个</td><td>若干</td><td>可采用卫生装备包装箱</td></tr><tr><td>5.6</td><td>铁锹、镐</td><td></td><td>把</td><td>各1把/帐篷</td><td></td></tr><tr><td>5.7</td><td>组合工具箱</td><td></td><td>套</td><td>1</td><td>钳子、改锥等（注意防水、防震）</td></tr><tr><td>5.8</td><td>锯子</td><td></td><td>把</td><td>2</td><td></td></tr><tr><td>6</td><td>车辆</td><td></td><td></td><td></td><td></td></tr><tr><td>6.1</td><td>后勤保障车辆</td><td></td><td>车辆</td><td></td><td>视情况决定</td></tr></table>",
+            "block_bbox": [
+              132,
+              121,
+              1091,
+              1465
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 22,
+            "block_label": "figure_title",
+            "block_content": "表 A3.3 微章标志目录",
+            "block_bbox": [
+              510,
+              1492,
+              717,
+              1515
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 22,
+            "block_label": "table",
+            "block_content": "<table><tr><td>序号</td><td>品名</td><td>规格</td><td>单位</td><td>数量</td><td>备注</td></tr></table>",
+            "block_bbox": [
+              138,
+              1518,
+              1086,
+              1553
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 22,
+            "block_label": "number",
+            "block_content": "22",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 23,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 23,
+            "block_label": "table",
+            "block_content": "<table><tr><td>1</td><td>国旗</td><td>150x225cm</td><td>幅</td><td>2</td><td></td></tr><tr><td>2</td><td>党旗</td><td>150x226cm</td><td>幅</td><td>2</td><td></td></tr><tr><td>3</td><td>队旗</td><td>150x225cm</td><td>幅</td><td>2</td><td>卫生部统一制作</td></tr><tr><td>4</td><td>臂章</td><td></td><td>枚</td><td>1枚/人</td><td>卫生部统一制作</td></tr><tr><td>5</td><td>伸缩式旗杆</td><td></td><td>杆</td><td>6</td><td>展开不少于9米</td></tr><tr><td>6</td><td>中国卫生应急标识（不干胶）</td><td></td><td></td><td>若干</td><td>视不同情况选用</td></tr></table>",
+            "block_bbox": [
+              138,
+              139,
+              1089,
+              372
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 23,
+            "block_label": "seal",
+            "block_content": "",
+            "block_bbox": [
+              141,
+              378,
+              1116,
+              1318
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 23,
+            "block_label": "number",
+            "block_content": "23",
+            "block_bbox": [
+              1084,
+              1565,
+              1108,
+              1585
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 23,
+            "block_label": "aside_text",
+            "block_content": "CHINA ASSOCIATION",
+            "block_bbox": [
+              192,
+              619,
+              278,
+              1020
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 23,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 23,
+            "block_label": "paragraph_title",
+            "block_content": "附录 B",
+            "block_bbox": [
+              564,
+              214,
+              666,
+              239
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 23,
+            "block_label": "paragraph_title",
+            "block_content": "(资料性附录)",
+            "block_bbox": [
+              550,
+              246,
+              679,
+              270
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 23,
+            "block_label": "paragraph_title",
+            "block_content": "常用特效解毒药",
+            "block_bbox": [
+              538,
+              277,
+              691,
+              301
+            ],
+            "block_id": 4,
+          },
+          {
+            "block_label": "text",
+            "block_content": "表B给出了突发中毒事件应急队伍装备目录。",
+            "block_bbox": [
+              138,
+              336,
+              542,
+              362
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 23,
+            "block_label": "figure_title",
+            "block_content": "表 B 常用特效解毒药",
+            "block_bbox": [
+              564,
+              382,
+              764,
+              407
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 23,
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"2\">序号</td><td rowspan=\"2\">名称</td><td>中毒事件</td></tr><tr><td>毒物类型</td></tr><tr><td>1</td><td>二巯丙磺钠</td><td>汞、砷</td></tr><tr><td>2</td><td>依地酸钙钠</td><td>铅</td></tr><tr><td>3</td><td>普鲁士蓝</td><td>铊</td></tr><tr><td>4</td><td>硫酸钠</td><td>钡</td></tr><tr><td>5</td><td>氯解磷定</td><td>有机磷酸酯类杀虫剂</td></tr><tr><td>7</td><td>碘解磷定</td><td>有机磷酸酯类杀虫剂</td></tr><tr><td>8</td><td>阿托品</td><td>有机磷酸酯类杀虫剂</td></tr><tr><td>9</td><td>长托宁</td><td>有机磷酸酯类杀虫剂</td></tr><tr><td>10</td><td>亚甲蓝</td><td>氰化物，高铁血红蛋白形成剂</td></tr><tr><td>11</td><td>亚硝酸异戊酯</td><td>氰化物</td></tr><tr><td>12</td><td>亚硝酸钠</td><td>氰化物</td></tr><tr><td>13</td><td>4-二甲氨基苯酚</td><td>氰化物</td></tr><tr><td>14</td><td>硫代硫酸钠</td><td>氰化物</td></tr><tr><td>15</td><td>乙酰胺</td><td>有机氟类杀鼠剂</td></tr><tr><td>16</td><td>维生素  $ K_{1} $</td><td>抗凝血类杀鼠剂</td></tr><tr><td>17</td><td>氟马西尼</td><td>苯二氮卓类药物</td></tr><tr><td>18</td><td>纳洛酮</td><td>吗啡类药物和含吗啡类生物碱植物</td></tr><tr><td>19</td><td>肉毒抗毒素 A、B、E</td><td>肉毒中毒</td></tr><tr><td>20</td><td>蛇毒血清</td><td>蛇毒中毒</td></tr></table>",
+            "block_bbox": [
+              279,
+              418,
+              965,
+              1139
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 23,
+            "block_label": "number",
+            "block_content": "24",
+            "block_bbox": [
+              140,
+              1565,
+              162,
+              1584
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 24,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              114,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 24,
+            "block_label": "paragraph_title",
+            "block_content": "附录 C",
+            "block_bbox": [
+              563,
+              213,
+              668,
+              239
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 24,
+            "block_label": "paragraph_title",
+            "block_content": "(规范性附录)",
+            "block_bbox": [
+              549,
+              245,
+              680,
+              270
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 24,
+            "block_label": "paragraph_title",
+            "block_content": "个体防护装备配备表",
+            "block_bbox": [
+              515,
+              276,
+              713,
+              303
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 24,
+            "block_label": "figure_title",
+            "block_content": "表 C.1 个体防护装备配备表",
+            "block_bbox": [
+              475,
+              335,
+              752,
+              363
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 24,
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"3\" colspan=\"2\"></td><td colspan=\"7\">防护等级</td></tr><tr><td rowspan=\"2\">A级</td><td colspan=\"2\">B级</td><td colspan=\"2\">C级</td><td rowspan=\"2\" colspan=\"2\">D级</td></tr><tr><td>B1级</td><td>B2级</td><td>C1级</td><td>C2级</td></tr><tr><td colspan=\"2\">防护作用</td><td>● IDLH 呼吸危害● 通过皮肤吸收的气体或蒸气</td><td>● IDLH 呼吸危害● 腐蚀性皮肤危害</td><td>● IDLH 呼吸危害● 缺氧环境● 无皮肤危害</td><td>● 非IDLH 水平的呼吸危害● 皮肤危害</td><td>● 非IDLH 水平的呼吸危害● 无皮肤危害</td><td colspan=\"2\">● 低于国家职业卫生标准规定的浓度限值且无皮肤危害</td></tr><tr><td rowspan=\"2\">个体防护装备</td><td>呼吸防护</td><td>● 携气式呼吸器</td><td colspan=\"2\">● 携气式呼吸器</td><td colspan=\"2\">● 全面罩过滤式呼吸防护用品或动力送风过滤式呼吸器</td><td colspan=\"2\">● 随弃式颗粒物防护口罩</td></tr><tr><td>皮肤防护</td><td>● 气密型防护服</td><td>● 喷射液体防护服● 化学防护手套● 化学防护靴</td><td>● 颗粒物防护服● 乳胶手套</td><td>● 泼溅液体防护服● 化学防护手套● 化学防护靴</td><td>● 颗粒物防护服● 乳胶手套</td><td colspan=\"2\">● 颗粒物防护服或工作服● 乳胶手套</td></tr><tr><td>选配器材</td><td>● 安全帽● 通讯器材● 制冷背心● 化学防护靴● 现场毒物快速检测仪</td><td colspan=\"3\">● 安全帽● 通讯器材● 制冷背心● 现场毒物快速检测仪</td><td colspan=\"2\">● 安全帽● 通讯器材● 现场毒物快速检测仪</td><td colspan=\"2\">● 安全帽● 半面罩过滤式呼吸器● 防护眼罩● 化学防护手套</td></tr><tr><td>主要限制</td><td>● 携气式呼吸器● 热和体力负荷● 作业效能</td><td colspan=\"3\">● 携气式呼吸器● 热和体力负荷● 作业效能</td><td colspan=\"2\">● 过滤元件● 热负荷● 作业效能</td><td colspan=\"2\">无明显限制</td></tr></table>",
+            "block_bbox": [
+              114,
+              380,
+              1130,
+              1291
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 24,
+            "block_label": "figure_title",
+            "block_content": "表 C.2 医疗卫生应急处置人员防护等级及装备配备",
+            "block_bbox": [
+              369,
+              1335,
+              856,
+              1361
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 24,
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"2\"></td><td colspan=\"4\">医疗卫生应急处置人员防护等级</td></tr><tr><td>A级</td><td>B级</td><td>C级</td><td>D级</td></tr><tr><td>适用场合</td><td>● 高水平的呼吸和皮肤化学危害</td><td>● 高水平的呼吸危害或腐蚀性皮肤化学危害</td><td>● 中、低水平的呼吸危害，毒物种类和浓度已</td><td>● 低于职业卫生容许限值的呼吸危害及无</td></tr></table>",
+            "block_bbox": [
+              120,
+              1409,
+              1125,
+              1544
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 24,
+            "block_label": "number",
+            "block_content": "25",
+            "block_bbox": [
+              1085,
+              1565,
+              1108,
+              1585
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 25,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1107,
+              136
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 25,
+            "block_label": "table",
+            "block_content": "<table><tr><td colspan=\"2\"></td><td></td><td>● 化学危害的密闭或缺氧环境</td><td>知，非缺氧环境● 非皮肤吸收的气态有毒物，非缺氧环境</td><td>皮肤化学危害</td></tr><tr><td colspan=\"2\">适用区域</td><td>● 热区</td><td>● 热区</td><td>● 温区</td><td>● 冷区</td></tr><tr><td rowspan=\"2\">个体防护装备</td><td>呼吸防护</td><td>携气式呼吸器（SCBA）</td><td>携气式呼吸器（SCBA）</td><td>全面罩过滤式呼吸用品</td><td>无；或随弃式颗粒物防护口罩</td></tr><tr><td>皮肤防护</td><td>A级防护服化学防护靴</td><td>B级防护服化学防护手套化学防护靴</td><td>C级防护服化学防护手套化学防护靴</td><td>D级防护服乳胶手套</td></tr><tr><td colspan=\"2\">选配器材</td><td>安全帽通讯器材制冷背心现场毒物快速检测仪</td><td>安全帽通讯器材制冷背心现场毒物快速检测仪</td><td>安全帽通讯器材送风式过滤装置现场毒物快速检测仪</td><td>安全帽半面罩过滤式呼吸器防护眼罩化学防护手套</td></tr><tr><td colspan=\"2\">主要限制</td><td>有限作业时间（40分钟内）严重的热和体力负荷严重影响作业效能</td><td>有限作业时间（40分钟内）严重的热和体力负荷严重影响作业效能</td><td>有限作业时间（60分钟内）较严重热负荷影响作业效能</td><td>无明显限制</td></tr></table>",
+            "block_bbox": [
+              120,
+              144,
+              1124,
+              907
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 25,
+            "block_label": "number",
+            "block_content": "26",
+            "block_bbox": [
+              139,
+              1566,
+              163,
+              1584
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 26,
+            "block_label": "header",
+            "block_content": "T/CADERM 5003-2019",
+            "block_bbox": [
+              914,
+              115,
+              1108,
+              137
+            ],
+            "block_id": 0,
+          },
+          {
+        "page_no": 26,
+            "block_label": "paragraph_title",
+            "block_content": "参 考 文 献",
+            "block_bbox": [
+              536,
+              211,
+              692,
+              238
+            ],
+            "block_id": 1,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[1]WS/T 突发中毒事件卫生应急处置人员防护导则",
+            "block_bbox": [
+              183,
+              294,
+              649,
+              319
+            ],
+            "block_id": 2,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[2]GB_T 12903-2008 个体防护装备术语",
+            "block_bbox": [
+              184,
+              326,
+              556,
+              350
+            ],
+            "block_id": 3,
+          },
+          {
+        "page_no": 26,
+            "block_label": "seal",
+            "block_content": "",
+            "block_bbox": [
+              162,
+              297,
+              1110,
+              1341
+            ],
+            "block_id": 4,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[3]GBT 11651-2008 个体防护装备选用规范",
+            "block_bbox": [
+              184,
+              357,
+              586,
+              381
+            ],
+            "block_id": 5,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[4] GB/T18664-2002 呼吸防护用品的选择、使用与维护",
+            "block_bbox": [
+              184,
+              387,
+              692,
+              413
+            ],
+            "block_id": 6,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[5] GB 2626-2006 呼吸防护用品 自吸过滤式防颗粒物呼吸器",
+            "block_bbox": [
+              185,
+              418,
+              742,
+              443
+            ],
+            "block_id": 7,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[6] GB 2890-2009 呼吸防护自吸过滤式防毒面具",
+            "block_bbox": [
+              184,
+              450,
+              628,
+              475
+            ],
+            "block_id": 8,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[7]中华人民共和国突发事件应对法",
+            "block_bbox": [
+              184,
+              481,
+              513,
+              506
+            ],
+            "block_id": 9,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[8]中华人民共和国食品安全法",
+            "block_bbox": [
+              184,
+              512,
+              472,
+              537
+            ],
+            "block_id": 10,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[9]突发公共卫生事件应急条例",
+            "block_bbox": [
+              184,
+              543,
+              471,
+              568
+            ],
+            "block_id": 11,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[10]国家突发公共卫生事件应急预案",
+            "block_bbox": [
+              185,
+              574,
+              523,
+              599
+            ],
+            "block_id": 12,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[11] 国家突发公共事件医疗卫生救援应急预案",
+            "block_bbox": [
+              184,
+              606,
+              607,
+              631
+            ],
+            "block_id": 13,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[12] 突发中毒事件卫生应急预案及技术方案",
+            "block_bbox": [
+              183,
+              637,
+              587,
+              662
+            ],
+            "block_id": 14,
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[13]2010年国家卫生应急队伍建设项目管理方案",
+            "block_bbox": [
+              184,
+              668,
+              632,
+              693
+            ],
+            "block_id": 15
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[14]全国卫生部门卫生应急管理工作规范",
+            "block_bbox": [
+              184,
+              699,
+              566,
+              723
+            ],
+            "block_id": 16
+          },
+          {
+        "page_no": 26,
+            "block_label": "reference_content",
+            "block_content": "[15]全国疾病预防控制机构卫生应急工作规范",
+            "block_bbox": [
+              184,
+              730,
+              606,
+              755
+            ],
+            "block_id": 17
+          },
+          {
+        "page_no": 26,
+            "block_label": "number",
+            "block_content": "27",
+            "block_bbox": [
+              1085,
+              1565,
+              1108,
+              1584
+            ],
+            "block_id": 18,
+          }
+  ]

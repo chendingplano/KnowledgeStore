@@ -27,6 +27,7 @@ Link: ```url https://sitandr.github.io/typst-examples-book/book/basics/tutorial/
   align: left,
   [Name], [Description], [Documentation],
   [Bicep], [Microsoft], [Azure-specific],
+)
 ```
 
 ## Figure

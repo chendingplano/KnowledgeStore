@@ -1,7 +1,13 @@
 Use superpowers skill
 
-<Description>
-Develop a Go service. It monitors ks.input table. Below is the table's schema:
+# Environment
+GitRepo: https://github.com/deepdocs-cd/pdf-proc.git
+Local Directory: ~/Workspace/shared-projects/pdf-proc (note that this directory has not been created yet)
+
+# Description
+Develop a Go service. It monitors the table `ks.input` (below is the table's schema):
+
+```sql
 CREATE TABLE kb.inputs (
 	id bigserial NOT NULL,
 	"name" text NULL,
@@ -25,8 +31,10 @@ CREATE TABLE kb.inputs (
 	md5 varchar(64) NULL,
 	CONSTRAINT inputs_pkey PRIMARY KEY (id)
 );
+```
 
 'status' is a JSON doc. Below is an example:
+```json
 [
   {
     "status": "active",
@@ -42,26 +50,30 @@ CREATE TABLE kb.inputs (
     "operation": "parse"
   }
 ]
+```
 
 The service checks the table every N (configurable, default to 10) seconds. If a record 'status'
 field has an entry:
+```json
   {
     "time": "20260330 16:14:53",
     "error": "",
     "status": "success",
     "operation": "parse"
   }
+```
 
 but does not have an entry with "operation" = "convert-json" and its 'type' is 'pdf', this means
 the record is for a PDF document. Its content has been extracted and saved in a file whose name is in 'result_filename'. 
 
 This task converts the file into a compact form.
-</Description>
 
-<ConvertLogic>
+# ConvertLogic
 The input is a JSON file from the field 'result_filename'. In addition, the directory also has an image file for each of the pages. The image file names are 'page_ddd.png', such as page_1.png, page_2.png, ..., page_28.png. 
 
 Below is a portion of the input file ('result_filename'):
+```json
+
 {
   "input_id": 22,
   "source_pdf": "/Users/cding/Apps/Staging/stdGk_3031867.pdf",
@@ -161,22 +173,26 @@ Below is a portion of the input file ('result_filename'):
       }
     }
 }
+```
 
-For a complete example, refer to /Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/ocr_rslt_22.json.
-There are multiple "parsing_res_list" entries, one per page in the file.
+For a complete example, refer to `assets/ocr_rslt_22.json`. There are multiple "parsing_res_list" entries in the above JSON file, one per page in the file.
 
 This service extracts all the entries in all the "parsing_res_list", convert them to the following format:
+```json
 {
+    "page_no": ddd,
+    "block_id": ddd,
     "block_label": "xxx",
     "block_content": "xxx",
     "block_bbox": [ddd, ddd, ddd, ddd],
-    "page_no": ddd,
     "image": "xxx"
 }
+```
 
 The output file name is '<origin_filename_without_ext>' + '_comp.json'. For instance, if the input file name is 'ocr_rslt_22.json', the output file name is 'ocr_rslt_22_comp.json'.
 
 After the conversion, it set an entry to 'status' field:
+```json
 {
   {
     "time": "yyyymmdd hh:mm:ss",
@@ -184,9 +200,10 @@ After the conversion, it set an entry to 'status' field:
     "operation": "converted"
   }
 }
-
+```
 
 If the conversion failed, set an entry to 'status' field:
+```json
 {
   {
     "time": "yyyymmdd hh:mm:ss",
@@ -195,11 +212,9 @@ If the conversion failed, set an entry to 'status' field:
     "operation": "converted"
   }
 }
+```
 
 Note it `sets` the entry, which means if the entry with "operation" = "converted" already exists, replace it.
-</ConvertLogic>
 
-<Repository>
-GitRepo: https://github.com/deepdocs-cd/pdf-proc.git
-Local Directory: ~/Workspace/shared-projects/pdf-proc (note that this directory has not been created yet)
-</Repository>
+# Test
+Refer to AUTOTESTER.md for testing. 
