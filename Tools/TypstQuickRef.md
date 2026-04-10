@@ -56,3 +56,25 @@ Link: ```url https://sitandr.github.io/typst-examples-book/book/basics/tutorial/
 "... having to discover it on their own. Both of those concerns are actually why LLMs.txt was a valuable idea, but it was the wrong implementation."
 ]
 ```
+
+## Reference
+Intra-File reference:
+```text
+= Introduction <sec:intro>
+
+This is the intro section.
+
+...
+
+See @sec:intro for more details.
+```
+
+The same is true for figures:
+```text
+#figure(
+  rect(width: 2cm, height: 2cm),
+  caption: [A square]
+) <fig:square>
+
+Refer to @fig:square.
+```
