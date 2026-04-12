@@ -9,6 +9,7 @@ Use superpowers to create a PDF parser and save it in shared/go/api/parsers/pdf-
 
 ## kb.input Table Definition
 
+<a id="kb-input-table-def"></a>
 | Field Name | Required | Explanation |
 |:-----------|:---------|:------------|
 | id | mandatory | Auto-incremented ID (integer) that identifies the record |

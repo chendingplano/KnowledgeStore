@@ -15,11 +15,21 @@
   it.body
 }
 
+#let frontmatter = (
+  filename: "ArtifactLinks",
+  file-type: "typst",
+  link: "file:artifact-links",
+  link-display: "Artifact Links",
+  author: "Chen Ding",
+  date: "2026-04-08",
+  tags: ("Artifact Links"),
+)
+
 #set page(
   numbering: "1 of 1",
   footer: context {
     line(length: 100%)
-    "Reading-202602"
+    "ArtifactLinks"
     h(1fr)
     counter(page).display("1/1", both: true)
   },
@@ -34,9 +44,9 @@
 #show heading.where(level: 3): set text(size: 14pt)
 #show heading.where(level: 3): it => pad(top: 4pt, it)
 
-= Artifact Links
+= SemObj Links
 
-The design principle for artifact links is for human users and AI. Links will create
+The design principle for SemObj links is for human users and AI. Links will create
 a *machine-readable knowledge graph* that can be used equally well for both human users
 and LLMs.
 
@@ -52,6 +62,38 @@ Links should ideally be:
 - *LLM Reasoning*
 
 == Link Format
+
+A link is made of two components:
+```text
+   link-id + link-name
+```
+where `link-id` identifies the link globally and `link-name` is the link's display name.
+
+`link-id` format is (similar to URL):
+```text
+  [<link-type>:]link-identifier
+```
+
+`<link-type>` is optional. If not specified, it defaults to `content`. 
+
+The table below list all the supported link types:
+#table(
+  columns: 2,
+  align: left,
+  [Link Type], [Explanation],
+  [file], [The linked is a file (more precisely a 'virtual file')],
+  [content], [The linked is something inside a object. This is the default type],
+  [chapter], [A chapter in an object such as a markdown document, PDF document, etc.]
+)
+
+Link formats are file type dependent.
+
+#table(
+  columns: 3,
+  align: left,
+  [File Format], [Link Format], [Explanation],
+  [Markdown], [[link-id](link-name)], [],
+)
 
 Below is link formats:
 
@@ -70,28 +112,33 @@ The basic syntax is:
 *Examples*
 
 ```md
-[My Note](my-note.md)
+[My Note](my-note)
 [Google](https://google.com)
+
+Here is the way how to use the link: [My Note](#my-note)
 ```
 
-This is:
-
-- Explicit
-- Portable
-- Works everywhere
-
-== Relative Links
-
-For a file-based knowledge base (like MKBP), you’ll mostly use *relative paths*:
-
+To reference an anchor in another file:
 ```md
-[Database Concepts](../databases/concepts.md)
+[Display Name](<file-name>#heading-anchor)
+```
+where: "Display Name" is the string you want to display; \<file-name\> is either a relative file name or a
+full-qualified file name; "heading-anchor" is the anchor name (id). 
+
+Note that Markdown only allows you to answer headings. If you want to anchor something other than headings,
+use the HTML tag: \<a\>:
+```md
+<a id="this-is-a-paragraph-anchar"></a>
+This is the paragraph you want to anchor ...
+...
 ```
 
-This is important because:
-
-- It keeps your system *filesystem-native*
-- No global index required
+Then you can use the anchor as:
+```md
+This is something in current file.
+...
+For more information, refer to [Display Name](filename#this-is-a-paragraph-anchar)
+```
 
 == Wiki-style Links (Obsidian-style)
 
@@ -100,41 +147,6 @@ Tools like Obsidian use:
 ```md
 [[My Note]]
 [[Database Concepts]]
-```
-
-Advantages of this approach:
-
-- No need to write paths
-- Encourages *linking-first thinking*
-- Feels like a wiki
-
-== Variations
-
-```md
-[[My Note|Custom Text]]
-[[folder/My Note]]
-```
-
-This is *not standard Markdown*, but widely adopted in note systems.
-
-== Anchors (linking to a specific section)
-
-You can link to a heading inside a file:
-
-```md
-[See section](my-note.md#database-design)
-```
-
-Where:
-
-```md
-## Database Design
-```
-
-becomes:
-
-```
-#database-design
 ```
 
 == Backlinks (implicit links)
@@ -151,18 +163,5 @@ Then:
 
 This is what makes systems feel like a *graph*
 
-== Tags (soft links)
-
-Another lightweight linking method:
-
-```md
-#database
-#llm
-#postgres
-```
-
-These are:
-
-- Not explicit edges
-- But still form *semantic clusters*
+== Frontmatter
 

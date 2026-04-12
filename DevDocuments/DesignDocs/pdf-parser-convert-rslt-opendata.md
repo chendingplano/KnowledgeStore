@@ -1,15 +1,23 @@
+<!-- 
+tags: kb.input, pdf, pdf-parser, pdf-process 
+summary: The design document for converting extracted results in JSON format from a PDF document into a text 
+file, where each line in the file represents one JSON element in the input file with only four attributes:
+line number, page number, coordinate and content.
+-->
+
 Use superpowers to create a Go service. Its input is a markdown file. It converts the input file and saves the results into an output file.
 Save the program to aas/server/api/file-converters.
 
 - This is a service. It subsribes from the JetStream service with a condition 'type' = 'pdf' and 'status' = 'success'.
 - The request it receives from JetStream should contain the following attributes:
-    - record_id: identifies the record in table 'kb.input'
+    - record_id: identifies the record in table 'kb.input' (refer to [kb.input Table](./pdf-parser-go-service.md#kb-input-table-def) for the table schema)
     - result_filename: the input file name
     - file_format: specifies the input file format
 - Upon receiving a request, it retrieves the record from kb.input by record_id. If not found, it is an error. Log the error and terminate.
-- It then check its status. Refer to "Status Management"
+- It then check its status. Refer to [Status Management](#status-management)
 
-## Status Management
+
+## [Status Management](status-management)
 An input may be processed by a pipeline, such as for Field `type` = 'pdf', it will be processed by:
  - Extracting (or parsing) text and document structures from the PDF document
  - Use an LLM to extract topics from the extracted text and generate chunks based on the topics
@@ -31,8 +39,8 @@ where:
 Below is the workflow to handle the status:
 - If the record 'type' != 'pdf', it is an error. Log the error and finish.
 - If the 'status' field does not contain an entry with "operation":"parsed" and "proc-status":"success", it is an error. Log the error and finish.
-- If the 'parser_name' field is null, empty, or "opendata", the result file is from the 'opendataloader-pdf' parser. Use the 'opendata' converter (see below) to convert the file.
-- If the 'parser_name' field is "paddleocr", use the "paddleocr" converter (see below) to convert the file.
+- If the 'parser_name' field is null, empty, or "opendata", the result file is from the 'opendataloader-pdf' parser. Use the [opendata Converter](#opendata-converter) to convert the file.
+- If the 'parser_name' field is "paddleocr", use the [paddleocr Converter](#paddleocr-converter) to convert the file.
 - Otherwise, it is an error. Log the error and finish.
 - Upon finishing, add the following entry to the 'status' field:
 
@@ -56,15 +64,15 @@ If error occurred, it should generate the following instead:
   }
 ```
 
-== Input File
+## [Input File](input-file)
 
 The input file name is from the 'result_filename' field.
 
-== paddleocr Converter
+## [paddleocr Converter](paddleocr-converter)
 
 Will implement this converter in the future.
 
-== opendata Converter
+## [opendata Converter](opendata-converter)
 
 The input file is a JSON. Refer to "opendata Input File Example". Every entry in the JSON doc is converted to a line in the output file.
 The line format is:

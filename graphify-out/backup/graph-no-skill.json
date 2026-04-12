@@ -1,0 +1,4155 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "README",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/README.md",
+      "id": "README.md",
+      "community": 10
+    },
+    {
+      "label": "AUTOTESTER",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tasks/convert-pdf-json/AUTOTESTER.md",
+      "id": "Tasks/convert-pdf-json/AUTOTESTER.md",
+      "community": 7
+    },
+    {
+      "label": "SKILL",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tasks/convert-pdf-json/SKILL.md",
+      "id": "Tasks/convert-pdf-json/SKILL.md",
+      "community": 7
+    },
+    {
+      "label": "postgres",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/postgres.md",
+      "id": "Tools/postgres.md",
+      "community": 2
+    },
+    {
+      "label": "claude-code",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/claude-code.md",
+      "id": "Tools/claude-code.md",
+      "community": 2
+    },
+    {
+      "label": "TypstQuickRef",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/TypstQuickRef.md",
+      "id": "Tools/TypstQuickRef.md",
+      "community": 2
+    },
+    {
+      "label": "common-commands",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/common-commands.md",
+      "id": "Tools/common-commands.md",
+      "community": 2
+    },
+    {
+      "label": "go-name-convention",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/go-name-convention.md",
+      "id": "Tools/go-name-convention.md",
+      "community": 2
+    },
+    {
+      "label": "codex",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/codex.md",
+      "id": "Tools/codex.md",
+      "community": 2
+    },
+    {
+      "label": "jj-commands",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/jj-commands.md",
+      "id": "Tools/jj-commands.md",
+      "community": 2
+    },
+    {
+      "label": "docker",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Tools/docker.md",
+      "id": "Tools/docker.md",
+      "community": 2
+    },
+    {
+      "label": "table-schema-kb-input",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/database-table-schemas/table-schema-kb-input.md",
+      "id": "database-table-schemas/table-schema-kb-input.md",
+      "community": 11
+    },
+    {
+      "label": "DocGraph",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Specs/DocGraph.md",
+      "id": "Specs/DocGraph.md",
+      "community": 8
+    },
+    {
+      "label": "DocMap",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Specs/DocMap.md",
+      "id": "Specs/DocMap.md",
+      "community": 8
+    },
+    {
+      "label": "PiAutoResearch",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Projects/OpenSourceProjects/PiAutoResearch.md",
+      "id": "Projects/OpenSourceProjects/PiAutoResearch.md",
+      "community": 12
+    },
+    {
+      "label": "NEEDS_SEMANTIC_EXTRACTION",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/graphify-out/NEEDS_SEMANTIC_EXTRACTION.md",
+      "id": "graphify-out/NEEDS_SEMANTIC_EXTRACTION.md",
+      "community": 9
+    },
+    {
+      "label": "GRAPH_REPORT",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/graphify-out/GRAPH_REPORT.md",
+      "id": "graphify-out/GRAPH_REPORT.md",
+      "community": 9
+    },
+    {
+      "label": "ConfigFixSummary",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/BugsAndIssues/ConfigFixSummary.md",
+      "id": "BugsAndIssues/ConfigFixSummary.md",
+      "community": 13
+    },
+    {
+      "label": "JAI-LightWeightSandbox",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/AI/JAI-LightWeightSandbox.md",
+      "id": "AI/JAI-LightWeightSandbox.md",
+      "community": 4
+    },
+    {
+      "label": "AvailableAIAssistants",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/AI/AvailableAIAssistants.md",
+      "id": "AI/AvailableAIAssistants.md",
+      "community": 4
+    },
+    {
+      "label": "ollama",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/AI/ollama.md",
+      "id": "AI/ollama.md",
+      "community": 4
+    },
+    {
+      "label": "SelfEvolving-HyperAgents",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/AI/SelfEvolving-HyperAgents.md",
+      "id": "AI/SelfEvolving-HyperAgents.md",
+      "community": 4
+    },
+    {
+      "label": "CreateMainPagePrompt",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "id": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "community": 5
+    },
+    {
+      "label": "CreateChatterPrompt",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "id": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "community": 5
+    },
+    {
+      "label": "ComplianceAnalyzerSkill",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "id": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "community": 5
+    },
+    {
+      "label": "CreateFlowEditorPrompt",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "id": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "community": 5
+    },
+    {
+      "label": "InstallProjectPrompt",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Prompts/Installation/InstallProjectPrompt.md",
+      "id": "Prompts/Installation/InstallProjectPrompt.md",
+      "community": 14
+    },
+    {
+      "label": "obsidian",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/ThirdPartyTools/obsidian.md",
+      "id": "ThirdPartyTools/obsidian.md",
+      "community": 15
+    },
+    {
+      "label": "goose",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Codebase/goose.md",
+      "id": "Codebase/goose.md",
+      "community": 16
+    },
+    {
+      "label": "DocReasoning",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Skills/DocReasoning.md",
+      "id": "Skills/DocReasoning.md",
+      "community": 17
+    },
+    {
+      "label": "releasemgr",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/releasemgr.md",
+      "id": "DevDocuments/releasemgr.md",
+      "community": 0
+    },
+    {
+      "label": "migration-users",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/migration-users.md",
+      "id": "DevDocuments/migration-users.md",
+      "community": 0
+    },
+    {
+      "label": "pgbackup",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/pgbackup.md",
+      "id": "DevDocuments/pgbackup.md",
+      "community": 0
+    },
+    {
+      "label": "Logs",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/Logs.md",
+      "id": "DevDocuments/Logs.md",
+      "community": 0
+    },
+    {
+      "label": "dbmigration-openai",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/dbmigration-openai.md",
+      "id": "DevDocuments/dbmigration-openai.md",
+      "community": 0
+    },
+    {
+      "label": "goose-v1",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/goose-v1.md",
+      "id": "DevDocuments/goose-v1.md",
+      "community": 0
+    },
+    {
+      "label": "syncdata-readme",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/syncdata-readme.md",
+      "id": "DevDocuments/syncdata-readme.md",
+      "community": 0
+    },
+    {
+      "label": "dbmigration",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/dbmigration.md",
+      "id": "DevDocuments/dbmigration.md",
+      "community": 0
+    },
+    {
+      "label": "jujutsu",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/jujutsu.md",
+      "id": "DevDocuments/jujutsu.md",
+      "community": 0
+    },
+    {
+      "label": "syncdata-v2",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/syncdata-v2.md",
+      "id": "DevDocuments/syncdata-v2.md",
+      "community": 0
+    },
+    {
+      "label": "config",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/config.md",
+      "id": "DevDocuments/config.md",
+      "community": 0
+    },
+    {
+      "label": "syncdata-agent",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/syncdata-agent.md",
+      "id": "DevDocuments/syncdata-agent.md",
+      "community": 0
+    },
+    {
+      "label": "log2db",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/log2db.md",
+      "id": "DevDocuments/log2db.md",
+      "community": 0
+    },
+    {
+      "label": "mitmproxy",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/mitmproxy.md",
+      "id": "DevDocuments/mitmproxy.md",
+      "community": 0
+    },
+    {
+      "label": "goose",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/goose.md",
+      "id": "DevDocuments/goose.md",
+      "community": 0
+    },
+    {
+      "label": "IconService",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/IconService.md",
+      "id": "DevDocuments/IconService.md",
+      "community": 0
+    },
+    {
+      "label": "syncdata",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/syncdata.md",
+      "id": "DevDocuments/syncdata.md",
+      "community": 0
+    },
+    {
+      "label": "psql-reference",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/psql-reference.md",
+      "id": "DevDocuments/psql-reference.md",
+      "community": 0
+    },
+    {
+      "label": "doc-generation-api",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/doc-generation-api.md",
+      "id": "DevDocuments/doc-generation-api.md",
+      "community": 0
+    },
+    {
+      "label": "goose-review-qwen",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/goose-review-qwen.md",
+      "id": "DevDocuments/goose-review-qwen.md",
+      "community": 0
+    },
+    {
+      "label": "psql-reference_v1",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/psql-reference_v1.md",
+      "id": "DevDocuments/psql-reference_v1.md",
+      "community": 0
+    },
+    {
+      "label": "pdf-parser-convert-rslt-opendata",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "id": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "community": 3
+    },
+    {
+      "label": "pdf-parser-python",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/pdf-parser-python.md",
+      "id": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "community": 3
+    },
+    {
+      "label": "stdGk_3032175",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/stdGk_3032175.md",
+      "id": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "community": 3
+    },
+    {
+      "label": "create-knowledgebase-import",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "id": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "community": 3
+    },
+    {
+      "label": "pdf-parser-go-service",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "id": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "community": 3
+    },
+    {
+      "label": "generate-semantic-entries",
+      "file_type": "document",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "id": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "community": 3
+    },
+    {
+      "label": "FXTH87EH116T1_NXP_USA_Inc",
+      "file_type": "paper",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "id": "PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "community": 6
+    },
+    {
+      "label": "QChunker",
+      "file_type": "paper",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/PDFs/QChunker.pdf",
+      "id": "PDFs/QChunker.pdf",
+      "community": 6
+    },
+    {
+      "label": "QChunker",
+      "file_type": "paper",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/PDFs/QChunker.md",
+      "id": "PDFs/QChunker.md",
+      "community": 6
+    },
+    {
+      "label": "image_2026040104",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040104.png",
+      "id": "Images/image_2026040104.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040101",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040101.png",
+      "id": "Images/image_2026040101.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040102",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040102.png",
+      "id": "Images/image_2026040102.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040301",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040301.png",
+      "id": "Images/image_2026040301.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040103",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040103.png",
+      "id": "Images/image_2026040103.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040602",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040602.png",
+      "id": "Images/image_2026040602.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032901",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032901.png",
+      "id": "Images/image_2026032901.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026040601",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026040601.png",
+      "id": "Images/image_2026040601.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032101",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032101.png",
+      "id": "Images/image_2026032101.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032301",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032301.png",
+      "id": "Images/image_2026032301.png",
+      "community": 1
+    },
+    {
+      "label": "image-2026040701",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image-2026040701.png",
+      "id": "Images/image-2026040701.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032102",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032102.png",
+      "id": "Images/image_2026032102.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032201",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032201.png",
+      "id": "Images/image_2026032201.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032401",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/Images/image_2026032401.png",
+      "id": "Images/image_2026032401.png",
+      "community": 1
+    },
+    {
+      "label": "image_2026032501",
+      "file_type": "image",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore/AI/Images/image_2026032501.png",
+      "id": "AI/Images/image_2026032501.png",
+      "community": 18
+    }
+  ],
+  "links": [
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tasks/convert-pdf-json/AUTOTESTER.md",
+      "_tgt": "Tasks/convert-pdf-json/SKILL.md",
+      "source": "Tasks/convert-pdf-json/AUTOTESTER.md",
+      "target": "Tasks/convert-pdf-json/SKILL.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/claude-code.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/claude-code.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/TypstQuickRef.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/TypstQuickRef.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/common-commands.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/common-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/go-name-convention.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/go-name-convention.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/codex.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/codex.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/postgres.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/postgres.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/TypstQuickRef.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/TypstQuickRef.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/common-commands.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/common-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/go-name-convention.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/go-name-convention.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/codex.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/codex.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/claude-code.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/claude-code.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/TypstQuickRef.md",
+      "_tgt": "Tools/common-commands.md",
+      "source": "Tools/TypstQuickRef.md",
+      "target": "Tools/common-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/TypstQuickRef.md",
+      "_tgt": "Tools/go-name-convention.md",
+      "source": "Tools/TypstQuickRef.md",
+      "target": "Tools/go-name-convention.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/TypstQuickRef.md",
+      "_tgt": "Tools/codex.md",
+      "source": "Tools/TypstQuickRef.md",
+      "target": "Tools/codex.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/TypstQuickRef.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/TypstQuickRef.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/TypstQuickRef.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/TypstQuickRef.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/common-commands.md",
+      "_tgt": "Tools/go-name-convention.md",
+      "source": "Tools/common-commands.md",
+      "target": "Tools/go-name-convention.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/common-commands.md",
+      "_tgt": "Tools/codex.md",
+      "source": "Tools/common-commands.md",
+      "target": "Tools/codex.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/common-commands.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/common-commands.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/common-commands.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/common-commands.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/go-name-convention.md",
+      "_tgt": "Tools/codex.md",
+      "source": "Tools/go-name-convention.md",
+      "target": "Tools/codex.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/go-name-convention.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/go-name-convention.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/go-name-convention.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/go-name-convention.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/codex.md",
+      "_tgt": "Tools/jj-commands.md",
+      "source": "Tools/codex.md",
+      "target": "Tools/jj-commands.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/codex.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/codex.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Tools/jj-commands.md",
+      "_tgt": "Tools/docker.md",
+      "source": "Tools/jj-commands.md",
+      "target": "Tools/docker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Specs/DocGraph.md",
+      "_tgt": "Specs/DocMap.md",
+      "source": "Specs/DocGraph.md",
+      "target": "Specs/DocMap.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "graphify-out/NEEDS_SEMANTIC_EXTRACTION.md",
+      "_tgt": "graphify-out/GRAPH_REPORT.md",
+      "source": "graphify-out/NEEDS_SEMANTIC_EXTRACTION.md",
+      "target": "graphify-out/GRAPH_REPORT.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/JAI-LightWeightSandbox.md",
+      "_tgt": "AI/AvailableAIAssistants.md",
+      "source": "AI/JAI-LightWeightSandbox.md",
+      "target": "AI/AvailableAIAssistants.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/JAI-LightWeightSandbox.md",
+      "_tgt": "AI/ollama.md",
+      "source": "AI/JAI-LightWeightSandbox.md",
+      "target": "AI/ollama.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/JAI-LightWeightSandbox.md",
+      "_tgt": "AI/SelfEvolving-HyperAgents.md",
+      "source": "AI/JAI-LightWeightSandbox.md",
+      "target": "AI/SelfEvolving-HyperAgents.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/AvailableAIAssistants.md",
+      "_tgt": "AI/ollama.md",
+      "source": "AI/AvailableAIAssistants.md",
+      "target": "AI/ollama.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/AvailableAIAssistants.md",
+      "_tgt": "AI/SelfEvolving-HyperAgents.md",
+      "source": "AI/AvailableAIAssistants.md",
+      "target": "AI/SelfEvolving-HyperAgents.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "AI/ollama.md",
+      "_tgt": "AI/SelfEvolving-HyperAgents.md",
+      "source": "AI/ollama.md",
+      "target": "AI/SelfEvolving-HyperAgents.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "source": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "target": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "source": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "target": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "source": "Prompts/CreateWebPagePrompts/CreateMainPagePrompt.md",
+      "target": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "source": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "target": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "source": "Prompts/CreateWebPagePrompts/CreateChatterPrompt.md",
+      "target": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "_tgt": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "source": "Prompts/CreateWebPagePrompts/ComplianceAnalyzerSkill.md",
+      "target": "Prompts/CreateWebPagePrompts/CreateFlowEditorPrompt.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/migration-users.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/migration-users.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/pgbackup.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/pgbackup.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/Logs.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/Logs.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/dbmigration-openai.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/dbmigration-openai.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/goose-v1.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/goose-v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/releasemgr.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/releasemgr.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/pgbackup.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/pgbackup.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/Logs.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/Logs.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/dbmigration-openai.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/dbmigration-openai.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/goose-v1.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/goose-v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/migration-users.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/migration-users.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/Logs.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/Logs.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/dbmigration-openai.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/dbmigration-openai.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/goose-v1.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/goose-v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/pgbackup.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/pgbackup.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/dbmigration-openai.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/dbmigration-openai.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/goose-v1.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/goose-v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/Logs.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/Logs.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/goose-v1.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/goose-v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration-openai.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/dbmigration-openai.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/syncdata-readme.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/syncdata-readme.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-v1.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/goose-v1.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/dbmigration.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/dbmigration.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-readme.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/syncdata-readme.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/jujutsu.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/jujutsu.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/dbmigration.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/dbmigration.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/syncdata-v2.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/syncdata-v2.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/jujutsu.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/jujutsu.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/config.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/config.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-v2.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/syncdata-v2.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/syncdata-agent.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/syncdata-agent.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/config.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/config.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/log2db.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/log2db.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata-agent.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/syncdata-agent.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/mitmproxy.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/mitmproxy.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/log2db.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/log2db.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/goose.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/goose.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/mitmproxy.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/mitmproxy.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/IconService.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/IconService.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/goose.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/IconService.md",
+      "_tgt": "DevDocuments/syncdata.md",
+      "source": "DevDocuments/IconService.md",
+      "target": "DevDocuments/syncdata.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/IconService.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/IconService.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/IconService.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/IconService.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/IconService.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/IconService.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/IconService.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/IconService.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata.md",
+      "_tgt": "DevDocuments/psql-reference.md",
+      "source": "DevDocuments/syncdata.md",
+      "target": "DevDocuments/psql-reference.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/syncdata.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/syncdata.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/syncdata.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/syncdata.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/psql-reference.md",
+      "_tgt": "DevDocuments/doc-generation-api.md",
+      "source": "DevDocuments/psql-reference.md",
+      "target": "DevDocuments/doc-generation-api.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/psql-reference.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/psql-reference.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "name_token_overlap",
+      "confidence": "INFERRED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/psql-reference.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 0.6,
+      "source": "DevDocuments/psql-reference.md",
+      "target": "DevDocuments/psql-reference_v1.md"
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/doc-generation-api.md",
+      "_tgt": "DevDocuments/goose-review-qwen.md",
+      "source": "DevDocuments/doc-generation-api.md",
+      "target": "DevDocuments/goose-review-qwen.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/doc-generation-api.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/doc-generation-api.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/goose-review-qwen.md",
+      "_tgt": "DevDocuments/psql-reference_v1.md",
+      "source": "DevDocuments/goose-review-qwen.md",
+      "target": "DevDocuments/psql-reference_v1.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "name_token_overlap",
+      "confidence": "INFERRED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "_tgt": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "confidence_score": 0.6,
+      "source": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "target": "DevDocuments/DesignDocs/pdf-parser-python.md"
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "_tgt": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "source": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "target": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "_tgt": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "source": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "target": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "name_token_overlap",
+      "confidence": "INFERRED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "_tgt": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "confidence_score": 0.6,
+      "source": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "target": "DevDocuments/DesignDocs/pdf-parser-go-service.md"
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "_tgt": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "source": "DevDocuments/DesignDocs/pdf-parser-convert-rslt-opendata.md",
+      "target": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "_tgt": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "source": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "target": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "_tgt": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "source": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "target": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "name_token_overlap",
+      "confidence": "INFERRED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "_tgt": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "confidence_score": 0.6,
+      "source": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "target": "DevDocuments/DesignDocs/pdf-parser-go-service.md"
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "_tgt": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "source": "DevDocuments/DesignDocs/pdf-parser-python.md",
+      "target": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "_tgt": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "source": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "target": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "_tgt": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "source": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "target": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "_tgt": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "source": "DevDocuments/DesignDocs/stdGk_3032175.md",
+      "target": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "_tgt": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "source": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "target": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "_tgt": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "source": "DevDocuments/DesignDocs/create-knowledgebase-import.md",
+      "target": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "_tgt": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "source": "DevDocuments/DesignDocs/pdf-parser-go-service.md",
+      "target": "DevDocuments/DesignDocs/generate-semantic-entries.txt",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "_tgt": "PDFs/QChunker.pdf",
+      "source": "PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "target": "PDFs/QChunker.pdf",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "_tgt": "PDFs/QChunker.md",
+      "source": "PDFs/FXTH87EH116T1_NXP_USA_Inc.pdf",
+      "target": "PDFs/QChunker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "PDFs/QChunker.pdf",
+      "_tgt": "PDFs/QChunker.md",
+      "source": "PDFs/QChunker.pdf",
+      "target": "PDFs/QChunker.md",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040101.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040102.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040301.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040103.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040103.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040602.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040602.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040104.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040104.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026040102.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026040102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026040301.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026040301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026040103.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026040103.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026040602.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026040602.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040101.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040101.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026040301.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026040301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026040103.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026040103.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026040602.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026040602.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040102.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040102.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026040103.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026040103.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026040602.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026040602.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040301.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040301.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026040602.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026040602.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040103.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040103.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032901.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032901.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040602.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040602.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026040601.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026040601.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032901.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026032901.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image_2026032101.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image_2026032101.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026040601.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026040601.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032101.png",
+      "_tgt": "Images/image_2026032301.png",
+      "source": "Images/image_2026032101.png",
+      "target": "Images/image_2026032301.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032101.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026032101.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032101.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026032101.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032101.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026032101.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032101.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026032101.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032301.png",
+      "_tgt": "Images/image-2026040701.png",
+      "source": "Images/image_2026032301.png",
+      "target": "Images/image-2026040701.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032301.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image_2026032301.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032301.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026032301.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032301.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026032301.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image-2026040701.png",
+      "_tgt": "Images/image_2026032102.png",
+      "source": "Images/image-2026040701.png",
+      "target": "Images/image_2026032102.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image-2026040701.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image-2026040701.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image-2026040701.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image-2026040701.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032102.png",
+      "_tgt": "Images/image_2026032201.png",
+      "source": "Images/image_2026032102.png",
+      "target": "Images/image_2026032201.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032102.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026032102.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "in_same_directory",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/cding/Workspace/KnowledgeStore",
+      "_src": "Images/image_2026032201.png",
+      "_tgt": "Images/image_2026032401.png",
+      "source": "Images/image_2026032201.png",
+      "target": "Images/image_2026032401.png",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": []
+}
