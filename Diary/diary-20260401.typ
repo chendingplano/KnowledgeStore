@@ -703,3 +703,24 @@ open-sourced by Facebook).
 
 10. *Cost optimization*. Running the full compiler on 50 papers isn’t cheap. Smarter batching, prompt caching, and model selection per pass (for example, using a cheaper model or locally hosted models for summarization and a stronger one for article writing) would help. The config already supports per-pass model selection
 
+= 2026/04/12 - Anthropic Tool Design
+
+File: 20260412-anthropic-tool-design
+
+= 2026/04/12 - Skills
+
+Installed 19 skills from https://github.com/ComposioHQ/awesome-claude-skills/tree/master
+
+= 2026/04/12 - Buffett Letters
+
+https://buffett-letters-eir.pages.dev/
+
+It collects all the letters that Buffett wrote to the board, from 1958 to 2025.
+This is a good source to test our knowledge store.
+
+= 2026/04/12 - wechat-cli
+
+github.com/freestylefly/wechat-cli
+
+We can use this CLI to access WeChat.
+

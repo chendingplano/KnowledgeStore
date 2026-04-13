@@ -65,3 +65,13 @@
 #counter(page).update(1)
 #counter(heading).update(0)
 
+#let frontmatter = (
+  created: "2026/04/10",
+  logical_name: "xxx",
+  file_id: "2026041201",
+  file_type: "Typst",
+  keywords: ["xxx", "xxx"],
+  source_url: "xxx",
+  feed: "xxx"
+)
+
