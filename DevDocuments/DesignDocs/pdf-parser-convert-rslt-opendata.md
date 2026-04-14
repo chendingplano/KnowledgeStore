@@ -72,6 +72,16 @@ The input file name is from the 'result_filename' field.
 
 Will implement this converter in the future.
 
+## [mineru Converter](mineru-converter)
+
+The input file is a JSON. Every entry in the JSON doc is converted to a line in the output file.
+The line format is:
+- Line Number: An integer starting from 1
+- Page Number: from the field 'page number'
+- type: from the field 'type'
+- heading level: if the field 'heading level' is not empty, append "(header level)" to type
+- content: from the field 'content'
+- bbox: from the field 'bounding box'
 ## [opendata Converter](opendata-converter)
 
 The input file is a JSON. Refer to "opendata Input File Example". Every entry in the JSON doc is converted to a line in the output file.

@@ -114,7 +114,7 @@ Most techniques in Hindsight can be used in SemOS:
 I am not sure whether we want 'retain()' because we want to make SemOS invisible to users. It will remain
 mostly everything. For the same reason, we may not use reflect(). Everything should be automated.
 
-Where Hindsight looks strong:
+*Strength*
 
 It solves several real weaknesses of naïve memory systems. Plain vector search is weak at temporal questions,
 exact terms, indirect entity relationships, and cross-session synthesis. Hindsight explicitly tries to address
@@ -134,7 +134,7 @@ including a reported *91.4% overall accuracy* for one configuration and *89.0%* 
 against other memory approaches and full-context baselines. Those are their own benchmark claims, so I would
 treat them as encouraging rather than definitive. ([GitHub][6])
 
-Where I would be cautious:
+*Cautious*
 
 First, it is still a fairly *opinionated architecture*. If we want a memory layer that an LLM can explore naturally
 like a filesystem, Hindsight is not built around that metaphor. It is built around API verbs and internal
@@ -169,7 +169,7 @@ When I write something, come up with my ideas. I am not sure whether this is 'me
 The ideas that are helpful for SemOS include:
 - Self-Learning (observations) is a MUST feature to add to SemOS. This is the most important.
 
-
+= References
 [1]: https://github.com/vectorize-io/hindsight "GitHub - vectorize-io/hindsight: Hindsight: Agent Memory That  Learns · GitHub"
 
 [2]: https://hindsight.vectorize.io/developer/observations?utm_source=chatgpt.com "Observations: Knowledge Consolidation | Hindsight"

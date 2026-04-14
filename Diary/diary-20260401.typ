@@ -724,3 +724,6 @@ github.com/freestylefly/wechat-cli
 
 We can use this CLI to access WeChat.
 
+= 2026/04/13 - everything-claude-code
+
+This is a huge package. For more information, refer to Workspace/KnowledgeStore/AI/Project-EverythingClaudeCode.md.
