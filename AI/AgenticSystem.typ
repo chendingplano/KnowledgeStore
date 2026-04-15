@@ -876,9 +876,69 @@ The table below lists all the locations SemOS currently supports:
   [Lines:[ddd, ddd-ddd, ddd]], [Multiple regions in a file]
 )
 
+= Daily Notes
+
+== Agentic System Features
+
+#let a_001 = link(
+  "https://openai.com/index/harness-engineering/"
+)[#text(fill: blue)[OpenAI Agent Harness]]
+
+#a_001 \
+[[openai-harness-engineering]]
+
+*Humans Steer. Agents Execute*
+
+Human Loop: Humans design the system, check the results, adjust the design, check again.
+
+Agent Loop: Receive request, think, plan, execute, test, verify, repeat until the task finishes, then wait for the next.
+
+Humans interact with the system almost entirely through prompts: an engineer describes a task, runs the agent,
+and allows it to open a pull request. To drive a PR to completion, they instruct Codex to review its own changes locally,
+request additional specific agent reviews both locally and in the cloud, respond to any human or agent given feedback,
+and iterate in a loop until all agent reviewers are satisfied (a Ralph Wiggum Loop).
+
+*Early Stage Is Slower than Expected*
+
+The reason is not LLMs are incapable, but the environment is underspecified.
+
+*Everything Readable by AI*
+
+Instead of feeding LLMs, they make everything readable by LLMs, mainly through files.
+
+*Increasing Application Legibility*
+
+The real bottleneck is human QA capacity. In order to alleviate human constraints, they add more capabilities to the
+agent by making things like the application UI, logs, and app metrics themselves directly legible to Codex.
+This means (my understanding) it constructs logs in a meaningful way, calculate app metrics and save them in
+files, and (I believe) we can add more to make apps more debuggable, behaviors more explorable without actually
+running the app.
+
+They made the app bootable per git worktree, so Codex could launch and drive one instance per change.
+
+- Make the app bootable per git worktree, so Codex could launch and drive one instance perchange.
+- Logs, metrics, and traces are exposed to Codex via a local observability stack that is ephemeral for
+  any given worktree. Codexworks on a fully isolated version of that app - including its logs
+  and metrics, which get torn down once that task is complete.
+- Agents can query logs with LogQL and metrics with PrompQL.
+- Chrome DevTools Protocol into the agent runtime and created skills for working with DOM snapshots,
+  screenshots, and naviation.
+
+#figure(
+  image("Images/image_2026041401.png", width: 100%),
+  caption: [Codex drives the app with Chrome DevTools MCP (#a_001)],
+)
+
+#figure(
+  image("Images/image_2026041402.png", width: 100%),
+  caption: [Logs and Observibility (#a_001)],
+)
+
 == References
 
 #r_001 AI Agents vs LLMs: Choosing the Right Tools for AI Tasks, 2026/03/26, Source: dzone
 
 #r_002 LangChain DeepAgents, 2026/04/02, Source: WeChat
+
+[3] Harness Engineering: Leveraging Codex in an Agent-First World, https://openai.com/index/harness-engineering/, February 11, 2026.
 

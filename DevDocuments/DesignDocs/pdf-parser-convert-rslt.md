@@ -8,7 +8,7 @@ line number, page number, coordinate and content.
 Use superpowers to create a Go service. Its input is a markdown file. It converts the input file and saves the results into an output file.
 Save the program to aas/server/api/file-converters.
 
-- This is a service. It subsribes from the JetStream service with a condition 'type' = 'pdf' and 'status' = 'success'.
+- This is a service. It subsribes from the JetStream service with the subject 'kb.pdf.parsed'.
 - The request it receives from JetStream should contain the following attributes:
     - record_id: identifies the record in table 'kb.input' (refer to [kb.input Table](./pdf-parser-go-service.md#kb-input-table-def) for the table schema)
     - result_filename: the input file name
@@ -18,30 +18,37 @@ Save the program to aas/server/api/file-converters.
 
 
 ## [Status Management](status-management)
-An input may be processed by a pipeline, such as for Field `type` = 'pdf', it will be processed by:
- - Extracting (or parsing) text and document structures from the PDF document
- - Use an LLM to extract topics from the extracted text and generate chunks based on the topics
- - Generate a one-line summary; 
 
 Field 'status' keeps track of the process status. It is an array. Each element in the array is a JSON doc with the following format:
 ```json
 [
-    {"operation":"the-opr", "time":"timestamp-in-yyyymmdd hh:mm:ss", "status":"success or fail", "error":"error-msg"},
-    {"operation":"the-opr", "time":"timestamp-in-yyyymmdd hh:mm:ss", "status":"success or fail", "error":"error-msg"},
+    {"operation":"the-opr", "start_time":"timestamp-in-yyyymmdd hh:mm:ss", "proc_status":"success or fail", "error":"error-msg"},
+    {"operation":"the-opr", "start_time":"timestamp-in-yyyymmdd hh:mm:ss", "proc_status":"success or fail", "error":"error-msg"},
     ...
 ]
 ```
 where:
-- 'operation' specifies the operation performed on the file, such as 'parsing', 'analyzing', 'adding to knowledge', etc.
-- 'time': the time when the operation was performed, 
-- 'status': success or failed, and "error": the error message.
+- 'operation' specifies the operation performed on the file, such as 'parsing', 'convert', 'analyzing', 'adding to knowledge', etc.
+- 'start_time': the start time when the operation was performed, 
+- 'proc_status': success or failed, and "error": the error message.
 
-Below is the workflow to handle the status:
-- If the record 'type' != 'pdf', it is an error. Log the error and finish.
-- If the 'status' field does not contain an entry with "operation":"parsed" and "proc-status":"success", it is an error. Log the error and finish.
-- If the 'parser_name' field is null, empty, or "opendata", the result file is from the 'opendataloader-pdf' parser. Use the [opendata Converter](#opendata-converter) to convert the file.
-- If the 'parser_name' field is "paddleocr", use the [paddleocr Converter](#paddleocr-converter) to convert the file.
-- Otherwise, it is an error. Log the error and finish.
+For this process, its process status should be:
+```json
+{
+    "operation": "converted",
+    "start_time": "20260409 17:00:30",
+    "ms-used": 12345,
+    "proc-status": "success-or-failed",
+    "error":"error-message-only-when-it-failed"
+}
+```
+
+## [Workflow](work-flow)
+- If the 'status' field does not contain an entry with "operation":"parsed" and "proc-status":"success", it is an error. Upsert an element with the error message "file not parsed" and finish.
+- If the 'parser_name' field is null, empty, it is an error. Upsert an element with the error "missing parser name" and finish.
+- If the parser name is not one of the allowed parser names ([Convert File](#convert-file)), upsert an element with the error "unrecognized parser name: the-parser-name" and finish.
+- Depending on the value of 'parser_name', the input file format is different. Use the parser name to look up the function to convert the input file ([Convert File](#convert-file)).
+- Output file name: the output file name is `<filename_root>` + "_<parser_name>.txt"
 - Upon finishing, add the following entry to the 'status' field:
 
 ```json
@@ -64,9 +71,11 @@ If error occurred, it should generate the following instead:
   }
 ```
 
-## [Input File](input-file)
-
-The input file name is from the 'result_filename' field.
+## [Convert File](convert-file)
+The supported parser names are: 
+- 'paddleocr': [paddleocr Converter](#paddleocr-converter)
+- 'opendata': [opendata Converter](#opendata-converter)
+- 'mineru': [mineru Converter](#mineru-converter)
 
 ## [paddleocr Converter](paddleocr-converter)
 
@@ -82,6 +91,7 @@ The line format is:
 - heading level: if the field 'heading level' is not empty, append "(header level)" to type
 - content: from the field 'content'
 - bbox: from the field 'bounding box'
+
 ## [opendata Converter](opendata-converter)
 
 The input file is a JSON. Refer to "opendata Input File Example". Every entry in the JSON doc is converted to a line in the output file.
