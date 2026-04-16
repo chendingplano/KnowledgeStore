@@ -311,7 +311,7 @@ users can see and can do. If a user does not have read-access, the virtual file
 system can either not showing the file at all or grey it out.
 
 #figure(
-   image("Images/image-2026040701.png", width: 100%),
+   image("Images/image_2026040701.png", width: 100%),
    caption: [Hardware setup (#a_0504)],
 )
 
@@ -727,3 +727,123 @@ We can use this CLI to access WeChat.
 = 2026/04/13 - everything-claude-code
 
 This is a huge package. For more information, refer to Workspace/KnowledgeStore/AI/Project-EverythingClaudeCode.md.
+
+= 2026/04/15 - EverOS
+
+This is a memory system. Refer to [[EverOS]], [[fileid:2026041501]].
+
+= 2026/04/15 - VRAG
+
+#let a_002 = link(
+  "https://github.com/Alibaba-NLP/VRAG"
+)[#text(fill: blue)[Alibaba VRAG]]
+
+#a_002 \
+Source: WeChat
+
+VRAG is a multimodal, agentic RAG framework that teaches vision-language models (VLMs) to actively explore, 
+retrieve, and reason over visual data using reinforcement learning. Traditional RAG (even multimodal RAG) 
+fails on visual-heavy data. VRAG adds the visual probe capability, or visual retrieval. VRAG enables models
+to actively explore visual data (images, PDFs, charts) through multi-step reasoning and reinforcement
+learning, instead of passively retrieving text chunks.
+
+Instead of:
+```text
+query → retrieve → generate
+```
+
+VRAG turns RAG into:
+
+```
+Thought → Action → Observation → Update → (repeat)
+```
+
+Retrieval is no longer “which document”, but “which part of which image”.
+It works as:
+```text
+* `<region>[xmin, ymin, xmax, ymax]</region>`
+* Crop → re-analyze → refine
+```
+
+This enables fine reasoning:
+
+1. Retrieve a page/image
+2. Identify interesting region
+3. Zoom into it
+4. Extract fine-grained info
+
+Like how humans read documents.
+
+The repo is mainly about VRAG-RL, which is a reinforcement learning framework to train agents to do
+the above effectively
+
+VRAG system consists of three main components:
+
+*1. Visual search engine*
+
+- index images (converted from PDFs, etc.)
+- uses visual embeddings (e.g., ColPali family)
+
+*2. VLM agent (e.g., Qwen2.5-VL)*
+
+- generates thoughts/actions
+- interacts with search engine
+
+*3. RL training loop*
+
+- samples trajectories
+- optimizes behavior over time
+
+```text
+| Aspect      | Traditional RAG | VRAG                   |
+| ----------- | --------------- | ---------------------- |
+| Data        | Text            | Visual + multimodal    |
+| Retrieval   | Passive         | Active exploration     |
+| Granularity | Document/chunk  | Region-level           |
+| Loop        | Single-step     | Multi-step             |
+| Training    | Supervised      | Reinforcement learning |
+| Query       | Static          | Iteratively refined    |
+```
+
+Compared to EverOS (previous discussion)
+
+```text
+| Dimension | EverOS            | VRAG                   |
+| --------- | ----------------- | ---------------------- |
+| Focus     | Memory            | Retrieval + reasoning  |
+| Data      | structured memory | visual corpora         |
+| Time      | long-term         | short-term task loop   |
+| Core loop | memory lifecycle  | agent exploration loop |
+```
+
+Compared to SemOS
+
+```text
+| SemOS                      | VRAG equivalent           |
+| -------------------------- | ------------------------  |
+| Explorability (filesystem) | ✅ but in visual space    |
+| Path-native exploration    | ❌ (action-based instead) |
+| Unified memory             | ❌ (not focus)            |
+| Strong backend retrieval   | ✅                        |
+| Agent loop                 | ✅ central                |
+```
+
+*Key conceptual shift*
+
+```
+Classic RAG:
+  retrieve → read
+
+VRAG:
+  look → zoom → search → refine → reason
+```
+
+== Conclusion
+
+We can't use VRAG directly but we can use it as an add-on to complement the visual analysis
+and reasoning capabilities to SemOS. We need to come back to this project when the needs arise.
+
+= References
+
+[1]: https://arxiv.org/abs/2505.22019?utm_source=chatgpt.com "VRAG-RL: Empower Vision-Perception-Based RAG for Visually Rich Information Understanding via Iterative Reasoning with Reinforcement Learning"
+
