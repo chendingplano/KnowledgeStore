@@ -843,7 +843,26 @@ VRAG:
 We can't use VRAG directly but we can use it as an add-on to complement the visual analysis
 and reasoning capabilities to SemOS. We need to come back to this project when the needs arise.
 
+= 2026/04/17 - Unsloth
+
+#let a_003 = link(
+  "https://unsloth.ai/docs/new/studio"
+)[#text(fill: blue)[Link]]
+
+#a_003 \
+Source: Hacker News
+
+= 2026/04/17 - Run Qwen 3.6 Locally
+
+#let a_004 = link(
+  "https://unsloth.ai/docs/models/qwen3.6"
+)[#text(fill: blue)[Link]]
+
+#a_004 \
+Source: Hacker News
+
 = References
 
 [1]: https://arxiv.org/abs/2505.22019?utm_source=chatgpt.com "VRAG-RL: Empower Vision-Perception-Based RAG for Visually Rich Information Understanding via Iterative Reasoning with Reinforcement Learning"
+
 
