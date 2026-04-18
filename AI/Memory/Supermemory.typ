@@ -13,13 +13,6 @@
 #outline()
 #pagebreak()
 
-= List of Figures
-#outline(
-  title: [],
-  target: figure.where(kind: image),
-)
-#pagebreak()
-
 *Change History*
 #table(
   columns: 2,
@@ -67,6 +60,7 @@
 
 
 = Overview
+[[def:Supermemory, ref:Memory]]
 
 Supermemory is a unified memory + knowledge bas system. It is designed to store:
 - Memory-like data:
@@ -89,6 +83,111 @@ A simplified pipeline of Supermemory:
 - Store + link to memory graph
 - Retriever Layer
 
+#let a_001 = link(
+  "https://mp.weixin.qq.com/s/EKxJAS5WNhDV-ksQtV5ZBQ"
+)[#text(fill: blue)[Article]]
+
+#a_001 is a good article about Supermemory.
+
+== Atomic Memory
+[[def:Atomic Memory]]
+Example:
+```text
+原始对话：
+用户：我最近在考虑换工作，现在在ABC公司做软件工程师，
+     但我觉得薪资不太满意，而且通勤太远了。
+
+提取的原子记忆：
+1. 用户在ABC公司担任软件工程师
+2. 用户对当前薪资不满意
+3. 用户通勤距离过长
+4. 用户正在考虑换工作
+```
+This is important. First of all, we can use this technique to collect/derive information
+about users, projects, etc.
+
+== Memory Management
+
+[[def:memory management]]
+Below shows how Supermemory manages its memory:
+```ts
+for (const existing of related) {
+    // 检测矛盾（updates关系）
+    if (isContradiction(newMemory, existing)) {
+      awaitcreateRelationship({
+        type: 'updates',
+        sourceId: newMemory.id,
+        targetId: existing.id
+      });
+      // 标记旧记忆为过期，但不删除（保留历史）
+      awaitmarkAsExpired(existing.id);
+    }
+    
+    // 检测补充信息（extends关系）
+    if (isExtension(newMemory, existing)) {
+      awaitcreateRelationship({
+        type: 'extends',
+        sourceId: newMemory.id,
+        targetId: existing.id
+      });
+    }
+    
+    // 推理衍生关系（derives）
+    const derived = awaitinferRelationships(newMemory, existing);
+    if (derived) {
+      awaitcreateRelationship({
+        type: 'derives',
+        sourceId: derived.id,
+        targetId: existing.id
+      });
+    }
+  }
+
+return related;
+}
+```
+
+When creating a new memory, it checks whether it contradicts with existing one. If yes,
+it marks the existing one 'expired' and add the new memory. 
+
+*Comment*: I am not sure 
+whether this is safe. When contradict memory (or SemObj) is found, we should list them
+and let human users to resolve, or use LLMs (possibly another LLM) to review and resolve.
+
+Function `isExtension(...)`:\ 
+a new memory may add additional information
+to existing one, such as "Project A uses Go and Svelte". This is important.
+
+Function `inferRelationships(...)`:\ 
+derive new relations when a new memory is added.
+
+== Dual Timestamps [[def:dual timestamps]]
+
+Supermemory uses two timestamps:
+- Document Time
+- Event Time
+```ts
+interface TemporalContext {
+documentDate: Date;  // 对话记录的时间
+eventDate: Date[];   // 事件实际发生的时间
+```
+
+This is important:
+```text
+// 示例：
+// Day 30的对话："我的阿迪达斯上个月坏了"
+// documentDate: 2025-01-30（对话发生时间）
+// eventDate: [2024-12-30]（鞋子坏掉的时间）
+}为什么需要双层时间戳？考虑这个场景：2025-01-01的对话："我去年在Facebook工作"
+2025-06-01的查询："用户在哪工作？"
+
+系统需要理解：
+- documentDate = 2025-01-01（对话时间）
+- eventDate = 2024年（工作时间）
+- 当前时间 = 2025-06-01
+- 结论：用户可能已经不在Facebook了
+```
+
 == Search
 
 Its search system is a hybrid layered retrieval system:
@@ -96,6 +195,49 @@ Its search system is a hybrid layered retrieval system:
 - Keyword / lexical signals: exact match, text overlap
 - Graph / Relationship search: links between memories, contextual associations
 - Memory-aware ranking: recency, frequency, importance, personalization
+
+[[def:Supermemory search]]
+```ts
+async functionhybridSearch(query: string, userId: string) {
+// 第一步：在原子记忆中搜索（高信噪比）
+const queryEmbedding = awaitgenerateEmbedding(query);
+const memoryResults = awaitvectorSearch({
+    embedding: queryEmbedding,
+    collection: 'memories',
+    filter: { userId },
+    topK: 10
+  });
+
+// 第二步：获取原始内容块（保留细节）
+const enrichedResults = awaitPromise.all(
+    memoryResults.map(async (memory) => {
+      const sourceChunks = awaitgetDocumentChunks(memory.sourceDocumentId);
+      
+      return {
+        memory: {
+          title: memory.content,
+          confidence: memory.score,
+          temporalContext: {
+            documentDate: memory.documentDate,
+            eventDate: memory.eventDate
+          }
+        },
+        chunks: sourceChunks,
+        // 第三步：附加关系图谱
+        relationships: awaitgetRelatedMemories(memory.id)
+      };
+    })
+  );
+
+// 第四步：时间过滤和排序
+const filteredResults = applyTemporalFiltering(
+    enrichedResults,
+    { currentDate: newDate() }
+  );
+
+return filteredResults;
+}
+```
 
 == Issues
 

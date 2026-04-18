@@ -73,7 +73,7 @@ EverOS is not just a vector DB or RAG. It reframes memory as:
 
 *(A) Memory Construction*
 
-Extract structured units from conversations: *MemCell* (atomic memory unit ([GitHub][1])), then organize them into:
+Extract structured units from conversations: *MemCell* (atomic memory unit ([GitHub][1])), then organize them into [[Memory Atomic Unit, MemCell]]:
 
   - episodes
   - user profiles

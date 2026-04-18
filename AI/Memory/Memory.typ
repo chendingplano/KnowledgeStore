@@ -34,16 +34,8 @@
 #show heading.where(level: 3): set text(size: 14pt)
 #show heading.where(level: 3): it => pad(top: 4pt, it)
 
-// #table(
-//  columns: 3,
-//  align: left,
-//  [Name], [Description], [Documentation],
-//  [Bicep], [Microsoft], [Azure-specific],
-//
-// #figure(
-//   image("Images/image_2026030101.png", width: 100%),
-//   caption: [Hardware setup (#a_030105)],
-// )
+#show heading.where(level: 4): set text(size: 14pt)
+#show heading.where(level: 4): it => pad(top: 4pt, it)
 
 #let a_001 = link(
   "https://help.openai.com/en/articles/8590148-memory-faq"
@@ -69,6 +61,55 @@ Memories are defined by the following properties:
 - Summary
 - Description
 - Content
+
+== Memory Hierarchy
+
+- L1 - MemCell: the atomic memory
+- L2 - Compound Memory Objects
+  - SemObj: such as Person, Project, File, Function, etc.
+  - Story: a timeline of events
+  - Session: discussion sessions or history, temporal: its content may fade as time goes by.
+  - Project
+
+Note that memory hierarchy is also SemOS hierarchy because memory and semantic objects
+are essentially the same.
+
+=== SemObj Timestmaps
+We will use three timestamps ([[ref:dual timestamps]]):
+- Event Time: the time when an event actually happened
+- Document Creation Time: the time when a document was created (note: not added to SemOS). 
+  As an example, if a SemObj memtions "I worked in Facebook last year" and the 
+  SemObj's document creation time is 2025, we can derive: (1) the person worked in Facebook
+  in 2024 and (2) the person no longer works for Facebook.
+- Document Add Time: the time when the document is added to SemOS.
+
+These timestamps are important in reasoning.
+
+=== MemCell [[Memory Atomic Unit, MemCell]]
+
+This is from [[EverOS]]. A similar concept is [[Atomic Memory]] from [[Supermemory]].
+This is the atomic memory in SemOS.
+
+There are two types of MemCells:
+- Directly from original content
+- Derived from the source
+
+*Derived - Personal Preference*
+```text
+原始对话：
+用户：我最近在考虑换工作，现在在ABC公司做软件工程师，
+     但我觉得薪资不太满意，而且通勤太远了。
+
+提取的原子记忆：
+1. 用户在ABC公司担任软件工程师
+2. 用户对当前薪资不满意
+3. 用户通勤距离过长
+4. 用户正在考虑换工作
+```
+
+*Derived - Project*
+
+It creates a Memory Object
 
 == Memory Storage
 
@@ -125,6 +166,12 @@ Add the following to memory:
 
 Users normally do not need to worry about how to organize (i.e., how to store) memories.
 LLMs will analyze the memory and put it into the right location in SHG.
+
+[[ref:memory management]] from [[ref:supermemory]] is a good example:
+- Check whether the new SemObj contradicts with existing ones. If yes, mark the existing one
+  as expired (not deleted) and add the new one. Refer to the comment for this operation.
+- Check whether the new SemObj completes existing SemObj
+- Try to derive new SemObj, such as new entities, relations, SemObjs, etc.
 
 === Delete Memory
 

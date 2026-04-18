@@ -36,7 +36,7 @@ Error Handling:
 - If event.filename is present and not empty, it specifies the input file.
 - If the file name does not contain path, its directory is derived from kb.inputs.result_filename. 
 - If the file name contains path, it must be an absolute path
-- If event.filename is absent or empty, the input file name is: '<filename_root>' + '_' + '<parser_name>' + '.txt', where '<filename_root>' is derived from kb.inputs.result_filename and '<parser_name>' is from 'kb.inputs.parser_name'.
+- If event.filename is absent or empty, the input file name is: '<filename_root>' + '_' + kb.inputs.parser_name + '.txt', where '<filename_root>' is derived from kb.inputs.staging_filename.
 
 Error Handling:
 - If kb.inputs.parser_name is null or empty, update 'kb.inputs.status' with error 'missing parser name' and finish.
@@ -70,5 +70,5 @@ Doc Metadata
   - document number to 'kb.inputs.doc_no'
   - publish date to 'kb.inputs.publish_date'
   - authors to 'kb.inputs.authors
-  - construct a JSON doc for all other document metadata and save it to 'kb.inputs.doc_metadata'
+  - save the extracted doc metadata (a JSON doc) to 'kb.inputs.doc_metadata'
 
