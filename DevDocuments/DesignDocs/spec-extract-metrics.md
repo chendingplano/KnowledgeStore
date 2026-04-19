@@ -1,5 +1,3 @@
-Use skill_creator to create a skill that recognize and extract metrics from an input document.
-
 A metric is a quantitative, measurable item used to evaluate, compare, monitor, verify, or assess something. Metrics are often defined in standards, specifications, requirements, policies, test plans, scorecards, or compliance documents.
 
 ## Input

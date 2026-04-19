@@ -865,4 +865,30 @@ Source: Hacker News
 
 [1]: https://arxiv.org/abs/2505.22019?utm_source=chatgpt.com "VRAG-RL: Empower Vision-Perception-Based RAG for Visually Rich Information Understanding via Iterative Reasoning with Reinforcement Learning"
 
+= 2026/04/18 - Onyx
+
+Refer to [[Onyx]]
+
+= 2026/04/18 - Installed web-access Skill
+
+#let a_005 = link(
+  " https://github.com/eze-is/web-access"
+)[#text(fill: blue)[GitHub]]
+
+#let a_006 = link(
+  "https://mp.weixin.qq.com/s/A1aYj3Dh-T32NqQdlYh27Q"
+)[#text(fill: blue)[WeChat Article]]
+
+#a_005 \
+#a_006 \
+Source: WeChat
+
+This skill is used to help using web to search and deep research.
+
+I tested using Claude Code:
+```
+帮我调研 Dify、Coze、FastGPT 这三个 AI 工作流平台，重点关注：支持的节点类型、模型接入方式、是否支持私有化部署、价格策略。整理成对比表格。
+```
+
+The results are in [[compare dify coze fastgpt]]
 

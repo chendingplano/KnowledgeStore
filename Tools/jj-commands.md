@@ -16,6 +16,7 @@
 | jj restore --changes-in \<change_id\> \<filename\> | Remove \<filename\> from \<change_id\> |
 | jj bookmark set main -r @ | Move local main bookmark to point to the current change (@) |
 | jj git push --remote origin -b main | push local main to GitHub |
+| jj new [-m "Merge spmq and nvmp"] | Create a new change |
 | jj new 'spmq' 'nvmp' -m "Merge spmq and nvmp" | Create a new change by merging the two |
 | jj config set --user merge.tool meld | Excellent visual merge tool |
 | jj config set --user ui.merge-editor vscode | Recommended if using VS code |
