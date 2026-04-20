@@ -892,3 +892,6 @@ I tested using Claude Code:
 
 The results are in [[compare dify coze fastgpt]]
 
+= 2026/04/19 - TreeSearch
+
+Refer to [[TreeSearch]]

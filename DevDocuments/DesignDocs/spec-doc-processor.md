@@ -7,12 +7,14 @@ It subscribes to JetStream, with subject 'kb.line-file-generated'. The event pay
 {
 	"record_id":"...",
 	"filename":"...",
+    "operation":"...",
 	"force":true | false
 }
 ```
 where:
 - "record_id": mandatory, is the value of table field 'kb.inputs.id',
 - "filename": optional. If specified, it specifies the name of its input. If the file name has no path, the file is in the same directory derived the field kb.inputs.result_filename.
+- "operation": optional. If present, which is a list of doc processor names, it lists the doc processor(s) this service will use on the input. Refer to "Operation" section for more info. 
 - "force": optional. If not specified, it defaults to true.
 
 ## Retrieve Record
@@ -35,9 +37,8 @@ Error Handling:
 - If the specified input file does not exist, update 'kb.inuts.status' with error "input file not exist" and then finish.
 - If the specified file is empty, update 'kb.inputs.status' with error "input file empty" and then finish.
 
-## Parsed Store Object
-
-The input file should be a Parsed Store Object. A parsed store object file is a sequence of lines of the following format:
+## Input File Format
+The input file is a sequence of lines of the following format:
 ```text
 <line_number> <page_number> <line_type> <content> <coordinate>
 ```
@@ -48,21 +49,31 @@ where:
 - '<cnotent>': the actual content of the line
 - '<coordinate>': the coordinate of the line, in form of [x1, y1, x2, y2]
 
+## Doc Processors
+This service is a controller. For a received event, it applies a number of doc processors to it.
+Currently, it has the following doc processors:
+| Seqno | Processor Name | Dependence | Explanation |
+|---|---|---|---|
+|1 | chunking | none | Chunking Processor. Refer to [1] for its spec |
+|2 | extract_doc_metadata | after chunking | Extract Doc Metadata Processor. Refer to [2] for its spec |
+|3 | extract_metrics | after chunking | Extract Metrics Processor. Refer to [3] for its spec |
+---
+
+## Operation
+
+If present, it specifies the doc processor to apply to the input file (or chunk files). Currently,
+the valid values are: 'chunking', 'extract_doc_metadata' and 'extract_metrics'.
+If multiple processors are specified, they must be applied in the order in which they are listed.
+
 ## Workflow
 
-This service is a controller. Given a parsed store object, it applies a number of processes:
-- Chunk the file: it is implemented in aas/server/api/doc-processor/chunking.go. Its design document is KnowledgeStore/DevDocuments/DesignDocuments/spec-chunking.md
-- Extract document metadata: 
-- Retrieve Input File (see above)
-- Read the first EXTRACT_DOCMETA_NUM_PAGES pages from the input
-- Use the LLM (specified by EXTRACT_DOCMETA_LLM_NAME) to extract the metadata with the prompt (specified by EXTRACT_DOCMETA_PROMPT) to extract the document metadata from the pages. If the LLM request reading more pages, do so.
-- Save the extracted doc metadata to the 'kb.inputs' record.
+- Receive an event
+- Retrieve the record by event.record_id
+- Read the input file (refer to "Input File" section)
+- Apply all the doc processors in the same order as listed in "Doc Processors" section
 
-Doc Metadata
-- Save:
-  - document name to 'kb.inputs.title'
-  - document number to 'kb.inputs.doc_no'
-  - publish date to 'kb.inputs.publish_date'
-  - authors to 'kb.inputs.authors
-  - save the extracted doc metadata (a JSON doc) to 'kb.inputs.doc_metadata'
+## References
 
+[1] Chunking Processor Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-chunking.md
+[2] Extract Doc Metadata Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-extract-metadata.md
+[3] Extract Metrics Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-extract-metrics.md

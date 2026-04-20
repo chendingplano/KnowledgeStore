@@ -2,27 +2,32 @@ A metric is a quantitative, measurable item used to evaluate, compare, monitor, 
 
 ## Input
 
-Inputs to this skill are a input file name and a record_id, an integer from the the 'id' field of the table kb.inputs.
+- record_id: the value of kb.inputs.id, identifies the record to process
+- chunk files: refer to /Users/cding/Workspace/aas/server/cmd/doc-processor/spec-chunking.md for information about chunk file locations and formats.
 
-**Input File Format**:
-
-Input files contain lines. Each line has five fields:
-* line number: an integer
-* page number: an integer
-* line type: one-word that indicates the type of the line, such as 'title', 'list-item', etc.
-* content: the actual content
-* coordinate: expressed as an array of numbers
-
-Below is an example:
-```text
-65 6 list-item 2.0.7 integrated bathroom with shower, sink [90,246.953,505.2,284.484]
+## Workflow
+- For each chunk file that belongs to the record 'record_id', extract metrics from the file. Note that chunk files contain overlap lines. Do not extract metrics from olverlap lines unless metrics live in both the overlap lines and normal lines.
+- After processed all the chunk files, save the extracted metrics to kb.metrics (refer to "Output Storage" section).
+- Upsert the following entry to kb.input.status if faled:
+```json
+  {
+    "operation": "extract_metrics",
+    "proc_status": "failed",
+    "error": "error-message",
+    "start_time": "...",
+    "ms-used": ...
+  },
 ```
-where:
-* line number: 65
-* page number: 6
-* line type: list-item
-* content: 2.0.7 integrated bathroom with shower, sink
-* coordinate: [90,246.953,505.2,284.484]
+
+Otherwise, upsert the following element to kb.inputs.status:
+```json
+  {
+    "operation": "extract_metrics",
+    "proc_status": "success",
+    "start_time": "...",
+    "ms-used": ...
+  },
+```
 
 ## Metrics
 Metrics may appear:

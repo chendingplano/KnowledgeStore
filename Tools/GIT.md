@@ -32,3 +32,14 @@ uses more disk space.
 |```git worktree add -b feature-x ../repo-feature-x``` | Create branch 'feature-x', Create worktree |
 | ```git worktree list``` | List worktrees |
 | ```git worktree remove ../repo-feature-x``` | Remove worktree 'repo-feature-x' |
+| ```git log -- path/to-file``` | Retrieve git history |
+
+# Remove traces for a file
+```text
+    git filter-repo --path path/to-file --invert-paths
+    git remote add origin https://github.com/chendingplano/Kratos.git
+    git remote -v
+    git push --force --all origin
+    git push --force --tags origin
+    rev-list --all --objects | grep 'mise.local.toml'
+```
