@@ -1,6 +1,6 @@
 # Configuration Guide: Development and Production Environments
 
-This document describes how to configure the development and production environments for applications using the shared library with Ory Kratos authentication.
+This document describes how to configure the development and production environments for applications using the shared library with Kratos authentication.
 
 ## Table of Contents
 
@@ -32,7 +32,7 @@ This document describes how to configure the development and production environm
          │                   │
          ▼                   ▼
 ┌─────────────────────────────────────────┐
-│           Ory Kratos (Port 4433/4434)   │
+│           Kratos (Port 4433/4434)   │
 │                                         │
 │  - Identity Management                  │
 │  - Session Management                   │
@@ -158,9 +158,9 @@ PG_PASSWORD="plano4628"
 SHARED_LIB_CONFIG_DIR="$HOME/Workspace/shared/libconfig.toml"
 ```
 
-### 3. Ory Kratos Configuration
+### 3. Kratos Configuration
 
-**File: `Ory/kratos/kratos.yml`** (key sections for development):
+**File: `Kratos/kratos/kratos.yml`** (key sections for development):
 
 ```yaml
 version: v1.3.1
@@ -237,11 +237,11 @@ echo -n 'local claims = std.extVar('claims'); { identity: { traits: { [if "email
 
 ```
 Terminal 1: Kratos Identity Server
-├── cd Ory
+├── cd Kratos
 └── mise start-kratos
 
 Terminal 2: Kratos Self-Service UI (optional)
-├── cd Ory
+├── cd Kratos
 └── mise start-kratos-ui
 
 Terminal 3: Go Backend + Svelte Frontend
@@ -308,7 +308,7 @@ GOOGLE_OAUTH_REDIRECT_URL=http://localhost:8080/auth/google/callback
 
 ### 2. Kratos Configuration Updates
 
-Update `Ory/kratos/kratos.yml` for production port:
+Update `Kratos/kratos/kratos.yml` for production port:
 
 ```yaml
 selfservice:
@@ -353,7 +353,7 @@ USE_EMBED_FRONTEND=true ./.cache/server.exe serve --dir
 ### Kratos (Identity Server)
 
 ```bash
-cd /Users/cding/Workspace/Ory
+cd /Users/cding/Workspace/Kratos
 
 # First-time setup (builds Kratos, creates DB, runs migrations, installs UI)
 mise setup
@@ -445,12 +445,12 @@ mise build-both
 # 1. Stop all running services (Ctrl+C in each terminal)
 
 # 2. Restart Kratos
-cd /Users/cding/Workspace/Ory
+cd /Users/cding/Workspace/Kratos
 mise start-kratos
 
 # 3. Restart Kratos UI (optional, for self-service flows)
 # In a new terminal:
-cd /Users/cding/Workspace/Ory
+cd /Users/cding/Workspace/Kratos
 mise start-kratos-ui
 
 # 4. Restart Application
@@ -522,11 +522,11 @@ Ensure `allowed_origins` in `kratos.yml` includes all frontend URLs:
 VITE_DEV_ONLY_URL="http://localhost:5173"
 USE_EMBED_FRONTEND=""
 
-# In Ory/kratos/kratos.yml:
+# In Kratos/kratos/kratos.yml:
 default_browser_return_url: http://localhost:8080/oauth/callback
 
 # Start services:
-cd Ory && mise start-kratos
+cd Kratos && mise start-kratos
 cd ChenWeb && mise dev
 ```
 
@@ -536,10 +536,10 @@ cd ChenWeb && mise dev
 APP_BASE_URL="http://localhost:8080"
 USE_EMBED_FRONTEND="true"
 
-# In Ory/kratos/kratos.yml:
+# In Kratos/kratos/kratos.yml:
 default_browser_return_url: http://localhost:8080/oauth/callback
 
 # Build and start:
-cd Ory && mise start-kratos
+cd Kratos && mise start-kratos
 cd ChenWeb && mise build-both && mise serve
 ```

@@ -1,8 +1,8 @@
 ## Summary
-This service chunks a parsed line file into fixed-size chunks and persists chunk artifacts plus chunking metadata.
+This Go program uses an LLM to extract topics and chunk an input file into chunks based on topics and persists chunk artifacts plus chunking metadata.
 
 - Language: Go
-- Implementation target: `aas/server/api/doc-processing/chunking.go`
+- Implementation target: `aas/server/api/doc-processing/semantic-chunking.go`
 - Main inputs: `record_id` and `input_file` buffer
 
 ## Inputs
@@ -24,8 +24,12 @@ Field definitions:
 - `<coordinate>`: `[x1, y1, x2, y2]`
 
 ## Environment Variables
-- CHUNK_SIZE: the chunk size, default:300
+- CHUNK_BLOCK_SIZE: the block size (see below) in number of pages
+- CHUNK_LLM_NAME: the name of LLM to use to chunk the input file
+- CHUNK_LLM_API_KEY: the LLM's API Key
 - CHUNK_OVERLAP_PERCENT: the overlap percent, default: 20%
+- CHUNK_LLM_BASE_URL: the LLM's base URL
+- CHUNK_LLM_TIMEOUT_SEC: the timeout in second for the LLM
 - CHUNK_DIR: the directory in which chunk files are stored. If not specified, it is an error.
 
 ## Retrieve Record
@@ -35,43 +39,29 @@ Error handling:
 - If database access fails, report error and stop.
 - If record does not exist, report error and stop.
 
-## List Detection Rules
-Treat lines with `line_type = list-item` as list candidates, then apply these rules:
+## Extract Topics
 
-- If content starts with `ddd.ddd` (both `ddd` are digit strings), treat it as a section identifier, not as a list item.
-- Typical list-item content is: `<list-item-seqno><spaces><content>`.
-- `list-item-seqno` may be numeric (`1`, `2`, `3`, ...), or non-numeric symbols (`*`, `-`, `--`, etc.).
-- A numeric seqno list item is a **numerical list item**.
-- Two or more continuous numerical list items form a **numerical list block**.
+- Break the input file into blocks. Each block contains 1 overlap page (except the first block) and CHUNK_BLOCK_SIZE content pages
+- Use the LLM to recognize and extract all the topics from each block. 
+- Ignore the Table of Contents, if any.
+- Treat the cover page, if any, as one topic
+- For tables, write a description about a table as its topic. The topic type is 'table'.
+- For formulas, write a description based on the context as its topic. The topic type is 'formula'
+- For item lists, write a description based on the list as its topic. The topic type is 'list'
+- The above are only a few known types of topics. There can be more content types (or topic types), such as workflows, policies, rules, etc.
 
-## Chunking Rules
-- Method: `fix-size`
-- Chunk by line boundaries only.
-- Chunk target size: `CHUNK_SIZE` bytes (not lines).
-- Overlap: `CHUNK_OVERLAP_PERCENT` (line-based overlap ratio).
-- Add `<mark>` in front of each emitted line in each chunk:
-  - `r`: regular line in this chunk
-  - `o`: overlap line carried from previous chunk
-  Example:
-  - original emitted line: `12 3 paragraph ... [x1,y1,x2,y2]`
-  - regular line in chunk: `r 12 3 paragraph ... [x1,y1,x2,y2]`
-  - overlap line in chunk: `o 12 3 paragraph ... [x1,y1,x2,y2]`
-- Never split `table` blocks.
-- Never split `formula` blocks.
-- Never split non-numerical list blocks.
-- Numerical list blocks are also kept intact by default, but may be split when the block is very large (for example `>= 3 * CHUNK_SIZE`).
-- `chunk_seqno` starts at 1 and increments by 1.
+## Output
 
-## Output Chunk Files
-For each chunk, write one chunk file:
+A topic is defined as `<seqno> <topic_type> <lines> <topic>`
+where:
+- `<seqno>` is a sequence number, starting from 1
+- `<topic_type>` is the type of a topic.
+- `<lines>` is the line numbers from which a topic is derived, stored as an array of single line numbers or ranges of lines, such as '[38-45, 47, 49, 55-62]'
 
-- Path pattern: `CHUNK_DIR/<group_id>/<record_id>/chunk_dddd`
-- `group_id = floor(record_id / 1000)`
-- `dddd` is 4-digit, zero-padded `chunk_seqno`
-
-Example:
-- `record_id = 7523` => `group_id = 7`
-- first chunk file: `.../7/7523/chunk_0001`
+Save all the topics in a file. The file name is:
+    CHUNK_DIR + '/<group_id>/<record_id>/topics.txt',
+where:
+- '<group_id>' is the integral part of 
 
 ## Table `kb.chunks`
 This table stores one chunking run summary record.

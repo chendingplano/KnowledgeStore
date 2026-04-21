@@ -36,7 +36,7 @@
 
 = Basic Info
 *SECURITY POSTURE REPORT* — Kratos System \
-*Scope: Kratos/ (your config + custom Go backend + deploy config). Upstream src/kratos/ is Ory's code, excluded. \
+*Scope: Kratos/ (your config + custom Go backend + deploy config). Upstream src/kratos/ is Kratos's code, excluded. \
 *Mode"": Daily, focused audit. \
 *Status*: No git repo in parent — cannot check history. File contents on local disk analyzed.
 

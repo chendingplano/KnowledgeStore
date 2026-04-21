@@ -114,6 +114,54 @@ Below is an example (the first 5 entries):
 
 The output file is in the same directory of its input file. Output file name is the same as its input file but with the ext 'txt'.
 
+### Process Tables
+
+The format that tables in the JSON file is:
+```json
+ {
+    "type" : "table",
+    "id" : 99,
+    "level" : "7",
+    "page number" : 6,
+    "bounding box" : [ 88.584, 498.31, 521.14, 752.26 ],
+    "number of rows" : 9,
+    "number of columns" : 3,
+    "rows" : [ {
+      "type" : "table row",
+      "row number" : 1,
+      "cells" : [ {
+        "type" : "table cell",
+        "page number" : 6,
+        "bounding box" : [ 89.064, 731.26, 166.342, 751.78 ],
+        "row number" : 1,
+        "column number" : 1,
+        "row span" : 1,
+        "column span" : 1,
+        "kids" : [ {
+          "type" : "paragraph",
+          "id" : 24,
+          "page number" : 6,
+          "bounding box" : [ 105.02, 737.074, 150.128, 746.074 ],
+          "font" : "SimSun",
+          "font size" : 9.0,
+          "text color" : "[0.0]",
+          "content" : "元数据子集"
+        }]
+      }, {another cell}, ...  ],
+    }, {another row}, ...]
+ }
+```
+
+The output of a table:
+```text
+<line-number> <page-number> 'table-row' <one-row-in-markdown-format> <coordinates>
+<line-number> <page-number> 'table-row' <one-row-in-markdown-format> <coordinates>
+...
+```
+where:
+  * if a cell contains '|' characters, they must be escaped!.
+  * '<coordinates>' is the coordinates for the entire row, which is the bounding box that covers all its cells (each cell has its coordinate)
+
 == opendata Input File Example
 
 The input file is a JSON doc. Below is a portion of such file:

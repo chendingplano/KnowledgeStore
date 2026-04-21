@@ -32,7 +32,7 @@
 ```text
 jj describe -m "feat: description"
 jj bookmark set main -r @
-jj git push
+jj git push --remote=origin -b main
 ```
 
 --- 
@@ -40,4 +40,19 @@ jj git push
 ```text
 git tag -a rel-20230323 -m "Release 2023-03-23"
 git push origin rel-20230323
+```
+
+---
+## Untrack Files
+If some files are already in a repo but you want to remove them from the repo (untrack):
+```text
+# Stop tracking cached files (keeps them on disk)
+jj file untrack .gocache
+
+# Verify they're no longer tracked
+jj status
+
+# Record the change
+jj describe -m "Stop tracking .gocache build cache files"
+jj new
 ```
