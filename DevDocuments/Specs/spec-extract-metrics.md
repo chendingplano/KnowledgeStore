@@ -3,7 +3,7 @@ A metric is a quantitative, measurable item used to evaluate, compare, monitor, 
 ## Input
 
 - record_id: the value of kb.inputs.id, identifies the record to process
-- chunk files: refer to /Users/cding/Workspace/aas/server/cmd/doc-processor/spec-chunking.md for information about chunk file locations and formats.
+- chunk files: refer to KnowledgeStore/DevDocuments/Specs/spec-chunking.md for information about chunk file locations and formats.
 
 ## Workflow
 - For each chunk file that belongs to the record 'record_id', extract metrics from the file. Note that chunk files contain overlap lines. Do not extract metrics from olverlap lines unless metrics live in both the overlap lines and normal lines.

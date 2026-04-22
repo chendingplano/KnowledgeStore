@@ -2,7 +2,7 @@
 This service chunks a parsed line file into fixed-size chunks and persists chunk artifacts plus chunking metadata.
 
 - Language: Go
-- Implementation target: `aas/server/api/doc-processing/chunking.go`
+- Implementation target: `ChenWeb/server/api/doc-processing/chunking.go`
 - Main inputs: `record_id` and `input_file` buffer
 
 ## Inputs
@@ -11,17 +11,8 @@ This service chunks a parsed line file into fixed-size chunks and persists chunk
 - `input_file`: buffer containing the parsed input file content
 
 Input file line format:
-
-```text
-<line_number> <page_number> <line_type> <content> <coordinate>
-```
-
-Field definitions:
-- `<line_number>`: integer, starts from 1
-- `<page_number>`: integer
-- `<line_type>`: line category such as `heading`, `paragraph`, `list-item`, `table`, `formula`
-- `<content>`: textual content
-- `<coordinate>`: `[x1, y1, x2, y2]`
+- The input file MUST conform to the canonical Line File spec:
+  `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
 ## Environment Variables
 - CHUNK_SIZE: the chunk size, default:300

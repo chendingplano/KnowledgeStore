@@ -895,3 +895,28 @@ The results are in [[compare dify coze fastgpt]]
 = 2026/04/19 - TreeSearch
 
 Refer to [[TreeSearch]]
+
+= 2026/04/21 - Architecture Diagram Generator
+
+#let a_007 = link(
+  "https://github.com/Cocoon-AI/architecture-diagram-generator"
+)[#text(fill: blue)[Link]]
+
+#a_007 \
+Source: WeChat
+
+This is a skill. Below is the prompt I gave to it:
+```text
+Create an architecture diagram for a web application with:
+- Svelte frontend
+- Node.js
+- PostgreSQL database
+- OpenTelemetry + Clickhouse
+- Redis cache
+- JWT authentication
+```
+Below is the diagram it generated:
+#figure(
+   image("Images/image_2026042101.png", width: 100%),
+   caption: [Architecture Diagram],
+)

@@ -16,16 +16,8 @@ Error Handling:
 - input_file: this is a piece of memory that holds the content of an input file.
 
 Input File Format:
-The input file is a sequence of lines of the following format:
-```text
-<line_number> <page_number> <line_type> <content> <coordinate>
-```
-where:
-- '<line_number>': an integer that marks the line number, starting from 1
-- '<page_number>': an integer that marks the page number
-- '<line_type>': the type of the line, such as 'heading', 'paragraph', 'list-item'. This can be useful for LLMs to analyze the content.
-- '<cnotent>': the actual content of the line
-- '<coordinate>': the coordinate of the line, in form of [x1, y1, x2, y2]
+The input file MUST conform to the canonical Line File spec:
+`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
 ## Workflow
 - Retrieve the record by 'record_id'. 

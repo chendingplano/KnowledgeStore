@@ -1,5 +1,5 @@
 ## Summary
-This is a service to process parsed store objects. Its main.go is in aas/server/cmd/doc-processsor.
+This is a service to process parsed store objects. Its main.go is in ChenWeb/server/cmd/doc-processsor.
 
 ## JetStream Subscription
 It subscribes to JetStream, with subject 'kb.line-file-generated'. The event payload is:
@@ -38,31 +38,28 @@ Error Handling:
 - If the specified file is empty, update 'kb.inputs.status' with error "input file empty" and then finish.
 
 ## Input File Format
-The input file is a sequence of lines of the following format:
-```text
-<line_number> <page_number> <line_type> <content> <coordinate>
-```
-where:
-- '<line_number>': an integer that marks the line number, starting from 1
-- '<page_number>': an integer that marks the page number
-- '<line_type>': the type of the line, such as 'heading', 'paragraph', 'list-item'. This can be useful for LLMs to analyze the content.
-- '<cnotent>': the actual content of the line
-- '<coordinate>': the coordinate of the line, in form of [x1, y1, x2, y2]
+The input file MUST conform to the canonical Line File spec:
+`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
 ## Doc Processors
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
 | Seqno | Processor Name | Dependence | Explanation |
 |---|---|---|---|
-|1 | chunking | none | Chunking Processor. Refer to [1] for its spec |
-|2 | extract_doc_metadata | after chunking | Extract Doc Metadata Processor. Refer to [2] for its spec |
-|3 | extract_metrics | after chunking | Extract Metrics Processor. Refer to [3] for its spec |
+|1 | structure_analyzer | none | Doc Structure Analyzer. Refer to [1] for its spec |
+|2 | chunking | after 1 | Chunking Processor. Refer to [2] for its spec |
+|3 | extract_doc_metadata | after 2 | Extract Doc Metadata Processor. Refer to [3] for its spec |
+|4 | extract_metrics | after 2 | Extract Metrics Processor. Refer to [4] for its spec |
 ---
 
 ## Operation
 
 If present, it specifies the doc processor to apply to the input file (or chunk files). Currently,
-the valid values are: 'chunking', 'extract_doc_metadata' and 'extract_metrics'.
+the valid values are: 
+- 'structure_analyzer'
+- 'chunking'
+- 'extract_doc_metadata' 
+- 'extract_metrics'.
 If multiple processors are specified, they must be applied in the order in which they are listed.
 
 ## Workflow
@@ -74,6 +71,7 @@ If multiple processors are specified, they must be applied in the order in which
 
 ## References
 
-[1] Chunking Processor Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-chunking.md
-[2] Extract Doc Metadata Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-extract-metadata.md
-[3] Extract Metrics Spec: KnowledgeStore/DevDocuments/DesignDocs/spec-extract-metrics.md
+[1] Doc Structure Analyzer Spec: KnowledgeStore/DevDocuments/Specs/spec-structure_analyzer.md
+[2] Chunking Processor Spec: KnowledgeStore/DevDocuments/Specs/spec-chunking.md
+[3] Extract Doc Metadata Spec: KnowledgeStore/DevDocuments/Specs/spec-extract-metadata.md
+[4] Extract Metrics Spec: KnowledgeStore/DevDocuments/Specs/spec-extract-metrics.md

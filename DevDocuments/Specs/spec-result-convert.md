@@ -95,24 +95,10 @@ The line format is:
 ## [opendata Converter](opendata-converter)
 
 The input file is a JSON. Refer to "opendata Input File Example". Every entry in the JSON doc is converted to a line in the output file.
-The line format is:
-- Line Number: An integer starting from 1
-- Page Number: from the field 'page number'
-- type: from the field 'type'
-- heading level: if the field 'heading level' is not empty, append "(header level)" to type
-- content: from the field 'content'
-- bbox: from the field 'bounding box'
 
-Below is an example (the first 5 entries):
-```text
-1 1 paragraph ICS 35.240.80 C 07 [69.264, 779.595, 138.268, 805.755]
-2 1 heading(Doctitle) 团 体 标 准 [90.744, 689.954, 498.522, 731.954]
-3 1 image stdGk_3032175_images/imageFile1.png [ 100.0, 600.0, 444.0, 673.0 ]
-4 1 paragraph T/CHIA 14.3-2018 [ 405.79, 639.616, 533.78, 655.576 ]
-5 1 heading(Subtitle) 医疗健康物联网感知设备通信数据命名表 第 3 部分：体温计 [ 70.224, 477.805, 538.423, 539.288 ]
-```
+It converts the input file to a Line File. The Line File MUST conform to the canonical Line File spec: KnowledgeStore/DevDocuments/Specs/spec-line-file.md.
 
-The output file is in the same directory of its input file. Output file name is the same as its input file but with the ext 'txt'.
+The output file is in the same directory of its input file. Output file name is the same as its input file but with the ext 'line'.
 
 ### Process Tables
 
