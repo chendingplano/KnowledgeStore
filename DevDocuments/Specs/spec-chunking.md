@@ -17,7 +17,7 @@ Input file line format:
 ## Environment Variables
 - CHUNK_SIZE: the chunk size, default:300
 - CHUNK_OVERLAP_PERCENT: the overlap percent, default: 20%
-- CHUNK_DIR: the directory in which chunk files are stored. If not specified, it is an error.
+- ARTIFACT_DIR: the directory in which chunk files are stored. If not specified, it is an error.
 
 ## Retrieve Record
 Load the source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -56,7 +56,7 @@ Treat lines with `line_type = list-item` as list candidates, then apply these ru
 ## Output Chunk Files
 For each chunk, write one chunk file:
 
-- Path pattern: `CHUNK_DIR/<group_id>/<record_id>/chunk_dddd`
+- Path pattern: `ARTIFACT_DIR/<group_id>/<record_id>/chunk_dddd`
 - `group_id = floor(record_id / 1000)`
 - `dddd` is 4-digit, zero-padded `chunk_seqno`
 
@@ -111,7 +111,7 @@ Notes:
 2. Validate and parse the input line buffer.
 3. Detect list structures using the list rules above.
 4. Build fixed-size chunks with overlap while respecting no-split constraints.
-5. Write chunk files to `CHUNK_DIR/<group_id>/<record_id>/chunk_dddd`.
+5. Write chunk files to `ARTIFACT_DIR/<group_id>/<record_id>/chunk_dddd`.
 6. Insert a chunking summary record into `kb.chunks`.
 7. Upsert `kb.inputs.status` with `operation = "chunked"` and runtime stats.
 

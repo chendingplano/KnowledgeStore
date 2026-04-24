@@ -17,7 +17,10 @@ Input file line format:
 ## Environment Variables
 - INPUT_BLOCK_SIZE: the block size (see below) in number of pages
 - TOPIC_CHUNK_MODEL_NAME: the name of LLM to use to chunk the input file (refer to /Users/cding/Workspace/KnowledgeStore/DevDocuments/Specs/spec-model-def.md for how to specify LLM models)
-- CHUNK_DIR: the directory in which chunk files are stored. If not specified, it is an error.
+- ARTIFACT_DIR: the directory in which chunk files are stored. If not specified, it is an error.
+- TOPIC_CHUNK_PROMPT: the file name of the prompt to use, which can be an absolute path or relative to 'PROMPT_DIR'.
+- SEMANTIC_CHUNKING_PROMPT: if 'TOPIC_CHUNK_PROMPT' is not specified or empty, use this one. If none of these
+  is specified, it will use the hard-coded prompt, which is defined in 'server/api/doc-processing/semantic-chunking.go', var name = 'defaultTopicChunkPrompt'.
 
 ## Retrieve Record
 Load the source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -48,7 +51,7 @@ where:
 - `<keywords>`: an array of keywords in the form '[xxx, xxx, ...]'
 
 Save all the topics in a file. The file name is:
-    CHUNK_DIR + '/<group_id>/<record_id>/topics.txt',
+    ARTIFACT_DIR + '/<group_id>/<record_id>/topics.txt',
 where:
 - '<group_id>' is the integral part of record_id / 1000
 

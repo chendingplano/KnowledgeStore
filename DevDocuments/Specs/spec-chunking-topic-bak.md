@@ -30,7 +30,7 @@ Additional constraints for this processor:
 
 - `FILE_BLOCK_SIZE` (required): integer >= 1; number of content pages per block.
 - `TOPIC_CHUNK_MODEL_NAME` (required): LLM model name (see `spec-model-def.md`).
-- `CHUNK_DIR` (required): root directory for artifact output.
+- `ARTIFACT_DIR` (required): root directory for artifact output.
 
 Validation:
 - Missing/invalid env var => fail before processing input.
@@ -91,7 +91,7 @@ Keep first occurrence by extraction order.
 
 Output directory:
 
-- `run_dir = CHUNK_DIR + "/" + floor(record_id/1000) + "/" + record_id`
+- `run_dir = ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id`
 
 Create directories if missing.
 

@@ -26,7 +26,7 @@ Related context:
   `KnowledgeStore/DevDocuments/Specs/spec-extract-metadata.md`.
 
 ## Environment Variables
-- `STRUCTURE_DIR` (required): artifact output root directory
+- `ARTIFACT_DIR` (required): artifact output root directory
 - `STRUCTURE_MODEL_NAME` (required): logical LLM model name, defined in `.models.toml` (see `KnowledgeStore/DevDocuments/Specs/spec-model-def.md`)
 - `STRUCTURE_LLM_MAX_RETRIES` (optional, default 2): retries for invalid LLM output
 - `STRUCTURE_PROMPT` (required): prompt file or prompt reference
@@ -141,7 +141,7 @@ Retry policy:
 
 ## Output Artifacts
 Run directory:
-- `run_dir = STRUCTURE_DIR + "/" + floor(record_id/1000) + "/" + record_id`
+- `run_dir = ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id`
 
 Files:
 - `run_dir/structure_labels.jsonl`

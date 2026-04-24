@@ -21,7 +21,7 @@ Input file line format:
 - CHUNK_OVERLAP_PERCENT: the overlap percent, default: 20%
 - CHUNK_LLM_BASE_URL: the LLM's base URL
 - CHUNK_LLM_TIMEOUT_SEC: the timeout in second for the LLM
-- CHUNK_DIR: the directory in which chunk files are stored. If not specified, it is an error.
+- ARTIFACT_DIR: the directory in which chunk files are stored. If not specified, it is an error.
 
 ## Retrieve Record
 Load the source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -50,7 +50,7 @@ where:
 - `<lines>` is the line numbers from which a topic is derived, stored as an array of single line numbers or ranges of lines, such as '[38-45, 47, 49, 55-62]'
 
 Save all the topics in a file. The file name is:
-    CHUNK_DIR + '/<group_id>/<record_id>/topics.txt',
+    ARTIFACT_DIR + '/<group_id>/<record_id>/topics.txt',
 where:
 - '<group_id>' is the integral part of 
 
@@ -101,7 +101,7 @@ Notes:
 2. Validate and parse the input line buffer.
 3. Detect list structures using the list rules above.
 4. Build fixed-size chunks with overlap while respecting no-split constraints.
-5. Write chunk files to `CHUNK_DIR/<group_id>/<record_id>/chunk_dddd`.
+5. Write chunk files to `ARTIFACT_DIR/<group_id>/<record_id>/chunk_dddd`.
 6. Insert a chunking summary record into `kb.chunks`.
 7. Upsert `kb.inputs.status` with `operation = "chunked"` and runtime stats.
 

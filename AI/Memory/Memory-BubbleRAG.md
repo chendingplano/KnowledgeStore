@@ -10,113 +10,52 @@ source-date: 2026/03/19
 
 BubbleRAG is a training-free RAG framework that builds and explores “evidence bubbles” 
 (small connected subgraphs) to improve multi-hop reasoning and reduce hallucination.
-
-Standard RAG systems struggle with:
-
-*1. Poor multi-hop reasoning*: retrieval returns isolated chunks, hard to connect evidence
-   across documents, etc.
-*2. Low precision vs recall tradeoff*: retrieve too little → miss evidence, retrieve too much
-   → noisy context
-3. *Weak structure awareness*: evidence is treated as flat text, no notion of relationships
-   between pieces of information
-
-This can be problematic for multi-hop QA, knowledge graph reasoning, and complex queries.
-
-BubbleRAG represents a shift from “retrieve chunks” to “construct evidence structures”.
+It represents a shift from “retrieve chunks” to “construct evidence structures”.
 It is not just retrieving facts. Instead, it constructs a reasoning path before the LLM
-ever sees the data
-
-* BubbleRAG doesn’t just retrieve information
-* It builds a small reasoning graph (“bubble”) per query
-* This dramatically improves:
-
-  * multi-hop reasoning
-  * grounding
-  * precision
+ever sees the data. This can improve multi-hop reasoning, grounding, precision, etc.
 
 ---
 
-# Core idea: “Evidence bubbles”
+# Evidence Bubbles
 
-Instead of retrieving independent chunks, BubbleRAG introduces:
-
-*Evidence Bubbles*
-
-* Small, **connected groups of evidence**
-* Built around **semantic anchors**
-* Form a **local evidence graph**
-
-Think:
+Evidence Bubbles are small, connected groups of evidence, form a local evidence grapph, built around semantic anchors. Each “bubble” is coherent, multi-hop ready, and structured.
 
 ```
 Query → anchor → expand → connected evidence cluster (bubble)
 ```
 
-👉 Each “bubble” is:
-
-* coherent
-* multi-hop ready
-* structured
 
 ---
 
-# ⚙️ How BubbleRAG works
+# How BubbleRAG works
 
 ## 1. Anchor selection
 
-* Identify key **semantic anchors** from the query
-* These are starting points for retrieval
+It identifies key semantic anchors from the query. These are starting points for retrieval.
 
 ---
 
 ## 2. Bubble expansion
 
-* Expand from anchors using heuristics
-* Build **Candidate Evidence Graphs (CEGs)** ([Goatstack][1])
-
-This step:
-
-* connects related pieces
-* forms a **local graph instead of flat chunks**
+Expand from anchors using heuristics, Build Candidate Evidence Graphs (CEGs) ([Goatstack][1]), which connect related pieces, forming a local graph instead of flat chunks.
 
 ---
 
 ## 3. Composite ranking
 
-* Rank candidate bubbles using:
-
-  * relevance
-  * coverage (multi-hop completeness)
-  * coherence
-
-👉 Not just “best chunk”, but **best evidence structure**
+* Rank candidate bubbles using relevance, coverage (multi-hop completeness) and coherence, not just “best chunk”, but best evidence structure.
 
 ---
 
 ## 4. Reasoning-aware expansion
 
-* Iteratively refine bubbles based on reasoning needs
-* Add missing links if needed
+Iteratively refine bubbles based on reasoning needs, adding missing links if needed.
 
 ---
 
 ## 5. Final generation
 
-* Feed the best bubble(s) into LLM
-* Generate answer grounded in structured evidence
-
----
-
-# 🔥 Key innovations
-
-
-## Reasoning-aware retrieval
-
-* Retrieval is guided by:
-
-  * what reasoning requires
-
-* Not just similarity
+Feed the best bubble(s) into LLM, which generates answer grounded in structured evidence.
 
 ---
 
@@ -148,16 +87,21 @@ This requires **multiple reasoning hops**:
 2. Facebook → CEO → Mark Zuckerberg
 3. Mark Zuckerberg → education → Harvard
 
-👉 Final answer: **Harvard University**
+Final answer: **Harvard University**
 
 The keywords from this query should include:
 * CEO: but we don't know the company ('Facebook') yet (can be a problem)
 * university: but we don't know the university name yet (can be problem)
 * Instagram: this is the only thing certain
 
----
+It uses the keywords to search all the nodes, which can return many. The critical part is to pick the 
+right nodes to start with. In this example: 
+* Pick 'Instagram' then lets LLM to form a query to expand: "Who acquire Instagram?" It should return only one (very good).
+* Pick 'CEO', query to expand: "it with Instagram, the effect is similar to picking 'Instagram' (good)
+* Pick 'CEO' with 'university': normally it should yield not good results because it can pick tons of 
+nodes.
 
-# ❌ How standard RAG struggles
+it can pick tons of nodes.
 
 Typical RAG might retrieve:
 
@@ -165,18 +109,7 @@ Typical RAG might retrieve:
 * Chunk B: “Mark Zuckerberg is the CEO of Facebook”
 * Chunk C: “Zuckerberg attended Harvard”
 
-Problems:
-
-* These chunks are **independent**
-* The LLM must:
-
-  * connect them
-  * verify consistency
-* Often leads to:
-
-  * missing links
-  * hallucination
-  * wrong joins
+Problems are these chunks are independent. The LLM must connect them and verify consistency. This often leads to missing links, hallucination, wrong joins.
 
 ---
 
@@ -318,18 +251,7 @@ Single connected structure
 
 # 🔥 Where the reasoning actually happens
 
-Important subtlety:
-
-> BubbleRAG shifts reasoning from the LLM → into the retrieval layer
-
-Instead of:
-
-* LLM doing all reasoning
-
-Now:
-
-* Retrieval builds a reasoning-ready structure
-* LLM just reads and answers
+Important subtlety is BubbleRAG shifts reasoning from the LLM → into the retrieval layer, instead of LLM doing all reasoning. Retrieval builds a reasoning-ready structure. LLM just reads and answers.
 
 ---
 
@@ -353,7 +275,27 @@ Revenue Decline
 Stock Drop
 ```
 
-👉 This is causal reasoning encoded as a graph
+This is causal reasoning encoded as a graph. It should first resolve "the product". If users mentioned
+a product in the current session, of there is only one product in the company, resolve it (resolved in
+context). Otherwise, LLMs should clarify it from users.
+
+Now the query is modified as:
+> “Why did the company’s stock drop after Product A launch?”
+
+LLM should generate find content by "Product A Launch". If not found, just tell users it could not 
+find information about the product launch. 
+
+Otherwise, if Product A has multiple launches, it should retrieve the last launch since users did not specify
+which launch. It is important for LLMs to notify the choice (i.e., choosing the latest launch).
+
+It then collects all the information about the features, the product, comments, reviews, discussions 
+(may need to search the Internet), related documents, revenue and other financial data, etc.
+
+Do we need a graph? Or do we even need to extract entities and relations?
+In this example, a file system works equally well, if not better:
+- All the documents are saved in files, with meaningful file names, constructed in a Semantic Tree.
+- Large documents are chunked into chunks by topics
+- Summary trees
 
 ## Picking Anchors
 

@@ -17,6 +17,13 @@ where:
 - "operation": optional. If present, which is a list of doc processor names, it lists the doc processor(s) this service will use on the input. Refer to "Operation" section for more info. 
 - "force": optional. If not specified, it defaults to true.
 
+## Handle JetStream Events
+
+Since processing an event can potentially take long time, Doc Processor will handle JetStream events as follows:
+- Receive an event
+- Insert a record to 'kb.events' (refer to KnowledgeStore/database-table-schemas/table-kb-events.md)
+- Respond JetSteram
+
 ## Retrieve Record
 
 It retrieves the record from 'kb.inputs' by 'kb.inputs.id' = 'event.record_id'. 

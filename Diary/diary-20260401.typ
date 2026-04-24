@@ -920,3 +920,26 @@ Below is the diagram it generated:
    image("Images/image_2026042101.png", width: 100%),
    caption: [Architecture Diagram],
 )
+
+= 2026/04/22 - Multica
+
+#let a_008 = link(
+  "https://github.com/multica-ai/multica"
+)[#text(fill: blue)[GitHub]]
+
+a_008 \
+Source: WeChat
+
+Will implement it (refer to KnowledgeStore/DevDocuments/DesignDocs/design-agent-platform-home3.md) by Claude Code.
+
+= 2026/04/22 - How to Use Qwen3.6 (Video)
+
+#let a_009 = link(
+  "https://www.toutiao.com/video/7631098230771647014/?app=news_article&category_new=tt_video_immerse&module_name=iOS_tt_others&req_id_new=202604211910596A9BAC012403DD349B52&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=a7d9cc7c-3d73-11f1-b73b-9ab52773c4a0&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1776770237&tt_from=weixin&upstream_biz=iOS_wechat&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
+)[#text(fill: blue)[How to Use Qwen 3.6]]
+
+#a_009 \
+Source: WeChat
+
+This video contains some recommendations on how to use Qwen 3.6. I have installed it in ollama.
+

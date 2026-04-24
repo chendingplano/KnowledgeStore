@@ -125,7 +125,7 @@ To reference an anchor in another file:
 where: "Display Name" is the string you want to display; \<file-name\> is either a relative file name or a
 full-qualified file name; "heading-anchor" is the anchor name (id). 
 
-Note that Markdown only allows you to answer headings. If you want to anchor something other than headings,
+Note that Markdown only allows you to anchor headings. If you want to anchor something other than headings,
 use the HTML tag: \<a\>:
 ```md
 <a id="this-is-a-paragraph-anchar"></a>
@@ -164,4 +164,26 @@ Then:
 This is what makes systems feel like a *graph*
 
 == Frontmatter
+
+#table(
+  columns: 2,
+  align: left,
+  [*Attribute Name*], [*Explanation*],
+  [logical-name], [Logical name],
+  [logical-filename], [Logical file name],
+  [real-filename], [Real file name],
+  [file-type], ['typst', 'text', 'md', etc.],
+  [link], [file:artifact-links],
+  [link-display], [Artifact Links],
+  [author], [Chen Ding],
+  [date], [2026-04-08],
+  [tags], [Artifact Links]
+)
+
+Logical names serves as a "Classification" mechanism. Any SemObj with the same logical name
+are linked together. For instance, "Chaos Engineering" is a logical name. SemObjs with
+this logical name are automatically linked (grouped) together.
+
+Logical file names are used in links. They are 'logical' so that when a file is renamed/moved, 
+it will not break the links.
 
