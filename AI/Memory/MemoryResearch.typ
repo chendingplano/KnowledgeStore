@@ -19,7 +19,7 @@
   numbering: "1 of 1",
   footer: context {
     line(length: 100%)
-    "Reading-202602"
+    "Memory Research"
     h(1fr)
     counter(page).display("1/1", both: true)
   },
@@ -111,16 +111,12 @@ There are two types of MemCells:
 
 It creates a Memory Object
 
-== Memory Storage
+=== Memory Dimensions
 
 Memories are stored in multiple dimensions:
 - Semantic Dimension (in SHG)
 - Time Dimension
 - Special Dimension
-
-=== Special Dimension
-
-This dimension organizes memories in specific files.
 
 ==== SOUL.md
 
@@ -145,15 +141,36 @@ This is a list of a user's interests. Interests can be added manually or automat
 To add an interest manually, you can say "Add \<interest\> as my interest to memory",
 or use the slash command and select memory -> interests.
 
-=== Time Dimension - Chat History
+==== Time Dimension - Chat History
 
 We may use the strategy that OpenClaw uses:
 - Store chat history in files, one per day
 
-=== Semantic Dimension
+==== Semantic Dimension
 
 Memories are organized by topics (i.e., semantics).
 
+== Memory Storage
+
+Memory is organized like folders, real or virtual.
+
+```text
+-- Memory
+   |- SemMemory
+      |- Module A
+         |- ...
+   |- Self
+      |- SOUL.md
+      |- PREFERENCE.md
+      |- SPECIALTIES.md
+      |- FRIENDS.md
+      |- INTERESTS.md
+   |- ChatHistory
+      |- 20260424
+      |- 20260423
+      |- ...
+   |- ...
+```
 == Operations
 
 === Add Memory
@@ -184,4 +201,72 @@ It enables disabled memory
 === Query Memory
 
 == Retrieve Memories
+
+== Thoughts - SemMemory: Memory by Topics
+[[def: Topic Memory, Semantic Memory, SemMemory, Research Ideas]]
+
+Here is what happened to me: 
+- Working on a feature/module
+- Write its spec
+- Write code through code assistant
+- Tests, especially the Testbot
+- Manually debug
+- Problems and fixes
+- Refactoring
+- ...
+
+Then I move on working on another module or feature. Possibly months later, I want to add
+new features, change the code, fix bugs, or refactor the code. It will be good if I can see
+see a clear picture about the module, from idea forming, all the way to what it is today
+easily and quickly, instead of sifting through tons of documents, reading the code, etc. 
+Session history often fails. 
+
+This is called [[def:*SemMemory*]].
+
+SemMemory is a document, a well-written document that clearly captures all the important insights.
+
+SemMemory is a living document. Any time when we touch the code, its SemMemory is updated
+accordingly, ALWAYS. SemMemory and the corresponding code is a [[Semantic Twin]], a critical
+mechanism that shifts from Code-as-the-first-citizen to Document-as-the-first-citizen.
+
+SemMemory is written by human users AND AI. This is especially important in later stage of
+SemObjs. One small mis-synchronization will break the tie between SemMemory and the SemObj.
+
+
+SemMemory is designed not just for human users but also for AI 
+so that when I revisit this module/feature, all I need to do is to tell AI "Working on xxx, ..."
+
+SemMemory should tell:
+- What are the goals
+- What goals are changed
+- What the module is (spec)
+- What capabilities exist
+- What are missing (planned or detected)
+- What changed
+- Rules, guard rails
+- Coding requirements (such as logging, error reporting, etc.)
+- The tests
+
+There are tons of techniques that we can use to manage SemMemory, such as:
+- Retention plan: forget the unnecessary history
+- Lazy exposure
+- Compact
+- Multi-Level content (higher layer is more compact and lower level has more details)
+- Sub-topics
+
+*Advanced Features*\
+Potential advanced features:
+- Self-Evolving: detect defacts, missing features, suggest new features based on the past usage patterns.
+- Self-Learning: read an article, an open-source project; compare it with a SemObj; evolve it.
+
+=== Semantic Twin
+[[def:Semantic Twin]]
+
+The binding between a SemObj and its SemMemory is critical.
+
+*Definition*: A SemMemory is Consistent if:
+- Its SemObj (the code) can be re-produced at any time, possibly in any programming language
+- It contains all the non-trivial information
+- It is constantly checked with its companion SemObj (code) automatically by AI
+
 

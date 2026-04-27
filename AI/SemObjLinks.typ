@@ -16,13 +16,14 @@
 }
 
 #let frontmatter = (
-  filename: "ArtifactLinks",
+  filename: "SemObjLinks",
+  file_id: "file-2026040801",
   file-type: "typst",
-  link: "file:artifact-links",
-  link-display: "Artifact Links",
+  link: "file:semobj-links",
+  link-display: "SemObj Links",
   author: "Chen Ding",
-  date: "2026-04-08",
-  tags: ("Artifact Links"),
+  document_date: "2026-04-08",
+  tags: ("SemObj Links"),
 )
 
 #set page(

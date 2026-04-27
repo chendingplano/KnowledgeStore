@@ -838,6 +838,8 @@ Access Policy controls who can access which and when. Do not bolt this on later.
 
 == Links
 
+[[file:file-2026040801]]
+
 SemObjs are interconnected. We want to implement the links similar to hyperlinks.
 
 === Markdown Files
@@ -934,11 +936,24 @@ They made the app bootable per git worktree, so Codex could launch and drive one
   caption: [Logs and Observibility (#a_001)],
 )
 
+== Topic - Ralph Wiggum Loop
+
+#let r_003 = link(
+  "https://dzone.com/articles/understanding-frontier-agents"
+)[#text(fill: blue)[The Next Evolution of AI Applications]]
+
+"Ralph Wiggum gets context management right by forcing every iteration to start fresh, eliminating cumulative reasoning decay while persisting progress externally. It also cleanly separates reasoning from orchestration, using deterministic scripts and files as the source of truth rather than trusting the agent’s memory."
+
+- Forcing every iteration to start fresh
+- Eliminating cumulative reasoning decay while persisting progress externally
+- Cleanly separate reasoning from orchestration
+
 == References
 
-#r_001 AI Agents vs LLMs: Choosing the Right Tools for AI Tasks, 2026/03/26, Source: dzone
+[1] #r_001 AI Agents vs LLMs: Choosing the Right Tools for AI Tasks, 2026/03/26, Source: dzone
 
-#r_002 LangChain DeepAgents, 2026/04/02, Source: WeChat
+[2] #r_002 LangChain DeepAgents, 2026/04/02, Source: WeChat
 
 [3] Harness Engineering: Leveraging Codex in an Agent-First World, https://openai.com/index/harness-engineering/, February 11, 2026.
 
+[4] #r_003

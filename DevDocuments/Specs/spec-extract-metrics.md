@@ -156,6 +156,20 @@ Apply these rules strictly:
 * Preserve exact wording in `source_text`.
 * Normalize `metric_name` only enough to make it concise and readable.
 
+## Input Files
+Metrics are extracted from chunks, which are stored in chunk files. Depending on chunking methods, 
+chunks are stored differently.
+- fix-length chunking: its chunk files are (refer to Specs/spec-chunking.md):
+```text
+    chunk_0001
+    chunk_0002
+    ...
+```
+
+- topic-driven chunking: it has only one chunk file (refer to Specs/spec-chunking-topic.md): `topics.txt`. `topics.txt` does not store chunks themselves but the lines a chunk covers. It needs to reconstruct chunk files.
+
+If `topics.txt` exist, use it as its input file. Otherwise, if `chunk_dddd` files exist, use them as the input files. Otherwise, report an error.
+
 ## Output
 
 ### Output Language
