@@ -28,9 +28,13 @@ Related context:
 
 ## Environment Variables
 - `ARTIFACT_DIR` (required): artifact output root directory
+- `EXTRACT_DOCMETA_PROMPT` (optional): controls output destination.
+  - If not defined or any value other than `false`: write corrected output back to the original input file (override origin).
+  - If set to `false`: write to a separate `.corrected` artifact file instead.
 
 Validation:
-- Missing required env var => fail before processing.
+- Missing `ARTIFACT_DIR` when writing `.corrected` artifact => fail before processing.
+- `ARTIFACT_DIR` is not required when `EXTRACT_DOCMETA_PROMPT != false` (origin override mode).
 
 ## Retrieve Record
 Load source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -183,12 +187,22 @@ Example:
 The extra '0' happens at heading2 only.
 
 ## Output Artifacts
-### File Name
-Save the results to `ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id + "/" + filename-root + ".corrected"`
-where 'filename-root' is the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name'.
+### Output Destination
+Controlled by `EXTRACT_DOCMETA_PROMPT`:
 
-### File Format
-The processor preserves the original input line type and adds corrected_line_type right after the original line type. The original line-file has 7 fields; this analyzer outputs 8 fields by inserting corrected_line_type as the 4th field (right after line-type). If no correction is made for a line, corrected_line_type is unchanged.
+**Override-origin mode** (default — `EXTRACT_DOCMETA_PROMPT` is not set or not `false`):
+- If no corrections were made, skip writing entirely.
+- If at least one correction was made:
+  1. Back up the original input file to the same path with a `.origin` extension (e.g. `foo_parser.txt` → `foo_parser.origin`).
+  2. Overwrite the original input `.txt` file in place.
+- Output format: the original 7-field line-file, with `line-type` (field 3) replaced by the corrected type where a correction was made. Lines with no correction keep their original `line-type` unchanged.
+- Do not produce a `.corrected` artifact.
+
+**Corrected-artifact mode** (`EXTRACT_DOCMETA_PROMPT=false`):
+- Output format: 8-field line-file — the original 7 fields with `corrected_line_type` inserted as the 4th field (right after `line-type`). If no correction is made for a line, `corrected_line_type` is `unchanged`; the original `line-type` is always preserved.
+- Save the results to:
+  `ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id + "/" + filename-root + ".corrected"`
+  where `filename-root` is the root of `kb.inputs.staging_filename + "_" + kb.inputs.parser_name`.
 
 ## Update `kb.inputs.status`
 Persist operation status using canonical name:
@@ -232,7 +246,9 @@ Rules:
 1. Validate required env vars.
 2. Retrieve source record from `kb.inputs`.
 3. Run the detection and correction defined in the "Processing Rules" section.
-4. Save the results
+4. Write output per the "Output Destination" rules:
+   - Override-origin mode: overwrite the original input `.txt` file.
+   - Corrected-artifact mode: write `filename-root.corrected` under `ARTIFACT_DIR`.
 5. Upsert `kb.inputs.status` with `operation = "static_analyzer"`.
 
 ## Failure Semantics

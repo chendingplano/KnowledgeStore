@@ -943,3 +943,16 @@ Source: WeChat
 
 This video contains some recommendations on how to use Qwen 3.6. I have installed it in ollama.
 
+= 2026/04/27 - Playwrite-cli
+
+#let a_010 = link(
+  "https://github.com/microsoft/playwright-cli"
+)[#text(fill: blue)[Playwrite-cli]]
+
+#let a_011 = link(
+  "https://playwright.dev/agent-cli/skills"
+)[#text(fill: blue)[Playwrite Skill]]
+
+#a_010\
+#a_011
+
