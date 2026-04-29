@@ -162,7 +162,8 @@ Add environment-backed configuration to `FixedSizeChunkingService`:
 - `CHUNK_SUMMARY_MODEL_NAME`
 - `CHUNK_SUMMARY_PROMPT`
 - `SUMMARY_GROUP_SIZE`
-- `SUMMARY_CLUSTER_DIR` (optional; defaults under `ARTIFACT_DIR/clusters`)
+- `SUMMARY_TREE_DIR`
+- `SUMMARY_CLUSTER_DIR`
 - `SUMMARY_CLUSTER_SIMILARITY_THRESHOLD`
 - `RECLUSTERING_DAYS`
 - `SUMMARY_EMBEDDING_MODEL_NAME` if embeddings are generated through a separate model
@@ -172,7 +173,6 @@ Defaults:
 - model name defaults should follow the current LLM configuration pattern used by chunk/topic extraction
 - `SUMMARY_GROUP_SIZE` should default to a small deterministic value such as `5`
 - `RECLUSTERING_DAYS` should default to a conservative value such as `7`
-- cluster dir defaults to `ARTIFACT_DIR/clusters`
 
 If required summary model or prompt configuration is missing:
 
@@ -213,11 +213,39 @@ Notes:
 - leaf summaries use `children: []`
 - line ranges should be deterministic and compacted
 
+### Summary Tree Storage
+
+Store summary-tree category outputs under:
+
+- `SUMMARY_TREE_DIR/<category_1>/<category_2>/.../summaries.txt`
+
+Workflow:
+
+1. take the root summary of the current document summary tree
+2. extract up to 6 levels of descriptive categories from that root summary
+3. normalize each category segment to snake_case
+4. use the category path as a directory tree under `SUMMARY_TREE_DIR`
+5. append or replace the current document root summary ID in the leaf `summaries.txt`
+
+Leaf file format:
+
+```text
+53_0_0018
+77_0_0021
+```
+
+Notes:
+
+- the summary tree storage is separate from summary clustering
+- this path stores root summary IDs only, not full summary bodies
+- writes must be idempotent for a reprocessed record
+- invalid or missing category paths should fall back to a deterministic uncategorized path
+
 ### Shared Cluster Files
 
 Store cross-record cluster markdown files in:
 
-- `ARTIFACT_DIR/clusters/cluster_000001_some_slug.md`
+- `SUMMARY_CLUSTER_DIR/cluster_000001_some_slug.md`
 
 Markdown format follows the chunk summary spec:
 
@@ -293,11 +321,12 @@ This keeps every summary mappable back to the original canonical line file and m
 When a record is re-chunked:
 
 1. delete existing `summary_*` files in `ARTIFACT_DIR/<group_id>/<record_id>/`
-2. load cluster files and remove any summary references belonging to the current `record_id`
-3. delete cluster files that become empty after removal
-4. generate fresh summaries and reassign them to clusters
+2. remove prior root-summary references for the record from `SUMMARY_TREE_DIR`
+3. load cluster files from `SUMMARY_CLUSTER_DIR` and remove any summary references belonging to the current `record_id`
+4. delete cluster files that become empty after removal
+5. generate fresh summaries and reassign them to trees and clusters
 
-This mirrors the spec requirement that summaries be removed before regeneration and prevents stale record content from remaining in cluster files.
+This mirrors the spec requirement that summaries be removed before regeneration and prevents stale record content from remaining in summary-tree and cluster outputs.
 
 ## Clustering Strategy
 
@@ -325,7 +354,7 @@ For each new candidate summary:
 
 Track full reclustering metadata using a small local metadata file under the cluster directory, for example:
 
-- `ARTIFACT_DIR/clusters/_cluster_state.json`
+- `SUMMARY_CLUSTER_DIR/_cluster_state.json`
 
 This file stores:
 
@@ -362,10 +391,11 @@ Add structured logs for:
 
 - summary generation start/end per chunk and per parent group
 - number of summaries per level
+- summary tree category assignment and root-summary storage updates
 - cluster assignment decisions
 - new cluster creation
 - reclustering runs
-- cleanup of stale summaries and cluster references
+- cleanup of stale summaries, summary-tree references, and cluster references
 
 This follows workspace logging guidance and will help diagnose cost, latency, and clustering drift.
 
@@ -377,6 +407,8 @@ Any failure in:
 - leaf summary generation
 - parent summary generation
 - summary file writing
+- summary tree category extraction
+- summary tree leaf writing
 - cluster metadata loading
 - cluster assignment
 - cluster markdown writing
@@ -400,11 +432,14 @@ Add failing tests to `ChenWeb/server/api/doc-processing/chunking_test.go` for:
 
 1. `HandleInput` writes leaf summary files for each chunk
 2. `HandleInput` writes parent summary files recursively until a root summary exists
-3. reprocessing removes stale summary files before rewriting
-4. cluster markdown files are created with stable cluster IDs
-5. cluster reassignment replaces prior summaries for the same record
-6. summary generation failure persists failed input status
-7. cluster write failure persists failed input status
+3. `HandleInput` writes root-summary IDs into the categorized `SUMMARY_TREE_DIR` leaf
+4. reprocessing removes stale summary files before rewriting
+5. reprocessing replaces prior root-summary references for the same record in `SUMMARY_TREE_DIR`
+6. cluster markdown files are created in `SUMMARY_CLUSTER_DIR` with stable cluster IDs
+7. cluster reassignment replaces prior summaries for the same record
+8. summary generation failure persists failed input status
+9. summary-tree write failure persists failed input status
+10. cluster write failure persists failed input status
 
 ### Helper Tests
 
@@ -413,6 +448,8 @@ Add focused tests for:
 - summary grouping by `SUMMARY_GROUP_SIZE`
 - compact line range merging across child summaries
 - summary file serialization and parsing
+- summary-tree category-path normalization and fallback
+- `summaries.txt` idempotent replace behavior
 - slug generation
 - cluster file rename behavior when label changes
 - cluster state metadata persistence
@@ -443,7 +480,7 @@ Mitigation:
 
 ### Risk: Cross-Record Shared File Consistency
 
-Cluster files are shared across records and can be corrupted by partial updates.
+Summary-tree and cluster files are shared across records and can be corrupted by partial updates.
 
 Mitigation:
 
