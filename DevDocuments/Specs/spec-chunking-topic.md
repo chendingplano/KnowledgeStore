@@ -32,8 +32,8 @@ Error handling:
 ## Extract Topics
 
 - Break the input file into blocks. Each block contains 1 overlap page (except the first block) and FILE_BLOCK_SIZE content pages
-- Use the LLM to recognize and extract all the topics from each block. 
-- Ignore the Table of Contents, if any.
+- Skip lines with `line_type = TOC` (case-insensitive); do not pass them to the LLM or include them in any chunk.
+- Use the LLM to recognize and extract all the topics from each block.
 - Treat the cover page, if any, as one topic
 - For tables, write a description about a table as its topic. The topic type is 'table'.
 - For formulas, write a description based on the context as its topic. The topic type is 'formula'

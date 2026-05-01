@@ -288,9 +288,20 @@ Notes:
 For each fixed-size chunk:
 
 - gather the chunk lines in chunk order
-- call the summary model with the configured summary prompt
+- detect the primary language of the chunk content (English or Chinese)
+- append a language directive to the summary prompt so the LLM responds in the same language as the source content
+- call the summary model with the language-aware prompt
 - create a level 0 summary item
 - preserve chunk sequence ordering
+
+#### Language Detection
+
+Inspect the non-whitespace rune count in the input text. If more than 20% of those runes fall in the CJK Unified Ideographs block (U+4E00–U+9FFF), the language is Chinese; otherwise English. This applies to both leaf summaries (line content) and parent summaries (child summary text).
+
+The language directive appended to the prompt is:
+
+- Chinese content: `IMPORTANT: Generate the summary in Chinese.`
+- English content: `IMPORTANT: Generate the summary in English.`
 
 Leaf summary numbering:
 
@@ -318,15 +329,17 @@ This keeps every summary mappable back to the original canonical line file and m
 
 ## Reprocessing and Cleanup
 
+Generating chunk summaries MUST be idempotent. The pipeline clears all stale artifacts for the record before writing new ones so that reprocessing a record produces exactly the same state as processing it for the first time.
+
 When a record is re-chunked:
 
-1. delete existing `summary_*` files in `ARTIFACT_DIR/<group_id>/<record_id>/`
-2. remove prior root-summary references for the record from `SUMMARY_TREE_DIR`
-3. load cluster files from `SUMMARY_CLUSTER_DIR` and remove any summary references belonging to the current `record_id`
-4. delete cluster files that become empty after removal
-5. generate fresh summaries and reassign them to trees and clusters
+1. Delete existing `summary_*` files in `ARTIFACT_DIR/<group_id>/<record_id>/` before generating new summary files.
+2. Remove all summary IDs that start with `<record_id>_` from every `summaries.txt` file under `SUMMARY_TREE_DIR` before writing the new root-summary reference. After removal, append the new root summary ID to the target leaf file (do not overwrite — other records' IDs in that file must be preserved).
+3. Load cluster files from `SUMMARY_CLUSTER_DIR` and remove any summary references belonging to the current `record_id` before assigning new summaries to clusters.
+4. Delete cluster files that become empty after removal.
+5. Generate fresh summaries and reassign them to trees and clusters.
 
-This mirrors the spec requirement that summaries be removed before regeneration and prevents stale record content from remaining in summary-tree and cluster outputs.
+This prevents stale record content from remaining in summary-tree and cluster outputs while preserving entries from other records that share the same leaf files.
 
 ## Clustering Strategy
 

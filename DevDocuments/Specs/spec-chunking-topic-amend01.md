@@ -23,7 +23,9 @@ Saving a topic to its leaf file MUST be idempotent. If a record with `record_id 
 - Category names MUST be descriptive
 - Category names use snake-casing, max length 64 characters
 - Category maximum depth is 6
-- If a category path is invalid (missing, non-descriptive, too deep, or segment too long),
-  route the topic to `uncategorized/<topic_type>.txt` and continue processing.
+- If a category path is invalid (missing, non-descriptive, too deep, or segment too long):
+  1. Attempt to build a fallback category path from the topic's keywords (3–5 descriptive, normalized keywords).
+  2. If no usable keywords are available, route the topic to `uncategorized/<topic_type>.txt`.
+  3. Always emit a `WARN` log ("topic category fallback applied") with the `reason` and the resulting `fallback_category` path.
 - Output MUST be deterministic for the same input (same paths and same row ordering).
 - Legacy flat output file `topics.txt` MUST be retained and continue to be generated.

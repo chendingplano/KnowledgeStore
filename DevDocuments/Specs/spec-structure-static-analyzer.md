@@ -13,6 +13,11 @@ The processor preserves the original input line type and adds `corrected_line_ty
 line type. The original line-file has 7 fields; this analyzer outputs 8 fields by inserting `corrected_line_type`
 as the 4th field (right after `line-type`). If no correction is made for a line, `corrected_line_type` is `unchanged`.
 
+**UI reading order:** The Document Structure viewer (`/home3/knowledge` → "Document Structure") reads the `.txt`
+file as its primary source. If a `.corrected` file also exists it is shown as supplementary context but the
+line list is always populated from `.txt`. Manual corrections entered through the UI are written to a separate
+`.manual` file (see "Manual Override File" section below).
+
 ## Inputs
 - `record_id`: value of `kb.inputs.id`
 - `input_filename`: source file name
@@ -203,6 +208,51 @@ Controlled by `EXTRACT_DOCMETA_PROMPT`:
 - Save the results to:
   `ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id + "/" + filename-root + ".corrected"`
   where `filename-root` is the root of `kb.inputs.staging_filename + "_" + kb.inputs.parser_name`.
+
+## Manual Override File (`.manual`)
+
+The `.manual` file is **not produced by the static analyzer**. It is created and maintained by the Document
+Structure UI (`PATCH /api/v1/kb/doc-structure` and `DELETE /api/v1/kb/doc-structure`). It is documented here
+because it lives alongside the analyzer output files and shares their format.
+
+### Purpose
+Records every line that a user has manually edited or deleted through the UI. Provides an audit trail of
+human corrections that can be replayed or diffed against the analyzer output.
+
+### Path
+```
+ARTIFACT_DIR/{floor(id/1000)}/{id}/{filename-root}_{parser}.manual
+```
+Same directory and naming convention as `.txt` and `.corrected`, with extension `.manual`.
+
+### Format
+10-field tab-separated:
+```
+{operation}\t{line_number}\t{page_number}\t{line_type}\t{font}\t{font_size}\t[x1,y1,x2,y2]\t{timestamp}\t|$|{old-content}|$|\t|$|{new-content}|$|
+```
+
+Fields:
+- `operation`: one of `modify`, `delete`
+- `line_number`, `page_number`: identity of the line
+- `line_type`: the current (post-operation) line type; for `delete` this is the original type before deletion
+- `font`, `font_size`, `[x1,y1,x2,y2]`: unchanged from the source line
+- `timestamp`: wall-clock time of the operation, formatted `yyyymmdd-hhmmss`
+- `|$|{old-content}|$|`: original text content from the **first** edit of this line; never overwritten by subsequent edits
+- `|$|{new-content}|$|`: text content after the operation; empty (`|$||$|`) for `delete`
+
+The `|$|...|$|` delimiters allow content that itself contains `|$|` to be parsed unambiguously.
+
+### Semantics
+- **Modify:** when a user changes a line's type or content, the entry is written with `operation=modify`,
+  `old-content` = the text before the change, `new-content` = the text after the change, and `line_type` =
+  the updated type. The `.txt` file is also updated in place.
+- **Delete:** when a user deletes a line, it is removed from `.txt` and upserted into `.manual` with
+  `operation=delete`, `old-content` = the original text, `new-content` empty, and `line_type` = the
+  original type. Coordinates are preserved so the deletion can be identified and potentially reversed.
+- **Upsert key:** `(page_number, line_number)`. An existing entry for the same key is replaced, but
+  `old-content` is **always preserved from the first entry** — subsequent upserts do not overwrite it.
+- **Sort order:** lines are stored sorted ascending by `line_number` (then `page_number` as tiebreaker).
+- The `.manual` file may be absent if no manual edits have been made.
 
 ## Update `kb.inputs.status`
 Persist operation status using canonical name:

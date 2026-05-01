@@ -956,3 +956,10 @@ This video contains some recommendations on how to use Qwen 3.6. I have installe
 #a_010\
 #a_011
 
+= 2026/04/30 - Build a Shell
+
+#let a_012 = link(
+  "https://www.mintlify.com/blog/how-we-built-a-virtual-filesystem-for-our-assistant"
+)[#text(fill: blue)[Article]]
+
+Need to read it when we work on the shell.

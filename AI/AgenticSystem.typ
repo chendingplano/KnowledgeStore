@@ -163,6 +163,60 @@ It adds planning step, tool selection and state tracking.
 
 It includes user interfaces, infrastructures, scaliing and reliability engineering.
 
+= Agent
+An agent is a goal-directed system where an LLM is embedded inside a feedback loop with tools, memory, and environment.
+It normally contains:
+
+- Brain: the LLM (reasoning, planning)
+- Tools: APIs, shell, browser, DB, etc.
+- Memory: context, files, vector DB, session state
+- Loop / Harness: logic like plan → act → observe → reflect
+
+== Agent Training
+
+Agents can be trained. The data to train data include:
+
+1. Prompts (behavior shaping), system prompts, tool instructions, planning strategies
+2. Tools (capability shaping): add APIs, add DB access, add knowledge base systems, etc.
+3. Memory (knowledge shaping): RAG, long-term memory, knowledge base systems, etc.
+4. Harness / loop (decision shaping): planning logic, reflection, retry strategies, evaluation, testing, etc.
+5. Skills
+6. ...
+
+== Agent Model
+
+*Layer 1 — Model*
+- GPT, Claude, Codex (weights)
+- Not directly trainable by you
+
+*Layer 2 — Agent runtime*
+
+- Codex CLI
+- Claude Code
+- OpenClaw
+
+*Layer 3 — Harness / environment (what you build)*
+
+- SemOS
+- memory systems
+- tool ecosystems
+
+*Layer 4 — Data / experience*
+
+- logs
+- traces
+- evaluations
+- feedback loops
+
+== Agents and Models
+
+The industry is shifting from training better models to building better agent systems around models (Harness Engineering)
+
+
+---
+
+If you want, I can map your *MKBP design directly into an “agent harness architecture”* (very aligned with AHE), and show how it could *self-improve over time*.
+
 == Agent Loop
 
 This is the defining feature of agents:
@@ -183,7 +237,7 @@ I am thinking about making agent loops as modules that can be configured and cha
 
 Need to investivate the differences and details about agent loops.
 
-=== What Makes AI Assistant Different aaa
+=== What Makes AI Assistant Different
 
 Agent loop is at the heart of agents. But, on the other hand, agent loops are very abstractive, 
 agnostic about the domain, the purpose, and many other nuances of agents. 
@@ -377,27 +431,6 @@ really are.
 
 What is *Task*?
 
-== Tools
-
-Most agents work with a fixed set of tools to use. 
-We may want to implement a method that lets LLMs express the tools they wish to have.
-The idea is that LLMs are the brain. When we want LLMs solve problems, they need to use tools.
-The tools should contain not only the existing tools, but also a special tool: Meta Tool,
-or a tool that is used by LLMs to express the tools they need.
-
-This can be important when we ask LLMs to solve specific problems through skills.
-If a skill wants to debug a third-party app, the LLM may need to access its logs, its documents,
-its configurations, its execution environment, related regulations and laws, etc.
-LLMs can, of course, ask human users for help. Human users may be able to help, if it is a simple
-thing, such as pointing a file or a directory where the documents reside. But two problems, if not more:
-1. Human users get involved (affecting automation)
-2. Human users may not be good at engineering. They may not be able to help.
-
-Asking tools that are not available yet will interrupt the current workflow, possibly halt the task.
-But developing new tools is a way to evolve the AI system. Once the desired tool, upon request,
-is developed, LLMs will be able to solve the same/similar tasks in the future without human users
-involved.
-
 == Meta Agent
 
 (Note: *Meta Agent* is not a common concept! I may change it in the future when a better name arises.)
@@ -424,7 +457,28 @@ If not, it can add additional tests.
 In other word, ralph loops are not just repeating. It handles the same task from different
 answers, using different tools or methods, using different LLMs, etc.
 
-== Harness 
+= Tools
+
+Most agents work with a fixed set of tools to use. 
+We may want to implement a method that lets LLMs express the tools they wish to have.
+The idea is that LLMs are the brain. When we want LLMs solve problems, they need to use tools.
+The tools should contain not only the existing tools, but also a special tool: Meta Tool,
+or a tool that is used by LLMs to express the tools they need.
+
+This can be important when we ask LLMs to solve specific problems through skills.
+If a skill wants to debug a third-party app, the LLM may need to access its logs, its documents,
+its configurations, its execution environment, related regulations and laws, etc.
+LLMs can, of course, ask human users for help. Human users may be able to help, if it is a simple
+thing, such as pointing a file or a directory where the documents reside. But two problems, if not more:
+1. Human users get involved (affecting automation)
+2. Human users may not be good at engineering. They may not be able to help.
+
+Asking tools that are not available yet will interrupt the current workflow, possibly halt the task.
+But developing new tools is a way to evolve the AI system. Once the desired tool, upon request,
+is developed, LLMs will be able to solve the same/similar tasks in the future without human users
+involved.
+
+= Harness 
 
 Harness is the infrastructrue that connects LLM + tools + memory + execution. It includes:
 - Prompt construction
@@ -436,7 +490,7 @@ Harness is the infrastructrue that connects LLM + tools + memory + execution. It
 
 For more information about harness, please refer to HarnessEngineering.typ.
 
-== Multi-Agent Architecture
+= Multi-Agent Architecture
 
 #let a_031 = link(
   "https://dzone.com/articles/scalable-agentic-ai-assistants-graph"
@@ -453,7 +507,7 @@ In this architecture, there are:
 - Supervisor
 - Worker
 
-=== Supervisor
+== Supervisor
 
 The supervisor examines an incoming request and decides which agent is best to handle it. It then
 routes the request to the agent.
@@ -497,14 +551,14 @@ In the above code, `state.current_main` is `payments`. Who sets it? I guess the 
    ...
 ```
 
-=== Skills or Agents
+== Skills or Agents
 
 Are workers agents or skills? Ideally, there are Payment Agent, Dispute Agent,
 and Analytics Agent. Each with its own agent loop, history, memory management, set of tools to use, etc.
 An agent is like an app.
 
 
-=== Skill (Worker)
+== Skill (Worker)
 
 The author calls it worker. I think workers can be implemented as skills.
 
@@ -562,7 +616,7 @@ This is why many agent demos look impressive but collapse under real production 
 A simple rule helps here: if you can clearly describe the task as a single question, you probably do not need an agent.
 ]
 
-==== CLI, Tools, File-Tree
+=== CLI, Tools, File-Tree
 
 The system should support all: CLI, tools, and file-tree, with the correct order:
 
@@ -603,12 +657,12 @@ CLI is useful for humans, scripts, and agent harnesses.
 
 Examples:
 
-- `mkbp add file.md`
-- `mkbp search "duckdb schema evolution"`
-- `mkbp open /projects/x/spec.md`
-- `mkbp link /notes/a /topics/b`
-- `mkbp diff v12 v13`
-- `mkbp export project-x`
+- `semos add file.md`
+- `semos search "duckdb schema evolution"`
+- `semos open /projects/x/spec.md`
+- `semos link /notes/a /topics/b`
+- `semos diff v12 v13`
+- `semos export project-x`
 
 *LLM Tools*
 
@@ -657,7 +711,7 @@ That is what makes a system LLM-friendly.
 
 Those all either become brittle or too low-level.
 
-=== Architecture for MKBP
+=== Architecture for SemOS
 
 A good starting design could be:
 
@@ -711,7 +765,7 @@ A good starting design could be:
 
 ==== Design goal
 
-MKBP should feel like this to users and agents:
+MSemOS should feel like this to users and agents:
 
 - Artifacts
 - Search and Exploration
