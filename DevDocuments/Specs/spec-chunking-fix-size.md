@@ -161,7 +161,9 @@ the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name' + ".emb
 
 ## 7. Summaries
 * Refer to 'spec-generate-chunk-summary.md' for generating summaries.
-* Refer to 'spec-category-extraction' for how to extract category paths and
+* Generate category paths for **every** summary (both leaf and group summaries),
+  not just the root. Each summary gets its own category path from the LLM.
+* Refer to 'spec-category-extraction.md' for how to extract category paths and
   save summaries in the Summary File Tree.
 
 ## 7.1 Embed Summaries
@@ -219,7 +221,7 @@ Notes:
 7. Write the topic file to `ARTIFACT_DIR/<group_id>/<record_id>/<topic_file_name>`, where `<topic_file_name>` is similar to 
    `<chunk_file_name>` except that it uses the '.topics' file extention.
 8. Update the Topic File Tree.
-9. Update the Summary File Tree.
+9. Generate a category path for each summary (leaf and group) via LLM, then update the Summary File Tree with each summary's own category path.
 10. Insert a chunking summary record into `kb.chunks`.
 10. Upsert `kb.inputs.status` with `operation = "chunked"` and runtime stats.
 

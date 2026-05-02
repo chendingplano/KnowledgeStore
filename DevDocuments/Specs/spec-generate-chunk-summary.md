@@ -55,11 +55,11 @@ where:
 
 ### 1.6 Summary Embedding
 - Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
-- Summary embeddings (vectors) are stored in:
+- Each summary's embedding vector is stored in a dedicated file alongside its summary file:
 
-`ARTIFACT_DIR + /<group_id>/<record_id>/<file_name_root>.summary_embed`
+`ARTIFACT_DIR + /<group_id>/<record_id>/summary_<level>_<dddd>.embed`
 
-where `<file_name_root>` is the root of 'kb.inputs.staging_filename'.
+For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 
 ### 1.7 Summary File Format
 
@@ -69,6 +69,7 @@ record_id": 123
 level: 2
 lines: [ddd, ddd-ddd]
 children: ["1_0012", "1_0013"]
+keywords: ["xxx",...]
 category_paths: [(<path_keywords>, <path_confidence>, [<category_name>, <keywords>, <confidence>]), ...]
 summary_begin
 <the summary, can be in multiple lines>
