@@ -57,7 +57,7 @@ where:
 - Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
 - Each summary's embedding vector is stored in a dedicated file alongside its summary file:
 
-`ARTIFACT_DIR + /<group_id>/<record_id>/summary_<level>_<dddd>.embed`
+`ARTIFACT_DIR + /<group_id>/<record_id>/embeddings/summary_<level>_<dddd>.embed`
 
 For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 

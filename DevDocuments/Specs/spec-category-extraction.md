@@ -13,9 +13,8 @@ where:
 - `<line_number>` is the line number, starting from 1
 - `<artifact>` is the content (text) from which the category paths are generated
 
-## 3 Category Path Generation Rules
-- Extract one or more category paths per line
-- Use an LLM to extract category paths.
+## 3 Category Path Generation
+It uses an LLM to extract category paths for each artifact, which can be summaries or topics.
 
 The format of the LLM output is:
 ```json
@@ -50,13 +49,61 @@ The format of the LLM output is:
 ```
 
 ## 4 Handle Summaries
-Given a document, the doc processing pipeline breaks the document into chunks and generate summaries
-for all the chunks (refer to 'spec-chunking-fix-size.md' for document chunking and chunk
-summary generation). It then moves on to this step to generate category paths for all
-the summaries and summaries of summaries. 
+Given a document, the doc processing pipeline breaks the document into chunks, generates a summary
+for each chunk and generates category paths for the summary (refer to 'spec-chunking-fix-size.md' 
+for document chunking, chunk summary generation and summary storage).
 
-Below is the workflow:
+### 4.1 Summary Category File Tree
+Document summaries are clustered by Category Paths. ory paths are used to create a file tree under SUMMARY_TREE_DIR:
+```text
+SUMMARY_TREE_DIR
+  |- level-1-category-name-1
+     |- level-2-category-name-1
+        ...
+     |- level-2-category-name-2
+     ...
+  |- level-1-category-name-2
+  ...
+```
+Each of the node in the tree is a directory, called `Category Directory`.
 
+### 4.2 'metadata.txt' File
+Each category directory has a `metadata.txt'. Its format is:
+```text
+desc:"the category description"
+category_type:"the category type"
+confidence:ddd
+keywords:["ddd", ...]
+create_time:"yyyymmdd-hhmmss"
+```
+Values for the field 'desc' should escape '"' and '\n'.
+
+**Updating 'metadata.txt'**
+When a new category path is generated and its categories in the category path
+match the existing directory, if the new category contains keywords that are not
+present in this file, add them.
+
+**Edge Case: Missing 'metadata.txt' File**
+When a new category path is generated and its categories match an existing directory,
+if the directory does not have the 'metadta.txt' file yet, add it.
+
+### 4.3 'summaries.txt' File
+Each category directory may have a `summaries.txt` file. Its formatt is:
+```text
+<summary_id>
+<summary_id>
+...
+```
+Refer to 'spec-generate-chunk-summary.md' for the definition and
+format of `<summary_id>`.
+
+If the current directory is the last category of a category path,
+it will upsert its summary ID to this file. If the file does not
+exist yet, it will create it.
+
+Summary IDs are sorted based on 'record_id', 'level' and 'seqno'.
+
+### 4.4 Workflow
 * Compose all the summaries (including summaries of summaries) into the format specified in
   the 'Input' section (above)
 * Use the LLM and the prompt (must be present and valid. Otherwise, fail this step) to generate
@@ -69,45 +116,20 @@ Below is the workflow:
   * Set SUMMARY_TREE_DIR as its current directory
   * For the i-th category in `category_path`, find the closest sub-directories in the 
     current directory by calculating the cosine of their vectors as the similarity score:
-    * If the similarity score is no less than CATEGORY_SIMILARITY_MIN_SCORE (the bigger, 
-      the closer), the current category is considered 'the same' as the closest one. Set 
+    * If the similarity score (score is between 0.0 and 1.0, the bigger, the closer) is no less than CATEGORY_SIMILARITY_MIN_SCORE, 
+      the current category is considered 'the same' as the closest one. Set 
       the closest as its current directory. Move on to the next category, if any.
     * Otherwise, this is a new category in the current directory. Create the sub-directory
       and the metadata file for the sub-directory. Then move on to the next category, if any.
-  * For the last category in `category_path`, store/update its summary to the file 'summaries.txt'
-
-### 4.1 Summary Storage
-Each category in a category path is a directory:
-```text
-  SUMMARY_TREE_DIR/category_1/category_2/.../category_n
-```
-where:
-* SUMMARY_TREE_DIR is an environment variable (required)
-* category_i is the i-th category in a category path
-
-### 4.2 Category Metadata
-A category directory stores the following metadata in the file 'category_meta.json':
-```json
-{
-  "category_path": "the path from SUMMARY_TREE_DIR to this directory",
-  "keywords": ["keyword", ...]
-  "embedding_model": "the name of the embedding model",
-  "centroid": "the centroid's vector",
-  "desc": "the description of the category",
-}
-```
-
-### 4.3 Summaries
-If a category path ends at this directory, it stores its summary in the file 'summaries.txt':
+    * Each directory has a '
+  * Upsert its summary ID to the file 'summaries.txt', if the current directory matches the last category of the category path
+    (refer to "4.2 'summaries.txt' File" section).
 
 ## 5 Handle Topics
 Given a document, the doc processing pipeline will generate a collection of topics (refer to
-'spec-chunking-fix-size.md' for the topics it generates). It then moves on to this step
-to generate category paths for all the topics.
+'spec-chunking-fix-size.md' for the topics it generates). 
 
-The workflow is similar to `Handle Summaries` except that the root directory is TOPIC_TREE_ROOT_DIR
-
-## 5 Topic Storage
+## 5.1 Topic Storage
 Each category in a category path is a directory:
 ```text
   TOPIC_TREE_ROOT_DIR/category_1/category_2/.../category_n

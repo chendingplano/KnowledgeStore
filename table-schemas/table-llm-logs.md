@@ -7,9 +7,9 @@ This table stores skills.
 |:-----------|:---------|:------------|:----|
 | id | mandatory | integer | Auto-incremented ID (integer) that identifies the record |
 | tenant_id | optional | string | Identifies the tenant, default to '-' |
-| skill_name | required | string | The name of the skill |
-| skill_category | optional | array of strings | In form of `[level1-category, level2-category, ...]`|
-| skill_source | optional | string | how we know the skill |
+| prompt_name | required | string | The name of the prompt |
+| model_name | required | string | The model name |
+|  | optional | string | how we know the skill |
 | skill_desc | optional | text | the description of the skill |
 | skill_frontmatter | optional | text | the frontmatter of the skill |
 | self_dev | optional | boolean | whether it is self developed |

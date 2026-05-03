@@ -1,19 +1,18 @@
 ## 1. Main Purposes
 
-Show and edit summaries (ref [1]).
+Show and edit topics (ref [1]).
 
 ## 2. Page Layout
 
-- Add a "Document Summary" menu. This menu has two child menu items: "Summary Graph" 
-  and "Summary Tree".
-- Clicking "Summary Graph" opens the "Summary Graph" page (refer to "Summary Graph Design") in the right panel
-- Clicking "Summary Tree" opens the "Document Summary Graph" page (refer to "Document Summary Graph Design") in the right panel
+- Add a "Semantic Web" menu. This menu has two child menu items: "Global Semantic Web" 
+  and "Document Semantic Tree".
+- Clicking "Global Semantic Web" opens the "Global Semantic Web" page (refer to "Global Semantic Web Design") in the right panel
+- Clicking "Document Semantic Tree" opens the "Document Semantic Tree" page (refer to "Document Semantic Tree Design") in the right panel
 
-## 3. Summary Knowledge Base
-The system generates document summaries and document chunk summaries. These summaries are
-stored as files under the directory SUMMARY_TREE_DIR.  
+## 3. Topic Knowledge Base
+The system extracts topics from document chunks. These topics are stored as files under the directory TOPIC_TREE_ROOT_DIR.  
 
-Each directory under SUMMARY_TREE_DIR is a 'Summary Category' (or 'category' for short). A path from
+Each directory under TOPIC_TREE_ROOT_DIR is a 'Summary Category' (or 'category' for short). A path from
 SUMMARY_TREE_DIR to a category form a 'Category Path'. Below is the structure of the Summary Knowledge Base:
 ```text
 SUMMARY_TREE_DIR
@@ -112,4 +111,4 @@ The page is similar to `ChenWeb::home3/knowledge, the "Document Structure" menu 
 - There is a slider between the 
 
 ## 6. References
-[1] KnowledgeStore/DevDocuments/Specs/spec-generate-chunk-summary.md
+[1] KnowledgeStore/DevDocuments/Specs/spec-chunking-fix-size.md

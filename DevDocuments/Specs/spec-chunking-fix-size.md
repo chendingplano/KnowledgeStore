@@ -115,7 +115,30 @@ LLM Output JSON format:
       "lines": ["38-45", "47"],
       "topic_keywords": ["k1", "k2"],
       "topic": "topic description",
-      "categories": <refer to 'Extract Topic Category Paths' section>
+      "categories": [
+        {
+          "category_path": [
+            {
+              "name": "public_health",
+              "keywords": ["health management", "disease prevention", "public health"],
+              "confidence": 0.95
+            },
+            {
+              "name": "vaccination",
+              "keywords": ["vaccination", "immunization", "vaccine administration"],
+              "confidence": 0.94
+            },
+            {
+              "name": "record_management",
+              "keywords": ["vaccination records", "recipient data", "immunization information system"],
+              "confidence": 0.92
+            }
+          ],
+          "path_keywords": ["vaccination records", "recipient data", "information system"],
+          "path_confidence": 0.92
+        },
+        ...
+      ]
     },
     {
       next-topic
@@ -125,13 +148,9 @@ LLM Output JSON format:
 }
 ```
 
-### 6.2 Extract Topic Category Paths
-
-It extracts category paths for all the topics. Refer to 'spec-category-extraction.md' for how to 
-extract category paths and its output format.
-
 ### 6.3 Topic File
-Topic file name = `ARTIFACT_DIR/<group_id>/<record_id>/<topic_file_name>`
+Topics are stored in topic files. Topic file name is:
+  `ARTIFACT_DIR/<group_id>/<record_id>/<topic_file_name>`
 where `<topic_file_name>` is:
 ```text
 the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name' + ".topics"
@@ -139,25 +158,77 @@ the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name' + ".top
 
 Topic file format is:
 ```text
-topic_id: 32
-topic_type:	"requirement"
-lines: [104-108]
-topic_keywords:	[血压, 心率, 呼吸系统, 神经系统, 代谢疾病]
-topic: "消防员体格检查中内科部分的要求，包括血压、心率、呼吸循环等系统正常，无代谢及结缔组织疾病。"
+topic_id: ddd,
+topic_type: "topic-type"
+lines: [ddd, ddd-ddd, ...]
+topic_keywords: ["keyword", ...]
+topic: "topic"
 category_paths: [(<path_keywords>, <path_confidence>, [<category_name>, <keywords>, <confidence>]), ...]
 
-<next_topic>
+<next-topic>
 ...
 ```
 
 ### 6.4 Embed Topics
 * Use TOPIC_EMBEDDING_MODEL_NAME to embed topics.
 * Save topic embeddings in the file:
-  `ARTIFACT_DIR/<group_id>/<record_id>/<embed_file_name>`
-where `<embed_file_name>` is:
+  `ARTIFACT_DIR/<group_id>/<record_id>/embeddings/topic_<topic_id>.embed`
+
+### 6.5 Topic Indexing
+A topic has one or more category paths. A category path is made of one or more categories.
+Category paths are stored as file directories under TOPIC_TREE_ROOT_DIR, where each
+category maps to a sub-directory. For instance, if a category path is 
+"medical_standards/surgical_conditions", there will be two directories:
 ```text
-the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name' + ".embed"
+TOPIC_TREE_ROOT_DIR/medical_standards
+TOPIC_TREE_ROOT_DIR/medical_standards/surgical_conditions
 ```
+
+#### 6.5.1 Topic 'metadata.txt' File
+Each directory under TOPIC_TREE_ROOT_DIR has a 'metadata.txt' file. The file format is:
+```text
+"desc":"category description"
+"confidence":0.95
+"keywords":["keyword",...]
+"create_time":"yyyymmdd-hhmmss"
+```
+
+#### 6.5.2 Category Embedding
+It embeds a category and save the vector in the file 'category.embed'
+
+#### 6.5.3 'topics.txt' File
+This file saves all the topics whose category matches the directory's category.
+Its file format is:
+```text
+record_id: ddd,
+topic_type: "topic-type"
+lines: [ddd, ddd-ddd, ...]
+topic_keywords: ["keyword", ...]
+topic: "topic"
+
+<next-topic>
+...
+```
+
+Topics in 'topics.txt' are sorted by record IDs.
+
+#### 6.5.4 Workflow
+* For each category path: `category_path`
+  * Set TOPIC_TREE_ROOT_DIR as its current directory
+  * For the i-th category in `category_path`:
+    * Find the sub-directory by the category name. If no sub-directory with the category
+      name is found, find the closest sub-directories in the current directory by 
+      calculating the cosine of their vectors as the similarity score. If the similarity
+      score (score is between 0.0 and 1.0, the bigger, the closer) is no less than
+      CATEGORY_SIMILARITY_MIN_SCORE, the current category is considered 'the same' as 
+      the i-th category in `category_path`.
+    * If the above step found the sub-directory, set it as the current directory. 
+      Merge the category's keywords with the one in the 'metadata.txt'.
+      Move on to the next category, if any.
+    * Otherwise, this is a new category in the current directory. Create the sub-directory
+      and the metadata file for the sub-directory, embed the topic and save it to the embed file. Then move on to the next category, if any.
+    * If it is the last category in `category_path`, upsert the topic to the 'topic.txt' file.
+      If the file does not exist yet, create it.
 
 ## 7. Summaries
 * Refer to 'spec-generate-chunk-summary.md' for generating summaries.
@@ -165,9 +236,6 @@ the root of 'kb.inputs.staging_filename' + "_" + 'kb.inputs.parser_name' + ".emb
   not just the root. Each summary gets its own category path from the LLM.
 * Refer to 'spec-category-extraction.md' for how to extract category paths and
   save summaries in the Summary File Tree.
-
-## 7.1 Embed Summaries
-* Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
 
 ## 8. Table `kb.chunks`
 This table stores one chunking run summary record.

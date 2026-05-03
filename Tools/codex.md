@@ -18,3 +18,9 @@ Codex uses AGENTS.md (similar to CLAUDE.md for Claude Code).
 # Plugins
 
 Source: https://developers.openai.com/codex/plugins
+
+# Commands
+| Command | Explanation |
+|---|---|
+| /goal | Let Codex remember its goal |
+| /side | Temporarily talk with Codex without pollute the current context |
