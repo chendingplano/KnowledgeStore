@@ -48,7 +48,7 @@ The format of the LLM output is:
 ]
 ```
 
-## 4 Handle Summaries
+## 4 Index Summaries
 Given a document, the doc processing pipeline breaks the document into chunks, generates a summary
 for each chunk and generates category paths for the summary (refer to 'spec-chunking-fix-size.md' 
 for document chunking, chunk summary generation and summary storage).
@@ -102,6 +102,13 @@ it will upsert its summary ID to this file. If the file does not
 exist yet, it will create it.
 
 Summary IDs are sorted based on 'record_id', 'level' and 'seqno'.
+
+### 4.4 Embed Summaries
+It embeds 'desc' and 'keywords' fields in its 'metadata.txt' file and saves
+the vector to 'category.embed' file, in the format:
+```text
+[0.01018524169921875, 0.038726806640625, 0.02056884765625, 0.0008440017700195312,...]
+```
 
 ### 4.4 Workflow
 * Compose all the summaries (including summaries of summaries) into the format specified in

@@ -75,11 +75,21 @@ Users can do the following on the chart:
 - Add a node
 - Merge two nodes
 - Split a node
+- When the mouse hovers a node, place the information block using this priority order:
+  below the node if there is enough space, otherwise left of the node, otherwise right of the node,
+  otherwise above the node. Clamp the block to the chart bounds if none of those directions has
+  enough space.
+- Keep the gap between the hovered node and the information block at about 10px.
+- When the pointer leaves the node, keep the information block visible while the pointer stays
+  within a small bridge area between the node and the information block (about 20px buffer), so
+  the user can move into the information block without it disappearing.
 
 ### 4.2 Show Summaries
 Summaries are shown in a separate tab in the right panel.
+- Summaries are defined in 'summaries.txt'
+- Not all categories have 'summaries.txt' file. If a category does not have the file, it should grey out the button.
 - Tab name is the category path, relative to SUMMARY_TREE_DIR. If the name is too long, cut off the leading
-  characters with '...'. When the mouse moves over a table, show the full category path if it is shortened.
+  characters with '...'. When the mouse moves over a tab, show the full category path if it is shortened.
 - Tabs can be manually closed.
 - If a tab already exists, do not create a new one.
 - The page has two sub-panels: "Left Panel" and "Right Panel"

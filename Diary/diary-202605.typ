@@ -171,7 +171,7 @@ This is a video. It shows a few quite important Codex features.
 
 #let a_004 = link(
   "https://github.com/Lum1104/Understand-Anything/tree/main"
-) [#text(fill:bule)[GitHub]]
+)[#text(fill:blue)[GitHub]]
 
 #a_004 \
 Source: WeChat
