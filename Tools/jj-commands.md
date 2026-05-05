@@ -23,6 +23,7 @@
 | jj resolve path/to/file | Open the editor to resolve conflicts |
 | jj resolve --list | List all the conflicts |
 | jj diff [--name-only] | Show the differences |
+| jj diff --from <named-change> --to @ -- path/to/file | Compare diffs of a file in two changes |
 | git tag -a rel-20230323 -m "Release 2023-03-23" | Create a tag |
 | git push origin rel-20230323 | Push the tag |
 --------

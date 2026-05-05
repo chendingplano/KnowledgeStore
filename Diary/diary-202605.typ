@@ -210,3 +210,13 @@ for AI systems.
 
 [2]: https://www.houdao.com/d/6400-UnderstandAnything-An-AIPowered-Knowledge-Graph-Tool-for-Rapidly-Understanding-Complex-Codebases?utm_source=chatgpt.com "Understand-Anything: An AI-Powered Knowledge Graph ..."
 
+= 2026/05/04 - Open-Source Crawler
+
+#let a_005 = link(
+  "https://mp.weixin.qq.com/s/rhCId53g-rlnmBO-N3jlQw"
+)[#text(fill:blue)[Crawler]]
+
+#a_005 \
+Source: WeChat
+
+For info!
