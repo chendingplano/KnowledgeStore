@@ -163,17 +163,104 @@ Reveal bounding box padding also adjusts: rect nodes use ±90/190/64 px margins 
 
 ## ViewToolbar Changes
 
-`view-toolbar.svelte` gained three new optional fields:
+`view-toolbar.svelte` gained several new optional fields:
 
 ```typescript
 type Props = {
   nodeStyle?: 'circle' | 'rect';
   onToggleNodeStyle?: () => void;
+  onCollapseSelected?: () => void;
+  collapseSelectedDisabled?: boolean;
   // ... existing props unchanged
 };
 ```
 
+### Node Style Toggle
+
 The toggle button is rendered only when `onToggleNodeStyle` is supplied. It shows a `CircleIcon` when `nodeStyle === 'circle'` and a `SquareIcon` when `nodeStyle === 'rect'`, with a tooltip indicating what the click will switch to.
+
+### Toolbar Button Order
+
+Buttons left-to-right: Expand/Collapse All → Filter → Reset Filter → Expand Selected (popover) → Collapse Selected → Export PNG → Node Style Toggle (conditional) → **Settings** (always last, `SettingsIcon` gear icon).
+
+### Collapse Selected Node
+
+A `Minimize2Icon` button sits immediately after the "Expand Selected Node" popover. It collapses the currently selected node by setting `expanded: false` without toggling (so it never accidentally re-expands). The button is disabled when no node is selected or the selected node is already collapsed.
+
+Wired in `tree-graph-view.svelte` via:
+
+```svelte
+<ViewToolbar
+  collapseSelectedDisabled={!selectedNode?.expanded}
+  onCollapseSelected={collapseSelectedNode}
+/>
+```
+
+`collapseSelectedNode` sets `expanded: false` on the selected node directly (no toggle) and syncs the mini-map viewport.
+
+---
+
+## Settings
+
+The gear icon (`SettingsIcon`) at the far right of the toolbar opens a settings popover. Settings are stored as component-local `$state` variables and are not persisted between sessions.
+
+### Setting Fields
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `defaultExpandDepth` | `number` (integer) | `6` | Maximum depth of child levels expanded when "Expand Selected Node" is triggered. |
+| `showInfoBlock` | `boolean` | `false` | When `true`, a hover card appears next to a node while the pointer is over it. When `false`, the hover card is suppressed entirely. |
+
+### Wiring
+
+`GraphSettings` is exported from `view-toolbar.svelte` and imported by `tree-graph-view.svelte`:
+
+```typescript
+// tree-graph-view.svelte
+import ViewToolbar, { type GraphSettings } from './view-toolbar.svelte';
+
+const GRAPH_SETTINGS_KEY = 'tree-graph-view-settings';
+const defaultGraphSettings: GraphSettings = { defaultExpandDepth: 6, showInfoBlock: false };
+
+function loadGraphSettings(): GraphSettings {
+  try {
+    const raw = localStorage.getItem(GRAPH_SETTINGS_KEY);
+    if (raw) return { ...defaultGraphSettings, ...JSON.parse(raw) };
+  } catch {}
+  return { ...defaultGraphSettings };
+}
+
+let graphSettings = $state<GraphSettings>(loadGraphSettings());
+
+$effect(() => {
+  localStorage.setItem(GRAPH_SETTINGS_KEY, JSON.stringify(graphSettings));
+});
+```
+
+`ViewToolbar` receives the settings object and a callback to update it:
+
+```svelte
+<ViewToolbar
+  settings={graphSettings}
+  onSettingsChange={(patch) => { graphSettings = { ...graphSettings, ...patch }; }}
+/>
+```
+
+Inside the toolbar a `toolbar-settings-wrap` div (same pattern as `toolbar-expand-level-wrap`) holds the `settingsOpen` popover toggled by `handleSettings`. The popover renders two controls:
+
+- **Default Expand Selected Node Depth** — `<input type="number" min="1" max="20">` using `oninput` to call `onSettingsChange?.({ defaultExpandDepth: v })`.  
+  Help text: *"The maximum depth of expanding the selected node."*
+- **Show Information Block** — `<input type="checkbox">` using `onchange` to call `onSettingsChange?.({ showInfoBlock: checked })`.  
+  Help text: *"Control whether to show the information when the mouse hovers over a node."*
+
+`closePopoverOnOutside` also closes `settingsOpen` when the click lands outside `.toolbar-settings-wrap`.
+
+The popover is anchored to the right edge of the button (`right: 0`) so it stays on-screen.
+
+### Consumer behaviour
+
+- **`defaultExpandDepth`** — used as the `max` attribute of the expand-level range slider. A `$effect` in `view-toolbar.svelte` clamps `expandLevel` if it exceeds the new max when settings change.
+- **`showInfoBlock`** — gates the hover card in `tree-graph-view.svelte`: the `{#if hoveredNode}` block becomes `{#if hoveredNode && graphSettings.showInfoBlock}`. When `false` (default), the hover card is never rendered.
 
 ---
 

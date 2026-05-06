@@ -7,34 +7,47 @@ A document is broken down into a number of chunks. This feature does the followi
 
 ## 1 Generate Summaries
 
-### 1.1 Leaf Summaries
-For each chunk, it uses CHUNK_EXTRACT_TOPIC_MODEL_NAME model to generate a summary
-for the chunk and save the summary to:
+### 1.1 Workflow
+- For each chunk, it uses CHUNK_EXTRACT_TOPIC_MODEL_NAME model to generate a summary for the 
+  chunk.  
+- Generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries using the 
+  same model and prompt. 
+- Recursively, it generates higher level summaries in the same fashion until there is only
+  one summary in its level.
 
-`ARTIFACT_DIR + /<group_id>/<record_id>/summary_0_dddd.txt`
+### 1.2 Save Summaries
+- Leaf summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_0_dddd.txt`, where
+  'dddd' is a sequence number, starting from 1.
+- Summaries of summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_n_dddd.txt`,
+  where 'n' is the level: 1, 2, ... and 'dddd' is a sequence number, starting from 1.
 
-where 'dddd' is the chunk's id, padded by leading 0's (chunks are identified by a 
-sequence number: 1, 2, 3, ...)
+### 1.3 Model Output Format
+The model generates JSONs of the following format:
+```json
+{
+  "summary": "..."
+  "keywords": ["xxx", ...]
+  "categories": [
+    {
+      "category_path": [
+        {
+          "name": "public_health",
+          "keywords": ["health management", "disease prevention", "public health"],
+          "confidence": 0.95
+        },
+        ...
+      ],
+      "path_keywords": ["vaccination records", "recipient data", "information system"],
+      "path_confidence": 0.92
+    }
+  ]
+}
+```
 
-These summaries are called `Leaf Summary`.
-
-### 1.2 Group Summaries
-This feature will generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries.
-Level-1 summaries are stored to:
-
-`ARTIFACT_DIR + /<group_id>/<record_id>/summary_1_dddd.txt`
-
-where 'dddd' is a sequence number starting from 1.
-
-It will recursively generate higher level summaries in the same fashion until there is only one
-summary in its level.
-
-These summaries are called `Group Summaries`.
-
-### 1.3 Edge Cases
+### 1.4 Edge Cases
 - The last group takes the remaining chunks, which may be less than SUMMARY_GROUP_SIZE chunks.
 
-### 1.4 Summary Tree
+### 1.5 Summary Tree
 Below illustrates the summary tree:
 ```text
 ARTIFACT-DIR
@@ -45,7 +58,7 @@ ARTIFACT-DIR
                   └─ root summary
 ```
 
-### 1.5 Summary ID
+### 1.6 Summary ID
 ```<record_id>_<level>_<seqno>```
 
 where:
@@ -53,7 +66,7 @@ where:
 - `<level>`: the summary level
 - `<seqno>`: the summary seqno
 
-### 1.6 Summary Embedding
+### 1.7 Summary Embedding
 - Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
 - Each summary's embedding vector is stored in a dedicated file alongside its summary file:
 
@@ -61,7 +74,7 @@ where:
 
 For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 
-### 1.7 Summary File Format
+### 1.8 Summary File Format
 
 ```text
 summary_id: "<level>_dddd"
@@ -76,8 +89,8 @@ summary_begin
 summary_end
 ```
 
-### 1.8 Summary Category Tree
-Refer to 'spec-catgegory-extraction.md' for category extraction and Summary Category Tree update.
+### 1.9 Index Summaries
+Refer to Section "Index Summaries" in 'spec-catgegory-extraction.md' for indexing summaries.
 
-### 1.9 Idempotent
+### 1.10 Idempotent
 When a document is re-chunked, it should clear all the related data and before re-generate the data.

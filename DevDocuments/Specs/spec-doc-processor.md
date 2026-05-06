@@ -53,11 +53,16 @@ This service is a controller. For a received event, it applies a number of doc p
 Currently, it has the following doc processors:
 | Seqno | Processor Name | Dependence | Explanation |
 |---|---|---|---|
-|1 | structure_analyzer | none | Doc Structure Analyzer. Refer to [1] for its spec |
-|2 | chunking | after 1 | Chunking Processor. Refer to [2] for its spec |
-|3 | extract_doc_metadata | after 2 | Extract Doc Metadata Processor. Refer to [3] for its spec |
-|4 | extract_metrics | after 2 | Extract Metrics Processor. Refer to [4] for its spec |
+|1 | blocking | after 1 | Blocking Processor. Refer to [6]. This processor is always executed. |
+|2 | structure_analyzer | none | Doc Structure Static Analyzer. Refer to [1] |
+|3 | chunking | after 1 | Chunking Processor. Refer to [2]|
+|4 | extract_doc_metadata | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
+|5 | extract_metrics | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
+|6 | extract_provisions | after 1 | Extract provisions. Refer to [5] |
 ---
+
+Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
+For instance, 'after 1' means it uses the Blocking Processor's output as its input.
 
 ## Operation
 
@@ -66,19 +71,44 @@ the valid values are:
 - 'structure_analyzer'
 - 'chunking'
 - 'extract_doc_metadata' 
-- 'extract_metrics'.
+- 'extract_metrics'
+- 'extract_provisions'
 If multiple processors are specified, they must be applied in the order in which they are listed.
+
+Important:
+
+- The `operation` field is an explicit processor filter.
+- If `operation` is omitted or empty, Doc Processor applies all configured processors in the configured order.
+- If `operation` is `"chunking"`, Doc Processor runs the always-on `blocking` processor and then the `chunking` processor only.
+- Topic extraction and summary generation are internal steps of the `chunking` processor.
+- `extract_provisions` is a separate processor. To run it with chunking, request both operations, for example:
+
+```json
+{
+  "record_id": "123",
+  "operation": ["chunking", "extract_provisions"],
+  "force": true
+}
+```
 
 ## Workflow
 
 - Receive an event
 - Retrieve the record by event.record_id
-- Read the input file (refer to "Input File" section)
+- Read the input file (refer to "Input File" section) into a buffer, called Input File Buffer
+- Apply Blocking Processor to break the input file into blocks. Save the result into Block Buffer.
 - Apply all the doc processors in the same order as listed in "Doc Processors" section
 
 ## References
 
-[1] Doc Structure Analyzer Spec: KnowledgeStore/DevDocuments/Specs/spec-structure_analyzer.md
-[2] Chunking Processor Spec: KnowledgeStore/DevDocuments/Specs/spec-chunking.md
+[1] Doc Structure Analyzer Spec: KnowledgeStore/DevDocuments/Specs/spec-structure-static-analyzer.md
+
+[2] Chunking Processor Spec: KnowledgeStore/DevDocuments/Specs/spec-chunking-fix-size.md
+
 [3] Extract Doc Metadata Spec: KnowledgeStore/DevDocuments/Specs/spec-extract-metadata.md
+
 [4] Extract Metrics Spec: KnowledgeStore/DevDocuments/Specs/spec-extract-metrics.md
+
+[5] Extract Terms Spec: KnowledgeStore/DevDocuments/Specs/spec-extract-provisions.md
+
+[6] Break Documents to Blocks: KnowledgeStore/DevDocuments/Specs/spec-blocking.md
