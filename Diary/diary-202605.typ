@@ -220,3 +220,15 @@ for AI systems.
 Source: WeChat
 
 For info!
+
+= 2026/05/06 - System Prompts 
+
+#let a_006 = link(
+  "https://github.com/asgeirtj/system_prompts_leaks"
+)[#text(fill:blue)[GitHub]]
+
+#a_006 \
+Source: WeChat
+
+It contains many system prompts from Anthropic, OpenAI, etc. The site is continously updated.
+
