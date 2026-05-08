@@ -232,3 +232,67 @@ Source: WeChat
 
 It contains many system prompts from Anthropic, OpenAI, etc. The site is continously updated.
 
+= 2026/05/07 - WikiBuilder
+
+#let a_007 = link(
+  "https://academy.dair.ai/blog/wiki-builder-claude-code-plugin"
+)[#text(fill: blue)[Wiki Builder: A Claude Code Plugin for Building LLM Knowledge Bases]]
+
+#let a_008 = link(
+  "https://github.com/dair-ai/dair-workshops/tree/main/agentic-engineering-wiki"
+)[#text(fill: blue)[GitHub: agentic-engineering-wiki]]
+
+#a_007 \
+#a_008 \
+Source: Hacker News
+
+It discusses how to build Knowledge Bases. It open sourced a WikiBuilder.
+
+A wiki assumes the following file structure:
+
+```text
+agentic-engineering-wiki/
+├── wiki.config.md
+├── raw/
+├── wiki/
+│   └── index.md
+├── derived/
+├── prompts/
+│   ├── compile-index.md
+│   ├── compile-source-page.md
+│   ├── compile-concept-page.md
+│   ├── query-and-file.md
+│   └── lint-wiki.md
+├── logs/
+│   └── maintenance-log.md
+└── sources.md
+```
+
+SemOS can borrow this idea. Below is what I come up for SemOS:
+```text
+my-first-wiki/
+├── wiki.config.md
+├── raw/
+├── documents/
+│   └── index.md
+│   └── document-0001
+│       └── document-0001
+├── more documents/
+├── wiki/
+│   └── index.md
+│       └── L1-category
+│           └── L2-category
+│       └── L1-category
+│       ...
+├── derived/
+├── prompts/
+│   ├── compile-index.md
+│   ├── compile-source-page.md
+│   ├── compile-concept-page.md
+│   ├── query-and-file.md
+│   └── lint-wiki.md
+├── logs/
+│   └── maintenance-log.md
+└── sources.md
+```
+

@@ -2,7 +2,7 @@
 | Field Name | Required | Explanation |
 |-----------|---------|------------|
 | id | required | an auto-incremented integer |
-| extract_id | required | the extract id |
+| event_id | optional | the JetStream event id |
 | input_record_id | required | the input record id |
 | metric_name | optional | a short description for the metric, in the original language |
 | metric_name_en | optional | the English version |
@@ -20,6 +20,11 @@
 | location_type | optional | "sentence|bullet|table_row|table_cell|heading_context|mixed" |
 | metric_unit | optional | the metric's unit in the original language|
 | metric_unit_en | optional | the English translation |
+| metric_value | optional | the metric's value |
+| value_data_type | optional | the metric value data type |
+| value_range_type | optional | the value range type |
+| value_class | optional | the value classification |
+| value_class_en | optional | the English version of the value classification |
 | formula_or_definition | optional | formula or explicit definition if present, otherwise null |
 | threshold_or_target | optional | target / threshold / acceptable limit if present, otherwise null |
 | measurement_frequency | optional | the metric's measure frequency |

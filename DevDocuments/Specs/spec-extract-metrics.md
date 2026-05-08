@@ -55,6 +55,11 @@ The LLM will generate a JSON of the following format:
       "metric_keywords_en": "...",
       "metric_unit": "...",
       "metric_unit_en": "...",
+      "metric_value": "...",
+      "value_data_type": "...",
+      "value_range_type": "...",
+      "value_class": "...",
+      "value_class_en": "...",
       "formula_or_definition": "...",
       "threshold_or_target": "...",
       "measurement_frequency": "...",
@@ -75,6 +80,10 @@ The LLM will generate a JSON of the following format:
 
 ### Output Storage
 
-It generates an 'ExtractInvokeID', which is "yyyymmdd-hhmmss", used to identify all the metrics this skill generated for the input file.
+Construct a record of 'kb.metrics' for each metric and upsert the record to the table. 
+When constructing the record, follow the following rules:
+* Save the JetSteram event ID to 'event_id'
+* If the original language is English, do not generate the fields 'metric_name_en', 'metric_subject_en', 
+  'metric_desc_en', 'metric_context_en', 'metric_keywords_en', and 'metric_unit_en'
+* Save additional information to 'ext_info'
 
-Save each metric in the table 'kb.metrics' (refer to KnowledgeStore/table-schemas/table-kb-metrics.md).
