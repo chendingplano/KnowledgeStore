@@ -305,6 +305,66 @@ Returns all metric rows for the given `input_record_id`, ordered by `id` ASC.
 
 The `metricRecord` response type exposes `event_id` (nullable) instead of the former `extract_id`.
 
+## REST API Handler (`POST /api/v1/kb/metrics/extract`)
+
+**File:** `ChenWeb/server/api/kbhandler/extract-metric-handler.go`
+
+This endpoint allows the frontend to extract metrics on user-selected content. It accepts:
+
+```json
+{
+  "record_id": 123,
+  "lines": ["90", "95-97"]
+}
+```
+
+### Handler Workflow
+
+1. **Parse request** — validate `record_id` (positive int) and `lines` (non-empty string array).
+2. **Resolve input record** — query `kb.inputs` for `result_filename` to locate the canonical line file.
+3. **Open raw line file** — resolve the `.txt` path via `rawLinePathFor` (same helper used by `GetRawLines`).
+4. **Parse line specs** — `parseLineSpecs` converts `["90", "95-97"]` into a sorted, deduplicated `[]int`.
+5. **Build overlap set** — 5 lines before the first selected line and 5 lines after the last selected line, minus lines already in the selection.
+6. **Read and filter lines** — scan the raw line file, collecting selected lines (flag `'n'`) and overlap lines (flag `'o'`) in document order.
+7. **Compose LLM input** — format per spec:
+
+   ```
+   <flag>\t<line_number>\t<page_number>\t<line_type>\t<content>
+   ```
+
+   where flag is `'n'` for normal (user-selected) lines and `'o'` for overlap context lines.
+
+8. **Load prompt** — `loadMetricsPromptForExtract` tries `EXTRACT_METRICS_PROMPT` (inline or file path), then `PROMPT_FILE_NAME`, with the same search order as the doc-processing pipeline.
+9. **Initialize LLM client** — `NewOpenAIJSONClientFromProcessorEnv("EXTRACT_METRICS")`, with model name from `EXTRACT_METRICS_MODEL_NAME`.
+10. **Call LLM** — `client.ExtractJSON(ctx, ...)`.
+11. **Normalize output** — `normalizeExtractedMetrics` handles both short names (`subject`, `desc`) and spec names (`metric_subject`, `metric_desc`).
+12. **Save to database** — `saveExtractedMetrics` inserts each metric into `kb.metrics` with `event_id = 'rest-api'` and `ext_info = {"source": "rest-api", "schema_version": "2"}`.
+
+### Differences From Doc-Processing Pipeline
+
+| Aspect | Doc-Processing Pipeline | REST API |
+|--------|------------------------|----------|
+| Trigger | JetStream `kb.line-file-generated` event | HTTP POST |
+| Input | Entire chunk/topics artifacts | User-selected lines |
+| Overlap | Excluded | 5 lines before/after as context |
+| `event_id` | JetStream event ID (from Go context) | `'rest-api'` |
+| Language filter | English → NULL `_en` fields | Always saves `metric_name_en` (short name pass-through) |
+| `model_name` / `prompt_name` | Stored per metric | Left empty |
+| Status update | Writes to `kb.inputs.status` | None |
+
+### Frontend Integration
+
+**Service layer** (`web/src/lib/services/kbService.ts`):
+
+Added `extractKbMetrics(payload)` calling `POST ${BASE}/metrics/extract`.
+
+**Component** (`web/src/lib/components/home3/metric-mgmt-view.svelte`):
+
+`extractMetric()` previously called the non-existent `createKbMetric()`. It now:
+- Converts selected line objects to grouped range strings (`["90", "95-97"]`)
+- Calls `extractKbMetrics({ record_id: currentInput.id, lines: lineSpecs })`
+- On success, reloads the metrics list via `listKbMetrics(currentInput.id)`
+
 ## Tests
 
 Existing tests in `extract-metrics_test.go`:

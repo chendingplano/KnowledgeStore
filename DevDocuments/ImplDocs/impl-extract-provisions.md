@@ -1,6 +1,6 @@
 # Extract Provisions Implementation
 
-Date: 2026-05-05
+Date: 2026-05-08
 
 ## Scope
 
@@ -14,13 +14,11 @@ Changed implementation:
 
 - `ChenWeb/server/api/doc-processing/extract-provisions.go`
 - `ChenWeb/server/api/doc-processing/extract-provisions_test.go`
-- `ChenWeb/server/cmd/doc-processor/main.go`
-- `ChenWeb/project_migrations/20260505000001_create_kb_provisions_table.sql`
-- `ChenWeb/project_migrations/20260505000002_upgrade_kb_provisions_output_schema.sql`
+- `ChenWeb/server/api/doc-processing/extract-doc-metadata_test.go`
 
 ## Summary
 
-The `extract_provisions` doc processor extracts normative provisions from a parsed document. It uses the block buffer created by the always-run `blocking` processor, calls the configured LLM once per block, normalizes the returned provision records, assigns per-record `prov_id` values, upserts them to `kb.provisions`, writes a `.provisions` artifact file, and writes an `extract_provisions` status entry back to `kb.inputs.status`.
+The `extract_provisions` doc processor extracts normative provisions from a parsed document. It uses the block buffer created by the always-run `blocking` processor, calls the configured LLM once per block, validates that the returned JSON is not empty, optionally retries the same block with a callback model, normalizes the returned provision records, assigns per-record `prov_id` values, upserts them to `kb.provisions`, writes a `.provisions` artifact file, and writes an `extract_provisions` status entry back to `kb.inputs.status`.
 
 The processor is wired into `server/cmd/doc-processor`, so it can be selected with:
 
@@ -73,11 +71,13 @@ The processor follows the same broad shape as the existing `MetricsProcessor`, b
    - Prefer `BlockBufferFromContext(ctx)`, populated by `BlockingProcessor`.
    - Fall back to reading the line file and calling `buildBlocks`.
 9. For each block, call the LLM with `EXTRACT_PROVISIONS_PROMPT` and `EXTRACT_PROVISIONS_MODEL_NAME`.
-10. Normalize returned provisions.
-11. Assign per-record `prov_id` values starting at 1.
-12. Upsert provisions into `kb.provisions`.
-13. Write `ARTIFACT_DIR/<group_id>/<record_id>/<staging_root>_<parser_name>.provisions`.
-14. Persist success or failure status into `kb.inputs.status`.
+10. Treat an empty decoded JSON object such as `{}` as a failed extraction, not a success.
+11. If the primary extraction fails and `EXTRACT_PROVISIONS_MODEL_CALLBACK` is configured, retry the same block with the callback model.
+12. Normalize returned provisions.
+13. Assign per-record `prov_id` values starting at 1.
+14. Upsert provisions into `kb.provisions`.
+15. Write `ARTIFACT_DIR/<group_id>/<record_id>/<staging_root>_<parser_name>.provisions`.
+16. Persist success or failure status into `kb.inputs.status`.
 
 ## Input Handling
 
@@ -119,7 +119,10 @@ Prompt search order:
 Model loading:
 
 - `EXTRACT_PROVISIONS_MODEL_NAME`
+- `EXTRACT_PROVISIONS_MODEL_CALLBACK`
 - `EXTRACT_PROVISIONS_MODELS_FILE`
+
+The primary model config is loaded from `EXTRACT_PROVISIONS_MODEL_NAME`. If `EXTRACT_PROVISIONS_MODEL_CALLBACK` is set, that model is loaded from the same models file and used only as a retry path when the primary extraction fails.
 
 The loaded model config is applied to the `LLMJSONExtractor` using the shared `applyStructureModelConfigToExtractor` helper, matching the pattern used by other document processors.
 
@@ -150,6 +153,14 @@ The processor expects strict JSON:
 }
 ```
 
+If the LLM returns an empty decoded object, for example:
+
+```json
+{}
+```
+
+the processor treats it as a failed extraction with error `(MID_26050546) empty llm json object`. This prevents the extractor from silently accepting a syntactically valid but unusable response.
+
 Supported aliases during normalization:
 
 - `name` or `provision_name` -> `provision_name`
@@ -161,6 +172,19 @@ Supported aliases during normalization:
 ```text
 2:10
 ```
+
+When the model already returns a string span such as `2:10`, that value is preserved as-is.
+
+## Fallback Behavior
+
+The fallback path is block-local:
+
+1. Try the primary model from `EXTRACT_PROVISIONS_MODEL_NAME`.
+2. If the extractor returns an error, retry with `EXTRACT_PROVISIONS_MODEL_CALLBACK` when configured.
+3. If the extractor returns an empty JSON object `{}`, retry with `EXTRACT_PROVISIONS_MODEL_CALLBACK` when configured.
+4. If the callback model also fails, persist the combined failure in `kb.inputs.status` and stop the extraction for that event.
+
+The final persisted `model_name` for output rows reflects the model that successfully produced the saved provisions for that run.
 
 ## Normalized Provision Fields
 

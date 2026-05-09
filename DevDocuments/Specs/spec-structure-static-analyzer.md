@@ -65,11 +65,41 @@ Allowed `corrected_line_type` values:
 
 Notes:
 - Heading labels are encoded as `heading-N` (not `heading` + separate level).
+- Legacy input line types must be normalized before further analysis or output.
+  Examples:
+  - `heading` => `heading-1`
+  - `heading(1)` => `heading-1`
+  - `heading(2)` => `heading-2`
+  - `heading(3)` => `heading-3`
 - This analyzer does not detect cover pages and therefore does not emit `cover` as a corrected label.
 
 ## Processing Rules
 
 The program will scan and detect in two rounds.
+
+### Remove Full-Page Image Artifact Lines
+
+This should be run before TOC, heading, and list detection.
+
+Remove lines that match all of the following:
+- the original `line-type` is `image`
+- the coordinate is in the form `[0,0,x,y]`
+- the content exactly matches `<prefix>/imageFile<page-number>.png`
+- all matching lines in the same file share the same `<prefix>`
+- the `<page-number>` in the file name matches the line `page_number`
+
+Example:
+```
+1	1	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile1.png
+10	2	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile2.png
+25	3	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile3.png
+33	4	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile4.png
+52	5	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile5.png
+87	6	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile6.png
+124	7	image	unknown-font	12	[0,0,624,879.12]	std_20039_images/imageFile7.png
+```
+
+Once detected, these lines are removed from the analyzer output entirely and are not passed to later analysis rounds.
 
 ### Detecting Headings
 

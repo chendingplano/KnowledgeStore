@@ -37,16 +37,14 @@ A chunk is defined in memory by three line groups:
 ```text
 po:[ddd, ddd-ddd, ...]
 cl: [ddd, ddd-ddd, ...]
-pn: [ddd, ddd-ddd, ...]
 ```
 where:
 - `ddd` is an integer (line number), `ddd-ddd` represents a range of continuous lines
    with the starting and ending line numbers.
 - `po`: the overlapping lines before the chunk lines
 - `cl`: the chunk lines, or the lines contained in the chunk
-- `pn`: the overlapping lines next to the chunk lines
 
-The first chunk has no `po`, the last chunk has no `pn`.
+The first chunk has no `po`.
 
 In the persisted `.chunks` artifact, each chunk is written as a two-line summary:
 ```text

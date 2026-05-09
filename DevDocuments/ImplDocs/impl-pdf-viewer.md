@@ -108,6 +108,19 @@ Each consumer view decides which tools to expose by defining the `toolbar` snipp
 |------|-------|
 | `metric-mgmt-view` | + Metric, Edit Lines, Delete Lines, + Line, Show Lines |
 
+### `metric-mgmt-view` Add Metric dialog
+
+The Metrics view uses PDF drag-selection to open an **Add Metric** dialog. This dialog now supports a two-step metric workflow:
+
+1. Review and optionally edit/remove the selected source lines.
+2. Press **Extract Metric** to call the backend extraction API.
+3. While extraction is running, the dialog shows a spinner because the LLM call may take a while.
+4. When the response returns, the dialog lists **all extracted metrics** returned by the backend.
+5. Users may remove any unwanted extracted metrics from the preview list.
+6. Press **Save** to persist only the remaining metrics to `kb.metrics`.
+
+The extraction step no longer writes directly to the database. Persistence happens only after the user reviews the previewed metrics and confirms with **Save**.
+
 ### Standard toolbar CSS classes (defined per consumer)
 
 ```css
@@ -197,6 +210,15 @@ Each consumer view declares its own toolbar buttons inside the `{#snippet toolba
 | Delete Lines No | | Toggles delete-line mode (highlighted when active). Mutually exclusive with Edit Lines. |
 | Add Line Yes | No | Toggles the "Add Line" panel open/closed (highlighted while open). |
 | Show Lines Yes | | Switches between the PDF canvas view and the lines view. When active the icon changes (List → FileText) and the button title becomes "Show PDF Document". |
+
+#### Select dialog actions
+
+| Action | Behaviour |
+|--------|-----------|
+| Extract Provision | Creates a provision immediately from the selected lines. |
+| Extract Metric | Calls the extract API and shows a loading spinner until the extracted metrics return. |
+| Remove (preview metric) | Removes an extracted metric from the preview list without saving it. |
+| Save | Persists the currently previewed metrics to `kb.metrics`. |
 
 ### Toolbar API
 

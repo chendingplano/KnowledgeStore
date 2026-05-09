@@ -296,3 +296,36 @@ my-first-wiki/
 └── sources.md
 ```
 
+= 2026/05/08 - Agent Harness
+
+#let a_009 = link(
+  "https://aakashgupta.medium.com/2025-was-agents-2026-is-agent-harnesses-heres-why-that-changes-everything-073e9877655e"
+)[#text(fill:blue)[Article - 2025 Was Agents. 2026 Is Agent Harness]]
+
+- An agent harness wraps around a model to manage long-running tasks reliably. The model is the Engine; the harness is the Car!
+  The model generates responses. The harness handles everything else. Human approvals.
+  Sub-agent coordination. Filesystem access. Prompt presets. Lifecycle hooks. Planning and execution.
+- Human-in-the-loop
+- Filesystem Access
+- Tool Orchestration
+
+== Six Components
+
+- Component 1: Human-in-the-loop
+- Component 2: Filesystem Access Management: get what the model wants; limit what the model can see; create what
+  the model want to create; etc.
+- Component 3: Tool Call Orchestration. Bad orchestration creates infinite loops and cascading failures. 
+  Vercel's 80% tool reduction reveals harness thinking. Right tools, right times, right order, proper error handling.
+- Component 4: Sub-agent Coordination. Complex tasks need specialized agents.
+- Component 5: Prompt Preset Management. Different tasks need different instructions.
+- Component 6: Lifecycle Hooks. Initialize context. run tasks. Save state. Handle failures. Retry logic. Logging.
+
+== Three Harness Design Principles
+
+- Minimal Necessary Intervention. Only intervene when the model can't self-correct. Let the model handle
+  ambiguity. Step in for irreversible actions or security boundaries.
+- Progressive Disclosure. Start with limited tools and permissions. Expand as tasks required. Don't give database
+  delete permissions unless needed. Least privilege by default.
+- Fail-Fast with Recover. Detect failures quickly. Don't let agents spiral. When failures occur, provide recovery
+  paths. Retry with different approaches. Fall back to humans. Never fail silently.
+
