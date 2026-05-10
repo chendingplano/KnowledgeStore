@@ -58,7 +58,6 @@ where:
 The current implementation does not persist the raw line bodies inside the `.chunks` file. Consumers that need the original lines resolve them from the source canonical line file by these line numbers.
 
 ### 5.1. Chunking Rules
-- Method: `fix-size`
 - Skip lines with `line_type = TOC` (case-insensitive); do not include them in any chunk.
 - Chunk by line boundaries only.
 - Chunk target size: `CHUNK_SIZE` bytes (not lines).
@@ -68,12 +67,32 @@ The current implementation does not persist the raw line bodies inside the `.chu
   - `lines`: regular lines in the chunk
 - Never split `table` blocks.
 - Never split `formula` blocks.
-- Never split non-numerical list blocks.
+- Never split non-numerical list.
 - Numerical list blocks are also kept intact by default, but may be split when the block is very large (for example `>= 3 * CHUNK_SIZE`).
 - `chunk_seqno` starts at 1 and increments by 1.
 
 ### 5.2. List Detection Rules
-Treat lines with `line_type = list-item` as list candidates, then apply these rules:
+There are currently four types of lists:
+- `list-item`: general
+- `list-item-num`: numerical lists, such as "1. xxx\n 2. xxx"
+- `list-item-s-sym`: single-symbal lists, such as "a. xxx\n b. xxx"
+- `list-item-m-sym`: multiple-symbal lists, such as "case 1: xxx\n case 2: xxx"
+
+Refer to `ChenWeb/server/api/doc-processing/structure-static-analyzer.go`.
+
+Treat lines whose `line_type` starts with 'list-item' as list candidates. Continuous lines with exactly
+the same list type form a list. Below is an example:
+```text
+120 6 paragraph Health check items include:
+121 6 list-item-s-sym a) Heart rate
+122 6 list-item-s-sym b) Blood pressure
+125 6 list-item-s-sym c) Weight
+126 6 list-item-s-sym d) Height
+Make sure all checked items meet the requirements.
+```
+In the above example, Lines 121-122, 125-126 form a list.
+IMPORTANT: line numbers may not be continous. In the above example, it misses Line 123 and 124.
+These lines are most likely removed (refer to Capsules/doc-structure-analyzer-static/+CAPSULE.md)
 
 - If content starts with `ddd.ddd` (both `ddd` are digit strings), treat it as a section identifier, not as a list item.
 - Typical list-item content is: `<list-item-seqno><spaces><content>`.
@@ -96,6 +115,20 @@ overlap: [ddd, ddd-ddd, ...]
 lines: [ddd, ddd-ddd, ...]
 ```
 repeated once per chunk in chunk sequence order.
+
+Consumer parsing requirements:
+
+- Readers of `.chunks` MUST treat only explicit `lines:` rows as chunk payload.
+- `overlap:` rows are metadata and MUST NOT be treated as chunk content.
+- Blank separator lines between chunk entries are allowed and MUST be ignored.
+- Consumers MUST preserve the order of `lines:` rows as the canonical chunk order.
+
+UI expectation for `ChenWeb::/home3/knowledge -> Chunks`:
+
+- The `Chunks` page MUST display only entries parsed from `.chunks`.
+- It MUST NOT enrich, replace, or fall back to `.topics` or `topics.txt`.
+- Topic extraction artifacts belong to `Semantic Web`, not to the `Chunks` list.
+- When the UI shows source-line coverage for a chunk, continuous lines on the same page should be compressed into page-aware ranges such as `P8:183-192`.
 
 ## 6. Topics
 

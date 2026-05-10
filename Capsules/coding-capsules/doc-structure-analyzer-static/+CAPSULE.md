@@ -101,6 +101,37 @@ Example:
 
 Once detected, these lines are removed from the analyzer output entirely and are not passed to later analysis rounds.
 
+### Remove `www.weboos.com` Watermark Lines
+
+This should be run before TOC, heading, and list detection.
+
+Check for lines that match all of the following:
+- the original `line-type` is `paragraph`
+- the coordinate is in the form `[x1,y1,x2,y2]` and `x1` MUST be `0`
+- the content starts with `www`, its length is no longer than the length of `www.weboos.com`
+- there is only one such line per page
+
+Apply this removal rule when the above condition is met.
+
+Once this condition is met:
+- remove all such matching lines from the entire file
+- remove any occurrence of `www.weboos.com` from the content of any remaining line
+
+Example:
+```
+7	1	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www.weboos.com
+26	2	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www.weboos.com
+35	3	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www.weboos.com
+45	4	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www.weboos.com
+272	10	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www om
+683	24	table-row	unknown-font	12	[99.42,376.32,541.08,422.82]	|注2 1高毒...<br>www.weboos.com|||
+684	24	paragraph	SimSun	89	[0,389.462,623.999,478.248]	www m
+```
+
+The results:
+- Line 7, 26, 35, 45, 272 and 684 should be removed
+- Line 683 becomes "683	24	table-row	unknown-font	12	[99.42,376.32,541.08,422.82]	|注2 1高毒...<br>www.weboos.com|||"
+
 ### Detecting Headings
 
 #### Numerical Headings

@@ -78,3 +78,11 @@ The same is true for figures:
 
 Refer to @fig:square.
 ```
+
+## Include Files
+```text
+#include "section2.typ"
+```
+
+Inserts the entire contents of 'section2.typ' at that location. Equivalent to copy-paste at compile time
+You can use '#include' to split a large document into multiple files.
