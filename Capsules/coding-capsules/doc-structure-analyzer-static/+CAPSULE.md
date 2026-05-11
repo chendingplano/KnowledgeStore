@@ -1,6 +1,6 @@
 # Feature: doc-structure-static-analyzer
 
-## Summary
+## 1.1 Summary
 This processor analyzes document structure line by line and outputs corrected structure labels. 'static' means
 it does not use LLMs to do the analysis.
 
@@ -18,7 +18,7 @@ file as its primary source. If a `.corrected` file also exists it is shown as su
 line list is always populated from `.txt`. Manual corrections entered through the UI are written to a separate
 `.manual` file (see "Manual Override File" section below).
 
-## Inputs
+## 1.2 Inputs
 - `record_id`: value of `kb.inputs.id`
 - `input_filename`: source file name
 - `input_file`: buffer containing line-file content
@@ -31,7 +31,7 @@ Related context:
 - metadata extraction spec:
   `KnowledgeStore/DevDocuments/Specs/spec-extract-metadata.md`.
 
-## Environment Variables
+## 1.3 Environment Variables
 - `ARTIFACT_DIR` (required): artifact output root directory
 - `EXTRACT_DOCMETA_PROMPT` (optional): controls output destination.
   - If not defined or any value other than `false`: write corrected output back to the original input file (override origin).
@@ -41,14 +41,14 @@ Validation:
 - Missing `ARTIFACT_DIR` when writing `.corrected` artifact => fail before processing.
 - `ARTIFACT_DIR` is not required when `EXTRACT_DOCMETA_PROMPT != false` (origin override mode).
 
-## Retrieve Record
+## 1.4 Retrieve Record
 Load source record from `kb.inputs` where `kb.inputs.id = record_id`.
 
 Failure:
 - database access error => fail
 - record not found => fail
 
-## Classification Taxonomy
+## 1.5 Classification Taxonomy
 Allowed `corrected_line_type` values:
 - `heading-1`, `heading-2`, `heading-3`, ... (no fixed upper bound)
 - `paragraph`
@@ -63,21 +63,13 @@ Allowed `corrected_line_type` values:
 - `other`
 - `unchanged`
 
-Notes:
-- Heading labels are encoded as `heading-N` (not `heading` + separate level).
-- Legacy input line types must be normalized before further analysis or output.
-  Examples:
-  - `heading` => `heading-1`
-  - `heading(1)` => `heading-1`
-  - `heading(2)` => `heading-2`
-  - `heading(3)` => `heading-3`
-- This analyzer does not detect cover pages and therefore does not emit `cover` as a corrected label.
+## 1.6 Processing Rules
 
-## Processing Rules
+IMPORTANT: processing must be done in the following order.
 
-The program will scan and detect in two rounds.
+IMPORTANT: save the original line file to ".origin" first.
 
-### Remove Full-Page Image Artifact Lines
+### 1.6.1 Remove Full-Page Image Artifact Lines
 
 This should be run before TOC, heading, and list detection.
 
@@ -101,7 +93,7 @@ Example:
 
 Once detected, these lines are removed from the analyzer output entirely and are not passed to later analysis rounds.
 
-### Remove `www.weboos.com` Watermark Lines
+### 1.6.2 Remove `www.weboos.com` Watermark Lines
 
 This should be run before TOC, heading, and list detection.
 
@@ -132,38 +124,7 @@ The results:
 - Line 7, 26, 35, 45, 272 and 684 should be removed
 - Line 683 becomes "683	24	table-row	unknown-font	12	[99.42,376.32,541.08,422.82]	|注2 1高毒...<br>www.weboos.com|||"
 
-### Detecting Headings
-
-#### Numerical Headings
-This should be run in the first round.
-
-Starting from the beginning of the input, numerical headings should form a continuous sequence of lines of
-the following pattern:
-```
-1 <non-empty string>
-1.1 <heading-title>
-1.1.1 <heading-title>
-1.1.2 <heading-title>
-...
-1.2 <heading-title>
-...
-2 <non-empty string>
-...
-```
-If '<heading-title>' is empty and its next line is not empty and the next line type is 'paragraph', use it as 
-its '<heading-title>'.
-
-**Predict the Next Heading**
-
-The program keeps the current heading: '[level1, level2, ...]', where 'level1' is the current level 1 heading
-value, 'level2' is the current level 2 heading value, and so on. 
-
-If the current heading is '[level1, level2, level3]', the next valid heading should be one of the following:
-- '[level1, level2, level3 + 1]'
-- '[level1, level2 + 1]'
-- '[level11 + 1]'
-
-#### Table of Content
+### 1.6.3 Detect Table of Content
 
 This should be run in the first round.
 
@@ -193,7 +154,76 @@ Once a 'Table of Content' is detected:
 - Change all its line-type to 'toc'
 - Do not detect 'Table of Content' anymore.
 
-#### Appendix Headings
+### 1.6.4 Correct Headings
+
+#### 1.6.4.1 Rule 1
+If line type is `heading`, change it to `heading-1`. 
+
+Example:
+
+  - `heading` => `heading-1`
+
+#### 1.6.4.2 Rule 2
+If line type is `heading(n)`, where n is a number, change to `heading-n`.
+
+Examples:
+  - `heading(1)` => `heading-1`
+  - `heading(2)` => `heading-2`
+  - `heading(3)` => `heading-3`
+
+#### 1.6.4.3 Rule 3
+
+Condition:
+- It is a heading line
+- Its section number matches one of the following pattern:
+  * `<number1>.` + [`<space>`] + `<number2>` + [`<space>`] + `<number3>`, where `<number1>`, `<number2>`, and `<number3>` can be a number, the letter 'o', 'O', 's', 'S', 'l', and `<space>` is a space, which may or may not be present.
+
+Action:
+- Convert 'o' or 'O' to '0'
+- Convert 's' or 'S' to '5'
+- Convert 'l' to '1'
+- Remove the spaces, if present
+
+Examples
+- '2.o.1' => '2.0.1' (no spaces)
+- '3. o.2' => '3.0.2' (with only one space)
+- '3.O. 2' => '3.0.2' (with only one space)
+- '3. o. 2' => '3.0.2' (with both spaces)
+- '3.0. 2' => '3.0.2' (with only one space)
+- '3. 0. 2' => '3.0.2' (with both spaces)
+- 's.2' => '5.1'
+- 'S.3' => '5.3'
+
+### 1.6.5 Detect Headings
+
+#### 1.6.5.1 Detect Normal Headings
+Starting from the beginning of the input, numerical headings should form a continuous sequence of lines of
+the following pattern:
+```
+1 <non-empty string>
+1.1 <heading-title>
+1.1.1 <heading-title>
+1.1.2 <heading-title>
+...
+1.2 <heading-title>
+...
+2 <non-empty string>
+...
+```
+If '<heading-title>' is empty and its next line is not empty and the next line type is 'paragraph', use it as 
+its '<heading-title>'.
+
+**Predict the Next Heading**
+
+The program keeps the current heading: '[level1, level2, ...]', where 'level1' is the current level 1 heading
+value, 'level2' is the current level 2 heading value, and so on. 
+
+If the current heading is '[level1, level2, level3]', the next valid heading should be one of the following:
+- '[level1, level2, level3 + 1]'
+- '[level1, level2 + 1]'
+- '[level11 + 1]'
+
+### 1.6.5.2 Detect Appendix Headings
 
 This should be run in the first round.
 
@@ -213,7 +243,61 @@ Where '<appendix-symbol>' is a single letter, such as 'A', 'B'.
 
 Predicting the next heading is similar to that of the numerical headings.
 
-#### Detect Item Lists
+### 1.6.5.3 Corner Cases for Detecting Headings
+
+This applies to both normal headings and appendix headings.
+
+- Heading numbers may be followed by a '.'
+- Normalize numbering, remove spaces, if any, in heading numbers. Example: convert the original headings "3. 1. 1" to "3.1.1"
+- Discontinued heading numbering pattern: Some document heading may be in the pattern:
+```
+1 <title>
+1.0.1 <title>
+1.0.2 <title>
+...
+2 <title>
+2.0.1 <title>
+...
+```
+The extra '0' happens at heading2 only.
+
+### 1.6.6 Merge Lines
+
+Purpose: lines that belong to the same natural paragraphs are often in separate lines.
+
+#### 1.6.6.1 Merge Chinese-Style Lines
+
+The first line of paragraphs in Chinese normally indent with two Chinese characters.
+
+Rules:
+- The first line starts with certain amount of indent. This starts a paragraph. Append the first line to the paragraph,
+- The last character of the paragraph ends near line-end
+- There is a subsequent line and the subsequent line starts at line-start
+- When the above is met, merge the subsequent line to the paragraph and repeat. Otherwise, it finishes the current paragraph.
+
+Note: It is important to detect line-start and line-end!
+
+Examples
+```text
+74	5	paragraph	HiddenHorzOCR	9	[104.88,496.943,339.001,508.549]	职业健康监护 occupational health survei Ilance
+75	5	paragraph	HiddenHorzOCR	9	[83.28,451.33,546.241,493.45]	以预防为目的，根预措施，保护
+77	5	paragraph	HiddenHorzOCR	9	[83.76,436.27,140.4,447.37]	消防员健康。
+78	5	heading-2	Times-Roman	11	[83.86,421.006,99.898,433.058]	3.9
+79	5	paragraph	Times-Roman	10	[105.6,405.503,427.022,417.109]	职业危害防护装备 protective faci lities for occupational hazard
+80	5	paragraph	HiddenHorzOCR	9	[105.36,390.37,546.721,401.77]	用于消除或者减少职业危害因素对消防员健康的损害或影响，达到保护消防员健康目的的装备，主
+81	5	paragraph	HiddenHorzOCR	9	[84,375.3,297.121,386.4]	要包括侦检装备、个人防护装备、洗消装备等。
+```
+In this example, Line 80 starts at 105 and ends at 546 and Line 81 starts at 84. Looking at other lines in the
+above example, it is not difficult to tell line-starts is around 83 and line-end is around 546 (need more lines 
+to detect line-start and line end reliably).
+
+Since Line 80 starts a paragraph, ends at line-and and its next line (Line 81) starts at line-start, they should
+be merged.
+
+#### 1.6.6.2 Merge English-Style Lines
+English-Style lines will start paragraphs without indenting. Otherwise, the merge logic is the same as the Chinese-style merging.
+
+### 1.6.7 Detect Item Lists
 
 This should be run in the second round.
 
@@ -236,27 +320,9 @@ Example:
 - For single symbol list item, such as `* xxx`, `- xxx`, change line type to 's-sym-list-item'
 - For multiple symbol list item, such as `a) xxx`, `ii) xxx`, change line type to 'm-sym-list-item'
 
-### Corner Cases
+## 1.7 Output Artifacts
+### 1.7.1 Output Destination
 
-- Heading numbers may be followed by a '.'
-- Normalize numbering, remove spaces, if any, in heading numbers. Example: convert the original headings "3. 1. 1" to "3.1.1"
-- Discontinued heading numbering pattern: Some document heading may be in the pattern:
-```
-1 <title>
-1.0.1 <title>
-1.0.2 <title>
-...
-2 <title>
-2.0.1 <title>
-...
-```
-The extra '0' happens at heading2 only.
-
-## Output Artifacts
-### Output Destination
-Controlled by `EXTRACT_DOCMETA_PROMPT`:
-
-**Override-origin mode** (default — `EXTRACT_DOCMETA_PROMPT` is not set or not `false`):
 - If no corrections were made, skip writing entirely.
 - If at least one correction was made:
   1. Back up the original input file to the same path with a `.origin` extension (e.g. `foo_parser.txt` → `foo_parser.origin`).
@@ -270,23 +336,23 @@ Controlled by `EXTRACT_DOCMETA_PROMPT`:
   `ARTIFACT_DIR + "/" + floor(record_id/1000) + "/" + record_id + "/" + filename-root + ".corrected"`
   where `filename-root` is the root of `kb.inputs.staging_filename + "_" + kb.inputs.parser_name`.
 
-## Manual Override File (`.manual`)
+## 1.8 Manual Override File (`.manual`)
 
 The `.manual` file is **not produced by the static analyzer**. It is created and maintained by the Document
 Structure UI (`PATCH /api/v1/kb/doc-structure` and `DELETE /api/v1/kb/doc-structure`). It is documented here
 because it lives alongside the analyzer output files and shares their format.
 
-### Purpose
+### 1.8.1 Purpose
 Records every line that a user has manually edited or deleted through the UI. Provides an audit trail of
 human corrections that can be replayed or diffed against the analyzer output.
 
-### Path
+### 1.8.2 Path
 ```
 ARTIFACT_DIR/{floor(id/1000)}/{id}/{filename-root}_{parser}.manual
 ```
 Same directory and naming convention as `.txt` and `.corrected`, with extension `.manual`.
 
-### Format
+### 1.8.3 Format
 10-field tab-separated:
 ```
 {operation}\t{line_number}\t{page_number}\t{line_type}\t{font}\t{font_size}\t[x1,y1,x2,y2]\t{timestamp}\t|$|{old-content}|$|\t|$|{new-content}|$|
@@ -303,7 +369,7 @@ Fields:
 
 The `|$|...|$|` delimiters allow content that itself contains `|$|` to be parsed unambiguously.
 
-### Semantics
+### 1.8.4 Semantics
 - **Modify:** when a user changes a line's type or content, the entry is written with `operation=modify`,
   `old-content` = the text before the change, `new-content` = the text after the change, and `line_type` =
   the updated type. The `.txt` file is also updated in place.
@@ -315,7 +381,7 @@ The `|$|...|$|` delimiters allow content that itself contains `|$|` to be parsed
 - **Sort order:** lines are stored sorted ascending by `line_number` (then `page_number` as tiebreaker).
 - The `.manual` file may be absent if no manual edits have been made.
 
-## Update `kb.inputs.status`
+## 1.9 Update `kb.inputs.status`
 Persist operation status using canonical name:
 - `operation = "static_analyzer"`
 
@@ -353,7 +419,7 @@ Rules:
 - `error` MUST be omitted on success
 - replace existing `static_analyzer` status entry each run (no duplicates)
 
-## Workflow
+## 1.10 Workflow
 1. Validate required env vars.
 2. Retrieve source record from `kb.inputs`.
 3. Run the detection and correction defined in the "Processing Rules" section.
@@ -362,12 +428,12 @@ Rules:
    - Corrected-artifact mode: write `filename-root.corrected` under `ARTIFACT_DIR`.
 5. Upsert `kb.inputs.status` with `operation = "static_analyzer"`.
 
-## Failure Semantics
+## 1.11 Failure Semantics
 Failure handling:
 - Ignore malformed lines and continue processing valid lines.
 - database read/write failure => fail
 
-## Acceptance Tests (Golden Cases)
+## 1.12 Acceptance Tests (Golden Cases)
 The following behaviors are mandatory:
 1. Hierarchical numbered headings:
    - `3` => `heading-1`
@@ -383,5 +449,5 @@ The following behaviors are mandatory:
 6. OCR-noisy but valid schema input still runs successfully (best effort).
 7. Malformed lines are ignored; processing continues for valid lines.
 
-## Reference-only Backup
+## 1.13 Reference-only Backup
 `spec-doc-structure-analyzer-bak.md` is non-canonical reference material.

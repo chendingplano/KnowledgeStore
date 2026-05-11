@@ -141,19 +141,19 @@ This section lets users inspect parsed document hierarchy and corrected structur
 Layout:
 
 ```text
-┌───────────────────────────────────-──────────────────────────-─────────┐
-│  Menu    | Record List | LINES [Filter] [Settings] |   PDF Viewer     │
-│          |             |                            | Selected Line    │
-|───────────────────────────────-──--────────────────────────────────────|
-│  ...                   |          |                            |       │
-│  Document Structure    | <record> | <Line>                     |       │
-│                        |          | <Line>                     | PDF   │
-│                        |          |                            | View  │
-│  ...     |             |          |                            | er    │
-└────────────────────────────--──────────────────────────────────────────┘
+┌───────────────────────────────────-──────-──────-──────────────────────────-─────────┐
+│  Menu    | Record List | LINES [Filter] [Settings]  |  Selected Line  |  PDF Viewer  │
+|───────────────────────────────-──--───────────────────-──────-──────-────────────────|   
+│  ...                   |                            |                 |              │
+│  Document Structure    | <record>                   | <Line>          |              │
+│                        |                            | <Line>          | PDF Viewer   │
+│                        |                            | <Line>          |              │
+│                        |                            | ...             |              │
+│  ...                   |                            |                 |              │
+└─────────────────-──────-─────────────────--──────────────────────────────────────────┘
 ```
 
-The "Selected List" has two controls:
+The "LINES" panel has two controls:
 - "Filter" pulldown
 - "Settings" button
 
@@ -163,6 +163,12 @@ The "Filter" pulldown menu has:
 - Lists: show list-item lines only
 - Tables: show table lines only
 - Formulas: show formula lines only
+
+The records in the "LINES" panel show lines from the line file, one line per record.
+Each record has two operations "Edit" and "Delete", shown as icons. The "Delete" action
+uses a trashcan icon instead of an `x`. Clicking the "Edit" icon convert the display into
+the edit mode. Clicking the "Delete" icon deletes the line from the line file. Confirm the
+deletion with user before actually delete it.
 
 Main component:
 
@@ -251,15 +257,48 @@ Related design doc:
 
 ### 8. Semantic Web
 
-This group provides topic-oriented knowledge exploration:
+This group provides topic-oriented knowledge exploration. Its page layout is:
 
-- `Semantic Web`: category-first graph view
-- `Document Semantic Tree`: document-centric topic browser
+This section browses fixed-size chunk output and related document/PDF context.
+
+Layout:
+
+```text
+┌──────--─────────────────────────-─────────────────────────────────────┐
+│  Menu    | Record List | Topic List | Selected Topic |   PDF Viewer   │
+│  ...     |             |            |                                 │
+│  Chunks  | <record>    | <chunk>    |  <topic>       |   PDF Viewer   │
+│          | <record>    | <chunk>    |  <topic>       |                │
+│          |             |            |                                 │
+│  ...     |             |            |                                 │
+└────────────────────────────--─────────────────────────────────────────┘
+```
+
+- `Semantic Web`: category-first graph view [Semantic Web](#semantic-web)
+- `Document Semantic Tree`: document-centric topic browser. Refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md' for topics.
 
 Main components:
 
 - `ChenWeb/web/src/lib/components/home3/topic-graph-view.svelte`
 - `ChenWeb/web/src/lib/components/home3/topic-tree-view.svelte`
+
+#### 8.1 Semantic Web
+
+A topic has one or more category paths. Category paths are mapped to file paths under
+the directory TOPIC_TREE_ROOT_DIR. If a directory has a 'topics.txt' file, the file
+lists all the topics that belong to this file path, which is also a category path.
+Below is an example of 'topics.txt':
+```text
+record_id: 99,
+topic_type: "procedure"
+lines: [405-406]
+topic_keywords: [腰背肌力, 测试方法, 背力计, 上拉]
+topic: "腰背肌力测试方法：自然站立，调节握柄高度，双手紧握把柄，直臂上拉背力计"
+
+<next topic, if any>
+```
+
+For more information about topics, refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md'. 
 
 ### 9. Compliance Provisions
 

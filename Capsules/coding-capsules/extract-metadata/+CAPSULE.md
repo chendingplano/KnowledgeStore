@@ -22,7 +22,10 @@ The input file MUST conform to the canonical Line File spec:
 ## Workflow
 - Retrieve the record by 'record_id'. 
 - Read the first EXTRACT_DOCMETA_NUM_PAGES pages from the input
-- Use the LLM (specified by EXTRACT_DOCMETA_LLM_NAME) to extract the metadata with the prompt (specified by EXTRACT_DOCMETA_PROMPT) to extract the document metadata from the pages. If the LLM request reading more pages, do so. The LLM outputs its extracted doc metadata as a JSON doc. Below is an example:
+- Use the primary LLM (specified by `EXTRACT_DOCMETA_MODEL_NAME`) together with the models file (`EXTRACT_DOCMETA_MODELS_FILE` or `MODELS_FILE`) and the prompt (specified by `EXTRACT_DOCMETA_PROMPT`) to extract the document metadata from the pages.
+- If the primary extraction request fails and `EXTRACT_DOCMETA_MODEL_FALLBACK` is configured, retry the same extraction with the fallback model.
+- If the LLM requests reading more pages, do so.
+- The LLM outputs its extracted doc metadata as a JSON doc. Below is an example:
 ```json
 {
   "title": "...",
@@ -62,9 +65,7 @@ The input file MUST conform to the canonical Line File spec:
   "drafting_persons": [],
   "implementation_date": "...",
   "main_drafting_persons": [...],
-  ],
   "drafting_organizations": [...],
-  ],
   "main_drafting_organizations": [...]
 }
 ```

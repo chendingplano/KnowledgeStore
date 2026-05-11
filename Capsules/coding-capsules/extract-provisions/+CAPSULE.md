@@ -13,6 +13,7 @@ recommendations.
 
 # Workflow
 - For each block, use the EXTRACT_PROVISIONS_MODEL_NAME model with the EXTRACT_PROVISIONS_PROMPT prompt to extract provisions from the block.
+- If primary extraction fails and the fallback model also returns an empty/truncated JSON response (for example `unexpected end of JSON input` with an effectively empty payload), treat that block as a successful empty extraction rather than a processor failure.
 - After processing all blocks, save the extracted provisions to the table `kb.provisions` (refer to "Output Storage" section).
 - Save all extracted provisions to a `.provisions` artifact file (refer to "Output Artifact" section).
 - Upsert the following entry to kb.inputs.status if failed:
