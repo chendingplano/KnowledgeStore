@@ -262,7 +262,7 @@ Topics in 'topics.txt' are sorted by record IDs.
       If the file does not exist yet, create it.
 
 ## 7. Summaries
-* Refer to 'spec-generate-chunk-summary.md' for generating summaries.
+* Refer to 'KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-summary-spec.md' for generating summaries.
 * Generate category paths for **every** summary (both leaf and group summaries),
   not just the root. Each summary gets its own category path from the LLM.
 * Refer to 'spec-category-extraction.md' for how to extract category paths and
@@ -294,15 +294,18 @@ Payload schema:
 
 ```json
 {
-  "operation": "chunked",
-  "input_filename": "abc",
-  "num_pages": 59,
-  "num_lines": 267,
-  "num_chunks": 25,
-  "ms_used": 245,
-  "start_time": "20260414 10:04:48",
-  "proc_status": "success or failed",
-  "error": ""
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"chunked",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "num_lines": 703,
+    "num_pages": 26,
+    "num_labeled_lines": 610,
+    "num_chunks": 40,
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
 }
 ```
 

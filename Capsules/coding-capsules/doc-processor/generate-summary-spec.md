@@ -94,3 +94,37 @@ Refer to Section "Index Summaries" in 'spec-catgegory-extraction.md' for indexin
 
 ### 1.10 Idempotent
 When a document is re-chunked, it should clear all the related data and before re-generate the data.
+
+## Update Status
+
+Persist operation status using canonical name:
+- `operation = "generate_summaries"`
+
+Status payload (underscore fields only):
+
+When success:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "generate_summaries",
+    "proc_status":"success",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+When failed:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "generate_summaries",
+    "proc_status":"failed",
+    "error":"error-msg",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```

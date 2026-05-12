@@ -66,12 +66,17 @@ Current behavior:
 For `opendata`, the converter resolves the parser JSON and writes:
 
 - output directory: same directory as the input JSON
-- output filename: `<input-root>_opendata.txt`
+- primary working line file: `<input-root>_<parser_name>.txt`
+- immutable backup copy of the same converted content: `<input-root>_<parser_name>.origin`
+- set `<input-root>_<parser_name>.origin` read-only
+- downstream processors that modify line files MUST treat `.txt` as the writable working file and MUST NOT modify `.origin`
+
+where `<input-root>` is the root of 'kb.inputs.staging_filename' and `<parser_name>` is 'kb.inputs.parser_name'.
 
 Example:
 
 - input: `stdGk_3032172.json`
-- output: `stdGk_3032172_opendata.txt`
+- output: `stdGk_3032172_opendata.txt` and `stdGk_3032172_opendata.origin`
 
 ## Line File Format
 

@@ -12,16 +12,22 @@ This table stores normative provisions extracted from standards, regulatory docu
 | input_filename | mandatory | Source input filename |
 | prov_id | mandatory | Provision sequence number starting from 1, unique within `input_record_id` |
 | prov_name | optional | Normalized short provision name |
+| prov_name_en | optional | English translation of prov_name |
 | provision_type | optional | Provision type, such as `mandatory`, `recommended`, or `optional` |
 | source_text | optional | Source text reconstructed from `source_line_spans` |
 | source_line_spans | mandatory | JSON array of source page/line spans |
-| provision_original | optional | Original provision text if the original language is not English; null for English originals |
+| provision | optional | Original provision text |
 | provision_en | optional | English provision text or translation |
 | provision_subject | optional | Provision subject |
+| provision_subject_en | optional | English translation of provision_subject |
 | prov_desc | optional | Provision description or provision text |
+| prov_desc_en | optional | English translation of prov_desc |
 | prov_context | optional | Context in which the provision appears |
+| prov_context_en | optional | English translation of prov_context |
 | provision_keywords | mandatory | JSON array of provision keywords |
+| provision_keywords_en | optional | JSON array of English provision keywords |
 | category_paths | mandatory | JSON array containing category path payloads |
+| category_paths_en | optional | JSON array containing English category path payloads |
 | location_type | optional | Source location type, such as `sentence`, `paragraph`, `bullet`, `table_row`, `table_cell`, `heading_context`, or `mixed` |
 | confidence | optional | Confidence score from 0 to 1 |
 | is_explicit | optional | Whether the provision is explicit in the source text |
@@ -63,3 +69,4 @@ The table should not use these older or redundant columns:
 - `prov_conf`: use `confidence`
 - `prov_subject`: use `provision_subject`
 - `prov_keywords`: use `provision_keywords`
+- `provision_original`: use `provision`

@@ -16,23 +16,29 @@ A metric is a quantitative, measurable item used to evaluate, compare, monitor, 
 - After processed all the chunk files, save the extracted metrics to kb.metrics (refer to "Output Storage" section).
 - Upsert the following entry to kb.input.status if faled:
 ```json
-  {
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
     "operation": "extract_metrics",
-    "proc_status": "failed",
-    "error": "error-message",
-    "start_time": "...",
-    "ms-used": ...
-  },
+    "proc_status":"failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "error":"error-msg",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
 ```
 
 Otherwise, upsert the following element to kb.inputs.status:
 ```json
-  {
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
     "operation": "extract_metrics",
-    "proc_status": "success",
-    "start_time": "...",
-    "ms-used": ...
-  },
+    "proc_status":"success",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
 ```
 
 ### Output Schema

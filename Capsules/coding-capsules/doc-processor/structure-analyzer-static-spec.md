@@ -18,6 +18,11 @@ file as its primary source. If a `.corrected` file also exists it is shown as su
 line list is always populated from `.txt`. Manual corrections entered through the UI are written to a separate
 `.manual` file (see "Manual Override File" section below).
 
+**PDF converter handoff:** When the input originated from the PDF result converter, that upstream step already
+produced both `<filename-root>.txt` and `<filename-root>.origin`. The static analyzer MUST treat `.txt` as the
+only writable input/output line file and MUST NOT read from, overwrite, rename, delete, chmod, or otherwise
+modify `.origin`.
+
 ## 1.2 Inputs
 - `record_id`: value of `kb.inputs.id`
 - `input_filename`: source file name
@@ -34,12 +39,12 @@ Related context:
 ## 1.3 Environment Variables
 - `ARTIFACT_DIR` (required): artifact output root directory
 - `EXTRACT_DOCMETA_PROMPT` (optional): controls output destination.
-  - If not defined or any value other than `false`: write corrected output back to the original input file (override origin).
+  - If not defined or any value other than `false`: write corrected output back to the original input `.txt` file in place.
   - If set to `false`: write to a separate `.corrected` artifact file instead.
 
 Validation:
 - Missing `ARTIFACT_DIR` when writing `.corrected` artifact => fail before processing.
-- `ARTIFACT_DIR` is not required when `EXTRACT_DOCMETA_PROMPT != false` (origin override mode).
+- `ARTIFACT_DIR` is not required when `EXTRACT_DOCMETA_PROMPT != false` (in-place `.txt` update mode).
 
 ## 1.4 Retrieve Record
 Load source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -67,7 +72,7 @@ Allowed `corrected_line_type` values:
 
 IMPORTANT: processing must be done in the following order.
 
-IMPORTANT: save the original line file to ".origin" first.
+IMPORTANT: preserve any existing `.origin` file. The static analyzer MUST NOT create, overwrite, or modify `.origin`.
 
 ### 1.6.1 Remove Full-Page Image Artifact Lines
 
@@ -75,7 +80,7 @@ This should be run before TOC, heading, and list detection.
 
 Remove lines that match all of the following:
 - the original `line-type` is `image`
-- the coordinate is in the form `[0,0,x,y]`
+- the coordinate is in the form `[x1, y1, x2, y2]`, where `x1` <= 5 and `y1` <= 5
 - the content exactly matches `<prefix>/imageFile<page-number>.png`
 - all matching lines in the same file share the same `<prefix>`
 - the `<page-number>` in the file name matches the line `page_number`
@@ -98,16 +103,16 @@ Once detected, these lines are removed from the analyzer output entirely and are
 This should be run before TOC, heading, and list detection.
 
 Check for lines that match all of the following:
-- the original `line-type` is `paragraph`
-- the coordinate is in the form `[x1,y1,x2,y2]` and `x1` MUST be `0`
-- the content starts with `www`, its length is no longer than the length of `www.weboos.com`
-- there is only one such line per page
+- Line content is `www.weboos.com`
+- There is only one such line per page
+- There are at least three pages that meet the above conditions
 
 Apply this removal rule when the above condition is met.
 
 Once this condition is met:
 - remove all such matching lines from the entire file
 - remove any occurrence of `www.weboos.com` from the content of any remaining line
+- if a page does not have a line with content = 'www.weboos.com', but there is one and only one line that starts with 'www' and its length is no longer than the length of 'www.weboos.com', remove it.
 
 Example:
 ```
@@ -325,8 +330,8 @@ Example:
 
 - If no corrections were made, skip writing entirely.
 - If at least one correction was made:
-  1. Back up the original input file to the same path with a `.origin` extension (e.g. `foo_parser.txt` → `foo_parser.origin`).
-  2. Overwrite the original input `.txt` file in place.
+  1. Overwrite the original input `.txt` file in place.
+  2. Leave any sibling `.origin` file untouched.
 - Output format: the original 7-field line-file, with `line-type` (field 3) replaced by the corrected type where a correction was made. Lines with no correction keep their original `line-type` unchanged.
 - Do not produce a `.corrected` artifact.
 
@@ -388,29 +393,30 @@ Persist operation status using canonical name:
 Status payload (underscore fields only):
 ```json
 {
-  "operation": "static_analyzer",
-  "input_filename": "...",
-  "num_pages": 59,
-  "num_lines": 267,
-  "num_labeled_lines": 267,
-  "start_time": "20260421 11:08:20",
-  "ms_used": 245,
-  "proc_status": "success"
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"static_analzyer",
+    "proc_status":"success",
+    "input_filename": "std_20039_opendata.txt",
+    "num_lines": 703,
+    "num_pages": 26,
+    "num_labeled_lines": 610,
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
 }
 ```
 
 Failure example:
 ```json
 {
-  "operation": "static_analyzer",
-  "input_filename": "...",
-  "num_pages": 59,
-  "num_lines": 267,
-  "num_labeled_lines": 120,
-  "start_time": "20260421 11:08:20",
-  "ms_used": 245,
-  "proc_status": "failed",
-  "error": "line 43 malformed: invalid field count"
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"static_analzyer",
+    "proc_status":"failed",
+    "input_filename": "std_20039_opendata.txt",
+    "error": "error-msg",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
 }
 ```
 
@@ -424,7 +430,7 @@ Rules:
 2. Retrieve source record from `kb.inputs`.
 3. Run the detection and correction defined in the "Processing Rules" section.
 4. Write output per the "Output Destination" rules:
-   - Override-origin mode: overwrite the original input `.txt` file.
+   - Default mode: overwrite the original input `.txt` file only; do not touch `.origin`.
    - Corrected-artifact mode: write `filename-root.corrected` under `ARTIFACT_DIR`.
 5. Upsert `kb.inputs.status` with `operation = "static_analyzer"`.
 

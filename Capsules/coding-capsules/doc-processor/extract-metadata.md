@@ -87,21 +87,26 @@ Save the JSON doc to 'kb.inputs.doc_metadata'
 
 If any error occurs, upsert the following element to kb.inputs.status:
 ```json
-  {
-    "operation": "extract_metadata",
-    "proc_status": "failed",
-    "error": "error-message",
-    "start_time": "...",
-    "ms-used": ...
-  },
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"extract_metadata",
+    "proc_status":"failed",
+    "error":"error-msg",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
 ```
 
 If successful, upsert the following element to kb.inputs.status:
 ```json
-  {
-    "operation": "extract_metadata",
-    "proc_status": "success",
-    "start_time": "...",
-    "ms-used": ...
-  },
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"extract_metadata",
+    "proc_status":"success",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
 ```
