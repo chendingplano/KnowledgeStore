@@ -21,8 +21,8 @@ Input file line format:
 - CHUNK_OVERLAP_PERCENT: optional, the overlap percent, default: 20%
 - ARTIFACT_DIR: required, the directory in which chunk files are stored.
 - CHUNK_TREE_ROOT_DIR: required, the root dir of the chunk file tree.
-- CHUNK_EXTRACT_TOPIC_MODEL_NAME: optional, the name of the model to extract topics and to generate summary tree categories, default to 'gpt-5-4-mini'
-- CHUNK_EXTRACT_TOPIC_PROMPT: required, the prompt for extracting topics from the chunk.
+- EXTRACT_TOPIC_MODEL_NAME: optional, the name of the model to extract topics and to generate summary tree categories, default to 'gpt-5-4-mini'
+- EXTRACT_TOPIC_PROMPT: required, the prompt for extracting topics from the chunk.
 - GENERATE_CATEGORY_PROMPT: optional, the prompt used to infer the summary tree category path via LLM. If not defined, an error is logged at startup and a built-in default prompt is used as fallback. The prompt receives the root summary text as input and must instruct the LLM to return a JSON object `{"category_path": [...]}` with 1–2 snake_case labels.
 
 ## 4. Retrieve Record
@@ -133,7 +133,7 @@ UI expectation for `ChenWeb::/home3/knowledge -> Chunks`:
 ## 6. Topics
 
 ### 6.1 Extract Topics
-- Use the model defined by CHUNK_EXTRACT_TOPIC_MODEL_NAME and the prompt CHUNK_EXTRACT_TOPIC_PROMPT to extract topics from each chunk.
+- Use the model defined by EXTRACT_TOPIC_MODEL_NAME and the prompt EXTRACT_TOPIC_PROMPT to extract topics from each chunk.
 - The LLM returns the topics in JSON (see the JSON format below)
 
 LLM Output JSON format:

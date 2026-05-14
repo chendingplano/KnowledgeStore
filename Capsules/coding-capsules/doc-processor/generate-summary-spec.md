@@ -8,7 +8,7 @@ A document is broken down into a number of chunks. This feature does the followi
 ## 1 Generate Summaries
 
 ### 1.1 Workflow
-- For each chunk, it uses CHUNK_EXTRACT_TOPIC_MODEL_NAME model to generate a summary for the 
+- For each chunk, it uses GENERATE_SUMMARY_MODEL_NAME model to generate a summary for the 
   chunk.  
 - Generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries using the 
   same model and prompt. 

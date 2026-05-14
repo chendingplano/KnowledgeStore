@@ -150,7 +150,6 @@ What looks good:
 
 Main concerns:
 
-- The service supports a separate `CHUNK_SUMMARY_MODEL_NAME`, while the summary spec says to use `CHUNK_EXTRACT_TOPIC_MODEL_NAME`; this may be a good extension, but it is still a spec drift ([fix-size-chunking.go:1028-1068](../../ChenWeb/server/api/doc-processing/fix-size-chunking.go:1028)).
 - Summary embeddings are not generated.
 - The fallback summary behavior can hide extractor/prompt mismatches.
 

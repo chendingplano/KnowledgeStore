@@ -26,7 +26,19 @@ The sytem may process multiple, normally up to 10, concurrent doc processing thr
 - Hand-pick the doc processors to run. Default: run all
 - Confirm before launching
 
+### Failed Pipelines
+- Records from 'kb.inputs' whose 'status' array contains at least one entry with 'status' = 'failed'
+- The section can be expanded or collapsed; collapsed by default
+- Manual refresh only; no auto-polling
+- Ordered by 'create_time' descending
+- Paging control; default page size: 30
+
+## Implementation
+Refer to [3] for its implementation.
+
 ## References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md 
 
 [2] KnowledgeStore/DevDocuments/Specs/table-schemas/table-kb-inputs.md
+
+[3] KnowledgeStore/Capsules/coding-capsules/doc-processor/doc-processor-dashboard-impl.md 
