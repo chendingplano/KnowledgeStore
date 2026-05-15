@@ -179,9 +179,7 @@ For each node in the path, starting at `TOPIC_TREE_ROOT_DIR`:
 
 1. **Exact match**: If a sub-directory with `normalizeCategorySegment(node.Name)` already exists, reuse it and merge the node's keywords into its `metadata.txt`.
 
-2. **Cosine-similarity match**: If an embedder is configured, embed `node.Name + " " + keywords`, then load `category.embed` from every existing sub-directory. If the best cosine score is ≥ `CATEGORY_SIMILARITY_MIN_SCORE` (default 0.85), reuse that directory and merge keywords.
-
-3. **Create new**: If neither step matched, create the directory at the normalized name, write `metadata.txt`, and save the category embedding.
+2. **Create new**: Otherwise, create the directory at the normalized name, write `metadata.txt`, and save the category embedding.
 
 #### `metadata.txt` Format
 

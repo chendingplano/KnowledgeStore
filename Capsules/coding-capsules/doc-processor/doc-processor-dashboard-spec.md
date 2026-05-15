@@ -20,6 +20,7 @@ The sytem may process multiple, normally up to 10, concurrent doc processing thr
 - When mouse hovers over a node in a pipeline, show the node details
 - Stop a processing thread
 - Restart a processing thread, hand-pick the processors to re-run. Default: re-run all.
+- Exclude records whose `file_name` ends with `.zip` — do not monitor or display `.zip` file status
 
 ### Manual Launch Pipelines
 - Search records in 'kb.inputs'

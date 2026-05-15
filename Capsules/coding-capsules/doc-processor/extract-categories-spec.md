@@ -94,8 +94,7 @@ Each category directory may have a `summaries.txt` file. Its formatt is:
 <summary_id>
 ...
 ```
-Refer to 'spec-generate-chunk-summary.md' for the definition and
-format of `<summary_id>`.
+Refer to 'generate-summary-spec.md' for the definition and format of `<summary_id>`.
 
 If the current directory is the last category of a category path,
 it will upsert its summary ID to this file. If the file does not
@@ -111,26 +110,16 @@ the vector to 'category.embed' file, in the format:
 ```
 
 ### 4.4 Workflow
-* Compose all the summaries (including summaries of summaries) into the format specified in
-  the 'Input' section (above)
-* Use the LLM and the prompt (must be present and valid. Otherwise, fail this step) to generate
-  category paths.
-* Summaries are all stored in the root directory SUMMARY_TREE_DIR. If SUMMARY_TREE_DIR is not defined,
-  empty, or an invalid directory name, it is an error. It raises an error and fails this step.
+* Summaries are all indexed under the root directory SUMMARY_TREE_DIR. If SUMMARY_TREE_DIR is not defined, empty, or an invalid directory name, it is an error. It raises an error and fails this step.
 * Create the SUMMARY_TREE_DIR directory if it does not exist yet.
 * Set the category paths to the summary files (return to "Summary File Format" section in 'spec-generate-chunk-summary.md')
 * For each category path: `category_path`
   * Set SUMMARY_TREE_DIR as its current directory
-  * For the i-th category in `category_path`, find the closest sub-directories in the 
-    current directory by calculating the cosine of their vectors as the similarity score:
-    * If the similarity score (score is between 0.0 and 1.0, the bigger, the closer) is no less than CATEGORY_SIMILARITY_MIN_SCORE, 
-      the current category is considered 'the same' as the closest one. Set 
-      the closest as its current directory. Move on to the next category, if any.
-    * Otherwise, this is a new category in the current directory. Create the sub-directory
-      and the metadata file for the sub-directory. Then move on to the next category, if any.
-    * Each directory has a '
+  * For the i-th category in `category_path`, find the sub-directories in the 
+    current directory by the normalized category name:
+    * If the sub-directory exists, merge its keywords to 'metadata.txt' and set the sub-directory as its current directory. Move on to the next category, if any.
+    * Otherwise, create the sub-directory and the metadata file for the sub-directory. Set the sub-directory as the current directory. Then move on to the next category, if any.
   * Upsert its summary ID to the file 'summaries.txt', if the current directory matches the last category of the category path
-    (refer to "4.2 'summaries.txt' File" section).
 
 ## 5 Handle Topics
 Given a document, the doc processing pipeline will generate a collection of topics (refer to

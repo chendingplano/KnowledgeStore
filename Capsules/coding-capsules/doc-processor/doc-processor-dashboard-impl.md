@@ -16,7 +16,7 @@ Single Svelte 5 component (`$props`, `$state`, `$derived`) with two sections:
 
 ### Section 1 — Active Pipelines
 
-Polls `GET /api/v1/kb/inputs` (page 1, page size 20) every 5 s via `setInterval` in `onMount` with cleanup. Results are filtered client-side by `isActiveRecord()` and capped at 10.
+Polls `GET /api/v1/kb/inputs` (page 1, page size 20) every 5 s via `setInterval` in `onMount` with cleanup. Results are filtered client-side: `.zip` records are excluded first (by `file_name` suffix), then `isActiveRecord()` is applied, capped at 10.
 
 **Active record detection (`isActiveRecord`):**
 - No status entries → considered staged/active

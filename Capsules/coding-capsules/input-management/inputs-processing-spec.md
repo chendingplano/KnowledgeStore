@@ -18,5 +18,31 @@ is added to this directory, it moves the file to DATA_HOME_DIR/Artifacts (refer 
 It emits `kb.pdf-staged` if it is a PDF file. Otherwisse, it emits `kb.file-staged`.
 
 ### Zip File Handling
-If the file is a zip file ('.zip'):
-- 
+
+If the staged file has a `.zip` extension, the service performs two levels of ingestion.
+
+#### Parent zip record
+
+- `ingestInputFile` is called for the zip itself (same as any other staged file).
+- A `kb.inputs` row is created with `type = 'zip'`.
+- The zip is backed up to `DATA_BACKUP_DIR` and stored in the sharded repo layout under `DATA_HOME_DIR/Artifacts/{record_id/1000}/{record_id}/`.
+- `file_name` is stored relative to `DATA_HOME_DIR` (e.g. `Artifacts/0/42/archive.zip`).
+- No PDF stage event is published for the zip container record.
+
+#### Child records for each zip entry
+
+`ingestZipChildren` is called with the zip's home path after the parent record is created.
+
+For each regular file (non-directory) inside the zip:
+
+1. The entry is extracted to a temporary file on disk.
+2. `ingestInputFile` is called for the temp file using the entry's base filename.
+3. A separate `kb.inputs` row is created with `type` derived from the file extension (e.g. `pdf`, `txt`, `docx`).
+4. The child file is backed up to `DATA_BACKUP_DIR` and stored in its own shard directory.
+5. `file_name` is stored relative to `DATA_HOME_DIR`.
+6. A PDF stage event (`kb.pdf_staged`) is published for child records whose `type = 'pdf'`.
+7. The temporary file is removed after ingestion.
+
+#### Staging cleanup
+
+- The original zip file is removed from `DATA_STAGING_DIR` after the parent record and all child records are ingested.

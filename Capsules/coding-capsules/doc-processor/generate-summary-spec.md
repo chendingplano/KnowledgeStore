@@ -90,7 +90,7 @@ summary_end
 ```
 
 ### 1.9 Index Summaries
-Refer to Section "Index Summaries" in 'spec-catgegory-extraction.md' for indexing summaries.
+Refer to Section "Index Summaries" in 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md' for indexing summaries.
 
 ### 1.10 Idempotent
 When a document is re-chunked, it should clear all the related data and before re-generate the data.
