@@ -22,9 +22,10 @@ The pattern was previously duplicated in five views. It is now consolidated into
 | File | Role |
 |------|------|
 | `shared-pdf-viewer.svelte` | PDF.js renderer; named slots `sidebar` / `sidebar-resizer` |
-| `pdf-view-window.svelte` | Reusable wrapper; manages sidebar width + resize handle |
+| `pdf-view-window.svelte` | Reusable wrapper; manages sidebar width, resize handle, and built-in selection dialog |
+| `pdf-line-selection-dialog.svelte` | Self-contained "Add Metric / Extract Provision" dialog — rendered by `PdfViewWindow` by default |
 | `inputs-mgmt-view.svelte` | Document Details view — uses `PdfViewWindow` |
-| `metric-mgmt-view.svelte` | Metrics view — uses `PdfViewWindow` |
+| `metric-mgmt-view.svelte` | Metrics view — uses `PdfViewWindow` with its own `onselect` handler |
 | `doc-structure-view.svelte` | Document Structure view — uses `PdfViewWindow` |
 | `chunk-mgmt-view.svelte` | Chunks view — uses `PdfViewWindow` |
 | `summary-tree-view.svelte` | Summary Tree view — uses `PdfViewWindow` |
@@ -50,6 +51,7 @@ All files are under `web/src/lib/components/home3/`.
 | `sidebarMaxWidth` | `number` | `420` | px — maximum drag width |
 | `sidebarDefaultWidth` | `number` | `270` | px — initial width |
 | `showingLines` | `boolean` | `false` | Bindable; when `true` renders `linesView` instead of the PDF |
+| `enableSelectionDialog` | `boolean` | `true` | When `true` (default) and no external `onselect` is provided, activates the built-in drag-select → "Add Metric / Extract Provision" dialog. Pass `false` to opt out entirely. |
 | `toolbar` | `Snippet` | — | Optional snippet; rendered as a toolbar bar above the PDF/lines area |
 | `linesView` | `Snippet` | — | Optional snippet; content shown when `showingLines` is true |
 | `sidebar` | `Snippet` | — | Svelte 5 snippet; sidebar panel content |
@@ -201,24 +203,161 @@ Each consumer view declares its own toolbar buttons inside the `{#snippet toolba
 | View | Tools (left → right) |
 |------|----------------------|
 | `metric-mgmt-view` | Add Metric · *sep* · Edit Lines · Delete Lines · Add Line · *sep* · Show Lines |
+| `doc-structure-view` | Edit Line Type · *sep* · Edit Coordinates · *sep* · Delete Line |
 
 #### `metric-mgmt-view` tool details
 
-| Tool | Button in Select Dialog| Behaviour |
-|------|-----------|----|
-| Edit Lines | No | Toggles edit-line mode (highlighted when active). Mutually exclusive with Delete Lines — activating one clears the other. |
-| Delete Lines No | | Toggles delete-line mode (highlighted when active). Mutually exclusive with Edit Lines. |
-| Add Line Yes | No | Toggles the "Add Line" panel open/closed (highlighted while open). |
-| Show Lines Yes | | Switches between the PDF canvas view and the lines view. When active the icon changes (List → FileText) and the button title becomes "Show PDF Document". |
+| Tool | Behaviour |
+|------|----|
+| Edit Lines | Toggles edit-line mode (highlighted when active). Mutually exclusive with Delete Lines — activating one clears the other. |
+| Delete Lines No | Toggles delete-line mode (highlighted when active). Mutually exclusive with Edit Lines. |
+| Add Line Yes | Toggles the "Add Line" panel open/closed (highlighted while open). |
+| Show Lines Yes | Switches between the PDF canvas view and the lines view. When active the icon changes (List → FileText) and the button title becomes "Show PDF Document". |
+
+#### `doc-structure-view` tool details
+
+| Tool | Enabled when | Behaviour |
+|------|-------------|-----------|
+| Edit Line Type (`SquarePenIcon`) | A line is selected | Opens the inline type-select dropdown in the sidebar. |
+| Edit Coordinates (`CrosshairIcon`) | A line is selected | Enters coord-edit mode. Button shows `.active` highlight; title becomes "Cancel coordinate edit". Clicking again cancels. |
+| Delete Line (`Trash2Icon`) | A line is selected and no delete in progress | Opens the delete-confirm dialog. |
+
+---
+
+## Edit Coordinates Feature (`doc-structure-view`)
+
+### Overview
+
+The **Edit Coordinates** tool in `doc-structure-view` lets users repair the bounding-box coordinates stored for a document structure line. Only `doc-structure-view` supports line selection (via the line list panel), so this tool only appears there.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `doc-structure-view.svelte` | New state vars, `renderCoordEditor`, `makeHandle`, `startEditCoords`, `cancelEditCoords`, `saveEditCoords`; toolbar button; updated `renderStructureHighlights` and `highlightVersion` prop |
+| `web/src/lib/services/kbService.ts` | Added `coords?: number[]` to `UpdateDocStructureLinePayload` |
+| `server/api/kbhandler/doc_structure_handler.go` | Added `Coords *[]float64` to `updateDocStructureLineRequest`; updated validation and update loop to apply it |
+
+### State
+
+| Variable | Type | Role |
+|----------|------|------|
+| `editingCoordsMode` | `boolean` | Whether the coord editor is active |
+| `editCoordsDraft` | `number[]` | Current `[x1, y1, x2, y2]` in PDF space, mutated during editing |
+| `editCoordsSaving` | `boolean` | True while the PATCH call is in flight |
+| `editCoordsError` | `string` | Last save error message (shown via `window.alert`) |
+
+### Type Extension
+
+`PdfPageViewport` (the basic type used by `renderHighlights` callback) only exposes `convertToViewportRectangle`. A separate `PdfPageViewportFull` extends it with `convertToPdfPoint(x, y): number[]`, which is a real PDF.js `PageViewport` method available at runtime. `renderStructureHighlights` casts `viewport as PdfPageViewportFull` before passing it to `renderCoordEditor`.
+
+### Entry / Exit Flow
+
+```
+User clicks "Edit Coordinates" button
+  → startEditCoords()
+      guards: selectedLine != null AND selectedLine.coords.length >= 4
+      editCoordsDraft = [...selectedLine.coords.slice(0, 4)]
+      editingCoordsMode = true
+      highlightSelectionVersion++     ← triggers highlightVersion prop change
+
+highlightVersion prop changes
+  → SharedPdfViewer $effect fires
+      → tick() → paintHighlights() → paintOverlayForPage(page)
+        → renderStructureHighlights(pageNo, viewport, overlay)
+            checks editingCoordsMode && editCoordsDraft.length >= 4
+            → renderCoordEditor(viewport as PdfPageViewportFull, overlay)
+
+User clicks "Cancel" (or selects a different line)
+  → cancelEditCoords()  (or $effect on selectedLineKey)
+      editingCoordsMode = false
+      editCoordsDraft = []
+      highlightSelectionVersion++     ← re-renders static highlight
+
+User clicks "Save"
+  → saveEditCoords()
+      PATCH /api/v1/kb/doc-structure  { coords: editCoordsDraft }
+      on success: lines updated, selectLine(updatedLine), editingCoordsMode = false
+      on error: window.alert(editCoordsError)
+```
+
+### `renderCoordEditor` — Interactive Overlay
+
+The function is called from inside `renderHighlights`, which runs inside `paintOverlayForPage`. It builds the interactive overlay entirely with imperative DOM calls (no Svelte reactivity inside the function).
+
+**Coordinate tracking**
+
+```
+editCoordsDraft [x1, y1, x2, y2]  ← PDF space (origin bottom-left)
+  ↓ viewport.convertToViewportRectangle()
+vLeft, vTop, vRight, vBottom       ← raw viewport-space boundaries (no padding)
+  ↓ ± PAD_H/PAD_V (5px / 4px)
+displayed rect position and size   ← matches static highlight dimensions exactly
+```
+
+**Elements created (all children of the `pdf-overlay` div)**
+
+| Element | CSS `pointer-events` | Purpose |
+|---------|---------------------|---------|
+| `rectEl` | `auto` | Filled amber rect (`rgba(212,162,76,0.3)`), same background/outline as static highlight; `cursor:move` |
+| `hTL hTC hTR` | `auto` | Top-row handles (corners + edge mid): 8×8 px white square, gold border; cursors `nwse-resize`, `n-resize`, `nesw-resize` |
+| `hML hMR` | `auto` | Left/right edge midpoint handles; cursors `w-resize`, `e-resize` |
+| `hBL hBC hBR` | `auto` | Bottom-row handles; cursors `nesw-resize`, `s-resize`, `nwse-resize` |
+| `btnPanel` | `none` (panel) / `auto` (buttons) | Row of **Save** (amber) + **Cancel** (muted) buttons, positioned 8 px below the rect |
+
+The `pdf-overlay` parent has `pointer-events: none` (scoped CSS in `SharedPdfViewer`). Children with `pointer-events: auto` still receive pointer events; events bubble up through the `pointer-events: none` ancestor normally.
+
+**Drag mechanics (`attachDrag`)**
+
+Each draggable element gets a `pointerdown` handler that:
+1. Calls `e.stopPropagation()` — prevents the PDF canvas-host drag-select from triggering
+2. Calls `el.setPointerCapture(e.pointerId)` — keeps drag alive even if pointer leaves the element
+3. Snapshots the four raw viewport boundaries into `sv = { l, t, r, b }`
+4. On each `pointermove`: calls `applyDelta(sv, dx, dy)` → updates `vLeft/vTop/vRight/vBottom` → calls `applyLayout()` to reposition elements via direct `style` writes (no Svelte re-render during drag)
+5. On `pointerup`: calls `commitCoords()`
+
+**`commitCoords()`**
+
+```typescript
+const [x1, y1] = viewport.convertToPdfPoint(Math.min(vLeft, vRight), Math.max(vTop, vBottom));
+const [x2, y2] = viewport.convertToPdfPoint(Math.max(vLeft, vRight), Math.min(vTop, vBottom));
+editCoordsDraft = [x1, y1, x2, y2];
+highlightSelectionVersion++;
+```
+
+`convertToPdfPoint(viewportX, viewportY)` is the inverse of `convertToViewportRectangle`. For a typical unrotated page: `x_pdf = vx / scale`, `y_pdf = pageHeight − vy / scale`. This correctly handles rotation via PDF.js's internal transform.
+
+### `highlightVersion` prop
+
+```svelte
+highlightVersion={editingCoordsMode && editCoordsDraft.length >= 4
+    ? `edit:${editCoordsDraft.join(',')}:${highlightSelectionVersion}`
+    : selectedHighlightTarget
+    ? `${selectedHighlightTarget.page}:${selectedHighlightTarget.coords.join(',')}:${selectedHighlightTarget.version}`
+    : `${selectedLineKey ?? ''}:${highlightSelectionVersion}`}
+```
+
+During editing the version string uses the `edit:` prefix and embeds the current draft coords, so any drag commit (which changes `editCoordsDraft` and increments `highlightSelectionVersion`) produces a new version string and triggers a re-render of the interactive overlay at the updated position.
+
+### Backend — `PATCH /api/v1/kb/doc-structure`
+
+`updateDocStructureLineRequest` gained:
+```go
+Coords *[]float64 `json:"coords"`
+```
+Validation now allows the request if any of `CorrectedLineType`, `Content`, or `Coords` is non-nil. When `Coords` is provided, `lines[i].Coords = *req.Coords` is applied before `writeTxtLinesFile` and `upsertManualFile`.
+
+### Debug Logging
+
+Console logs prefixed `[coord-editor]` are present in `startEditCoords`, `renderStructureHighlights`, `renderCoordEditor`, and `commitCoords` to trace the activation flow and coordinate values during development.
 
 #### Select dialog actions
 
 | Action | Behaviour |
 |--------|-----------|
-| Extract Provision | Creates a provision immediately from the selected lines. |
+| Extract Provisions | Calls the LLM extract API (with ±5-line overlap context) and shows a loading spinner. Returns provision cards for review; users may remove unwanted ones before saving. |
 | Extract Metric | Calls the extract API and shows a loading spinner until the extracted metrics return. |
-| Remove (preview metric) | Removes an extracted metric from the preview list without saving it. |
-| Save | Persists the currently previewed metrics to `kb.metrics`. |
+| Remove (preview provision/metric) | Removes a previewed item from the list without saving it. |
 
 ### Toolbar API
 
@@ -339,16 +478,17 @@ The gesture capture lives in `SharedPdfViewer` (it owns the canvas DOM), line-de
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `onselect` | `(detail: {pageNumber, viewportY1, viewportY2, viewport}) => void` | Called on drag release. `viewportY1`/`viewportY2` are the top/bottom Y coordinates in viewport space (not PDF space). A click with no drag (startY ≈ endY) does not fire the callback. |
-| `ondragmove` | Same shape as `onselect` | Called on each `pointermove` during drag with intermediate values. Enables live preview of overlapping lines while dragging. |
+| `onselect` | `(ranges: Array<{pageNumber, viewportY1, viewportY2, viewport}>) => void` | Called on drag release with one entry per covered page. `viewportY1`/`viewportY2` are in viewport space, clamped to each page's canvas height. A click with no drag (< 5 px) does not fire the callback. |
+| `ondragmove` | Same shape as `onselect` | Called on each `pointermove` during drag with the current page ranges. Enables live preview of overlapping lines while dragging, including across page boundaries. |
 
 **`PdfViewWindow`** — new props:
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `selectedLines` | `number[]` | `[]` | Bindable; the buffer of selected line numbers. Cleared on click-away. |
-| `onselect` | Same as `SharedPdfViewer`'s | — | Passed through to `SharedPdfViewer` so the consumer gets the drag detail. |
-| `ondragmove` | Same as `SharedPdfViewer`'s | — | Passed through to `SharedPdfViewer` for live preview during drag. |
+| `enableSelectionDialog` | `boolean` | `true` | Activates the built-in selection dialog (see below). |
+| `onselect` | Same as `SharedPdfViewer`'s | — | Passed through to `SharedPdfViewer` so the consumer gets the drag ranges. When provided, the built-in dialog is suppressed. |
+| `ondragmove` | Same as `SharedPdfViewer`'s | — | Passed through to `SharedPdfViewer` for live preview during drag. Ignored when the built-in dialog is active. |
 
 ### Gesture Mechanics (SharedPdfViewer)
 
@@ -356,7 +496,9 @@ The drag gesture uses the **Pointer Events API** on `.pdf-canvas-host`:
 
 1. **`pointerdown`**: Records `clientY`, identifies the page via `closest('[data-page]')`, captures the pointer with `setPointerCapture`, sets `dragSelecting = true`.
 2. **`pointermove`**: Updates a `position: fixed` indicator overlay div that spans the vertical drag range. Fires `ondragmove` with the current viewport Y range, then calls `paintOverlayForPage()` to immediately repaint the dragged page's overlay. The consumer's `renderHighlights` draws both regular highlights and drag preview lines (via `pdfDragPreviewLines`).
-3. **`pointerup`**: Computes `viewportY1`/`viewportY2` by subtracting `canvasEl.getBoundingClientRect().top` from the client Y values. If a real drag is detected (`viewportY2 - viewportY1 >= 5`), calls `onselect`, then calls `paintHighlights()` to restore normal overlays (clearing drag preview).
+3. **`pointerup`**: Calls `getPageRanges(clientY1, clientY2)` to find every rendered page whose canvas overlaps the drag range, computes clamped viewport Y values for each, and fires `onselect(ranges)`. If the total drag is < 5 px the callback is suppressed. Then calls `paintHighlights()` to restore normal overlays.
+
+**Cross-page selection** — `getPageRanges` iterates `pdfViewportByPage`, looks up each canvas element via DOM id, and checks whether `[clientY1, clientY2]` intersects `[canvasRect.top, canvasRect.bottom]`. For overlapping pages, the viewport Y range is clamped to `[0, viewport.height]`, so page N gets `[dragStartRelative, pageNBottom]` and page N+1 gets `[0, dragEndRelative]`.
 
 **Indicator CSS** (in `SharedPdfViewer`):
 
@@ -479,10 +621,197 @@ The `handleDragMove` function has the same overlap logic as `handleDragSelect` b
 
 ### Per-Consumer Status
 
-| View | `onselect` wired | `ondragmove` wired | `selectedLines` bound | Drag preview rendering | Toolbar disabled states |
-|------|-----------------|-------------------|----------------------|------------------------|------------------------|
-| `metric-mgmt-view` | Yes | Yes | Yes | Yes — green `pdf-highlight-preview` marks | Edit Lines, Delete Lines disabled when `selectedLines` is empty |
-| Other views | No | No | No | No | N/A |
+| View | Selection mode | Drag preview | Dialog |
+|------|---------------|--------------|--------|
+| `metric-mgmt-view` | Custom `onselect` + `ondragmove` | Green `pdf-highlight-preview` marks (consumer-owned) | Consumer-owned "Add Metric" dialog; built-in dialog suppressed |
+| All other views | Built-in (`enableSelectionDialog=true`) | Green `pdf-highlight-preview` marks (built-in) | `PdfLineSelectionDialog` rendered by `PdfViewWindow` |
+
+### Implementation Pitfalls
+
+These four issues were found and fixed after the initial implementation. Document them here so they are avoided on the first shot in any future re-implementation.
+
+---
+
+**1. The dialog overlay must not block or blur the PDF.**
+
+Do **not** put `background` or `backdrop-filter: blur(…)` on the overlay wrapper. The user still needs to read the document while the dialog is open. Set the overlay to `pointer-events: none` so all clicks pass through to the PDF canvas. Give the dialog shell itself `pointer-events: auto` so it still receives its own events. There is no click-away-to-close in this design; the user closes explicitly via the Close button or Escape.
+
+---
+
+**2. `onselect` / `ondragmove` must carry an array of page ranges, not a single page.**
+
+If the callback carries only `{ pageNumber, viewportY1, viewportY2, viewport }` for the page where the drag *started*, a drag that crosses a page boundary silently loses all lines on subsequent pages. The correct signature is `Array<{ pageNumber, viewportY1, viewportY2, viewport }>`.
+
+In `SharedPdfViewer`, implement a `getPageRanges(clientY1, clientY2)` helper that iterates every entry in `pdfViewportByPage`, looks up each page's canvas element via `document.getElementById(…)`, checks whether `[clientY1, clientY2]` overlaps `[canvasRect.top, canvasRect.bottom]`, and builds a clamped viewport-Y entry for each overlapping page. Sort by `pageNumber` before returning. Use this helper in both `onDragPointerMove` (for live preview) and `onDragPointerUp` (for the final selection).
+
+During `onDragPointerMove`, call `paintOverlayForPage(r.pageNumber)` for **every** range returned, not just the starting page — otherwise the live green preview only appears on one page while the drag indicator spans multiple.
+
+All consumers (`handleBuiltinSelect`, `handleBuiltinDragMove`, `handleDragSelect`, `handleDragMove`, and `PdfLineSelectionDialog`'s `$effect`) must iterate the full array and accumulate lines from each page.
+
+---
+
+**3. Changing `highlightVersion` (or any version wired into it) from inside the dialog-open handler scrolls the PDF back to `page`, which defaults to 1.**
+
+`SharedPdfViewer` has a `$effect` that watches `highlightVersion`. After calling `paintHighlights()`, it calls `scrollToFirstHighlight(page)` and falls back to `scrollToPage(page)`. If `page` has never been updated from user navigation (it defaults to `1`), this scrolls to page 1 every time.
+
+Do **not** increment any version counter from inside `handleBuiltinSelect`. The trailing `paintHighlights()` call already made in `SharedPdfViewer.onDragPointerUp` (right after `onselect()`) is sufficient to repaint the overlays.
+
+For repaints that must not scroll (e.g., clearing highlights when the dialog closes), add a separate `repaintVersion` prop to `SharedPdfViewer` backed by its own `$effect` that calls only `paintHighlights()` with no scroll side-effect. Never reuse `highlightVersion` for this purpose.
+
+---
+
+**4. Do not clear `builtinDragPreviewLines` when the dialog opens.**
+
+If `builtinDragPreviewLines` is set to `[]` in `handleBuiltinSelect`, the trailing `paintHighlights()` call redraws the overlays with no green lines, erasing the selection highlight the moment the dialog appears. The user can no longer see which lines they selected.
+
+The correct lifecycle is:
+- *Dialog opens*: leave `builtinDragPreviewLines` as-is. `paintHighlights()` redraws with the green lines still present.
+- *Dialog closes*: clear `builtinDragPreviewLines` in a `$effect` that detects the `builtinDialogOpen` false transition, then increment `builtinRepaintVersion` to trigger a scroll-free repaint via `repaintVersion`.
+
+A guard (e.g., `builtinDialogPrevOpen`) prevents the close-effect from firing spuriously on component initialization when `builtinDialogOpen` is already `false`.
+
+---
+
+## Selection Dialog (`PdfLineSelectionDialog`)
+
+### Overview
+
+The drag-select → "Selection Dialog" is available in **all** uses of `PdfViewWindow` by default, not only in `metric-mgmt-view`. It is opt-out: passing `enableSelectionDialog={false}` disables it, as does supplying a custom `onselect` prop (which signals the consumer is managing selection itself).
+
+The dialog has an 'Operation' pulldown menu, which has the following operations:
+| Operation | What It Does |
+|-----------|--------------|
+| Ask AI | It asks AI about the selected content |
+| Extract Metrics | It uses an LLM to extract metrics from the selected content. Refer to [4] for information about extracting metrics. |
+| Extract Provisions | It uses an LLM to extract compliance provisions. Refer to [2] and [3] for information about extracting provisions. |
+| Extract References | Users can manually or use an LLM to extract references from the selected content |
+| Write Comments | It offers a text editor to let users write comments about the selected content |
+
+#### 'Run' Button
+There is a 'Run' button next to the 'Operation' pulldown menu. This button is disabled by default. It is enabled when and only when users select "Extract Provisions" or "Extract Metrics". Click the "Run" button will actually run the operation.
+
+#### 'Save' Button
+Persist the currently previewed metrics to `kb.metrics` or the previewed provisions to `kb.provisions`. |
+
+#### 'Close' Button
+Press this button to close the dialog.
+
+### Activation Logic
+
+`PdfViewWindow` computes a single derived flag:
+
+```typescript
+let useBuiltinDialog = $derived(enableSelectionDialog && !onselect);
+```
+
+When `useBuiltinDialog` is `true`, `PdfViewWindow`:
+- Wires its own `handleBuiltinSelect` / `handleBuiltinDragMove` as the effective `onselect` / `ondragmove` passed to `SharedPdfViewer`
+- Wraps any external `renderHighlights` prop inside `renderBuiltinHighlights` (so per-view highlights — chunk, topic, structure — still appear)
+- Renders `<PdfLineSelectionDialog>` in the template
+
+When `useBuiltinDialog` is `false`, all three effective props fall back to whatever the consumer passed (or `undefined`), and no dialog is rendered — identical to the previous behaviour.
+
+### `rawLines` Fetching
+
+`PdfViewWindow` fetches raw lines internally when the built-in dialog is active:
+
+```typescript
+$effect(() => {
+    if (!useBuiltinDialog || inputId == null || inputId === builtinRawLinesInputId) return;
+    builtinRawLinesInputId = inputId;
+    builtinRawLines = [];
+    getRawLines(inputId)
+        .then((res) => {
+            if (inputId === builtinRawLinesInputId) builtinRawLines = res.lines ?? [];
+        })
+        .catch(() => {});
+});
+```
+
+The guard `inputId === builtinRawLinesInputId` prevents re-fetching when the component re-renders without a document change. The stale-guard in `.then()` drops results that arrived after a document switch.
+
+### Drag Preview Highlights
+
+The built-in mode replicates the green line-highlight behaviour of `metric-mgmt-view` exactly:
+
+**`handleBuiltinDragMove`** — called on each `pointermove` during drag; filters `builtinRawLines` for the dragged page and viewport Y overlap (same interval math as the consumer pattern), writing the result to `builtinDragPreviewLines`.
+
+**`renderBuiltinHighlights`** — passed as `renderHighlights` to `SharedPdfViewer`:
+1. Calls the external `renderHighlights` prop first (preserving chunk / topic / structure highlights).
+2. Then iterates `builtinRawLines`, draws a `pdf-highlight-preview` div for each line in `builtinDragPreviewLines`.
+
+Since `SharedPdfViewer.onDragPointerMove` calls `paintOverlayForPage(pageNo)` synchronously *after* invoking `ondragmove`, the state update (`builtinDragPreviewLines = …`) is already committed by the time `renderBuiltinHighlights` reads it.
+
+**Highlight lifecycle across the drag → dialog → close sequence:**
+
+- *During drag*: `handleBuiltinDragMove` fills `builtinDragPreviewLines`; `SharedPdfViewer` calls `paintOverlayForPage` for each covered page synchronously after the callback, so the green preview appears immediately.
+- *On release*: `handleBuiltinSelect` is called by `SharedPdfViewer.onDragPointerUp` **before** the trailing `paintHighlights()`. `builtinDragPreviewLines` is intentionally **not** cleared here, so `paintHighlights()` redraws the overlays with the green lines still showing — the selection stays visible while the dialog is open.
+- *On dialog close*: a `$effect` in `PdfViewWindow` detects the `builtinDialogOpen` false transition, clears `builtinDragPreviewLines`, and increments `builtinRepaintVersion`. This triggers the `repaintVersion` effect in `SharedPdfViewer`, which calls `paintHighlights()` without scrolling, removing the green lines.
+
+**`repaintVersion` vs `highlightVersion` in `SharedPdfViewer`:**
+
+`SharedPdfViewer` has two separate paint effects:
+- `highlightVersion` → `paintHighlights()` + scroll to first highlight / current page. Used by consumers to signal new persistent highlights.
+- `repaintVersion` → `paintHighlights()` only, no scroll. Passed by `PdfViewWindow` as `builtinRepaintVersion` for internal repaint-without-scroll needs (dialog close).
+
+### `pdf-highlight-preview` CSS
+
+The `:global(.pdf-highlight-preview)` rule is defined in `pdf-view-window.svelte`'s `<style>` block so it is available in all views, regardless of whether `metric-mgmt-view` has been rendered:
+
+```css
+:global(.pdf-highlight-preview) {
+    position: absolute;
+    background: rgba(22, 163, 74, 0.16);
+    border: 1px solid rgba(22, 163, 74, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(134, 239, 172, 0.15);
+}
+```
+
+Previously the rule lived only in `metric-mgmt-view.svelte` as `:global`, so it was absent until that view was loaded.
+
+### `PdfLineSelectionDialog` Component
+
+**File:** `pdf-line-selection-dialog.svelte`
+
+Self-contained component extracted from the "Add Metric" dialog in `metric-mgmt-view`. It has no knowledge of the surrounding view — all data it needs is passed as props.
+
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `inputId` | `number \| null` | Used in backend API calls (extract, save, provision) |
+| `open` | `boolean` (bindable) | Dialog visibility |
+| `rawLines` | `RawLine[]` | Full line list for the document; used to resolve line numbers to content and to support "+ Add" navigation |
+| `selectionDetail` | `Array<{ pageNumber, viewportY1, viewportY2, viewport }> \| null` | All covered page ranges from the drag; the dialog derives selected lines from each range on each change, accumulating across pages |
+| `onrawlineupdate` | `(updated: RawLine) => void` | Called after a line-edit save; the parent updates its `rawLines` copy |
+
+**Internal state computed from `selectionDetail`:**
+
+On each change to `selectionDetail`, a `$effect` iterates all page ranges and re-runs the viewport-overlap hit-test for each, accumulating results into `bufferLines: number[]`. The rest of the dialog logic (edit/remove/add-adjacent/extract/save/provision) operates on `bufferLines` and is identical to the original single-page implementation.
+
+**CSS:** The dialog is fully self-contained — it defines all its own styles (`.dialog-overlay`, `.dialog`, `.am-*`, `.chip-*`, etc.) and sets its own dark-theme token variables on the overlay element. It does not inherit tokens from the surrounding view, so it looks identical regardless of which view hosts it.
+
+**Overlay behaviour:** The `.dialog-overlay` has `pointer-events: none` and no background or `backdrop-filter`, so the PDF canvas behind the dialog remains fully visible and interactive while the dialog is open. The dialog itself sets `pointer-events: auto` to receive its own events. Close-on-overlay-click is intentionally absent; use the Close button or Escape key.
+
+**Moveable dialog:** The `.dialog-head` element acts as a drag handle. On `pointerdown` it calls `setPointerCapture` so `pointermove`/`pointerup` are reliably delivered during drag. State variables `translateX`/`translateY` accumulate the drag delta and are applied as `transform: translate(…)` on the dialog shell. Both values reset to `0` whenever `open` transitions to `true`, so the dialog re-centres on each new selection.
+
+**API calls made:**
+
+| Function | Endpoint | Trigger |
+|----------|----------|---------|
+| `extractKbMetrics` | `POST /api/v1/kb/metrics/extract` | "Run" button (Extract Metrics) |
+| `saveExtractedKbMetrics` | `POST /api/v1/kb/metrics/save-extracted` | "Save" button (after metric review) |
+| `extractKbProvisions` | `POST /api/v1/kb/provisions/extract` | "Run" button (Extract Provisions) |
+| `saveExtractedKbProvisions` | `POST /api/v1/kb/provisions/save` | "Save" button (after provision review) |
+| `updateRawLine` | `PATCH /api/v1/kb/raw-lines` | "Save" on an edited line row |
+
+### Opt-out Patterns
+
+| Scenario | How to opt out |
+|----------|----------------|
+| View manages its own dialog (`metric-mgmt-view`) | Provide `onselect={myHandler}` — `useBuiltinDialog` becomes `false` automatically |
+| View wants no dialog and no drag-select at all | Pass `enableSelectionDialog={false}` |
+| View wants drag-select for a custom purpose | Provide `onselect` + `ondragmove`; built-in dialog is suppressed |
 
 ---
 
@@ -634,6 +963,50 @@ Clicking **Extract Metric** (disabled when `addMetricDialogLines` is empty or `a
 3. On success: appends the new metric to the `metrics` list and closes the dialog
 4. On failure: shows an `alert` with the error message
 
+### Extract Provisions Flow
+
+The Extract Provisions operation follows the same two-step extract→review→save pattern as Extract Metrics.
+
+**Backend endpoints** — implemented in `ChenWeb/server/api/kbhandler/extract-provision-handler.go`:
+
+| Endpoint | Handler | Purpose |
+|----------|---------|---------|
+| `POST /api/v1/kb/provisions/extract` | `ExtractProvisions` | Reads the raw line file, adds ±5-line overlap context, calls the LLM, returns normalized provision objects |
+| `POST /api/v1/kb/provisions/save` | `SaveExtractedProvisions` | Upserts reviewed provisions into `kb.provisions` with sequential `prov_id` values |
+
+**LLM input composition:**
+- The handler resolves `result_filename` from `kb.inputs` and opens the corresponding `.txt` raw line file.
+- Lines inside the user selection carry flag `n` (normal); lines ±5 before/after the selection carry flag `o` (overlap/context).
+- Each line is formatted as: `<flag>\t<line_number>\t<page_number>\t<line_type>\t<content>`.
+- The prompt file is read from `EXTRACT_PROVISIONS_PROMPT` (default: `prompt-extract-provisions.md`), and the model from `EXTRACT_PROVISIONS_MODEL_NAME` + `EXTRACT_PROVISIONS_MODELS_FILE`.
+
+**LLM response normalization** — `normalizeExtractedProvisions` maps LLM field aliases to canonical names before returning to the frontend (e.g., `name`/`provision_name` → `prov_name`, `type`/`provision_type` → `provision_type`, `context`/`prov_context` → `prov_context`).
+
+**Save logic** — `saveExtractedProvisions` queries `MAX(prov_id)` per `input_record_id` then assigns sequential IDs starting from `maxProvID + 1`. Uses `ON CONFLICT (input_record_id, prov_id) DO UPDATE` so re-runs are idempotent.
+
+**Frontend flow** (in `pdf-line-selection-dialog.svelte`):
+
+1. User selects operation "Extract Provisions" from the Operation dropdown and clicks **Run**.
+2. `extractProvision()` calls `extractKbProvisions({ record_id, source_line_spans })`.
+3. While the LLM call is in flight, `busyAction = 'extract'` shows a spinner.
+4. On return, `provisionPreview` is set to the array of provision objects returned by the backend.
+5. Each provision is shown as a card displaying its name, type, confidence %, and description. A **Remove** button removes a card from the list without saving.
+6. Clicking **Save** calls `saveExtractedKbProvisions({ record_id, provisions: provisionPreview })` and closes the dialog.
+
+**Frontend types** (in `kbService.ts`):
+
+```typescript
+ExtractedKbProvision   // prov_name, provision_type, provision, provision_en, prov_desc, prov_context, confidence, ...
+ExtractKbProvisionsPayload    // { record_id, source_line_spans }
+ExtractKbProvisionsResponse   // { status, provisions?, language?, error? }
+SaveExtractedKbProvisionsPayload  // { record_id, provisions }
+SaveExtractedKbProvisionsResponse // { status, inserted?, error? }
+```
+
+**Error code range:** `CWB_KB_P_400` – `CWB_KB_P_434`
+
+Refer to [2] and [3] for the provision data model and the full LLM prompt specification.
+
 ### Help Button
 
 Opens a `window.alert` with usage instructions explaining the drag-select, edit, remove, and extract workflow.
@@ -682,3 +1055,12 @@ Both `+ Add` buttons are disabled (`opacity: 0.4; cursor: not-allowed`) when no 
 ### Empty State
 
 When no lines are selected (`addMetricDialogLines.length === 0`), the dialog body shows a centered empty state with a "§" glyph, "No lines selected" title, and instructions to drag on the PDF to select lines.
+
+## References
+[1] Doc Processor, 'KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md
+
+[2] Extract Provisions Spec, 'extract-provisions-spec.md'
+
+[3] Extract Provisions Implementation, 'extract-provisions-impl.md'
+
+[4] Extract Metric Spec, 'extract-metrics-spec.md'

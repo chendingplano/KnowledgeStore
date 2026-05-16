@@ -82,7 +82,9 @@ Current response shape includes:
 - `proxy_base_path`
 - `display_name`
 - `user_id`
+- `sso_mode`
 - `capabilities`
+- `auth_boundary_note`
 - `message`
 
 Current capabilities returned:
@@ -120,8 +122,60 @@ Current environment variables:
 - `OPENMETADATA_DISPLAY_NAME`
   - optional
   - defaults to `OpenMetadata`
+- `OPENMETADATA_SSO_MODE`
+  - optional
+  - defaults to `proxy-only`
+  - allowed values:
+    - `proxy-only`
+    - `shared-idp`
+    - `session-bootstrap`
+- `OPENMETADATA_BEARER_TOKEN`
+  - required when `OPENMETADATA_SSO_MODE=session-bootstrap`
+  - used by the ChenWeb reverse proxy to inject `Authorization: Bearer <token>` into upstream OpenMetadata requests
 
 If `OPENMETADATA_UPSTREAM_URL` is missing, the backend returns a config error.
+If `OPENMETADATA_SSO_MODE` is invalid, the backend returns a config error.
+If `OPENMETADATA_SSO_MODE=session-bootstrap` and `OPENMETADATA_BEARER_TOKEN` is missing, the backend returns a config error.
+
+Recommended current local configuration:
+
+```env
+OPENMETADATA_UPSTREAM_URL="http://localhost:8585"
+OPENMETADATA_PUBLIC_BASE_PATH="/integrations/openmetadata/"
+OPENMETADATA_DISPLAY_NAME="OpenMetadata"
+OPENMETADATA_SSO_MODE="proxy-only"
+# OPENMETADATA_BEARER_TOKEN=""
+```
+
+`proxy-only` reflects the current implementation boundary:
+
+- ChenWeb is the access gate
+- ChenWeb serves the same-origin launch path
+- full production SSO still requires either shared-IdP exchange or a stronger server-side OpenMetadata session bootstrap
+
+Current `session-bootstrap` mode is a practical intermediate step:
+
+- ChenWeb still gates access
+- ChenWeb reverse-proxies the UI/API
+- ChenWeb injects a configured OpenMetadata bearer token into upstream requests
+- this gives the embedded workspace a working authenticated upstream surface, but it is still not true per-user SSO
+
+Current `shared-idp` mode now supports the browser-flow pieces needed for real per-user SSO:
+
+- ChenWeb still owns access to the embedded launch surface
+- ChenWeb forwards `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Prefix` to OpenMetadata
+- ChenWeb proxies the OpenMetadata root callback path at `/callback`
+- the session payload exposes `callback_url` so the required redirect URI is visible in the UI
+
+For this mode to work, OpenMetadata itself must be configured to trust the same external IdP as ChenWeb. In the current local setup, that means:
+
+- ChenWeb uses Kratos with Google login
+- OpenMetadata should be configured for Google SSO or compatible OIDC using the same Google identity source
+- the OpenMetadata OIDC callback/redirect URI should be registered as:
+  - `{APP_BASE_URL}/callback`
+  - example: `http://macmini.deepdocs.me:8080/callback`
+
+This is the key difference from the earlier subpath-only proxy setup: OpenMetadata expects its OIDC callback at the root callback URL, not under `/integrations/openmetadata/`.
 
 ### Reverse Proxy
 

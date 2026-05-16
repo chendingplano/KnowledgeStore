@@ -207,3 +207,6 @@ The file format is a JSON array:
   ...
 ]
 ```
+
+## Implementations
+Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-impl.md
