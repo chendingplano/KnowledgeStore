@@ -7,9 +7,9 @@
 At a high level, this window is designed to:
 
 1. Manage and select a knowledge store.
-2. Browse imported source documents.
-3. Inspect document details, structure, metrics, and chunks.
-4. Explore higher-level knowledge views such as summaries, semantic graphs, and compliance provisions.
+2. Ingest source documents (Injestion → Upload Files).
+3. Inspect document metadata, structure, processing output, and metrics (Document Wiki, Document Processing).
+4. Explore higher-level knowledge views such as subject summaries, topic graphs, and compliance provisions.
 
 The route is implemented at:
 
@@ -51,45 +51,45 @@ It is shared across the sections rendered within the knowledge window.
 The current menu structure in `+page.svelte` includes these primary sections:
 
 1. `Knowledge Stores`
-2. `Documents`
-3. `Document Details`
-4. `Document Structure`
-5. `Metrics`
-6. `Chunks`
-7. `Document Summaries`
-8. `Semantic Web`
-9. `Compliance Provisions`
+2. `Injestion`
+3. `Subject Wiki`
+4. `Document Processing`
 
-The last three are collapsible parent items with child pages:
+All collapsible parent items with child pages:
 
-### Document Summaries
+All root-level parents default to **collapsed**. The active section does not require expanding a parent first — clicking a parent in icon-only (collapsed sidebar) mode navigates to its first child.
 
-- `Summary Graph`
-- `Summary Tree`
+### Injestion
 
-### Semantic Web
+- `Upload Files`
 
-- `Semantic Web`
-- `Document Semantic Tree`
+### Subject Wiki
 
-### Compliance Provisions
-
-- `Provision Web`
+- `Document Metadata`
+- `Document Structure`
+- `Document Tree`
+- `Subject Wiki`
+- `Document Topic Tree`
+- `Topic Wiki`
+- `Metrics`
+- `Scene Blocks`
 - `Provision Tree`
+- `Provision Wiki`
+- `References` *(under construction)*
+- `Formulas` *(under construction)*
+- `Tables` *(under construction)*
+- `Quotations` *(under construction)*
+- `Case Studies` *(under construction)*
+- `Workflow` *(under construction)*
+- `Product and Parts` *(under construction)*
 
-There are also placeholder sections currently marked under construction:
+### Document Processing
 
-- `References`
-- `Formulas`
-- `Tables`
-- `Quotations`
-- `Case Studies`
-- `Workflow`
-- `Product and Parts`
+- `Document Chunking`
 
 ## Section Responsibilities
 
-### 1. Knowledge Stores
+### Knowledge Stores
 
 This page acts as both:
 
@@ -110,7 +110,7 @@ Related spec:
 
 - `KnowledgeStore/DevDocuments/Specs/spec-page-knowledge-store.md`
 
-### 2. Documents
+### Injestion → Upload Files
 
 This section is rendered by `KbImportView` and is intended for imported-record review and document ingestion workflows.
 
@@ -118,9 +118,9 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/kb-import-view.svelte`
 
-### 3. Document Details
+### Document Wiki → Document Metadata
 
-This page is the document-centric inspection workspace. It combines a reusable record browser with metadata and source/document viewing.
+This page is the document-centric inspection workspace. It combines a reusable record browser with metadata and source/document viewing. (Previously named "Document Details".)
 
 Notable features:
 
@@ -133,7 +133,7 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/inputs-mgmt-view.svelte`
 
-### 4. Document Structure
+### Document Structure
 
 This section lets users inspect parsed document hierarchy and corrected structure lines. It is one of the pages built on the shared `kb.inputs` browser pattern.
 
@@ -141,16 +141,16 @@ This section lets users inspect parsed document hierarchy and corrected structur
 Layout:
 
 ```text
-┌───────────────────────────────────-──────-──────-──────────────────────────-─────────┐
-│  Menu    | Record List | LINES [Filter] [Settings]  |  Selected Line  |  PDF Viewer  │
-|───────────────────────────────-──--───────────────────-──────-──────-────────────────|   
-│  ...                   |                            |                 |              │
-│  Document Structure    | <record>                   | <Line>          |              │
-│                        |                            | <Line>          | PDF Viewer   │
-│                        |                            | <Line>          |              │
-│                        |                            | ...             |              │
-│  ...                   |                            |                 |              │
-└─────────────────-──────-─────────────────--──────────────────────────────────────────┘
+┌─────────────────────────────────-────────-──────-──────-─────────────────────────────-─────-─────────┐
+│  Menu              | Record List | LINES [Filter] [Settings]  |  Selected Line  |     PDF Viewer     │
+|─────────────────────────────-──--───────────────-────────────-──────-──────-────────────────-────────|   
+│ ...                |             |                            |                 │                    |
+│ Document Structure | <record>    | <Line>                     |                 │                    |
+│                    |             | <Line>                     |                 │    PDF Viewer      |
+│                    |             | <Line>                     |                 │                    |
+│                    |             | ...                        |                 │                    |
+│ ...                |             |                            |                 │                    |
+└─────────────────-──────-─────────────────--─────────────-────────────────────────────────────────────┘
 ```
 
 The "LINES" panel has two controls:
@@ -174,7 +174,7 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/doc-structure-view.svelte`
 
-### 5. Metrics
+### Metrics
 
 This section manages extracted metrics tied to documents in the active knowledge store.
 
@@ -182,9 +182,150 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/metric-mgmt-view.svelte`
 
-### 6. Chunks
+### Scene Blocks
 
-This section browses fixed-size chunk output and related document/PDF context.
+This section browses the event-driven **scene blocks** an LLM extracts from each
+document. A scene block is a self-contained narrative unit (who acts, what
+triggers the scene, how it unfolds, how it resolves) stored as one row in the
+`kb.scene_objects` table.
+
+**Data source**
+
+- Table: `kb.scene_objects` (one row per scene block, keyed by
+  `input_record_id` + `object_id`).
+- Produced by the `generate-scene-blocks` doc-processing processor.
+- The `Scene Blocks` page is read-only over this table.
+
+**Window Layout**
+
+The page uses a **master–detail inline-accordion** layout. There is no
+separate "Selected Block" column: selecting a scene block expands it in place
+within the Scene Blocks list, and the right column shows the source document
+for context.
+
+```text
+┌──────────────-──────────────-──────────────────────────────-─────────────┐
+│  Menu      | Record List | Scene Blocks (inline accordion)  | Source Doc  │
+|────────────-─────────────-──────────────────────────────────-────────────|
+│ ...        |             | ▸ <scene-block>                  |             │
+│ Metrics    | <record>    | ▾ <scene-block>  EXPANDED        |  PDF Viewer │
+│ Scene      |             |    Cast / Setup / Flow /         |  + "Scene   │
+│  Blocks    | <record>    |    Resolution / Links & evidence  |   context" │
+│ Provision  |             | ▸ <scene-block>                  |   sidebar   │
+│ ...        |             | ...                              |             │
+└────────────-─────────────-──────────────────────────────────-────────────┘
+```
+
+- **Record List**: the shared `kb.inputs` record browser (search, retrieve,
+  filter, paginate, resize). Selecting a record loads its scene blocks.
+- **Scene Blocks**: every scene block for the selected record as a collapsed
+  row showing index, scene-type pill, title, summary, keyword chips, and a
+  confidence meter (color-banded: high / mid / low). One row expands at a
+  time.
+- **Expanded detail** renders the scene as a narrative arc; empty groups are
+  hidden so sparse blocks stay clean:
+  - **Cast** — actors, resources (typed entity chips)
+  - **Setup** — preconditions, triggers, states
+  - **Flow** — actions (numbered sequence), decisions, constraints
+  - **Resolution** — outcomes, failure modes, root causes, resolutions
+  - **Links & evidence** — relationships, source evidence, and a
+    "retrieval discriminators" disclosure (advanced, collapsed by default)
+  - A mono footer shows `scene_id`, `event_id`, and the extraction model.
+- **Source Document**: the record's PDF with a "Scene context" sidebar
+  recapping the expanded block. Scene blocks carry no page coordinates, so
+  the PDF is not auto-highlighted; the sidebar surfaces the block's
+  `source_refs` as evidence locators instead.
+
+**Endpoint, service, component**
+
+- API: `GET /api/v1/kb/scene-blocks?input_record_id=N`
+  - Handler: `ChenWeb/server/api/kbhandler/scene_blocks_handler.go`
+    (`ListSceneBlocks`), registered in `ChenWeb/server/api/routes.go`.
+  - JSONB columns are passed through verbatim as the LLM-extracted structure.
+- Frontend service: `listKbSceneBlocks(...)` in
+  `ChenWeb/web/src/lib/services/kbService.ts`.
+- Main component:
+
+  - `ChenWeb/web/src/lib/components/home3/scene-blocks-view.svelte`
+
+### Document Wiki → Subject Wiki (formerly Summary Graph)
+
+Category-first summary exploration. (Previously named "Summary Graph" under "Document Summaries".)
+
+Main component:
+
+- `ChenWeb/web/src/lib/components/home3/summary-graph-view.svelte`
+
+Related design doc:
+
+- `ChenWeb/docs/superpowers/specs/2026-05-01-document-summaries-design.md`
+
+### Document Wiki → Document Tree (formerly Summary Tree)
+
+Document-centric summary browsing over `kb.inputs`. (Previously named "Summary Tree" under "Document Summaries".)
+
+Main component:
+
+- `ChenWeb/web/src/lib/components/home3/summary-tree-view.svelte`
+
+### Document Wiki → Topic Wiki and Document Topic Tree
+
+This group provides topic-oriented knowledge exploration. (Previously named "Semantic Web" group.)
+
+Layout:
+
+```text
+┌──────--─────────────────────────-─────────────────────────────────────┐
+│  Menu    | Record List | Topic List | Selected Topic |   PDF Viewer   │
+│  ...     |             |            |                                 │
+│  Chunks  | <record>    | <chunk>    |  <topic>       |   PDF Viewer   │
+│          | <record>    | <chunk>    |  <topic>       |                │
+│          |             |            |                                 │
+│  ...     |             |            |                                 │
+└────────────────────────────--─────────────────────────────────────────┘
+```
+
+- `Topic Wiki`: category-first graph view (previously "Semantic Web")
+- `Document Topic Tree`: document-centric topic browser (previously "Document Semantic Tree"). Refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md' for topics.
+
+Main components:
+
+- `ChenWeb/web/src/lib/components/home3/topic-graph-view.svelte`
+- `ChenWeb/web/src/lib/components/home3/topic-tree-view.svelte`
+
+#### Topic Wiki (formerly Semantic Web)
+
+A topic has one or more category paths. Category paths are mapped to file paths under
+the directory TOPIC_TREE_ROOT_DIR. If a directory has a 'topics.txt' file, the file
+lists all the topics that belong to this file path, which is also a category path.
+Below is an example of 'topics.txt':
+```text
+record_id: 99,
+topic_type: "procedure"
+lines: [405-406]
+topic_keywords: [腰背肌力, 测试方法, 背力计, 上拉]
+topic: "腰背肌力测试方法：自然站立，调节握柄高度，双手紧握把柄，直臂上拉背力计"
+
+<next topic, if any>
+```
+
+For more information about topics, refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md'. 
+
+### Document Wiki → Provision Wiki and Provision Tree
+
+These pages mirror the topic-web pattern for compliance provisions and now live inside Document Wiki. (Previously they were grouped under "Compliance Provisions".)
+
+- `Provision Wiki`: graph-first provision view (renamed from "Provision Web")
+- `Provision Tree`: document-centric provision browser
+
+Implementation detail:
+
+- `Provision Wiki` reuses `TopicGraphView` with provision-specific loaders.
+- `Provision Tree` reuses `TopicTreeView` with provision-specific item loading and its own browser instance key.
+
+### Document Chunking
+
+This section browses document chunks and related document/PDF context.
 
 Layout:
 
@@ -239,79 +380,6 @@ Example:
   - chunk 4: `overlap: [77-81]`, `lines: [82-91, 93-96]`
   - chunk 5: `overlap: [94-96]`, `lines: [97-115]`
 
-### 7. Document Summaries
-
-This group contains two related but distinct summary views:
-
-- `Summary Graph`: category-first summary exploration
-- `Summary Tree`: document-centric summary browsing over `kb.inputs`
-
-Main components:
-
-- `ChenWeb/web/src/lib/components/home3/summary-graph-view.svelte`
-- `ChenWeb/web/src/lib/components/home3/summary-tree-view.svelte`
-
-Related design doc:
-
-- `ChenWeb/docs/superpowers/specs/2026-05-01-document-summaries-design.md`
-
-### 8. Semantic Web
-
-This group provides topic-oriented knowledge exploration. Its page layout is:
-
-This section browses fixed-size chunk output and related document/PDF context.
-
-Layout:
-
-```text
-┌──────--─────────────────────────-─────────────────────────────────────┐
-│  Menu    | Record List | Topic List | Selected Topic |   PDF Viewer   │
-│  ...     |             |            |                                 │
-│  Chunks  | <record>    | <chunk>    |  <topic>       |   PDF Viewer   │
-│          | <record>    | <chunk>    |  <topic>       |                │
-│          |             |            |                                 │
-│  ...     |             |            |                                 │
-└────────────────────────────--─────────────────────────────────────────┘
-```
-
-- `Semantic Web`: category-first graph view [Semantic Web](#semantic-web)
-- `Document Semantic Tree`: document-centric topic browser. Refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md' for topics.
-
-Main components:
-
-- `ChenWeb/web/src/lib/components/home3/topic-graph-view.svelte`
-- `ChenWeb/web/src/lib/components/home3/topic-tree-view.svelte`
-
-#### 8.1 Semantic Web
-
-A topic has one or more category paths. Category paths are mapped to file paths under
-the directory TOPIC_TREE_ROOT_DIR. If a directory has a 'topics.txt' file, the file
-lists all the topics that belong to this file path, which is also a category path.
-Below is an example of 'topics.txt':
-```text
-record_id: 99,
-topic_type: "procedure"
-lines: [405-406]
-topic_keywords: [腰背肌力, 测试方法, 背力计, 上拉]
-topic: "腰背肌力测试方法：自然站立，调节握柄高度，双手紧握把柄，直臂上拉背力计"
-
-<next topic, if any>
-```
-
-For more information about topics, refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md'. 
-
-### 9. Compliance Provisions
-
-This group mirrors the semantic-web pattern, but for compliance provisions:
-
-- `Provision Web`: graph-first provision view
-- `Provision Tree`: document-centric provision browser
-
-Implementation detail:
-
-- `Provision Web` reuses `TopicGraphView` with provision-specific loaders.
-- `Provision Tree` reuses `TopicTreeView` with provision-specific item loading and its own browser instance key.
-
 ## Shared Interaction Pattern
 
 Several sections reuse the same left-side `kb.inputs` browsing workflow. This shared browser supports:
@@ -330,12 +398,12 @@ This abstraction is implemented by:
 
 It is used by pages such as:
 
-- `Document Details`
+- `Document Metadata` (formerly Document Details)
 - `Metrics`
 - `Document Structure`
-- `Chunks`
-- `Summary Tree`
-- `Document Semantic Tree`
+- `Document Chunking` (formerly Chunks)
+- `Document Tree` (formerly Summary Tree)
+- `Document Topic Tree` (formerly Document Semantic Tree)
 - `Provision Tree`
 
 Related implementation note:

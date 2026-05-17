@@ -22,7 +22,7 @@
 ### New files to create
 
 - `ChenWeb/server/api/doc-processing/chunk_summary_shared.go`
-  Purpose: summary config loading, summary item models, summary file read/write helpers, summary-tree builders, `SUMMARY_TREE_DIR` persistence, `SUMMARY_CLUSTER_DIR` persistence, reclustering metadata helpers.
+  Purpose: summary config loading, summary item models, summary file read/write helpers, summary-tree builders, `ARTIFACT_WEB_DIR` persistence, `SUMMARY_CLUSTER_DIR` persistence, reclustering metadata helpers.
 - `ChenWeb/server/api/doc-processing/chunk_summary_shared_test.go`
   Purpose: focused helper tests for summary grouping, line-range compaction, summary-tree storage, cluster slug/file behavior, and reprocessing cleanup.
 
@@ -55,7 +55,7 @@
 Add a test modeled after `TestService_HandleInput_WritesChunksAndStatus` that expects:
 - `summary_0_0001.txt` and `summary_0_0002.txt` to exist
 - at least one higher-level summary file to exist
-- `SUMMARY_TREE_DIR` to receive a `summaries.txt` leaf containing the root summary ID
+- `ARTIFACT_WEB_DIR` to receive a `summaries.txt` leaf containing the root summary ID
 - `SUMMARY_CLUSTER_DIR` to receive a cluster markdown file
 
 - [ ] **Step 2: Run the targeted test to verify it fails**
@@ -67,7 +67,7 @@ Expected: FAIL because summary files, tree storage, and cluster files are not im
 - [ ] **Step 3: Add service config fields without behavior**
 
 In `fix-size-chunking.go`, add `FixedSizeChunkingService` fields for:
-- `SummaryTreeDir`
+- `ArtifactWebDir`
 - `SummaryClusterDir`
 - `SummaryGroupSize`
 - `SummaryModelName`
@@ -104,7 +104,7 @@ git commit -m "test: add failing fixed-size summary service coverage"
 Add tests for:
 - summary ID formatting: `93_0_0001`
 - summary filename formatting: `summary_0_0001.txt`
-- summary file serialization containing `summary_begin:` / `summary_end`
+- summary file serialization containing `summary_begin` / `summary_end` (no colon), `keywords_en`, `category_paths` in tuple format, `summary_en_begin`/`summary_en_end`
 - leaf summary line-range capture from chunk overlap/regular lines
 
 - [ ] **Step 2: Run the helper tests to verify they fail**
@@ -116,10 +116,12 @@ Expected: FAIL because `chunk_summary_shared.go` does not exist yet.
 - [ ] **Step 3: Write minimal helper implementation**
 
 Create `chunk_summary_shared.go` with:
-- `SummaryItem` and `SummaryCluster` structs
+- `summaryGenerateResult` result struct (returned by `generateSummary` and the `GenerateSummary` callback)
+- `SummaryItem` struct (includes `SummaryEn`, `KeywordsEn`, `CategoryPathItems`, `CategoryPathItemsEn`)
+- `SummaryCluster` struct
 - `buildSummaryID(recordID int64, level int, seqNo int) string`
 - `summaryFileName(level int, seqNo int) string`
-- `writeSummaryFile(...)`
+- `writeSummaryFile(...)` — writes new file format with `keywords_en`, `category_paths` (rich tuple format), `category_paths_en`, `summary_begin`/`summary_end`, `summary_en_begin`/`summary_en_end`
 - line-range compaction helpers reused by summary writing
 
 - [ ] **Step 4: Re-run the helper tests**
@@ -176,7 +178,7 @@ git add ChenWeb/server/api/doc-processing/fix-size-chunking.go ChenWeb/server/ap
 git commit -m "feat: generate leaf summaries for fixed-size chunks"
 ```
 
-## Chunk 3: Recursive Summary Tree and `SUMMARY_TREE_DIR`
+## Chunk 3: Recursive Summary Tree and `ARTIFACT_WEB_DIR`
 
 ### Task 4: Add failing helper tests for recursive grouping
 
@@ -218,7 +220,7 @@ git add ChenWeb/server/api/doc-processing/chunk_summary_shared.go ChenWeb/server
 git commit -m "feat: build recursive summary trees"
 ```
 
-### Task 5: Add failing tests for `SUMMARY_TREE_DIR` storage and reprocessing
+### Task 5: Add failing tests for `ARTIFACT_WEB_DIR` storage and reprocessing
 
 **Files:**
 - Modify: `ChenWeb/server/api/doc-processing/chunking_test.go`
@@ -229,18 +231,18 @@ git commit -m "feat: build recursive summary trees"
 - [ ] **Step 1: Write the failing tests**
 
 Add service/helper tests for:
-- root summary category path normalized to snake_case under `SUMMARY_TREE_DIR`
+- root summary category path normalized to snake_case under `ARTIFACT_WEB_DIR`
 - root summary ID written to `summaries.txt`
 - reprocessing the same `record_id` replaces prior root summary IDs instead of duplicating them
 - invalid category path falls back to an uncategorized location
 
 - [ ] **Step 2: Run the targeted tests to verify they fail**
 
-Run: `go test ./server/api/doc-processing -run 'Test(SummaryTreeDir|SummaryTreeReprocess|SummaryTreeFallback|Service_HandleInput_WritesSummaryTree)'`
+Run: `go test ./server/api/doc-processing -run 'Test(ArtifactWebDir|SummaryTreeReprocess|SummaryTreeFallback|Service_HandleInput_WritesSummaryTree)'`
 
-Expected: FAIL because `SUMMARY_TREE_DIR` writes are not implemented yet.
+Expected: FAIL because `ARTIFACT_WEB_DIR` writes are not implemented yet.
 
-- [ ] **Step 3: Implement minimal `SUMMARY_TREE_DIR` behavior**
+- [ ] **Step 3: Implement minimal `ARTIFACT_WEB_DIR` behavior**
 
 In `chunk_summary_shared.go`:
 - add root-summary category-path normalization
@@ -248,11 +250,11 @@ In `chunk_summary_shared.go`:
 - remove stale record references before writing the new root summary ID
 
 In `fix-size-chunking.go`:
-- write the root summary into `SUMMARY_TREE_DIR` after the summary tree is built
+- write the root summary into `ARTIFACT_WEB_DIR` after the summary tree is built
 
 - [ ] **Step 4: Re-run the targeted tests**
 
-Run: `go test ./server/api/doc-processing -run 'Test(SummaryTreeDir|SummaryTreeReprocess|SummaryTreeFallback|Service_HandleInput_WritesSummaryTree)'`
+Run: `go test ./server/api/doc-processing -run 'Test(ArtifactWebDir|SummaryTreeReprocess|SummaryTreeFallback|Service_HandleInput_WritesSummaryTree)'`
 
 Expected: PASS
 
@@ -260,7 +262,7 @@ Expected: PASS
 
 ```bash
 git add ChenWeb/server/api/doc-processing/fix-size-chunking.go ChenWeb/server/api/doc-processing/chunk_summary_shared.go ChenWeb/server/api/doc-processing/chunk_summary_shared_test.go ChenWeb/server/api/doc-processing/chunking_test.go
-git commit -m "feat: persist summary trees under SUMMARY_TREE_DIR"
+git commit -m "feat: persist summary trees under ARTIFACT_WEB_DIR"
 ```
 
 ## Chunk 4: Summary Clusters in `SUMMARY_CLUSTER_DIR`
@@ -335,7 +337,7 @@ In `chunk_summary_shared.go`:
 - create a new cluster when no existing cluster qualifies
 
 In `fix-size-chunking.go`:
-- invoke cluster persistence after summary tree + `SUMMARY_TREE_DIR` writing and before success status persistence
+- invoke cluster persistence after summary tree + `ARTIFACT_WEB_DIR` writing and before success status persistence
 
 - [ ] **Step 4: Re-run the targeted tests**
 

@@ -111,15 +111,34 @@ The new summary helper file may reuse general helpers from there where appropria
 Add an in-memory summary model similar to:
 
 ```go
+// summaryGenerateResult carries all LLM output for one summary generation call.
+type summaryGenerateResult struct {
+    Summary             string
+    SummaryEn           string            // English translation when input is non-English
+    Keywords            []string
+    KeywordsEn          []string          // English translation when input is non-English
+    CategoryPaths       []string          // flat segment names for tree-dir indexing
+    CategoryNodes       []CategoryPathNode // per-node metadata for first category path
+    CategoryPathItems   []CategoryPathEntry // rich format written to summary file
+    CategoryPathItemsEn []CategoryPathEntry // English translations
+}
+
 type SummaryItem struct {
-    SummaryID string
-    RecordID  int64
-    Level     int
-    SeqNo     int
-    Lines     []string
-    Children  []string
-    Summary   string
-    Embedding []float64
+    SummaryID           string
+    RecordID            int64
+    Level               int
+    SeqNo               int
+    Lines               []string
+    Children            []string
+    Keywords            []string
+    KeywordsEn          []string
+    CategoryPaths       []string            // flat names for tree-dir indexing
+    CategoryNodes       []CategoryPathNode
+    CategoryPathItems   []CategoryPathEntry // rich format for summary file
+    CategoryPathItemsEn []CategoryPathEntry // English translations
+    Summary             string
+    SummaryEn           string
+    Embedding           []float64
 }
 ```
 
@@ -129,7 +148,9 @@ Notes:
 - `Lines` for leaf summaries come from the chunk line ranges.
 - `Lines` for parent summaries represent the combined covered line ranges of descendant leaves.
 - `Children` contains child summary IDs for non-leaf summaries.
-- `Embedding` is optional in-memory and persisted only if available from the configured embedding path for clustering.
+- `SummaryEn` and `KeywordsEn` are only populated when the source content is non-English.
+- `CategoryPathItems` and `CategoryPathItemsEn` are the rich structured form used in the summary file; `CategoryPaths` and `CategoryNodes` are the flat form used for tree-dir indexing.
+- `Embedding` is optional in-memory and persisted only in `.embed` files alongside the summary file.
 
 ### Cluster Model
 
@@ -162,7 +183,7 @@ Add environment-backed configuration to `FixedSizeChunkingService`:
 - `CHUNK_SUMMARY_MODEL_NAME`
 - `CHUNK_SUMMARY_PROMPT`
 - `SUMMARY_GROUP_SIZE`
-- `SUMMARY_TREE_DIR`
+- `ARTIFACT_WEB_DIR` — directory used for summary-tree indexing (previously `ARTIFACT_WEB_DIR`)
 - `SUMMARY_CLUSTER_DIR`
 - `SUMMARY_CLUSTER_SIMILARITY_THRESHOLD`
 - `RECLUSTERING_DAYS`
@@ -201,30 +222,37 @@ record_id: 93
 level: 1
 lines: [1-45]
 children: ["93_0_0001", "93_0_0002"]
-summary_begin:
-<summary text>
+keywords: ["vaccination records", ...]
+keywords_en: ["vaccination records", ...]
+category_paths: [([...], 0.92, [("public_health", [...], 0.95), ...]), ...]
+category_paths_en: [([...], 0.92, [("public health", [...], 0.95), ...]), ...]
+summary_begin
+<summary text, may span multiple lines>
 summary_end
-embedding: [0.123, 0.456]
+summary_en_begin
+<English translation, only when source is non-English>
+summary_en_end
 ```
 
 Notes:
 
-- `embedding` is written only when available
+- `keywords_en`, `category_paths_en`, and `summary_en_begin`/`summary_en_end` blocks are omitted when the source content is English
 - leaf summaries use `children: []`
-- line ranges should be deterministic and compacted
+- line ranges are deterministic and compacted
+- embeddings are stored in `.embed` files only, not in the `.txt` file
 
 ### Summary Tree Storage
 
 Store summary-tree category outputs under:
 
-- `SUMMARY_TREE_DIR/<category_1>/<category_2>/.../summaries.txt`
+- `ARTIFACT_WEB_DIR/<category_1>/<category_2>/.../summaries.txt`
 
 Workflow:
 
 1. take the root summary of the current document summary tree
 2. extract up to 6 levels of descriptive categories from that root summary
 3. normalize each category segment to snake_case
-4. use the category path as a directory tree under `SUMMARY_TREE_DIR`
+4. use the category path as a directory tree under `ARTIFACT_WEB_DIR`
 5. append or replace the current document root summary ID in the leaf `summaries.txt`
 
 Leaf file format:
@@ -281,6 +309,33 @@ Notes:
 - file name is derived from stable `cluster_id` and current slugified cluster name
 - if the cluster label changes, rename the file while preserving `cluster_id`
 
+## Model Output Format
+
+The LLM returns a JSON object with the following shape:
+
+```json
+{
+  "summary": "summary in its input language",
+  "summary_en": "accurate English translation (only when input is non-English)",
+  "keywords": ["keyword1", "keyword2"],
+  "keywords_en": ["keyword1", "keyword2"],
+  "categories": [
+    {
+      "category_path": [
+        { "name": "public_health", "keywords": ["health management"], "confidence": 0.95 },
+        ...
+      ],
+      "path_keywords": ["vaccination records", "recipient data"],
+      "path_confidence": 0.92
+    }
+  ],
+  "categories_en": [ ... ]
+}
+```
+
+- `summary_en`, `keywords_en`, and `categories_en` are generated only when the input language is non-English.
+- `categories_en` mirrors the structure of `categories` but uses English names and keywords.
+
 ## Summary Generation Flow
 
 ### 1. Leaf Summaries
@@ -334,7 +389,7 @@ Generating chunk summaries MUST be idempotent. The pipeline clears all stale art
 When a record is re-chunked:
 
 1. Delete existing `summary_*` files in `ARTIFACT_DIR/<group_id>/<record_id>/` before generating new summary files.
-2. Remove all summary IDs that start with `<record_id>_` from every `summaries.txt` file under `SUMMARY_TREE_DIR` before writing the new root-summary reference. After removal, append the new root summary ID to the target leaf file (do not overwrite — other records' IDs in that file must be preserved).
+2. Remove all summary IDs that start with `<record_id>_` from every `summaries.txt` file under `ARTIFACT_WEB_DIR` before writing the new root-summary reference. After removal, append the new root summary ID to the target leaf file (do not overwrite — other records' IDs in that file must be preserved).
 3. Load cluster files from `SUMMARY_CLUSTER_DIR` and remove any summary references belonging to the current `record_id` before assigning new summaries to clusters.
 4. Delete cluster files that become empty after removal.
 5. Generate fresh summaries and reassign them to trees and clusters.
@@ -445,9 +500,9 @@ Add failing tests to `ChenWeb/server/api/doc-processing/chunking_test.go` for:
 
 1. `HandleInput` writes leaf summary files for each chunk
 2. `HandleInput` writes parent summary files recursively until a root summary exists
-3. `HandleInput` writes root-summary IDs into the categorized `SUMMARY_TREE_DIR` leaf
+3. `HandleInput` writes root-summary IDs into the categorized `ARTIFACT_WEB_DIR` leaf
 4. reprocessing removes stale summary files before rewriting
-5. reprocessing replaces prior root-summary references for the same record in `SUMMARY_TREE_DIR`
+5. reprocessing replaces prior root-summary references for the same record in `ARTIFACT_WEB_DIR`
 6. cluster markdown files are created in `SUMMARY_CLUSTER_DIR` with stable cluster IDs
 7. cluster reassignment replaces prior summaries for the same record
 8. summary generation failure persists failed input status

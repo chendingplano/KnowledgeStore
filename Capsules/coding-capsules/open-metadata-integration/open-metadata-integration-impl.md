@@ -4,6 +4,14 @@
 
 This document records the first working implementation of the OpenMetadata GUI integration into `ChenWeb::/home3`.
 
+Current local OpenMetadata source baseline:
+
+- repository path: `/Users/cding/Workspace/ThirdParty/OpenMetadata`
+- branch: `local/1.12.6-release`
+- checked-out upstream release tag: `1.12.6-release`
+- checked-out release commit: `c56f2aae3e7`
+- release verification date: `2026-05-16`
+
 The implemented slice delivers:
 
 - a ChenWeb-authenticated backend bootstrap endpoint
@@ -143,15 +151,17 @@ Recommended current local configuration:
 OPENMETADATA_UPSTREAM_URL="http://localhost:8585"
 OPENMETADATA_PUBLIC_BASE_PATH="/integrations/openmetadata/"
 OPENMETADATA_DISPLAY_NAME="OpenMetadata"
-OPENMETADATA_SSO_MODE="proxy-only"
+OPENMETADATA_SSO_MODE="shared-idp"
 # OPENMETADATA_BEARER_TOKEN=""
 ```
 
-`proxy-only` reflects the current implementation boundary:
+`shared-idp` is the current local direction:
 
 - ChenWeb is the access gate
 - ChenWeb serves the same-origin launch path
-- full production SSO still requires either shared-IdP exchange or a stronger server-side OpenMetadata session bootstrap
+- OpenMetadata is configured to use the same Google identity source
+- OpenMetadata receives browser callbacks through ChenWeb at `{APP_BASE_URL}/callback` and `{APP_BASE_URL}/auth/callback`
+- OpenMetadata can auto-redirect to the IdP instead of making the user press its login button
 
 Current `session-bootstrap` mode is a practical intermediate step:
 
@@ -164,7 +174,7 @@ Current `shared-idp` mode now supports the browser-flow pieces needed for real p
 
 - ChenWeb still owns access to the embedded launch surface
 - ChenWeb forwards `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-Prefix` to OpenMetadata
-- ChenWeb proxies the OpenMetadata root callback path at `/callback`
+- ChenWeb proxies OpenMetadata callback paths at `/callback` and `/auth/callback`
 - the session payload exposes `callback_url` so the required redirect URI is visible in the UI
 
 For this mode to work, OpenMetadata itself must be configured to trust the same external IdP as ChenWeb. In the current local setup, that means:
@@ -174,8 +184,96 @@ For this mode to work, OpenMetadata itself must be configured to trust the same 
 - the OpenMetadata OIDC callback/redirect URI should be registered as:
   - `{APP_BASE_URL}/callback`
   - example: `http://macmini.deepdocs.me:8080/callback`
+  - `{APP_BASE_URL}/auth/callback`
+  - example: `http://macmini.deepdocs.me:8080/auth/callback`
 
-This is the key difference from the earlier subpath-only proxy setup: OpenMetadata expects its OIDC callback at the root callback URL, not under `/integrations/openmetadata/`.
+This is the key difference from the earlier subpath-only proxy setup: OpenMetadata expects its OIDC callbacks at root callback URLs, not under `/integrations/openmetadata/`.
+
+The OpenMetadata local profile also sets:
+
+- `AUTHENTICATION_PUBLIC_KEYS=[https://www.googleapis.com/oauth2/v3/certs]`
+- `AUTHENTICATION_ENABLE_AUTO_REDIRECT=true`
+- `OIDC_PROMPT_TYPE=select_account`
+
+Those settings make the embedded flow behave as close to a bypass as shared-IdP browser auth allows while still permitting Google to ask for account selection or consent. ChenWeb's session cookie alone is not enough to authenticate OpenMetadata; OpenMetadata still needs either its own OIDC session, a trusted ChenWeb/Kratos handoff, or a deliberately unauthenticated upstream protected only by ChenWeb's proxy.
+
+Do not use `OIDC_PROMPT_TYPE=none` for the normal local flow. Google can return `interaction_required`, which OpenMetadata surfaces as a callback failure, whenever a silent login cannot be completed.
+
+The Google JWKS setting is required because the browser stores a Google-issued ID token after the OpenMetadata code flow. Without it, OpenMetadata falls back to its local JWKS endpoint and `loggedInUser` fails with a signing-key mismatch.
+
+## Version Checks And Upgrade Notes
+
+### How to check the checked-out source version
+
+From the OpenMetadata repo root:
+
+```bash
+cd /Users/cding/Workspace/ThirdParty/OpenMetadata
+git branch --show-current
+git rev-parse --short HEAD
+git describe --tags --always
+```
+
+For the current local checkout, the expected answers are:
+
+- branch: `local/1.12.6-release`
+- commit: `c56f2aae3e7`
+- description: `1.12.6-release`
+
+### How to check the running version
+
+If OpenMetadata is running via Docker, inspect the active container images:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}' | rg openmetadata
+```
+
+This is the most reliable way to answer "what version is currently running?" after the stack starts.
+
+### How this repo was moved to the latest release safely
+
+This OpenMetadata repo contained local uncommitted files for:
+
+- Nix shell setup
+- `mise` tasks
+- Docker helper fixes
+- local documentation
+
+Because of that, a direct branch switch to the latest release was blocked by Git.
+
+The safe carry-forward process used was:
+
+```bash
+git fetch upstream --tags
+git stash push --include-untracked -m 'codex-before-switch-to-1.12.6-release'
+git switch -c local/1.12.6-release 1.12.6-release
+git stash apply
+```
+
+After that:
+
+- merge conflicts were resolved manually
+- local compatibility fixes were kept where still needed
+- the repo remained on the `1.12.6-release` source baseline
+
+### Recommended future upgrade procedure
+
+1. Check the official releases page:
+   - `https://github.com/open-metadata/OpenMetadata/releases`
+2. Fetch tags:
+   - `git fetch upstream --tags`
+3. If the repo is dirty, stash first:
+   - `git stash push --include-untracked -m 'before-switch-to-<release>'`
+4. Switch to the release tag on a local branch:
+   - `git switch -c local/<release> <release>`
+5. Reapply the stash:
+   - `git stash apply`
+6. Resolve conflicts, then verify:
+   - `git describe --tags --always`
+7. Re-run the local setup:
+   - `nix develop`
+   - `mise run prerequisites`
+   - `mise run install-dev`
 
 ### Reverse Proxy
 

@@ -2,62 +2,16 @@
 
 Show and edit summaries (ref [1]).
 
+## 2. Category Tree
+Summaries are indexed under `Category Tree` (refer to [2]). Each directory
+in `Category Tree` has a `metadata.txt` and `summaries.txt` files, among others.
+
 ## 2. Page Layout
 
 - Add a "Document Summary" menu. This menu has two child menu items: "Summary Graph" 
   and "Summary Tree".
 - Clicking "Summary Graph" opens the "Summary Graph" page (refer to "Summary Graph Design") in the right panel
 - Clicking "Summary Tree" opens the "Document Summary Graph" page (refer to "Document Summary Graph Design") in the right panel
-
-## 3. Summary Knowledge Base
-The system generates document summaries and document chunk summaries. These summaries are
-stored as files under the directory SUMMARY_TREE_DIR.  
-
-Each directory under SUMMARY_TREE_DIR is a 'Summary Category' (or 'category' for short). A path from
-SUMMARY_TREE_DIR to a category form a 'Category Path'. Below is the structure of the Summary Knowledge Base:
-```text
-SUMMARY_TREE_DIR
-  |-category
-    metadata.txt
-    summaries.txt
-    |-category
-      metadata.txt
-      summaries.txt
-      |-category
-        metadata.txt
-        summaries.txt
-      |-category
-        metadata.txt
-        summaries.txt
-      ...
-    |-category
-        metadata.txt
-        summaries.txt
-    ...
-  |-category
-    metadata.txt
-    summaries.txt
-  ...
-```
-
-### 3.1 'metadata.txt' File
-The 'metadata.txt' contains the metdata about the category. Its format is:
-```json
-"desc":"the category description",
-"category_type":"the category type",
-"confidence":ddd,
-"keywords":["ddd", ...],
-"create_time":"yyyymmdd-hhmmss",
-```
-
-### 3.2 'summary.txt File
-This file is optional. It contains all the summaries that belong to this node. 
-These summaries are semantically close to each other. The file format is:
-```text
-93_0_0003
-...
-```
-Each line is a Summary ID (refer to [1])
 
 ## 4. Summary Graph Design
 The purpose of the "Summary Graph" page is to view/edit "Summary Knowledge Store", 
@@ -122,4 +76,6 @@ The page is similar to `ChenWeb::home3/knowledge, the "Document Structure" menu 
 - There is a slider between the 
 
 ## 6. References
-[1] KnowledgeStore/DevDocuments/Specs/spec-generate-chunk-summary.md
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-summary-spec.md
+
+[2] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md

@@ -2,6 +2,7 @@
 | Field Name | Required | Explanation |
 |-----------|---------|------------|
 | id | required | an auto-incremented integer |
+| metric_id | required | string, uniquely identify metrics in this table |
 | event_id | optional | the JetStream event id |
 | input_record_id | required | the input record id |
 | metric_name | optional | a short description for the metric, in the original language |

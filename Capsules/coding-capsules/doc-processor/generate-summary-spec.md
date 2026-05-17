@@ -8,8 +8,8 @@ A document is broken down into a number of chunks. This feature does the followi
 ## 1 Generate Summaries
 
 ### 1.1 Workflow
-- For each chunk, it uses GENERATE_SUMMARY_MODEL_NAME model to generate a summary for the 
-  chunk.  
+- For each chunk, it uses GENERATE_SUMMARY_MODEL_NAME model with GENERATE_SUMMARY_PROMPT to generate 
+  a summary for the chunk.  
 - Generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries using the 
   same model and prompt. 
 - Recursively, it generates higher level summaries in the same fashion until there is only
@@ -25,8 +25,10 @@ A document is broken down into a number of chunks. This feature does the followi
 The model generates JSONs of the following format:
 ```json
 {
-  "summary": "..."
-  "keywords": ["xxx", ...]
+  "summary": "summary in its input language",
+  "summary_en": "the accurate English translation of 'summary' if its input language is not English",
+  "keywords": ["xxx", ...], the keywords for the summary in its input language",
+  "keywords_en": ["xxx", ...], the accurate English translation of 'keywords' if its input language is not English",
   "categories": [
     {
       "category_path": [
@@ -40,25 +42,15 @@ The model generates JSONs of the following format:
       "path_keywords": ["vaccination records", "recipient data", "information system"],
       "path_confidence": 0.92
     }
-  ]
+  ], // in the input language
+  "categories_en": [...] // the same structure, generate only when its input language is not English
 }
 ```
 
 ### 1.4 Edge Cases
 - The last group takes the remaining chunks, which may be less than SUMMARY_GROUP_SIZE chunks.
 
-### 1.5 Summary Tree
-Below illustrates the summary tree:
-```text
-ARTIFACT-DIR
-  └─ leaf summaries 
-      └─ level 1 summaries
-          └─ level-2 summaries
-              └─ ...
-                  └─ root summary
-```
-
-### 1.6 Summary ID
+### 1.5 Summary ID
 ```<record_id>_<level>_<seqno>```
 
 where:
@@ -66,7 +58,7 @@ where:
 - `<level>`: the summary level
 - `<seqno>`: the summary seqno
 
-### 1.7 Summary Embedding
+### 1.6 Summary Embedding
 - Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
 - Each summary's embedding vector is stored in a dedicated file alongside its summary file:
 
@@ -74,7 +66,7 @@ where:
 
 For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 
-### 1.8 Summary File Format
+### 1.7 Summary File Format
 
 ```text
 summary_id: "<level>_dddd"
@@ -83,16 +75,21 @@ level: 2
 lines: [ddd, ddd-ddd]
 children: ["1_0012", "1_0013"]
 keywords: ["xxx",...]
+keywords_en: ["xxx",...]
 category_paths: [(<path_keywords>, <path_confidence>, [<category_name>, <keywords>, <confidence>]), ...]
+category_paths_en: [(<path_keywords>, <path_confidence>, [<category_name>, <keywords>, <confidence>]), ...]
 summary_begin
 <the summary, can be in multiple lines>
 summary_end
+summary_en_begin
+<the summary, can be in multiple lines>
+summary_en_end
 ```
 
-### 1.9 Index Summaries
+### 1.8 Index Summaries
 Refer to Section "Index Summaries" in 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md' for indexing summaries.
 
-### 1.10 Idempotent
+### 1.9 Idempotent
 When a document is re-chunked, it should clear all the related data and before re-generate the data.
 
 ## Update Status

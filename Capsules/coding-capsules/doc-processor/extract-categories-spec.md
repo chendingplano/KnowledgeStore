@@ -18,7 +18,6 @@ It uses an LLM to extract category paths for each artifact, which can be summari
 
 The format of the LLM output is:
 ```json
-[
 {
   "categories": [
     {
@@ -41,41 +40,67 @@ The format of the LLM output is:
       ],
       "path_keywords": ["vaccination records", "recipient data", "information system"],
       "path_confidence": 0.92
-    }
+    },
+    {
+      <next category path>
+    },
+    ...
+  ],
+  "categories_en": [
+    {
+      "category_path": [
+        {
+          "name": "public_health",
+          "keywords": ["health management", "disease prevention", "public health"],
+          "confidence": 0.95
+        },
+        {
+          "name": "vaccination",
+          "keywords": ["vaccination", "immunization", "vaccine administration"],
+          "confidence": 0.94
+        },
+        {
+          "name": "record_management",
+          "keywords": ["vaccination records", "recipient data", "immunization information system"],
+          "confidence": 0.92
+        }
+      ],
+      "path_keywords": ["vaccination records", "recipient data", "information system"],
+      "path_confidence": 0.92
+    },
+    {
+      <next category path>
+    },
   ]
-},
-...
-]
+}
+```
+where `categories` is in its input language and `categories_en` is the accurate English translation of `categories` if 
+the input language is not English.
+
+
+## 4 Category Tree
+Artifacts, such as summaries, topics, compliance provisions, etc., are indexed by Category Paths. 
+
+For each category path (input language version and its English translation, if any, are treated as different paths), 
+convert the category path into a directory path `summary-directory-path` and compose its full directory path as:
+```text
+  ARTIFACT_WEB_DIR + '/' + summary-directory-path
 ```
 
-## 4 Index Summaries
-Given a document, the doc processing pipeline breaks the document into chunks, generates a summary
-for each chunk and generates category paths for the summary (refer to 'spec-chunking-fix-size.md' 
-for document chunking, chunk summary generation and summary storage).
+This directory is called `Category Director Path`. Category directory paths form a `Category Tree`
 
-### 4.1 Summary Category File Tree
-Document summaries are clustered by Category Paths. ory paths are used to create a file tree under SUMMARY_TREE_DIR:
+### 4.1 'metadata.txt' File
+Each directory in a `category directory path` has a `metadata.txt`. Its format is:
 ```text
-SUMMARY_TREE_DIR
-  |- level-1-category-name-1
-     |- level-2-category-name-1
-        ...
-     |- level-2-category-name-2
-     ...
-  |- level-1-category-name-2
-  ...
-```
-Each of the node in the tree is a directory, called `Category Directory`.
-
-### 4.2 'metadata.txt' File
-Each category directory has a `metadata.txt'. Its format is:
-```text
-desc:"the category description"
+desc:"the category description", in its input language
+desc_en: the English translation of 'desc' if its input language is not English
 category_type:"the category type"
 confidence:ddd
-keywords:["ddd", ...]
+keywords:["ddd", ...], keywords are in its input language
+keywords_en:["ddd", ...], the English translation of `keywords` if the input language is not English
 create_time:"yyyymmdd-hhmmss"
 ```
+
 Values for the field 'desc' should escape '"' and '\n'.
 
 **Updating 'metadata.txt'**
@@ -87,72 +112,72 @@ present in this file, add them.
 When a new category path is generated and its categories match an existing directory,
 if the directory does not have the 'metadta.txt' file yet, add it.
 
-### 4.3 'summaries.txt' File
-Each category directory may have a `summaries.txt` file. Its formatt is:
-```text
-<summary_id>
-<summary_id>
-...
-```
-Refer to 'generate-summary-spec.md' for the definition and format of `<summary_id>`.
+## 4.2 Index Summaries
+Given a document, the doc processing pipeline breaks the document into chunks, generates a summary
+for each chunk and generates category paths for the summary (refer to documents in 
+'KnowledgeStore/Capsules/coding-capsules/chunking' for document chunking, chunk summary generation and summary storage).
 
-If the current directory is the last category of a category path,
-it will upsert its summary ID to this file. If the file does not
-exist yet, it will create it.
+Below is the workflow of indexing summaries:
 
-Summary IDs are sorted based on 'record_id', 'level' and 'seqno'.
-
-### 4.4 Embed Summaries
-It embeds 'desc' and 'keywords' fields in its 'metadata.txt' file and saves
-the vector to 'category.embed' file, in the format:
-```text
-[0.01018524169921875, 0.038726806640625, 0.02056884765625, 0.0008440017700195312,...]
-```
-
-### 4.4 Workflow
-* Summaries are all indexed under the root directory SUMMARY_TREE_DIR. If SUMMARY_TREE_DIR is not defined, empty, or an invalid directory name, it is an error. It raises an error and fails this step.
-* Create the SUMMARY_TREE_DIR directory if it does not exist yet.
-* Set the category paths to the summary files (return to "Summary File Format" section in 'spec-generate-chunk-summary.md')
-* For each category path: `category_path`
-  * Set SUMMARY_TREE_DIR as its current directory
-  * For the i-th category in `category_path`, find the sub-directories in the 
+For each category path:
+* For each category path:
+  * Compose its `category path`
+  * Set ARTIFACT_WEB_DIR as its current directory
+  * For the i-th category in `category path`, find the sub-directories in the 
     current directory by the normalized category name:
-    * If the sub-directory exists, merge its keywords to 'metadata.txt' and set the sub-directory as its current directory. Move on to the next category, if any.
+    * If the sub-directory exists, merge its keywords/keywords_en to 'metadata.txt' and set the sub-directory as its current directory. Move on to the next category, if any.
     * Otherwise, create the sub-directory and the metadata file for the sub-directory. Set the sub-directory as the current directory. Then move on to the next category, if any.
-  * Upsert its summary ID to the file 'summaries.txt', if the current directory matches the last category of the category path
+  * Upsert its summary to 'summaries.txt', if the current directory matches the last category of the category path
 
-## 5 Handle Topics
-Given a document, the doc processing pipeline will generate a collection of topics (refer to
-'spec-chunking-fix-size.md' for the topics it generates). 
-
-## 5.1 Topic Storage
-Each category in a category path is a directory:
+`summaries.txt` format:
 ```text
-  TOPIC_TREE_ROOT_DIR/category_1/category_2/.../category_n
-```
-where:
-* TOPIC_TREE_ROOT_DIR is an environment variable (required)
-* category_i is the i-th category in a category path
-
-### 5.1 Topic Metadata
-A category directory stores the following metadata in the file 'topic_meta.json':
-```json
-{
-  "category_path": "the path from SUMMARY_TREE_DIR to this directory",
-  "keywords": ["keyword", ...]
-  "embedding_model": "the name of the embedding model",
-  "centroid": "the centroid's vector",
-  "desc": "the description of the category",
-}
-
-```text
-<record_id>, <summary_id>, <time>
-<record_id>, <summary_id>, <time>
+<summary_id>
+<summary_id>
 ...
 ```
-where:
-* `<record_id>` is the record id
-* `<summary_id>` is the ID of the summary (refer to 'spec-chunking-fix-size.md' about summary ID)
-* `<time>` is the time in `yyyymmdd-hhmmss` format when the summary was added to it
 
+Note that `<summary_id>` format is `<record_id>_<level>_<seqno>`. Summary IDs are sorted based on `record_id`, 
+`level` and `seqno`.
 
+## Index Metrics
+Indexing metrics is the same as indexing summaries, except that metrics are stored in `metrics.txt` file.
+`metrics.txt` file format is:
+```text
+<record_id>_<seqno>
+<record_id>_<seqno>
+...
+```
+where `<record_id>` is the record ID and `<seqno>` is the sequence number for the given record, starting from 1.
+
+## Index Topics
+Indexing topics is the same as indexing summaries, except that topics are stored in `topics.txt` file.
+
+`topics.txt` file format is:
+```text
+record_id: <record-id>
+topic_id: 4
+topic_type: "compliance"
+lines: [ddd, ddd-ddd...]
+topic_keywords: [规范性引用文件, ...]
+topic_keywords_en: [normative references, ...]
+topic_desc: "列出本标准的规范性..."
+topic_desc_en: "Lists the normative references ..."
+category_paths: [(["规范性引用文件", ...], 0.95, [("标准", ["标准", "规范性引用文件"], 0.95), ("引用标准", ["国家标准", "行业标准", "国际标准"], 0.95)]), (...), ...]
+category_paths_en: [(["normative references", ...], 0.95, [("standard", ["standard", "normative references"], 0.95), ("referenced standards", ["national standards", "industry standards", "international standards"], 0.95), (...), ...])]
+```
+
+Note:
+* It uses an empty line to separate topics. 
+* Topics are sorted by `record_id` and `topic_id`.
+
+## Index Provisions
+Indexing provisions is the same as indexing summaries, except that provisions are stored in `provisions.txt` file.
+
+`provisions.txt` file format is:
+```text
+<record_id>_<prov_id>
+<record_id>_<prov_id>
+...
+```
+
+Its content is sorted by `<record_id>` and `<prov_id>` (provision ID).

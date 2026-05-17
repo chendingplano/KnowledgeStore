@@ -61,6 +61,7 @@ Currently, it has the following doc processors:
 |6 | extract_provisions | after 1 | Extract provisions. Refer to [5] |
 |7 | generate_summary | after 3 | Generate summaries. Refer to [7] |
 |8 | generate_topics | after 3 | Generate topics. Refer to [8] |
+|9 | generate_scene_blocks | after 3 | Generate scene blocks. Refer to [9] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -196,28 +197,14 @@ Status JSON:
 }
 ```
 
-We use Redis to monitor status changes for the [Doc Processing Pipeline](#doc-processing-pipeline).
+-----------
 
-| Seqno | Action | Redis Key | Redis Value |
-|---|---|---|---|
-|1 | structure_analyzer | 'structure_analyzing' | 'success', 'error-msg'|
-|2 | chunking | 'chunking' | 'success', 'error-msg' |
-|3 | extract_doc_metadata | 'extract_doc_metadata' | 'success', 'error-msg' |
-|4 | extract_metrics | 'extract_metrics' | 'success', 'error_msg' |
-|5 | extract_provisions | 'extract_provisions' | 'success', 'error_msg' |
-|6 | generate_topics | 'generate_topics' | 'success', 'error_msg' |
+## JetStream Request
 
-When Doc Processor finishes, it generates
-## Operation
+JetStream request payload may have an 'operation' attribute. If present, it specifies the doc
+processor to apply to the input file (or chunk files). Its value must be the ones in the 
+table [Doc Processing Pipeline](#doc-processing-pipeline).
 
-If present, it specifies the doc processor to apply to the input file (or chunk files). Currently,
-the valid values are: 
-- 'structure_analyzer'
-- 'chunking'
-- 'extract_doc_metadata' 
-- 'extract_metrics'
-- 'extract_provisions'
-- 'generate_topics'
 If multiple processors are specified, they must be applied in the order in which they are listed.
 
 Important:
@@ -270,3 +257,5 @@ Important:
 [7] Generate Summaries: KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-summary-spec.md
 
 [8] Generate Summaries: KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-topic-spec.md
+
+[9] Generate Scene Blocks: KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-scene-blocks.md
