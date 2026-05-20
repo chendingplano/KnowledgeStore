@@ -63,18 +63,20 @@ All root-level parents default to **collapsed**. The active section does not req
 
 - `Upload Files`
 
-### Subject Wiki
+### Wiki (formerly `Subject Wiki`)
+
+This section contains the following menu items:
 
 - `Document Metadata`
 - `Document Structure`
 - `Document Tree`
-- `Subject Wiki`
+- `Artifact Wiki` (formerly `Subject Wiki`)
 - `Document Topic Tree`
-- `Topic Wiki`
+- `Topic Wiki` (removed now)
 - `Metrics`
 - `Scene Blocks`
 - `Provision Tree`
-- `Provision Wiki`
+- `Provision Wiki` *(removed now)*
 - `References` *(under construction)*
 - `Formulas` *(under construction)*
 - `Tables` *(under construction)*
@@ -110,7 +112,9 @@ Related spec:
 
 - `KnowledgeStore/DevDocuments/Specs/spec-page-knowledge-store.md`
 
-### Injestion → Upload Files
+### Injestion Section
+
+#### Upload Files
 
 This section is rendered by `KbImportView` and is intended for imported-record review and document ingestion workflows.
 
@@ -118,7 +122,9 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/kb-import-view.svelte`
 
-### Document Wiki → Document Metadata
+### Wiki (formerly `Subject Wiki`) Section
+
+#### Document Metadata
 
 This page is the document-centric inspection workspace. It combines a reusable record browser with metadata and source/document viewing. (Previously named "Document Details".)
 
@@ -133,7 +139,7 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/inputs-mgmt-view.svelte`
 
-### Document Structure
+#### Document Structure
 
 This section lets users inspect parsed document hierarchy and corrected structure lines. It is one of the pages built on the shared `kb.inputs` browser pattern.
 
@@ -174,7 +180,7 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/doc-structure-view.svelte`
 
-### Metrics
+#### Metrics
 
 This section manages extracted metrics tied to documents in the active knowledge store.
 
@@ -182,7 +188,113 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/metric-mgmt-view.svelte`
 
-### Scene Blocks
+**Window Correct Behaviors**
+- When clicking on "Subject Wiki => Metrics", the window has four panels:
+  - Menu panel
+  - RECORD list panel: list all the records in 'kb.inputs'
+  - Metrics panel: list all the metrics for the selected record
+  - The PDF display panel
+- Click any record in the RECORD list will update the "Metrics" panel and the PDF Display. Do not collapse the menu panel and hide the RECORD list yet.
+- Click an entry in the "Metrics" panel will collapse the menu panel and hide the RECORD list panel. The selected metric is shown as a chart and the PDF display highlights the lines of the selected metric. There is a toolbar with the following tools:
+  - "Back": click the "Back" button will go back to exactly the same setup: four panels: "Menu" panel, "RECORD List" panel, "Metrics" panel and the PDF display panel.
+  - "Prev": click this button to view the previous metric. If there is no previous metric, this button is disabled.
+  - "Next": click this button to view the next metric. If there is no next metric, this button is disabled.
+  - "Metric by Name" filter: this is a pulldown menu that lists all the metric names and lets users view metrics by metric name.
+  - "Metrics by Keywords" filter: this is a pulldown menu that lists all the keywords and lets users view metrics by keywords.
+
+**Metric Chart (focus mode canvas)**
+
+The chart mirrors the Scene Blocks `kb-extraction-view` layout — a single
+focal entity with concentric levels of nodes:
+
+- **Metric disc** at the canvas center (crimson border) — `metric_name` with
+  `metric_name_en` / `metric_subject_en` as sub-label.
+- **5 Functional groups** orbiting the metric at 72° spacing, every one a
+  clickable circle with its own icon + label: `Metadata` (top), `Context`
+  (upper-right), `Metric` (lower-right), `Grounding` (lower-left), and
+  `Reasoning` (upper-left).
+- **Attribute satellites** fan out from each group as small circles. Each
+  satellite has the attribute's icon, a label below, and a count badge for
+  list-type attributes (Keywords, Tags, source-line entries).
+
+There is **no Source Doc big circle** any more — the right pane in the focus
+split is just the PDF viewer (no editable-metadata sidebar; the viewer renders
+as a clean PDF, mirroring Scene Blocks' Source Document pane). There is also
+**no permanent metadata side panel** on the chart — the chart starts empty of
+any info card.
+
+Bilingual fields are still merged: `Name` shows `<zh> / <en>` (Metadata),
+`Context` and `Keywords` are merged (Context), and `Subject`, `Unit`, and
+`Class` are merged (Metric). Empty attributes render dimmed.
+
+**Click a functional group** to open the **Group Info Panel** in the top-left
+of the canvas (z-12, with its own close button). The panel mirrors the Scene
+Blocks meta-card formatting:
+
+- `text` attributes render as label + value rows.
+- `chips` attributes (Keywords, Reasoning Tags) render as inline pill chips.
+- `lines` attributes (Grounding source lines) render as a vertical list,
+  each entry showing `L<line> P<page> [type]: <content>`.
+
+Clicking the same group again closes the panel; clicking a different group
+swaps to that group's panel. Hovering an attribute satellite highlights its
+wire but does not open an inspector — all attribute values are read through
+the click-driven panel.
+
+**Metric Attributes**
+
+Metric attributes are grouped as:
+- Metadata
+  * "metric_id"
+  * "metric_name"
+  * "metric_name_en"
+  * "confidence"
+  * "desc"
+  * "desc_en"
+  * "formula_or_definition"
+  * "is_explicit_metric"
+- Context
+  * "table_name_or_section"
+  * "context"
+  * "context_en"
+  * "keywords": [...]
+  * "keywords_en": [...]
+- Metric
+  * "subject"
+  * "subject_en"
+  * "measurement_frequency"
+  * "metric_value"
+  * "threshold_or_target"
+  * "unit"
+  * "unit_en"
+  * "value_class"
+  * "value_class_en"
+  * "value_data_type"
+  * "value_range_type"
+  * "location_type"
+- Reasoning
+  * "reasoning_tags"
+- Grounding
+  * "source_line_spans": retrieve the lines, include `<line_number>`, `<page_number>`, `<line_type>` and `<content>`
+
+**Focus-mode pattern alignment**
+
+The fold/focus interaction intentionally mirrors Scene Blocks' "Show Selected
+Scene Block" pattern (Line 239): focus mode is **driven by clicking an item**
+(a metric here, a scene block there), not by clicking a record. Clicking a
+record only loads the metric list and updates the PDF; the menu and Record
+List remain visible. This avoided a race we hit during development where the
+record browser's auto-emit on remount (after a menu expand) re-fired the
+"select record" path and re-folded the panels.
+
+**Endpoint, service, component**
+
+- API: `GET /api/v1/kb/metrics?input_record_id=N`
+  - Frontend service: `listKbMetrics(...)` in
+    `ChenWeb/web/src/lib/services/kbService.ts`.
+- Main component: `ChenWeb/web/src/lib/components/home3/metric-mgmt-view.svelte`.
+
+#### Scene Blocks
 
 This section browses the event-driven **scene blocks** an LLM extracts from each
 document. A scene block is a self-contained narrative unit (who acts, what
@@ -204,16 +316,16 @@ within the Scene Blocks list, and the right column shows the source document
 for context.
 
 ```text
-┌──────────────-──────────────-──────────────────────────────-─────────────┐
-│  Menu      | Record List | Scene Blocks (inline accordion)  | Source Doc  │
-|────────────-─────────────-──────────────────────────────────-────────────|
-│ ...        |             | ▸ <scene-block>                  |             │
-│ Metrics    | <record>    | ▾ <scene-block>  EXPANDED        |  PDF Viewer │
-│ Scene      |             |    Cast / Setup / Flow /         |  + "Scene   │
-│  Blocks    | <record>    |    Resolution / Links & evidence  |   context" │
-│ Provision  |             | ▸ <scene-block>                  |   sidebar   │
-│ ...        |             | ...                              |             │
-└────────────-─────────────-──────────────────────────────────-────────────┘
+┌──────────────-──────────────-─────────────────────────────────-─────────────┐
+│  Menu      | Record List | Scene Blocks (inline accordion)  | Source Doc    │
+|────────────-─────────────-─────────────────────────────────────-────────────|
+│ ...        |             | ▸ <scene-block>                  |               │
+│ Metrics    | <record>    | ▾ <scene-block>  EXPANDED        |  PDF Viewer   │
+│ Scene      |             |    Cast / Setup / Flow /         |  + "Scene     │
+│  Blocks    | <record>    |    Resolution / Links & evidence |   context"    │
+│ Provision  |             | ▸ <scene-block>                  |   sidebar     │
+│ ...        |             | ...                              |               │
+└────────────-─────────────-─────────────────────────────────────-────────────┘
 ```
 
 - **Record List**: the shared `kb.inputs` record browser (search, retrieve,
@@ -236,6 +348,63 @@ for context.
   the PDF is not auto-highlighted; the sidebar surfaces the block's
   `source_refs` as evidence locators instead.
 
+**Show Selected Scene Block**
+
+When clicking a scene block in the "Scene Blocks" list, it does the following:
+- Fold 'Menu' and 'Record List'
+- Show the selected scene block graphically
+
+The window looks like:
+```text
+┌──────────────-──────────────-─────────────────────────────────-─────────────┐
+│  Canvas                                                     | PDF Viewer    │
+|────────────-─────────────-─────────────────────────────────────-────────────|
+│ [Back]                                                      |               │
+│                                                             |               │
+│              Graphically show the Scene Block               |  PDF Viewer   │
+│                                                             |  + "Scene     │
+│                                                             |   context"    │
+│                                                             |   sidebar     │
+│                                                             |               │
+└────────────-─────────────-─────────────────────────────────────-────────────┘
+```
+
+We can logically group Scene Block attributes into:
+- Metadata:
+  * "title": "Normative Reference Application",
+  * "summary": "Application of normative references in a standard, including handling of dated and undated references.",
+  * "confidence": 0.95,
+  * "object_id": "112_3",
+  * "scene_id": "normative_reference_application",
+  * "scene_type": "compliance",
+  * "keywords": [...]
+  * "states": [...]
+
+- Inputs
+  * "triggers": [...]
+  * "constraints": [...]
+  * "preconditions": [...]
+  * "resources": [...]
+  * "source_refs": [...]
+
+- Actions
+  * "actions": [...]
+  * "actors": [...]
+  * "decisions": [...]
+  * "resolutions": [...],
+
+- Reasoning
+  * "root_causes": [...],
+  * "outcomes": [...]
+  * "relationships": [...]
+  * "failure_modes": [...]
+
+Then graphically show the scene block.
+
+**Back**
+
+Press this button to go back to the original window.
+
 **Endpoint, service, component**
 
 - API: `GET /api/v1/kb/scene-blocks?input_record_id=N`
@@ -248,19 +417,83 @@ for context.
 
   - `ChenWeb/web/src/lib/components/home3/scene-blocks-view.svelte`
 
-### Document Wiki → Subject Wiki (formerly Summary Graph)
+**Window Correct Behaviors**
+- When clicking on "Subject Wiki => Scene Blocks", the window has four panels:
+  - Menu panel
+  - RECORD list panel
+  - Extracted Scene Blocks panel
+  - The PDF display panel
+- Click any record in the RECORD list will update the "Extracted Scene Blocks" panel and the PDF Display
+- Click an entry in the "Extrated Scene Block" list will collapse the menu panel and hide the RECORD list panel. The selected scene block is shown as a chart and the PDF display highlights the lines of the selected scene blocks. There is a toolbar with the following tools:
+  - "Back": click the "Back" button will go back to exactly the same setup: four panels: "Menu" panel, "RECORD List" panel, "Extracted Scene Blocks" panel and the PDF display panel.
+  - "Prev": click this button to view the previous scene block. If there is no previous scene block, this button is disabled.
+  - "Next": click this button to view the next scene block. If there is no next scene block, this button is disabled.
+  - "SCENE TYPE" filter: this is a pulldown menu that filters scene blocks by scene types.
 
-Category-first summary exploration. (Previously named "Summary Graph" under "Document Summaries".)
+#### Products
 
-Main component:
+We can logically group Product Relations attributes into:
+- Metadata:
+  - "product_rel_id": "112_2",
+  - "product_name": "健康检查表",
+  - "product_name_en": "Health examination form",
+  - "canonical_name": "健康检查表",
+  - "canonical_name_en": "Health examination form",
+  - "confidence": 0.88,
+  - "evidence_lines": ["12", "37" ],
+
+- Grounding
+  - "evidence_quote": "健康检查表及相关信息采集",
+  - "confidence_reason"
+  - "confidence_reason_en"
+
+- Inputs:
+  - "conditions": [...]
+  - "parameters": [],
+
+- Actors
+  - "responsible_actor": "健康体检机构"
+
+- Requirements
+  - "exceptions": [],
+  - "obligation_level": "mandatory",
+  - "product_type": "other",
+  - "requirement_text": "标准包含健康检查表相关要求。",
+  - "requirement_text_en": "The standard includes requirements related to the health examination form.",
+
+- Relations
+  - "relation_summary",
+  - "relation_summary_en",
+  - "relation_type": "contains_product",
+  - "related_products": [...],
+
+The window design is similar to that of [Scene Blocks](#scene-blocks), except its menu name is "Products",
+
+#### Artifact (formerly `Subject`) Wiki
+
+It used to be the 'Category-first summary exploration'. It is now 'Category-first artifact exploration'.
+Category paths are mapped to file paths under the directory ARTIFACT_WEB_DIR.
+Each directory may have the following files, among others:
+| File Name | Reference | Explanations |
+|-----------|-----------|--------------|
+| metadata.txt | Section "'metadata.txt' File" in [1] | The metadata for the directory |
+| summaries.txt | Section "Index Summaries" in [1] | The file stores all the summaries that contain this category path|
+| topics.txt | Section "Index Topics" in [1] | The file stores all the topics that contain this category path|
+| metrics.txt | Section "Index Metrics" in [1] | The file stores all the metrics that contain this category path|
+| scenes.txt | Section "Index Scens" in [1] | The file stores all the scene blocks that contain this category path|
+| provisions.txt | Section "Index Provisions" in [1] | The file stores all the provisions that contain this category path|
+| products.txt | Section "Index Products" in [1] | The file stores all the products that contain this category path|
+---
+
+
+This window is currently implemented in:
 
 - `ChenWeb/web/src/lib/components/home3/summary-graph-view.svelte`
 
-Related design doc:
+Related design doc: refer to [2]. This needs to change to handle not just summaries but all
+artifacts, such as metrics, provisions, scenes, topics, etc.
 
-- `ChenWeb/docs/superpowers/specs/2026-05-01-document-summaries-design.md`
-
-### Document Wiki → Document Tree (formerly Summary Tree)
+#### Document Tree (formerly Summary Tree)
 
 Document-centric summary browsing over `kb.inputs`. (Previously named "Summary Tree" under "Document Summaries".)
 
@@ -268,7 +501,7 @@ Main component:
 
 - `ChenWeb/web/src/lib/components/home3/summary-tree-view.svelte`
 
-### Document Wiki → Topic Wiki and Document Topic Tree
+#### Document Topic Tree
 
 This group provides topic-oriented knowledge exploration. (Previously named "Semantic Web" group.)
 
@@ -296,7 +529,7 @@ Main components:
 #### Topic Wiki (formerly Semantic Web)
 
 A topic has one or more category paths. Category paths are mapped to file paths under
-the directory TOPIC_TREE_ROOT_DIR. If a directory has a 'topics.txt' file, the file
+the directory ARTIFACT_WEB_DIR. If a directory has a 'topics.txt' file, the file
 lists all the topics that belong to this file path, which is also a category path.
 Below is an example of 'topics.txt':
 ```text
@@ -311,7 +544,7 @@ topic: "腰背肌力测试方法：自然站立，调节握柄高度，双手紧
 
 For more information about topics, refer to 'KnowledgeStore/Capsules/coding-capsules/chunking-fix-size/+CAPSULE.md'. 
 
-### Document Wiki → Provision Wiki and Provision Tree
+#### Provision Wiki and Provision Tree
 
 These pages mirror the topic-web pattern for compliance provisions and now live inside Document Wiki. (Previously they were grouped under "Compliance Provisions".)
 
@@ -440,4 +673,7 @@ In practice, the workflow is:
 - `ChenWeb/web/src/lib/components/home3/kb-input-record-browser.svelte`
 - `KnowledgeStore/DevDocuments/Specs/spec-page-knowledge-store.md`
 - `KnowledgeStore/DevDocuments/ImplDocs/impl-record-list.md`
-- `ChenWeb/docs/superpowers/specs/2026-05-01-document-summaries-design.md`
+
+## References
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md \
+[2] KnowledgeStore/Capsules/coding-capsules/knowledge-base-window/doc-summaries-design.md

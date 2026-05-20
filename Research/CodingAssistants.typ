@@ -83,3 +83,23 @@ This is a small open-source project, inspired by `pi` and `opencode`, written in
 *Status*
 
 Not installed yet.
+
+= DeepSeek Reasonix
+#let a_002 = link(
+  "https://github.com/esengine/DeepSeek-Reasonix"
+)[#text(fill: blue)[DeepSeek Reasonix GitHub]]
+
+#a_002 \
+Date: 2026/05/19 \
+Source: WeChat
+
+This is DeepSeek-native AI coding agent (terminal). The main feature is caching. It is not a
+feature that you can turn on/off. It is an invariant the loop is designed around. This is DeepSeek-only. 
+Every layer is tuned to the byte-stable prefix-cache mechanic.
+
+Support Pro and Flash auto switch.
+
+*Status*
+
+Installed and works as expected.
+

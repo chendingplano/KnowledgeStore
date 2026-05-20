@@ -24,12 +24,12 @@ category paths.
 
 ### 3.1 Semantic Web
 
-Each category of each category path maps to a directory under TOPIC_TREE_ROOT_DIR.
+Each category of each category path maps to a directory under ARTIFACT_WEB_DIR.
 
-Each directory under TOPIC_TREE_ROOT_DIR is a 'Category'. A path from
-TOPIC_TREE_ROOT_DIR to a category form a 'Category Path'. Below is the structure of the Summary Knowledge Base:
+Each directory under ARTIFACT_WEB_DIR is a 'Category'. A path from
+ARTIFACT_WEB_DIR to a category form a 'Category Path'. Below is the structure of the Summary Knowledge Base:
 ```text
-TOPIC_TREE_ROOT_DIR
+ARTIFACT_WEB_DIR
   |-category
     metadata.txt
     category.embed

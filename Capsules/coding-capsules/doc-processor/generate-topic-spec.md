@@ -152,3 +152,6 @@ If any step fails:
 - stop processing,
 - upsert `kb.inputs.status` with `proc_status = "failed"` and a non-empty `error`,
 - do not mark operation as successful.
+
+## Implementations
+Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-topic-impl.md

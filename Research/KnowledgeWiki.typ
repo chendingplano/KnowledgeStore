@@ -99,96 +99,26 @@ that can reason on knowledge wiki.
   [is-child], [`A is a child of B`],
 )
 
-== Ontology Rules
-
-[[def:Ontology Rules, Rules]]
-
-Entity relations are instances of 'a class', while Rules are the 'class'. 
-
-=== Rule-001 If ... Then ...
-
-*Example*
-```text
-If A is B's wife, B is A's husband
-If A is an investor of B, A works for C, C is a company, then C invests B
-```
-
-=== Rule-002 Entity Class
-Entity classes define a class and entities are instances of entity classes.
-Rules are often defined on entity classes in ontology instead of on individual entities.
-In most graphs, the class-instance relations are expressed explicitly, such as
-"Mockingbird is a Bird". In ontology, entity class is an attribute of entities.
-
-=== Rule-003 Relation Class
-Relation Class defines a category of entity relations (relations for short). Relations in knowledge graphs are
-instances of Relation Class. 
-
-=== Rule-004 Relation Hierarchy
+== Artifacts
+SemOS supports the following types of artifacts:
+- Summaries (chunk based)
+- Topics
+- Metrics
+- Compliance Provisions
+- Facts (TBD)
+- Entities (TBD)
+- Products (need to classify as entities or products)
+- Scenes
+- Semantic Objects (TBD)
+- Facts (TBD)
+- References (TBD)
 
 == Indexing
-
-=== Artifact IDs
-
-Artifacts are identified by:
-```text
-    <record_id>_<artifact_type>_<seqno>
-```
-where:
-- `<record_id>`: it is `kb.inputs.id`
-- `<artifact_type>`: it identifies the type of the artifact, such as 'summary', 'metric', etc.
-- `<seqno>`: it is a sequence number relative to record ID and artifact type, starting from 1.
-
-We can normalize `<artifact_type>` to, say, three letter words, such as:
-- sum: summaries
-- mtc: metrics
-- scb: scene blocks
-- sem: semantic objects
-- pvs: compliance provisions
-- ref: references
-- quo: quotations
-- kwd: keywords
-- and so on
-
-=== Artifact Docids
-
-Artifact Docids are u64. It uniquely identifies artifacts globally.
-```text
-  Byte 7-4: Record ID (total 4 billions)
-  Byte 3-2: Artifact type (total 65535 types)
-  Byte 1-0: Sequence Number (total 65535 objects)
-```
-
-This schema is good enough for most artifacts:
-- There can be up to 4 billion inputs
-- Each input may have up to 65535 types of artifacts
-- Each artifact can have up to 65535 instances
-
-For the time being, we will use artifact IDs.
-
 === Keyword Index
-Semantic objects are clustered by keywords. Internally, all keywords are English. There is a map
-that maps English keywords to keywords in a specific language, such as Chinese.
-
-Keyword indexes are stored in files under KEYWORD_DIR and in PostgreSQL. The file-based
-keyword index is for LLM exploration and the PostgreSQL for BM25 search.
-
-=== Category Index
-
-Categories are expressed as category paths:
-```text
-    domain_subdomain_category_...
-```
-
-Category paths are mapped to file paths. Their root directory is CATEGORY_DIR.
-
-Category indexes are stored in files. It is intented to be used by LLMs to explore the artifacts.
-
-=== Relation Index
-
-An artifact can connect to other artifacts:
-- By keyword + artifact type
-- By category + artifact type
-- By entity
+This is currently handled by PostgreSQL full-text search.
+Each artifact type stores in a table and has a full-text search index.
+In addition, it has a full-text search index for all artifacts,
+partitioned by artifact types.
 
 == Reviews
 

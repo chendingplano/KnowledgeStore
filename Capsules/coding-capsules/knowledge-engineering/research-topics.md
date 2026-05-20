@@ -33,3 +33,6 @@ Currently, it supports:
 - Typst (.typ)
 - Text (.text)
 - HTML (.mtml)
+
+## Implementations
+Refer to 'KnowledgeStore/Capsules/coding-capsules/knowledge-engineering/research-topics.md'

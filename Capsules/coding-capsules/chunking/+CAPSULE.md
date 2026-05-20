@@ -207,16 +207,16 @@ category_paths: [(<path_keywords>, <path_confidence>, [<category_name>, <keyword
 
 ### 6.5 Topic Indexing
 A topic has one or more category paths. A category path is made of one or more categories.
-Category paths are stored as file directories under TOPIC_TREE_ROOT_DIR, where each
+Category paths are stored as file directories under ARTIFACT_WEB_DIR, where each
 category maps to a sub-directory. For instance, if a category path is 
 "medical_standards/surgical_conditions", there will be two directories:
 ```text
-TOPIC_TREE_ROOT_DIR/medical_standards
-TOPIC_TREE_ROOT_DIR/medical_standards/surgical_conditions
+ARTIFACT_WEB_DIR/medical_standards
+ARTIFACT_WEB_DIR/medical_standards/surgical_conditions
 ```
 
 #### 6.5.1 Topic 'metadata.txt' File
-Each directory under TOPIC_TREE_ROOT_DIR has a 'metadata.txt' file. The file format is:
+Each directory under ARTIFACT_WEB_DIR has a 'metadata.txt' file. The file format is:
 ```text
 "desc":"category description"
 "confidence":0.95
@@ -245,7 +245,7 @@ Topics in 'topics.txt' are sorted by record IDs.
 
 #### 6.5.4 Workflow
 * For each category path: `category_path`
-  * Set TOPIC_TREE_ROOT_DIR as its current directory
+  * Set ARTIFACT_WEB_DIR as its current directory
   * For the i-th category in `category_path`:
     * Find the sub-directory by the category name. If no sub-directory with the category
       name is found, find the closest sub-directories in the current directory by 

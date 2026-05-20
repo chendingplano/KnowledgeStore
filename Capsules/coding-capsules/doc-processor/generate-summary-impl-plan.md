@@ -22,7 +22,7 @@
 ### New files to create
 
 - `ChenWeb/server/api/doc-processing/chunk_summary_shared.go`
-  Purpose: summary config loading, summary item models, summary file read/write helpers, summary-tree builders, `ARTIFACT_WEB_DIR` persistence, `SUMMARY_CLUSTER_DIR` persistence, reclustering metadata helpers.
+  Purpose: summary config loading, summary item models, summary file read/write helpers, summary-tree builders, `ARTIFACT_WEB_DIR` persistence, `ARTIFACT_WEB_DIR` persistence, reclustering metadata helpers.
 - `ChenWeb/server/api/doc-processing/chunk_summary_shared_test.go`
   Purpose: focused helper tests for summary grouping, line-range compaction, summary-tree storage, cluster slug/file behavior, and reprocessing cleanup.
 
@@ -56,7 +56,7 @@ Add a test modeled after `TestService_HandleInput_WritesChunksAndStatus` that ex
 - `summary_0_0001.txt` and `summary_0_0002.txt` to exist
 - at least one higher-level summary file to exist
 - `ARTIFACT_WEB_DIR` to receive a `summaries.txt` leaf containing the root summary ID
-- `SUMMARY_CLUSTER_DIR` to receive a cluster markdown file
+- `ARTIFACT_WEB_DIR` to receive a cluster markdown file
 
 - [ ] **Step 2: Run the targeted test to verify it fails**
 
@@ -265,7 +265,7 @@ git add ChenWeb/server/api/doc-processing/fix-size-chunking.go ChenWeb/server/ap
 git commit -m "feat: persist summary trees under ARTIFACT_WEB_DIR"
 ```
 
-## Chunk 4: Summary Clusters in `SUMMARY_CLUSTER_DIR`
+## Chunk 4: Summary Clusters in `ARTIFACT_WEB_DIR`
 
 ### Task 6: Add failing helper tests for cluster files and cluster state
 
@@ -277,7 +277,7 @@ git commit -m "feat: persist summary trees under ARTIFACT_WEB_DIR"
 
 Add tests for:
 - slug generation for `cluster_000001_example_topic.md`
-- metadata file creation at `SUMMARY_CLUSTER_DIR/_cluster_state.json`
+- metadata file creation at `ARTIFACT_WEB_DIR/_cluster_state.json`
 - stable next cluster ID allocation
 - renaming cluster markdown when label changes but `cluster_id` stays fixed
 
@@ -293,7 +293,7 @@ In `chunk_summary_shared.go`, add:
 - slugify helper matching the spec
 - cluster state read/write helpers
 - cluster markdown filename generation
-- basic create/update helpers inside `SUMMARY_CLUSTER_DIR`
+- basic create/update helpers inside `ARTIFACT_WEB_DIR`
 
 - [ ] **Step 4: Re-run the targeted tests**
 
@@ -318,7 +318,7 @@ git commit -m "feat: add summary cluster storage helpers"
 - [ ] **Step 1: Write the failing service tests**
 
 Add tests that verify:
-- cluster markdown files are written under `SUMMARY_CLUSTER_DIR`
+- cluster markdown files are written under `ARTIFACT_WEB_DIR`
 - the same record can be reprocessed without duplicate source summary IDs remaining in clusters
 - cluster-write failures trigger `proc_status = "failed"`
 

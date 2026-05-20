@@ -41,7 +41,7 @@ The biggest issues are not in the existence of the pipeline, but in **spec compl
    - Impact: if the LLM returns the spec/prompt nested category structure, or more than one category path, the implementation either drops the information or misparses it.
 
 2. **Topic tree storage format does not match `spec-category-extraction.md`.**
-   - Spec: topic categories should be stored as directories under `TOPIC_TREE_ROOT_DIR`, with metadata files such as `topic_meta.json`; workflow also describes semantic matching with existing directories.
+   - Spec: topic categories should be stored as directories under `ARTIFACT_WEB_DIR`, with metadata files such as `topic_meta.json`; workflow also describes semantic matching with existing directories.
    - Code: [`writeTopicsCategoryTreeToDir`](../../ChenWeb/server/api/doc-processing/topic_chunking_shared.go:218) writes leaf files like `category_a/category_b.txt` containing tab-separated rows, and creates no metadata files or similarity-based matching ([topic_chunking_shared.go:218-299](../../ChenWeb/server/api/doc-processing/topic_chunking_shared.go:218)).
    - The current tests explicitly lock in this simplified format, e.g. `document_overview/closing_notes.txt` ([chunking_test.go:253-259](../../ChenWeb/server/api/doc-processing/chunking_test.go:253)).
    - Impact: the persisted topic tree is materially different from the documented design.

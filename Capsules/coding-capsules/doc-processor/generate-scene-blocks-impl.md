@@ -2,7 +2,7 @@
 
 ## Overview
 
-`generate_scene_blocks` is pipeline step 9 in the doc-processor service. It extracts structured semantic "scene blocks" from document chunks using an LLM and persists them to `kb.scene_objects`.
+`generate_scene_blocks` is pipeline step 9 in the doc-processor service. It extracts structured semantic "scene blocks" from document chunks and persists them to `kb.scene_objects`.
 
 **Spec:** `KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-scene-blocks.md`
 
@@ -45,7 +45,7 @@ Chunk parameters (`CHUNK_SIZE`, `CHUNK_OVERLAP_PERCENT`) are read from the same 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `EXTRACT_SCENE_BLOCKS_MODEL_NAME` | LLM model reference | — |
-| `EXTRACT_SCENE_BLOCKS_MODELS_FILE` | Models config file | — |
+| `MODEL_CONFIG_FILE` | Models config file | '.models.toml' |
 | `EXTRACT_SCENE_BLOCKS_PROMPT` | Prompt file name | `prompt-generate-scene-blocks.md` |
 | `PROMPT_DIR` | Directory for prompt files | — |
 | `CHUNK_SIZE` | Lines per chunk (shared with chunking) | `300` |
@@ -63,17 +63,40 @@ The prompt file is already at `ChenWeb/prompts/prompt-generate-scene-blocks.md`.
 
 ---
 
-## LLM Interaction
+## Multi-Pass LLM Interaction
 
-For each chunk, the processor sends the joined line content as `InputText`:
+The processor now mirrors the product-extraction design:
 
-```
-<line1 content>
-<line2 content>
-...
-```
+1. Pass 1 extracts lightweight `candidates` per chunk.
+2. Deterministic code merges duplicate candidates and removes overlap-only candidates without normal-line support.
+3. Pass 2 enriches each merged candidate into one or more final `scene_blocks`.
+4. Deterministic final dedup runs before persistence.
 
-The LLM returns JSON with a `scene_blocks` array. Each element maps to the schema defined in the spec (scene_id, scene_type, title, summary, actors, resources, preconditions, triggers, states, actions, constraints, decisions, outcomes, failure_modes, root_causes, resolutions, relationships, discriminators, keywords, confidence, source_refs).
+### Pass 1
+
+- Prompt: `prompt-extract-scene-candidates-v1.md`
+- Env vars:
+  - `EXTRACT_SCENE_CANDIDATES_PROMPT`
+  - `EXTRACT_SCENE_CANDIDATES_MODEL_NAME`
+
+This pass operates on the marked chunk text and returns a small candidate schema with:
+
+- `scene_key`
+- `scene_type_hint`
+- `title`
+- `summary_hint`
+- `evidence_quote`
+- `line_spans`
+- `confidence`
+
+### Pass 2
+
+- Prompt: `prompt-enrich-scene-blocks-v1.md`
+- Env vars:
+  - `ENRICH_SCENE_BLOCKS_PROMPT`
+  - `ENRICH_SCENE_BLOCKS_MODEL_NAME`
+
+This pass operates on one merged candidate plus its supporting lines and returns the full `scene_blocks` schema for storage.
 
 ---
 
@@ -136,7 +159,7 @@ Content: JSON array of all scene block maps (with `object_id` injected).
 On **failure**, upserts to `kb.inputs.status` with `"operation": "generate_scene_blocks"`.  
 On **success**, upserts with `"operation": "extract_scene_blocks"`.
 
-Both include `model_name` and `prompt_name` in the status entry.
+Both include the relation-pass `model_name` and `prompt_name` in the status entry.
 
 ---
 

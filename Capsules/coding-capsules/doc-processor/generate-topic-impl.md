@@ -61,7 +61,7 @@ type CategoryPathNode struct {
 | `FILE_BLOCK_SIZE` | `SemanticChunkingService` | Pages per block (default 3) |
 | `ARTIFACT_DIR` | `SemanticChunkingService` | Root directory for all output files |
 | `TOPIC_EMBEDDING_MODEL_NAME` | `indexTopicsInTreeDir` | Model for embedding category nodes |
-| `TOPIC_TREE_ROOT_DIR` | `writeTopicsCategoryTree` | Root of the category tree on disk |
+| `ARTIFACT_WEB_DIR` | `writeTopicsCategoryTree` | Root of the category tree on disk |
 | `CATEGORY_SIMILARITY_MIN_SCORE` | `findOrCreateCategorySubdir` | Cosine threshold for matching existing category dirs (default 0.85) |
 
 ---
@@ -175,7 +175,7 @@ When the embedder is `nil` or `TOPIC_EMBEDDING_MODEL_NAME` is empty, the similar
 
 #### Directory Resolution (`findOrCreateCategorySubdir`)
 
-For each node in the path, starting at `TOPIC_TREE_ROOT_DIR`:
+For each node in the path, starting at `ARTIFACT_WEB_DIR`:
 
 1. **Exact match**: If a sub-directory with `normalizeCategorySegment(node.Name)` already exists, reuse it and merge the node's keywords into its `metadata.txt`.
 
@@ -211,7 +211,7 @@ record_id: 456,
 
 Before indexing a record's topics, `removeTopicTreeRecord` walks the entire tree and removes all `topics.txt` entries whose `record_id` matches the current record. This ensures re-processing a document replaces old entries rather than accumulating duplicates.
 
-No category directories are written under `ARTIFACT_DIR`; the tree is rooted only at `TOPIC_TREE_ROOT_DIR`.
+No category directories are written under `ARTIFACT_DIR`; the tree is rooted only at `ARTIFACT_WEB_DIR`.
 
 ### 8. Record Chunk Run
 

@@ -181,3 +181,9 @@ Indexing provisions is the same as indexing summaries, except that provisions ar
 ```
 
 Its content is sorted by `<record_id>` and `<prov_id>` (provision ID).
+
+## Index Scenes
+Indexing scenes is the same as indexing summaries, except that scenes are stored in `scenes.txt` file.
+
+## Index Products
+Indexing products is the same as indexing summaries, except that scenes are stored in `products.txt` file.

@@ -30,9 +30,24 @@
 
 ---
 ## Push to GitHub
+If the current change is empty:
+```text
+jj bookmark set main -r @-
+```
+
+Otherwise,
 ```text
 jj describe -m "feat: description"
 jj bookmark set main -r @
+```
+
+Then:
+```text
+jj git push
+```
+
+If there are errors, try:
+```text
 jj git push --remote=origin -b main
 ```
 

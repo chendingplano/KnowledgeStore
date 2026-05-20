@@ -329,3 +329,32 @@ my-first-wiki/
 - Fail-Fast with Recover. Detect failures quickly. Don't let agents spiral. When failures occur, provide recovery
   paths. Retry with different approaches. Fall back to humans. Never fail silently.
 
+= 2026/05/20 - PDFCraft
+This is an open-source project. I have forked it (https://github.com/chendingplano/pdfcraft.git) and
+installed on MacMini. The good thing about this project is that it has 99+ PDF related tools.
+We can integrate these to SemOS.
+
+Visit ThirdParty/pdfcraft/USER_MANUAL.md for more information.
+
+= 2026/05/23 - Verify LLM Claims
+
+#let a_010 = link("
+  https://dzone.com/articles/fact-check-llm-outputs
+  ")[#text(fill: blue)[Article]]
+
+#a_010 \
+Source: dzone
+
+This article uses a separate LLM to verify the claims extracted by the primary LLM.
+We may want to do similar thing.
+
+= 2026/05/23 - DeepSeek Concurrency and User ID
+#let a_011 = link(
+  "https://api-docs.deepseek.com/quick_start/rate_limit"
+)[#text(fill:blue)[Link]]
+
+#a_011 \
+Source: Hacker News
+
+This link offers the connection concurrency and set user_id information.
+

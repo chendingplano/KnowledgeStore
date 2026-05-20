@@ -69,7 +69,7 @@ For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 ### 1.7 Summary File Format
 
 ```text
-summary_id: "<level>_dddd"
+summary_id: "<record_id>_<level>_dddd"
 record_id": 123
 level: 2
 lines: [ddd, ddd-ddd]

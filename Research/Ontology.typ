@@ -68,15 +68,55 @@
   keywords: ["Ontology", "Knowledge Graph", "Knowledge Base"],
 )
 
+#let a_001 = link(
+  "https://github.com/H2020-OpenModel/OntoFlow"
+)[#text(fill: blue)[OntoFlow]]
+
+#let ref_ontology_vs_semantic_layer = link(
+  "https://lowhangingdata.com/article/ontology-vs-semantic-layer/"
+)[#text(fill:blue)[Ontology vs Semantic Layer]]
 = Ontology
+
+== Ontology vs Semantic Layer
+#ref_ontology_vs_semantic_layer is a good article. It explains what ontology and semantic
+layer are; their differences; and how they work together.
+
+https://lowhangingdata.com/ focuses on data analysis. Read its introduction and the 'about' page
+for more information.
+
+== Ontology Rules
+
+[[def:Ontology Rules, Rules]]
+
+Entity relations are instances of 'a class', while Rules are the 'class'. 
+
+=== Rule-001 If ... Then ...
+
+*Example*
+```text
+If A is B's wife, B is A's husband
+If A is an investor of B, A works for C, C is a company, then C invests B
+```
+
+=== Rule-002 Entity Class
+Entity classes define a class and entities are instances of entity classes.
+Rules are often defined on entity classes in ontology instead of on individual entities.
+In most graphs, the class-instance relations are expressed explicitly, such as
+"Mockingbird is a Bird". In ontology, entity class is an attribute of entities.
+
+=== Rule-003 Relation Class
+Relation Class defines a category of entity relations (relations for short). Relations in knowledge graphs are
+instances of Relation Class. 
+
+=== Rule-004 Relation Hierarchy
 
 == Reviews
 
 === Open-Source: OntoFlow
 
-#let a_001 = link(
-  "https://github.com/H2020-OpenModel/OntoFlow"
-)[#text(fill: blue)[OntoFlow]]
-
 #a_001 \
 Date: 2026/04/27
+
+== References
+[1] #a_001 \
+[2] #ref_ontology_vs_semantic_layer \

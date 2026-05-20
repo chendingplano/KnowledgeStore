@@ -1,32 +1,319 @@
 A metric is a quantitative, measurable item used to evaluate, compare, monitor, verify, or assess something. Metrics are often defined in standards, specifications, requirements, policies, test plans, scorecards, or compliance documents.
 
+This processor uses a multi-pass extraction strategy.
+
 ## Input
 
-- record_id: the value of kb.inputs.id, identifies the record to process
-- blocks: refer to KnowledgeStore/DevDocuments/Specs/spec-blocking.md for information about blocks.
+- `record_id`: the value of `kb.inputs.id`
+- `blocks`: see the blocking spec
 - file name
 
 ## Implementation
-- The code is in the 'ChenWeb/' repo.
-- It may use functions/modules in 'shared/' repo.
 
-## LLM Output Format
-It uses an LLM to extract metrics. The LLM output format is:
+- The code is in `ChenWeb/`
+- It may use functions/modules in `shared/`
+
+## Multi-Pass
+
+Single-pass design asks one LLM call to do all of the following at once:
+
+- detect metric mentions
+- decide whether each candidate is a real metric
+- infer the final normalized metric schema
+- translate fields
+- generate category paths
+- implicitly handle overlap cleanup and dedup
+
+This caused:
+
+- unstable extraction counts
+- duplicate metrics from overlapping blocks
+- prompt/schema overload on smaller models
+- malformed or partial JSON outputs
+- weak deterministic cleanup
+
+### Multi-Pass Pipeline
+
+To solve the single-pass problem, we will use multi-pass pipeline, which 
+breaks the processing into multiple passes:
+
+1. Pass 1: extract metric candidates from each block
+2. Deterministic Step A: merge and deduplicate candidates across overlapping blocks
+3. Pass 2: enrich each merged candidate into final metric rows
+4. Deterministic Step B: final metric dedup before persistence
+
+### Pass 1: Metric Candidates
+
+Pass 1 uses:
+
+- model env: `EXTRACT_METRIC_CANDIDATES_MODEL_NAME`
+- prompt env: `EXTRACT_METRIC_CANDIDATES_PROMPT`
+
+Optional fallback:
+
+- `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK`
+
+Pass 1 output:
+
 ```json
 {
-   "metrics": [
-   {
+  "language": "string",
+  "candidates": [
+    {
+      "metric_name_hint": "string",
+      "subject_hint": "string",
+      "evidence_quote": "string",
+      "source_line_spans": ["12", "13:15"],
+      "unit_hint": "string",
+      "value_hint": "string",
+      "confidence": 0.0,
+      "confidence_reason": "string"
+    }
+  ]
+}
+```
+
+Pass 1 rules:
+
+- maximize recall for plausible metric candidates
+- do not generate the full final metric schema
+- do not generate category paths
+- do not translate
+- do not keep overlap-only candidates unless the same metric is supported by normal lines
+
+### Deterministic Candidate Merge
+
+Merge is currently **disabled**. Each mention from Pass 1 becomes its own candidate directly (no cross-block deduplication). Overlap-only candidates (those without any normal-line support) are still dropped.
+
+Rationale: the global merge by metric name/subject/unit/value was combining mentions from non-adjacent blocks, causing `source_line_spans` to contain line numbers from widely separated parts of the document (e.g., lines 237 and 2364 in the same span list).
+
+### Pass 2: Final Metric Rows
+
+Pass 2 uses:
+
+- model env priority:
+  - `ENRICH_METRICS_MODEL_NAME`
+  - `EXTRACT_METRICS_MODEL_NAME`
+- prompt env priority:
+  - `ENRICH_METRICS_PROMPT`
+  - `EXTRACT_METRICS_PROMPT`
+
+Pass 2 output:
+
+```json
+{
+  "language": "string",
+  "metrics": [
+    {
+      "metric_name": "string",
+      "metric_name_en": "string",
+      "source_line_spans": ["12", "13:15"],
+      "subject": "string",
+      "subject_en": "string",
+      "desc": "string",
+      "desc_en": "string",
+      "context": "string",
+      "context_en": "string",
+      "keywords": ["string"],
+      "keywords_en": ["string"],
+      "location_type": "sentence|bullet|table_row|table_cell|heading_context|mixed",
+      "unit": "string",
+      "unit_en": "string",
+      "metric_value": "string",
+      "value_data_type": "string",
+      "value_range_type": "string",
+      "value_class": "string",
+      "value_class_en": "string",
+      "formula_or_definition": "string",
+      "threshold_or_target": "string",
+      "measurement_frequency": "string",
+      "confidence": 0.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "string",
+      "reasoning_tags": ["string"],
+      "category_paths": [],
+      "category_paths_en": []
+    }
+  ],
+  "uncertain_metrics": []
+}
+```
+
+Important notes:
+
+- one output row = one metric
+- use only the merged candidate and its supporting evidence
+- `uncertain_metrics` may be returned by the LLM but are not persisted to `kb.metrics`
+- legacy typo `caetgory_paths_en` may appear in LLM output and should be normalized to `category_paths_en`
+
+### Thinking Behavior
+
+Metrics extraction must force thinking off for all passes:
+
+- primary candidate model
+- fallback candidate model
+- enrichment model
+
+Implementation rule:
+
+- set `ThinkingType = "disabled"` in metrics processor configs
+- shared LLM client must omit the `thinking` request field unless `ThinkingType == "enabled"`
+
+This avoids provider errors such as:
+
+- `Unknown parameter: 'thinking'`
+
+### Logging
+
+The processor should log:
+
+- candidate-pass start
+- raw parsed LLM payload/error
+- merged candidate count
+- enrichment-pass start
+- enrichment results
+- final dedup results
+
+The shared LLM client should also log the raw HTTP response body before decoding.
+
+### Metric ID
+
+Metrics are identified by:
+
+```text
+<record_id>_<seqno>
+```
+
+where `seqno` starts at `1`.
+
+## Workflow
+
+- For each block, run Pass 1 to extract metric candidates.
+- Retry candidate extraction with `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK` when the primary candidate model fails.
+- If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, treat the block as an empty candidate result.
+- Merge and deduplicate candidates deterministically.
+- For each merged candidate, run Pass 2 to enrich it into final metrics.
+- Deduplicate final metric rows.
+- Save final metrics to `kb.metrics`.
+- Write `.metrics` artifact output.
+- Index metrics.
+- Upsert status in `kb.inputs.status`.
+
+Failure status entry:
+
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_metrics",
+  "proc_status": "failed",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "error": "error-msg",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+Success status entry:
+
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_metrics",
+  "proc_status": "success",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+## Output Storage
+
+### Save to Table `kb.metrics`
+
+Construct a row for each final metric and insert it.
+
+Rules:
+
+- save the JetStream event ID to `event_id`
+- if the original language is English, do not generate/store:
+  - `metric_name_en`
+  - `metric_subject_en`
+  - `metric_desc_en`
+  - `metric_context_en`
+  - `metric_keywords_en`
+  - `metric_unit_en`
+  - `value_class_en`
+- save additional information to `ext_info`
+
+### Save to File
+
+Write all final metrics to:
+
+```text
+ARTIFACT_DIR/<group_id>/<record_id>/<filename_root>_<parser_name>.metrics
+```
+
+where:
+
+- `<group_id>` = `floor(record_id / 1000)`
+- `<filename_root>` is derived from `kb.inputs.staging_filename`
+- `<parser_name>` is `kb.inputs.parser_name`
+
+## Index Metrics
+
+### Index Metrics by Category Paths
+Refer to [1].
+
+### Full-Text Search Index
+Refer to [2] and [3].
+
+## Extract Metric API
+
+The preview API is still using the older single-pass flow.
+
+Inputs:
+
+- `record_id`
+- `lines`: `["ddd", "ddd-ddd", ...]`
+
+### Compose Input
+
+- treat selected lines as normal lines `n`
+- treat the five lines immediately before and after as overlap lines `o`
+- convert the raw lines into standard block format
+
+### Handler Workflow
+
+- read the record by `record_id`
+- compose the block input
+- load one prompt and one model config
+- make one LLM call
+- expect a top-level `metrics` array in that single response
+- return all extracted final metrics
+- do not save them to `kb.metrics`
+- properly handle all errors
+
+### Extract Metric API Response
+
+```json
+{
+  "status": true,
+  "metrics": [
+    {
       "metric_name": "...",
       "metric_name_en": "...",
       "metric_desc": "...",
       "metric_desc_en": "...",
-      "source_text": "...",
-      "source_text_en": "...",
-      "location_type": "sentence|bullet|table_row|table_cell|heading_context|mixed",
+      "metric_subject": "...",
+      "metric_subject_en": "...",
       "metric_context": "...",
       "metric_context_en": "...",
-      "metric_keywords": "...",
-      "metric_keywords_en": "...",
+      "metric_keywords": ["..."],
+      "metric_keywords_en": ["..."],
+      "source_line_spans": ["ddd", "ddd:ddd"],
+      "location_type": "...",
       "metric_unit": "...",
       "metric_unit_en": "...",
       "metric_value": "...",
@@ -37,175 +324,20 @@ It uses an LLM to extract metrics. The LLM output format is:
       "formula_or_definition": "...",
       "threshold_or_target": "...",
       "measurement_frequency": "...",
-      "metric_subject": "...",
-      "metric_subject_en": "...",
-      "line_spans":["ddd", "ddd:ddd"],
-      "confidence": 0.0,
-      "need_verify": true or false, 
-      "is_explicit_metric": true,
-      "table_name_or_section": "...",
-      "reasoning_tags": ["..."]
-      "category_paths": [
-         {
-            "category_path": [
-            {
-               "name": "public_health",
-               "keywords": ["health management", "disease prevention", "public health"],
-               "confidence": 0.95
-            },
-            {
-               "name": "vaccination",
-               "keywords": ["vaccination", "immunization", "vaccine administration"],
-               "confidence": 0.94
-            },
-            {
-               "name": "record_management",
-               "keywords": ["vaccination records", "recipient data", "immunization information system"],
-               "confidence": 0.92
-            }
-            ],
-            "path_keywords": ["vaccination records", "recipient data", "information system"],
-            "path_confidence": 0.92
-         },
-         {
-            <next category path>
-         },
-         ...
-      ],
-      "caetgory_paths_en": [...]
-   },
-   {
-      <next metric>
-   },
-   ...
-}
-```
-
-## Metric ID
-Metrics are identified by Metric IDs: `<record_id>_<seqno>`, where `<seqno>` is a sequence number,
-starting at 1. Examples:
-```
-201_1
-201_2
-...
-```
-
-Assign a metric ID for each of the metrics generated.
-
-## Workflow
-- For each block, it uses EXTRACT_METRICS_MODEL_NAME model with EXTRACT_METRICS_PROMPT prompt
-  to extract metrics from the block. Do not extract metrics from olverlap lines unless metrics live in both the overlap lines and normal lines.
-- After processed all the blocks, save the extracted metrics to kb.metrics (refer to "Output Storage" section).
-- Upsert the following entry to kb.input.status if faled:
-
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "extract_metrics",
-    "proc_status":"failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "error":"error-msg",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-Otherwise, upsert the following element to kb.inputs.status:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "extract_metrics",
-    "proc_status":"success",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Index Metrics
-Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md for information about
-indexing metrics.
-
-### Output Storage
-
-#### Save to Table `kb.metrics`
-Construct a record of 'kb.metrics' for each metric and upsert the record to the table. 
-When constructing the record, follow the following rules:
-* Save the JetSteram event ID to 'event_id'
-* If the original language is English, do not generate the fields 'metric_name_en', 'metric_subject_en', 
-  'metric_desc_en', 'metric_context_en', 'metric_keywords_en', and 'metric_unit_en'
-* Save additional information to 'ext_info'
-
-#### Save to File
-It saves all the metrics into a '.metrics' file. The file name is: 'ARTIFACT_DIR + /<group_id>/<record_id>/<filename_root>_<parser_name>.metrics',
-where:
-- '<group_id>' = floor(record_id / 1000)
-- '<filename_root>' is the root of 'kb.inputs.staging_filename'
-- '<parser_name>' is 'kb.inputs.parser_name'
-
-## Extract Metric API
-
-Frontend uses this API to extract metrics on selected content for **preview**. The API includes:
-- record_id: an integer
-- lines: specify the lines in the format: ["ddd", "ddd-ddd", ...]
-
-### Compose Input
-The input to the LLM is a block as defined in blocking-spec.md. To compose the block from the selected `lines`:
-- Treat the lines specified in `lines` as normal lines (`n`).
-- Treat the five lines immediately before and after `lines` as overlap lines (`o`).
-- Apply the blocking process (see blocking-spec.md) to convert the raw lines into block format, i.e., remove the `<font>`, `<font-size>`, and `<coordinate>` fields and prepend the `<flag>` field.
-
-### Handler Workflow
-- Read the record by `record_id`.
-- Compose the input
-- Use EXTRACT_METRICS_MODEL_NAME model with EXTRACT_METRICS_PROMPT prompt to extract metrics from the composed input.
-- Return **all extracted metrics** to the frontend.
-- Do **not** save the extracted metrics to `kb.metrics` in this handler.
-- Properly handle all errors.
-
-### Extract Metric API Response
-
-The handler returns:
-
-```json
-{
-  "status": true,
-  "metrics": [
-    {
-      "metric_name": "...",
-      "metric_desc": "...",
-      "metric_subject": "...",
-      "source_line_spans": ["ddd", "ddd:ddd"],
-      "location_type": "...",
-      "metric_unit": "...",
-      "metric_value": "...",
-      "value_data_type": "...",
-      "value_range_type": "...",
-      "value_class": "...",
-      "formula_or_definition": "...",
-      "threshold_or_target": "...",
-      "measurement_frequency": "...",
       "confidence": 0.0,
       "is_explicit_metric": true,
       "table_name_or_section": "...",
-      "reasoning_tags": ["..."]
+      "reasoning_tags": ["..."],
+      "category_paths": [],
+      "category_paths_en": []
     }
   ]
 }
 ```
 
-The frontend should:
-
-1. Show a loading spinner while the request is running.
-2. List all returned metrics.
-3. Let the user remove unwanted metrics.
-4. Save only the remaining metrics after the user presses **Save**.
-
 ## Save Extracted Metrics API
 
-This API persists the reviewed metrics returned by the Extract Metric API.
+This API persists reviewed final metric rows returned by the preview flow.
 
 ### Request
 
@@ -215,22 +347,33 @@ This API persists the reviewed metrics returned by the Extract Metric API.
   "metrics": [
     {
       "metric_name": "...",
+      "metric_name_en": "...",
       "metric_desc": "...",
+      "metric_desc_en": "...",
       "metric_subject": "...",
+      "metric_subject_en": "...",
+      "metric_context": "...",
+      "metric_context_en": "...",
+      "metric_keywords": ["..."],
+      "metric_keywords_en": ["..."],
       "source_line_spans": ["ddd", "ddd:ddd"],
       "location_type": "...",
       "metric_unit": "...",
+      "metric_unit_en": "...",
       "metric_value": "...",
       "value_data_type": "...",
       "value_range_type": "...",
       "value_class": "...",
+      "value_class_en": "...",
       "formula_or_definition": "...",
       "threshold_or_target": "...",
       "measurement_frequency": "...",
       "confidence": 0.0,
       "is_explicit_metric": true,
       "table_name_or_section": "...",
-      "reasoning_tags": ["..."]
+      "reasoning_tags": ["..."],
+      "category_paths": [],
+      "category_paths_en": []
     }
   ]
 }
@@ -238,14 +381,18 @@ This API persists the reviewed metrics returned by the Extract Metric API.
 
 ### Save Handler Workflow
 
-- Read `record_id` and `metrics` from the request.
-- Validate that `record_id` is positive and `metrics` is not empty.
-- Construct a record of `kb.metrics` for each metric and upsert the record to the table.
-- When constructing the record, follow the following rules:
-  * Set `event_id` = `rest-api`
-  * If the original language is English, do not generate the fields `metric_name_en`, `metric_subject_en`,
-    `metric_desc_en`, `metric_context_en`, `metric_keywords_en`, and `metric_unit_en`
-  * Save additional information to `ext_info`
-- Return the number of inserted metrics.
+- read `record_id` and `metrics`
+- validate `record_id > 0`
+- validate `metrics` is not empty
+- create `kb.metrics` table if needed
+- insert rows into `kb.metrics`
+- assign `metric_id = <record_id>_<seqno>` based on existing row count
+- set `event_id = rest-api`
+- save `ext_info = {"source":"rest-api","schema_version":"2"}`
+- leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
+- return the number of inserted metrics
 
-Properly handle all errors!
+## References
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md\
+[2] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-design.md \
+[3] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-impl.md

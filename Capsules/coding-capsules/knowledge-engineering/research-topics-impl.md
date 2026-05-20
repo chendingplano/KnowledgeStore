@@ -1,8 +1,8 @@
-# Research Topics — Implementation Notes
+# Research ResearchTopics — Implementation Notes
 
 ## Overview
 
-The Research Topics page is a ChenWeb home3 feature that surfaces the Research Topic Bean (RTB) ontology defined in `research-topics.md` as a browsable, searchable UI. It lives under the **Knowledge Engineering** section in the home3 nav rail.
+The Research ResearchTopics page is a ChenWeb home3 feature that surfaces the Research Topic Bean (RTB) ontology defined in `research-topics.md` as a browsable, searchable UI. It lives under the **Knowledge Engineering** section in the home3 nav rail.
 
 ---
 
@@ -13,6 +13,80 @@ The Research Topics page is a ChenWeb home3 feature that surfaces the Research T
 | `ChenWeb/web/src/lib/components/home3/research-topics-view.svelte` | Main view component |
 | `ChenWeb/web/src/lib/components/home3/nav-rail.svelte` | Nav registration |
 | `ChenWeb/web/src/lib/components/home3/content-panel.svelte` | Render dispatch |
+| `ChenWeb/server/api/kehandler/handler.go` | Go backend handler |
+| `ChenWeb/server/api/routes.go` | Route registration |
+| `ChenWeb/.env` | Environment variable definitions |
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ARTIFACT_DIR` | **Yes** | Absolute path to the root artifacts directory. RTB files are stored under `$ARTIFACT_DIR/ResearchTopics/`. Must be set before starting the server; the handler returns HTTP 500 if absent. |
+
+### Storage layout
+
+```
+$ARTIFACT_DIR/
+└── ResearchTopics/
+    └── <bean_category>/          ← maps directly from the RTB's bean_category field
+        ├── <bean_name>.json      ← full RTB metadata (all fields, used for listing)
+        └── <bean_name>.<ext>     ← content artifact (.md / .typ / .text / .html)
+```
+
+**Example** — for a bean with `bean_category = "knowledge-engineering/ingestion"`,
+`bean_name = "chunking-strategy-spec"`, `file_type = "Typst"`:
+
+```
+$ARTIFACT_DIR/ResearchTopics/knowledge-engineering/ingestion/chunking-strategy-spec.json
+$ARTIFACT_DIR/ResearchTopics/knowledge-engineering/ingestion/chunking-strategy-spec.typ
+```
+
+### Current value (ChenWeb/.env)
+
+```
+ARTIFACT_DIR=/Users/cding/Workspace/ChenWeb/Data/artifacts
+```
+
+---
+
+## API Endpoints
+
+Both routes sit inside the authenticated `apiGroup` (`/api/v1`, requires JWT).
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| `GET` | `/api/v1/ke/research-topics` | `kehandler.List` | Walk `$ARTIFACT_DIR/ResearchTopics/**/*.json` and return all beans |
+| `POST` | `/api/v1/ke/research-topics` | `kehandler.Create` | Validate, write metadata JSON + content artifact, return 201 |
+
+### Create request body
+
+```json
+{
+  "bean_name":         "chunking-strategy-spec",
+  "research_title":    "Document Chunking Strategy",
+  "research_subtitle": "Specification for Semantic and Structural Chunking Approaches",
+  "bean_type":         "Spec",
+  "file_type":         "Typst",
+  "bean_category":     "knowledge-engineering/ingestion",
+  "bean_desc":         "...",
+  "bean_keywords":     ["chunking", "ingestion"],
+  "authors":           ["Chen Ding"],
+  "related_topics":    ["vector-embeddings-retrieval"],
+  "content":           "= Document Chunking Strategy\n..."
+}
+```
+
+Required fields: `bean_name`, `research_title`, `research_subtitle`, `bean_type`, `file_type`, `bean_category`.
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Missing required field, invalid `bean_type`/`file_type`, unsafe `bean_category` (path traversal) |
+| 409 | A bean with the same `bean_name` already exists in the same `bean_category` |
+| 500 | `ARTIFACT_DIR` not set, or filesystem write failure |
 
 ---
 
@@ -29,20 +103,18 @@ A new top-level nav item was added to `mainNav` under the **Workspace** group, a
   icon: BrainIcon,           // @lucide/svelte/icons/brain
   group: 'Workspace',
   children: [
-    { id: 'ke-research-topics', label: 'Research Topics' }
+    { id: 'ke-research-topics', label: 'Research ResearchTopics' }
   ]
 }
 ```
 
-The `BrainIcon` was imported alongside the existing Lucide icon imports.
-
 ### content-panel.svelte
 
-Three additions were made:
+Three additions:
 
 1. **Import** the view component:
    ```typescript
-   import ResearchTopicsView from '$lib/components/home3/research-topics-view.svelte';
+   import ResearchResearchTopicsView from '$lib/components/home3/research-topics-view.svelte';
    ```
 
 2. **Section icon and description** entries:
@@ -57,7 +129,7 @@ Three additions were made:
 3. **Render branch** in the if-else chain:
    ```svelte
    {:else if activeMenu?.childId === 'ke-research-topics'}
-     <ResearchTopicsView {darkMode} />
+     <ResearchResearchTopicsView {darkMode} />
    ```
 
 ---
@@ -65,8 +137,6 @@ Three additions were made:
 ## View Component — `research-topics-view.svelte`
 
 ### Layout
-
-The view uses a master-detail split:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -79,11 +149,22 @@ The view uses a master-detail split:
 └───────────────────────┴─────────────────┘
 ```
 
-When no bean is selected the list fills the full width. Selecting a card opens the detail panel alongside it; the list width transitions to 420px.
+When no bean is selected the list fills the full width. Selecting a card opens the detail panel alongside it (list width transitions to 420px).
 
-### Bean Type Color Coding
+### Data loading
 
-Each `bean_type` has a distinct accent color applied to its icon badge and type chip:
+Beans are fetched from the API on mount. The component handles three non-happy-path states explicitly: loading spinner, error banner with a retry button, and an empty-state card that distinguishes "no beans exist yet" from "no beans match the current filter".
+
+### New RTB modal
+
+Clicking **+ New RTB** opens a modal over the view. All RTB fields are present:
+
+- Required (disable submit until filled): `research_title`, `research_subtitle`, `bean_name`, `bean_type`, `file_type`, `bean_category`
+- Optional: `bean_desc`, `bean_keywords`, `authors`, `related_topics`, `content`
+
+`bean_keywords`, `authors`, and `related_topics` are entered as comma-separated strings and split into arrays before submission. `content` is sent verbatim and written to the artifact file. On success the new bean is prepended to the list without a full reload.
+
+### Bean Type color coding
 
 | Type | Color |
 |------|-------|
@@ -95,39 +176,18 @@ Each `bean_type` has a distinct accent color applied to its icon badge and type 
 
 ### Filtering
 
-Two filter mechanisms are applied together via a `$derived` expression:
+Two filters applied together via `$derived`:
 
-- **Search** — matches against `bean_name`, `research_title`, `bean_desc`, and `bean_keywords` (case-insensitive)
+- **Search** — matches `bean_name`, `research_title`, `bean_desc`, and `bean_keywords` (case-insensitive)
 - **Bean Type chips** — "All" or any of the five `BeanType` values
 
-### Detail Panel
-
-Selecting a card renders the full RTB attribute set:
-
-- Attribute grid (2-column): bean_name, bean_type, file_type with extension, bean_category, authors
-- Description block
-- Keywords (pill chips with accent tint)
-- Related topics (monospace list items)
-
-### Design Tokens
-
-The component mirrors the home3 palette exactly, using the same `darkMode`-derived variables as every other home3 view:
-
-```typescript
-let pageBg      = $derived(darkMode ? '#171B26' : '#F2F4F7');
-let cardBg      = $derived(darkMode ? '#1F2333' : '#FFFFFF');
-let accent      = $derived(darkMode ? '#818CF8' : '#6366F1');
-// … etc.
-```
-
-### TypeScript Types
+### TypeScript types
 
 ```typescript
 type BeanType = 'Thoughts' | 'Design' | 'Spec' | 'Implementation' | 'Reading';
 type FileType = 'Markdown' | 'Typst' | 'Text' | 'HTML';
 
 interface ResearchTopicBean {
-  id: string;
   bean_name: string;
   bean_desc?: string;
   bean_keywords?: string[];
@@ -139,22 +199,31 @@ interface ResearchTopicBean {
   bean_category: string;
   authors?: string[];
   content?: string;
+  created_at?: string;
 }
 ```
 
-All fields match the ontology defined in `research-topics.md`. Optional fields (`bean_desc`, `bean_keywords`, `related_topics`, `authors`, `content`) are guarded with `?.` and omitted from the detail panel when absent.
-
 ---
 
-## Current State
+## Seed Data
 
-The view ships with five hardcoded sample beans covering all five `BeanType` values and all four `FileType` values. No backend API is wired yet.
+20 RTBs covering common knowledge engineering topics were written directly to disk under `$ARTIFACT_DIR/ResearchTopics/knowledge-engineering/`. They span all five bean types and both `.md` and `.typ` file formats:
+
+| Sub-category | Beans |
+|---|---|
+| `graphs` | knowledge-graph-fundamentals, graph-embedding-methods, knowledge-graph-completion, kgqa-implementation |
+| `ontology` | ontology-design-patterns, ontology-alignment |
+| `retrieval` | vector-embeddings-retrieval, vector-database-architecture, rag-system-design, semantic-similarity-metrics |
+| `ingestion` | document-chunking-strategy, document-classification-thoughts, document-summarization-pipeline |
+| `extraction` | named-entity-recognition, information-extraction-pipeline, entity-resolution |
+| `structure` | topic-tree-construction, taxonomy-construction |
+| `representation` | cross-lingual-knowledge-representation, provenance-tracking |
 
 ---
 
 ## Next Steps
 
-- **API integration** — connect to a `/api/knowledge-engineering/research-topics` endpoint; replace `SAMPLE_BEANS` with a fetch-on-mount pattern matching the pattern used in `diary-view.svelte`
-- **Create / Edit flow** — the "+ New RTB" button is rendered but not yet wired; needs a modal or inline form
-- **Content rendering** — the `content` field is part of the type but not displayed; Markdown and Typst content could be rendered inline in the detail panel
-- **`bean_category` navigation** — categories map to file paths in the KnowledgeStore; clicking a category could open the corresponding capsule directory
+- **Content rendering** — the `content` field is stored in the artifact file but not yet displayed in the detail panel; Markdown could be rendered with a lightweight parser, Typst as plain text
+- **Edit flow** — no edit/delete UI yet; beans can only be created or modified directly on disk
+- **`bean_category` navigation** — categories map to file paths; clicking a category badge could open a filtered view or the corresponding KnowledgeStore capsule directory
+- **Pagination / sorting** — the list handler returns all beans unsorted; large collections will need server-side pagination or client-side virtual scrolling

@@ -184,7 +184,7 @@ Add environment-backed configuration to `FixedSizeChunkingService`:
 - `CHUNK_SUMMARY_PROMPT`
 - `SUMMARY_GROUP_SIZE`
 - `ARTIFACT_WEB_DIR` — directory used for summary-tree indexing (previously `ARTIFACT_WEB_DIR`)
-- `SUMMARY_CLUSTER_DIR`
+- `ARTIFACT_WEB_DIR`
 - `SUMMARY_CLUSTER_SIMILARITY_THRESHOLD`
 - `RECLUSTERING_DAYS`
 - `SUMMARY_EMBEDDING_MODEL_NAME` if embeddings are generated through a separate model
@@ -273,7 +273,7 @@ Notes:
 
 Store cross-record cluster markdown files in:
 
-- `SUMMARY_CLUSTER_DIR/cluster_000001_some_slug.md`
+- `ARTIFACT_WEB_DIR/cluster_000001_some_slug.md`
 
 Markdown format follows the chunk summary spec:
 
@@ -390,7 +390,7 @@ When a record is re-chunked:
 
 1. Delete existing `summary_*` files in `ARTIFACT_DIR/<group_id>/<record_id>/` before generating new summary files.
 2. Remove all summary IDs that start with `<record_id>_` from every `summaries.txt` file under `ARTIFACT_WEB_DIR` before writing the new root-summary reference. After removal, append the new root summary ID to the target leaf file (do not overwrite — other records' IDs in that file must be preserved).
-3. Load cluster files from `SUMMARY_CLUSTER_DIR` and remove any summary references belonging to the current `record_id` before assigning new summaries to clusters.
+3. Load cluster files from `ARTIFACT_WEB_DIR` and remove any summary references belonging to the current `record_id` before assigning new summaries to clusters.
 4. Delete cluster files that become empty after removal.
 5. Generate fresh summaries and reassign them to trees and clusters.
 
@@ -422,7 +422,7 @@ For each new candidate summary:
 
 Track full reclustering metadata using a small local metadata file under the cluster directory, for example:
 
-- `SUMMARY_CLUSTER_DIR/_cluster_state.json`
+- `ARTIFACT_WEB_DIR/_cluster_state.json`
 
 This file stores:
 
@@ -503,7 +503,7 @@ Add failing tests to `ChenWeb/server/api/doc-processing/chunking_test.go` for:
 3. `HandleInput` writes root-summary IDs into the categorized `ARTIFACT_WEB_DIR` leaf
 4. reprocessing removes stale summary files before rewriting
 5. reprocessing replaces prior root-summary references for the same record in `ARTIFACT_WEB_DIR`
-6. cluster markdown files are created in `SUMMARY_CLUSTER_DIR` with stable cluster IDs
+6. cluster markdown files are created in `ARTIFACT_WEB_DIR` with stable cluster IDs
 7. cluster reassignment replaces prior summaries for the same record
 8. summary generation failure persists failed input status
 9. summary-tree write failure persists failed input status
