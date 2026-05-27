@@ -131,7 +131,7 @@ Implemented by `ProductsSQLStore{DB *sql.DB}`.
 | `EXTRACT_PRODUCT_MENTIONS_PROMPT` | Pass 1 prompt file name or path |
 | `ENRICH_PRODUCT_RELATIONS_MODEL_NAME` | Pass 2 model reference |
 | `ENRICH_PRODUCT_RELATIONS_PROMPT` | Pass 2 prompt file name or path |
-| `MODEL_CONFIG_FILE` | Path to models config file |
+| `MODEL_DEF_FILE` | Path to models config file |
 | `EXTRACT_PRODUCT_MODEL_FALLBACK` | Shared fallback model reference |
 
 ### Optional pass configuration

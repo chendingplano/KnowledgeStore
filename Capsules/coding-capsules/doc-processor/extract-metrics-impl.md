@@ -201,7 +201,7 @@ Enrichment model loading:
 
 All metrics model configs are loaded from:
 
-- `MODEL_CONFIG_FILE`
+- `MODEL_DEF_FILE`
 
 ## Input Handling
 

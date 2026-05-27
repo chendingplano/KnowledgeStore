@@ -1,16 +1,15 @@
 A semantic projection is a a compact, semantically rich representation optimized for retrieval, discoverability, clustering, and semantic matching.
 
-This processor uses a multi-pass extraction strategy.
+Extract semantic projection is a doc processor (refer to [4]). It uses a multi-pass extraction strategy.
 
 ## Input
 
 - `record_id`: the value of `kb.inputs.id`
-- `chunks`
+- `chunks`: using the fix-size chunking (refer to [5])
 
 ## Implementation
 
-- The code is in `ChenWeb/`
-- It may use functions/modules in `shared/`
+Refer to [6] for its implementation.
 
 ## Multi-Pass Pipeline
 
@@ -19,7 +18,7 @@ Multi-pass pipeline breaks the processing into multiple passes:
 1. Pass 1: extract semantic projection candidates from each chunk.
 2. Pass 2: enrich each candidate into final semantic projection rows
 
-### Pass 1: Metric Candidates
+### Pass 1: Extract Candidates
 
 Pass 1 uses:
 
@@ -39,35 +38,46 @@ Pass 1 output:
 }
 ```
 
-### Pass 2: Final Metric Rows
+### Pass 2
 
 Pass 2 uses:
 
 - model env priority:
   - `ENRICH_SEMANTIC_PROJECTION_MODEL_NAME`
-  - `EXTRACT_SEMANTIC_PROJECTION_MODEL_NAME`
 - prompt env priority:
   - `ENRICH_SEMANTIC_PROJECTION_PROMPT`
-  - `EXTRACT_SEMANTIC_PROJECTION_PROMPT`
 
 Pass 2 output:
 
 ```json
 {
   "language": "string",
-  "metrics": [
+  "descriptive_name": "string",
+  "descriptive_name_en": "string",
+  "keywords":["string"],
+  "keywords_en":["string"],
+  "category_paths": [
     {
-      "category_paths": [],
-      "category_paths_en": []
+      "category_path": [
+        {"name": "string", "keywords": ["string"], "confidence": 0.0},
+        {"name": "string", "keywords": ["string"], "confidence": 0.0}
+      ],
+      "path_keywords": ["string"],
+      "path_confidence": 0.0
     }
   ],
-  "uncertain_metrics": []
+  "category_paths_en": [
+    {
+      "category_path": [
+        {"name": "string", "keywords": ["string"], "confidence": 0.0},
+        {"name": "string", "keywords": ["string"], "confidence": 0.0}
+      ],
+      "path_keywords": ["string"],
+      "path_confidence": 0.0
+    }
+  ]
 }
 ```
-
-Important notes:
-
-- one output row = one metric
 
 ### Logging
 
@@ -91,12 +101,16 @@ Semantic projectionsare identified by:
 
 where `<level>` is the chunk level, `<seqno>` is a sequence number within a given level, starts at `1`.
 
+Assign a semantic projection ID to each semantic projection.
+
 ## Workflow
 
 - For each chunk, run Pass 1 to extract its semantic projection.
 - Retry extraction with `EXTRACT_SEMANTIC_PROJECTION_MODEL_FALLBACK` when the primary candidate model fails.
 - If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, it is an error.
 - For each semantic projection, run Pass 2 to enrich it into final semantic projection.
+- Generate a semantic projection ID for each semantic projection and save it as `semantic_proj_id`
+- Add a `create_time` to each semantic projection.
 - Save final semantic projection to `kb.semantic_projections`.
 - Write `.semantic_projections` artifact output.
 - Index semantic projections.
@@ -108,7 +122,7 @@ Failure status entry:
 {
   "record_id": "ddd",
   "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_semantic_projection",
+  "operation": "extract_semantic_projections",
   "proc_status": "failed",
   "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
   "error": "error-msg",
@@ -123,7 +137,7 @@ Success status entry:
 {
   "record_id": "ddd",
   "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_semantic_projection",
+  "operation": "extract_semantic_projections",
   "proc_status": "success",
   "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
   "start_time": "yyyymmdd hh:mm:ss",
@@ -135,7 +149,7 @@ Success status entry:
 
 ### Save to Table `kb.semantic_projections`
 
-Construct a row for each final metric and insert it.
+Construct a row for each final semantic projection and insert it.
 
 Rules:
 
@@ -145,7 +159,7 @@ Rules:
 
 ### Save to File
 
-Write all final semantic projections to:
+Write all final semantic projections in JSON to:
 
 ```text
 ARTIFACT_DIR/<group_id>/<record_id>/<filename_root>_<parser_name>.semantic_projections
@@ -163,30 +177,12 @@ where:
 Refer to [1].
 
 ### Full-Text Search Index
-Refer to [2] and [3].
-
-### Handler Workflow
-
-- read the record by `record_id`
-- compose the chunk input
-- load one prompt and one model config
-- make one LLM call
-- expect the semantic projection for the chunk
-- properly handle all errors
-
-### Save Handler Workflow
-
-- read `record_id` and `semantic_projections`
-- validate `record_id > 0`
-- validate `semantic_projection` is not empty
-- create `kb.semantic_projections` table if needed
-- insert rows into `kb.semantic_projections`
-- set `event_id = rest-api`
-- save `ext_info = {"source":"rest-api","schema_version":"2"}`
-- leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
-- return the number of inserted metrics
+Make sure semantic projections can be full-text searched, similar to [2] and [3].
 
 ## References
-[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md\
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md \
 [2] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-design.md \
-[3] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-impl.md
+[3] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-impl.md \
+[4] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md \
+[5] KnowledgeStore/Capsules/coding-capsules/chunking/+CAPSULE.md \
+[6] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-semantic-projection-impl.md

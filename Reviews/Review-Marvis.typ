@@ -35,15 +35,23 @@
 #show heading.where(level: 3): it => pad(top: 4pt, it)
 
 #let frontmatter = (
-  FileType: "typst",
-  Source: "https://marvis.qq.com",
-  ArtifactType: "Product from Tecent",
-  DocumentDate: "2026/05/25",
-  Keywords: [Agent OS, Agentic System, Personal AI Assistant, multi-agent, computer-use],
+  keywords: [Agent OS, Agentic System, Personal AI Assistant, multi-agent, computer-use],
+  file_type: "typst",
+  logical_name: "TecentDB Agent Memory",
+  file_id: "2026051801",
+  source: "https://github.com/Tencent/TencentDB-Agent-Memory",
+  content_type: "review",
+  document_date: "2026/05/25",
 )
 
 = Overview
-Tencent’s Marvis (马维斯) is positioned as an *operating-system-level personal AI assistant*, which is a materially different ambition from the typical chatbot or browser-based AI copilot. Rather than acting only as a conversational interface, Marvis is designed to understand and operate across the user’s local computing environment—system settings, files, applications, and cross-device workflows—so the computer itself becomes a manipulable AI-native environment. Tencent frames it less as “an app you talk to” and more as an AI middleware layer between the user and the operating system. ([China Daily][1])
+Tencent’s Marvis (马维斯) is positioned as an *operating-system-level personal AI assistant*, 
+which is a materially different ambition from the typical chatbot or browser-based AI copilot. 
+Rather than acting only as a conversational interface, Marvis is designed to understand and 
+operate across the user’s local computing environment—system settings, files, applications, 
+and cross-device workflows—so the computer itself becomes a manipulable AI-native environment. 
+Tencent frames it less as “an app you talk to” and more as an AI middleware layer between the 
+user and the operating system. ([China Daily][1])
 
 A core design theme is *agentic task execution*. Marvis appears to use a [[ref:multi-agent]] 
 architecture where a coordinating agent delegates work to specialized [[ref:sub-agents]] 

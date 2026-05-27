@@ -35,11 +35,13 @@
 #show heading.where(level: 3): it => pad(top: 4pt, it)
 
 #let frontmatter = (
-  FileType: "typst",
-  Source: "https://github.com/Tencent/TencentDB-Agent-Memory",
-  ArtifactType: "Open-Source Project",
-  DocumentDate: "2026/05/18",
-  Keywords: [Memory, LLM Memory, Memory Management, Tencent, TencentDB],
+  file_type: "typst",
+  logical_name: "TecentDB Agent Memory",
+  file_id: "2026051801",
+  source: "https://github.com/Tencent/TencentDB-Agent-Memory",
+  content_type: "review",
+  document_date: "2026/05/18",
+  keywords: [Memory, LLM Memory, Memory Management, Tencent, TencentDB],
 )
 
 #let a_001 = link(

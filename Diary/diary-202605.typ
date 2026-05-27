@@ -358,3 +358,82 @@ Source: Hacker News
 
 This link offers the connection concurrency and set user_id information.
 
+= 2026/05/26 - OpenGUI
+
+#let a_012 = link(
+  "https://github.com/akemmanuel/OpenGUI"
+)[#text(fill:blue)[GitHub]]
+
+#a_012 \
+Source: WeChat
+
+This is an open-source that provides a uniform GUI for coding assistants, such as
+Claude Code, Codex, Pi, etc.
+
+= 2026/05/26 - Pandoc
+
+#let a_013 = link(
+  "https://github.com/jgm/pandoc"
+)[#text(fill:blue)[GitHub]]
+
+#a_013 \
+Source: WeChat
+
+Pandoc 是一个开源的文件转换工具，可以用它把 Markdown 转成 Word，也可以把 Word 转成 
+Markdown，把网页 HTML 转成 Markdown，把 Markdown 转成 PDF、PPTX、EPUB，或者处理 CSV、LaTeX、Org、Jupyter Notebook 等格式。
+
+= 2026/05/26 - Open-Source OCR Projects
+
+#let a_014 = link(
+  "https://github.com/RapidAI/RapidOCR"
+)[#text(fill:blue)[RapidOCR]]
+
+#let a_015 = link(
+  "https://github.com/JaidedAI/EasyOCR"
+)[#text(fill:blue)[EasyOCR]]
+
+#let a_016 = link(
+  "https://github.com/VikParuchuri/surya"
+)[#text(fill:blue)[Surya]]
+
+= 2026/05/26 - Build Knowledge Web Skill
+#let a_017 = link(
+  "https://github.com/cyj4578/chen-skillshub/blob/main/chen-knowledge-web/SKILL.md"
+)[#text(fill:blue)[GitHub]]
+
+#a_017 \
+Source: WeChat
+
+This is a skill to build a knowledge web.
+
+= 2026/05/26 - Tecent Marvis
+
+#let a_018 = link(
+  "https://marvis.qq.com/"
+)[#text(fill: blue)[URL]]
+
+#a_018 \
+Source: WeChat
+
+It is Tecent's solution to "AI Operating System". We may want to install it.
+
+= 2026/05/27 - Claude Code Guidelines
+
+#let a_019 = link(
+  "https://arps18.github.io/posts/claude-code-mastery/"
+)[#text(fill:blue)[URL]]
+
+#a_019 \
+Source: Hacker News
+
+Very important document. Need to read!
+
+= 2026/05/27 - Constract Review
+#let a_020 = link(
+  "https://mp.weixin.qq.com/s/hNqb7wDxvjS7zWzsW89D6A"
+)[#text(fill: blue)[URL]]
+
+#a_020 \
+Source WeChat
+
+This link has a few skills, including a contract review skill.

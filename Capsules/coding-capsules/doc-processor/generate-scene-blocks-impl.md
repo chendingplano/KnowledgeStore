@@ -45,7 +45,7 @@ Chunk parameters (`CHUNK_SIZE`, `CHUNK_OVERLAP_PERCENT`) are read from the same 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `EXTRACT_SCENE_BLOCKS_MODEL_NAME` | LLM model reference | — |
-| `MODEL_CONFIG_FILE` | Models config file | '.models.toml' |
+| `MODEL_DEF_FILE` | Models config file | '.models.toml' |
 | `EXTRACT_SCENE_BLOCKS_PROMPT` | Prompt file name | `prompt-generate-scene-blocks.md` |
 | `PROMPT_DIR` | Directory for prompt files | — |
 | `CHUNK_SIZE` | Lines per chunk (shared with chunking) | `300` |

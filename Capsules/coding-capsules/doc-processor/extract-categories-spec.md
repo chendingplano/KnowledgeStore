@@ -187,3 +187,11 @@ Indexing scenes is the same as indexing summaries, except that scenes are stored
 
 ## Index Products
 Indexing products is the same as indexing summaries, except that scenes are stored in `products.txt` file.
+
+## Index Semantic Projections
+Indexing semantic projections is the same as indexing summaries, except that semantic projections
+are stored in `semantic_projections.txt`. Save semantic projects (JSON) in the file.
+
+## Index Structured Knowledge
+Indexing structured knowledge is the same as indexing summaries, except that structured knowledge
+is stored in `knowledges.txt`. Save structured knowledge JSON (not just its `knowledge_id`) in the file.

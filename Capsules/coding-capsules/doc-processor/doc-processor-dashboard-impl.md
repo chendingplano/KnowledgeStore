@@ -100,9 +100,9 @@ type StatusEntry = {
 
 `StatusEntry` extends the `KbInputRecord['status'][number]` shape with `progress`. Entries from `record.status` are cast to `StatusEntry` when read into the internal `statusMap`.
 
-`PIPELINE_FINAL_OPS` — the complete set of doc-processor operations that must reach a final state: `blocking`, `structure_analyzer`, `chunking`, `extract_doc_metadata`, `extract_metrics`, `extract_provisions`, `generate_summaries`.
+`PIPELINE_FINAL_OPS` — the complete set of doc-processor operations that must reach a final state: `blocking`, `structure_analyzer`, `chunking`, `extract_doc_metadata`, `extract_metrics`, `extract_provisions`, `generate_summaries`, `extract_entity_relation`.
 
-`ALL_PROCESSOR_IDS` — the subset of processors that can be explicitly requested in launch/restart payloads: `structure_analyzer`, `chunking`, `extract_doc_metadata`, `extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`.
+`ALL_PROCESSOR_IDS` — the subset of processors that can be explicitly requested in launch/restart payloads: `structure_analyzer`, `chunking`, `extract_doc_metadata`, `extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `extract_entity_relation`.
 
 ## Wiring
 

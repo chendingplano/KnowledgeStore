@@ -63,6 +63,9 @@ Currently, it has the following doc processors:
 |8 | generate_topics | configurable | after 3 | Generate topics. Refer to [8] |
 |9 | generate_scene_blocks | configurable | after 3 | Generate scene blocks. Refer to [9] |
 |10 | extract_products | configurable | after 1 | Extract product relations. Refer to [10] |
+|11 | extract_semantic_projections | configurable | after 3 | Extract semantic projections. Refer to [11] |
+|12 | extract_structured_knowledge | configurable | after 3 | Extract structured knowledge. Refer to [12] |
+|13 | extract_entity_relation | configurable | after 3 | Extract entities and relations. Refer to [13] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -72,11 +75,11 @@ For instance, 'after 1' means it uses the Blocking Processor's output as its inp
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_products`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_products`, `extract_semantic_projections`, `extract_structured_knowledge`, `extract_entity_relation`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Example:
 
 ```toml
 [doc-processing]
-required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_products"]
+required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_products", "extract_semantic_projections", "extract_structured_knowledge", "extract_entity_relation"]
 ```
 
 If `required_processors` is absent or empty, no configurable processors run by default.
@@ -226,7 +229,53 @@ Status JSON:
 }
 ```
 
----
+### Extract Semantic Projection
+When: When the extract semantic projection ([11]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_semantic_projections",
+  "proc_status": "success",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+### Extract Structured Knowledge
+When: When the extract structured knowledge ([12]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_structured_knowledges",
+  "proc_status": "success | failed",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+### Extract Entity & Relation
+When: When the extract entity-relation ([13]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_entity_relation",
+  "proc_status": "success | failed",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "error": "xxx",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
 
 ## JetStream Request
 
@@ -270,6 +319,58 @@ Important:
 - Apply Blocking Processor to break the input file into blocks. Save the result into Block Buffer.
 - Apply all the doc processors in the same order as listed in "Doc Processing Pipeline" section
 
+## Add New Doc Processor
+
+Use this checklist when adding a new doc processor (mandatory or configurable).
+
+### 1. Documentation
+
+- Create a spec file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-spec.md`
+- Create an impl file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-impl.md`
+- Add the processor to the **Doc Processing Pipeline** table in this file with its seqno, type (`mandatory` / `configurable`), dependency, and a reference link.
+- Add a status JSON subsection under **Doc Process Status** in this file.
+- If configurable, add the processor name to the `required_processors` example in the **Processor Categories** section.
+
+### 2. Implementation
+
+- Implement the processor in `ChenWeb/server/api/doc-processing/`.
+- Register it in `ChenWeb/server/cmd/doc-processor/main.go`.
+- If configurable, add its name to `[doc-processing].required_processors` in `config.toml`.
+
+### 3. Full-Text Search Index
+
+Every processor whose output should be full-text searchable needs a dedicated `search_artifacts` partition and indexer:
+
+- Add a `searchArtifactXxx` string constant in `ChenWeb/server/api/doc-processing/search_indexing.go`.
+- Add `ReindexXxxSearchForRecord` and `buildXxxRegistryRows` functions following the pattern of the existing artifact types in the same file.
+- Call `ReindexXxxSearchForRecord` at the end of the processor's workflow (after saving output to the database).
+- In `buildXxxRegistryRows`, scan any nullable column (`TEXT`, `JSONB`, etc.) into `sql.NullString` / `[]byte` — never into a plain `string`. Scanning a NULL PostgreSQL column into a plain Go `string` produces `sql: Scan error … converting NULL to string is unsupported` at runtime. Use `nullVar.String` when building the `RegistryRow` fields.
+
+- Add a goose migration in `ChenWeb/project_migrations/` to create the partition and its indexes:
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.search_artifacts_<type> PARTITION OF kb.search_artifacts
+    FOR VALUES IN ('<type>');
+
+CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_search_vector
+    ON kb.search_artifacts_<type> USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_record
+    ON kb.search_artifacts_<type> (input_record_id);
+```
+
+Skipping this migration causes a `pq: no partition of relation "search_artifacts" found for row` error at runtime.
+
+### 4. Dashboard
+
+Update `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte`:
+
+- **Node state mapping** — add the processor's `operation` name to the `operation → Stage` map used to render pipeline cards in the Active Pipelines section.
+- **`PIPELINE_FINAL_OPS`** — add the processor so `isActiveRecord` waits for it to reach a final state before dismissing a record from the active view.
+- **`ALL_PROCESSOR_IDS`** — if configurable, add it so it appears as a toggleable checkbox in the Manual Launch and Restart dialogs. Mandatory processors are always included and shown disabled; do not add them here.
+- **`isActiveRecord` downstream guard** — add the processor name to the list of downstream processors checked when blocking has succeeded but leaf processors have not yet started.
+
+Also update `ChenWeb/server/api/doc-processing/doc-processor-dashboard-impl.md` to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_IDS` lists.
+
 ## References
 
 [1] Doc Structure Analyzer Spec: KnowledgeStore/Capsules/coding-capsules/doc-processor/structure-analyzer-static-spec.md
@@ -291,3 +392,9 @@ Important:
 [9] Generate Scene Blocks: KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-scene-blocks.md
 
 [10] Extract Product Relations: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-spec.md
+
+[11] Extract Semantic Projections: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-semantic-projection-spec.md
+
+[12] Extract Structured Knowledge: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-structured-knowledge-spec.md
+
+[13] Extract Entity & Relation: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-spec.md
