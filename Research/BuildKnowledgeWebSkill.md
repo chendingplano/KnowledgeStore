@@ -1,23 +1,29 @@
-#let frontmatter = (
-  document_date: "2026/05/26",
-  logical_name: "Build Knowledge Web",
-  source: "WeChat",
-  file_id: "2026052601",
-  file_type: "Typst",
-  content_type: "Research",
-  keywords: ["Knowledge Web", "Skill", "Build Knowledge Web Skill"],
-)
+URL: "https://github.com/cyj4578/chen-skillshub/blob/main/chen-knowledge-web/SKILL.md"
 
-= Background
+# Overview
+This skill is essentially a methodology for constructing a **knowledge web**: a structured semantic network that transforms 
+fragmented information into an interconnected graph of concepts, entities, relationships, and contextual links. 
+Rather than treating documents as isolated text blobs for keyword or embedding retrieval, the skill encourages 
+building an explicit web of meaning where each knowledge object becomes addressable and semantically linked. Its 
+core philosophy is that understanding emerges not from storing more raw text, but from organizing knowledge into 
+traversable structures that expose hidden connections and support deeper reasoning. ([skillshub][1])
 
-== Skill
-#let a_001 = link(
-  "https://github.com/cyj4578/chen-skillshub/blob/main/chen-knowledge-web/SKILL.md"
-)[#text(fill:blue)[GitHub]]
+Operationally, the skill focuses on decomposing source materials into normalized knowledge units—such as concepts, 
+facts, claims, entities, relationships, and contextual metadata—and then weaving them into a graph-like representation. 
+This resembles a hybrid between knowledge graph engineering, semantic indexing, and agent memory design. Instead of 
+merely extracting “facts,” the system aims to preserve semantic topology: how ideas relate, what depends on what, 
+what references what, and which concepts serve as hubs. This makes it useful not just for retrieval, but for synthesis, 
+explanation, traceability, and reasoning over complex corpora.
 
-#a_001
+A notable aspect is its likely alignment with agentic workflows. In the AI skills ecosystem, a SKILL.md file defines 
+procedural behavior that agents can invoke dynamically as reusable capabilities. ([Skills][2]) In that context, this skill is not simply documentation; it is effectively a reusable protocol instructing an agent how to ingest knowledge, normalize it, identify semantic structures, and continuously enrich a persistent knowledge web. That makes it closer to a cognitive infrastructure component than a one-shot extraction prompt.
 
-```markdown
+Conceptually, this maps strongly to the architecture you have been exploring with SemOS. The knowledge web approach is effectively a **semantic overlay layer** on top of raw corpus storage. Traditional RAG asks “which documents are relevant?”; a knowledge web asks “what semantic structures exist, and how can they be traversed?” For your use case, this would correspond to converting standards, regulations, technical docs, extracted provisions, metrics, topics, and scene blocks into interconnected semantic objects rather than leaving them as independent artifacts. In short: this skill is a blueprint for turning a document corpus into an explorable semantic operating system rather than a searchable archive.
+
+[1]: https://www.skillshubco.com/?utm_source=chatgpt.com "skillshub - Homebrew for AI Agent Skills | skillshub"
+[2]: https://skills.sh/docs?utm_source=chatgpt.com "Documentation | Skills"
+
+
 ---
 name: chen-knowledge-web
 description: 知识组网扩展技能（陈氏知识网）。将任意知识点展开为横向扩展+纵向深挖+背景+典故+影响的网状结构，实现知识量指数级增长。触发词：组网、扩散、知识点扩展、知识网络、知识图谱、展开讲讲、详细说说、深挖、横向对比、同一时间线、同名、多义、查一下这个人。

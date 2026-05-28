@@ -33,7 +33,7 @@ summary_en_end
 The following must be always true:
 - `summary` != `summary_en`
 - `keywords` != `keywords_en`
-- `lines` must be an array. The array must not be empty. Its elements must be either 'ddd' or 'ddd-ddd', where 'ddd' is a number.
+- `lines` must be an array. Except the root-level summary, the array must not be empty. Its elements must be either 'ddd' or 'ddd-ddd', where 'ddd' is a number.
 - `lines` elements must be sorted by the line numbers in ascending order
 - `level` must be an positive integer
 - `summary_id` must be in the format `<record_id>` + '_' + `<level>` + '_' + `<seqno>`, where `<record_id` must be identical to the field `record_id`, `<level>` must be identical to the field `level` and `<seqno>` must be a continuous sequence number with the same level, starting from 1, represented as a four-digit string, padded with 0.
@@ -61,4 +61,5 @@ For each category path, the file 'topics.txt' in the leaf directory must contain
 
 # References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md
+
 [2] KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-summary-spec.md

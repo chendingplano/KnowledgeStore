@@ -16,7 +16,9 @@ Single Svelte 5 component (`$props`, `$state`, `$derived`) with two sections:
 
 ### Section 1 — Active Pipelines
 
-Polls `GET /api/v1/kb/inputs` (page 1, page size 20) every 5 s via `setInterval` in `onMount` with cleanup. Results are filtered client-side: `.zip` records are excluded first (by `file_name` suffix), then `isActiveRecord()` is applied, capped at 10.
+Polls `GET /api/v1/kb/inputs` every 5 s via `setInterval` in `onMount` with cleanup. The query includes `operation=doc_processing`, `proc_status=running`, and `page_size = max_doc_process_pipelines` from `GET /api/v1/kb/config`.
+
+The backend writes `{"operation":"doc_processing","proc_status":"running"}` after a doc-processing slot is acquired and replaces it with `success` or `failed` when the pipeline exits. This makes the active list reflect actual running processor slots instead of the newest unfinished records. Results still exclude `.zip` records client-side by `file_name` suffix and apply `isActiveRecord()` as a defensive UI guard.
 
 **Active record detection (`isActiveRecord`):**
 - No status entries → considered staged/active
@@ -121,15 +123,13 @@ type StatusEntry = {
 
 ## Known Limitations
 
-- **Active detection is heuristic.** There is no dedicated server endpoint that returns in-progress records. The dashboard fetches the 20 most recently modified records and infers status client-side. Records that have stalled with an incomplete status entry will appear active indefinitely until their status is updated.
 - **Stop is not implemented.** No server API exists to interrupt a running pipeline thread. The Stop button is rendered disabled with a tooltip.
-- **Poll scope.** Only the 20 most recently modified records are fetched per poll cycle. Long-running pipelines that haven't been modified recently may not appear.
 - **`has_failed` filter requires backend support.** The Failed Pipelines section depends on the server accepting `has_failed=true` as a query parameter and filtering on the `status` JSONB column. Until this is implemented server-side, the section cannot paginate correctly and a client-side fallback (fetching a large page and filtering in-browser) will miss older records.
 
 ## Extension Points
 
 - **Stop API:** When a stop endpoint exists, wire it to the disabled Stop button (remove `disabled`, call the endpoint, then refresh pipelines).
-- **Server-side active filter:** If the backend adds a `parse_state=in_progress` or similar filter that reliably returns only active records, replace the client-side `isActiveRecord` filter with `parseState: 'in_progress'` in the `listKbInputs` call.
+- **Active filter:** Active records are selected by `operation=doc_processing&proc_status=running`. Keep the `doc_processing` marker in sync with the control-service slot lifecycle.
 - **WebSocket / SSE:** Replace `setInterval` polling with a server-sent event stream for real-time updates without repeated HTTP overhead.
 - **Progress bar:** If `progress` values follow a consistent format (e.g. `"42%"`), parse the numeric value and render a thin progress bar under each in-progress node.
 - **Failed Pipelines — backend filter:** Add `has_failed=true` query-param support to `GET /api/v1/kb/inputs` (PostgreSQL: `WHERE status @> '[{"status":"failed"}]'` or equivalent `jsonb_array_elements` check). Once available, remove the known limitation note above.

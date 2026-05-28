@@ -92,6 +92,7 @@ This directory is called `Category Director Path`. Category directory paths form
 ### 4.1 'metadata.txt' File
 Each directory in a `category directory path` has a `metadata.txt`. Its format is:
 ```text
+original_names:["string"]
 desc:"the category description", in its input language
 desc_en: the English translation of 'desc' if its input language is not English
 category_type:"the category type"
@@ -119,15 +120,18 @@ for each chunk and generates category paths for the summary (refer to documents 
 
 Below is the workflow of indexing summaries:
 
-For each category path:
-* For each category path:
-  * Compose its `category path`
+* Category paths are defined in pairs: `category_paths` in the input language and `category_paths_en` in English. If `category_paths_en` does not exist or empty, and `category_paths` is not in English, report an error, then translate it to English and save it to `category_paths_en`. 
+* If `category_paths` is not in English, always process `category_paths` and `category_paths_en` in pairs. 
+* For each pair of category paths:
   * Set ARTIFACT_WEB_DIR as its current directory
-  * For the i-th category in `category path`, find the sub-directories in the 
-    current directory by the normalized category name:
-    * If the sub-directory exists, merge its keywords/keywords_en to 'metadata.txt' and set the sub-directory as its current directory. Move on to the next category, if any.
-    * Otherwise, create the sub-directory and the metadata file for the sub-directory. Set the sub-directory as the current directory. Then move on to the next category, if any.
+  * For the i-th category in `category path`, use its English version to find the sub-directories in the current directory by the normalized category name:
+    * If the sub-directory exists, merge its keywords/keywords_en and its original category name to 'metadata.txt', if the original name is not in English, and set the sub-directory as its current directory. Move on to the next category, if any.
+    * Otherwise, create the sub-directory using its English version and create its metadata file for the sub-directory. Set the sub-directory as the current directory. Then move on to the next category, if any.
   * Upsert its summary to 'summaries.txt', if the current directory matches the last category of the category path
+
+Note that:
+- All directory names are in English
+- The original category names are stored in the metadata file
 
 `summaries.txt` format:
 ```text

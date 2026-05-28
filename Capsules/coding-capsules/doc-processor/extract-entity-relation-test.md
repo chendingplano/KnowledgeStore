@@ -129,8 +129,26 @@ After `mise build-server` succeeds:
    - the dashboard renders an `Extract Entity/Relation` stage that goes from pending → success,
    - `SELECT artifact_type, COUNT(*) FROM kb.search_artifacts WHERE input_record_id = $1 GROUP BY 1` includes `entity` and `relation` rows.
 
+## Sanity Check
+
+This test verifies the correctness of the results.
+
+### Sanity Check Rules
+#### '.entities' File Sanity Check Rules
+- Language Check: for any of attributes: 'aliases', 'desc', 'entity', 'entity_type', and 'keywords', if it is not empty and not in English, its corresponding '_en' attribute must exist, must not be empty and must be in English.
+- Attributes 'entity', 'desc', 'entity_id', 'entity_type', 'keywords', and 'source_line_spans' MUST not be empty.
+- 'chunk_seqno_no' MUST not be empty and must be an integer
+- 'confidence' MUST be in [0.0, 1.0], if it is not empty, '0' and '1 are considered correct
+- 'entity_id' MUST be in the form `<record_id>_e_<seqno>`, where `<record_id>` is the record ID. All entities within the same '.entities' file MUST be identical.
+- 'entity_id' MUST be unique within the same '.entities' file.
+
+#### 'kb.entities' Sanity Check Rules
+Do the similar checks for records in 'kb.entities'.
+
 ## What This Test Plan Intentionally Does NOT Cover
 
 - Real LLM correctness or accuracy on real documents — out of scope for unit tests.
 - The shared Postgres schema migrations themselves — covered by the project's migration tests.
 - Translation quality — the prompt explicitly allows skipping `_en` fields and a downstream translation pass MAY be added.
+
+

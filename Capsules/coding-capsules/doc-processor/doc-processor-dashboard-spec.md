@@ -15,11 +15,14 @@ Each record in 'kb.inputs' identifies a document. 'kb.inputs.status' manages its
 
 The sytem may process multiple, normally up to 10, concurrent doc processing threads.
 
+The doc processor writes a `doc_processing` status entry with `proc_status = "running"` only after a processing slot is acquired. When the pipeline exits, it replaces that entry with `proc_status = "success"` or `"failed"`.
+
 A record is considered **finished** when all expected processors have reached `proc_status` = `"success"` or `"failed"`. The expected set is the four mandatory processors (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) plus every processor listed in `[doc-processing].required_processors` in `config.toml`. Refer to [1] for the full completion criteria.
 
 ## Dashboard 
 ### Show Pipelines
 - For each processing thread, show the pipeline and mark the current stage
+- Fetch active pipelines by querying records with `operation = "doc_processing"` and `proc_status = "running"`, capped by `MAX_DOC_PROCESS_PIPELINES`.
 - Visually distinguish **mandatory** processors (always run) from **configurable** processors (driven by `[doc-processing].required_processors` in `config.toml`). For example, use a filled badge for mandatory and an outlined badge for configurable.
 - When mouse hovers over a node in a pipeline, show the node details including whether it is mandatory or configurable
 - Stop a processing thread

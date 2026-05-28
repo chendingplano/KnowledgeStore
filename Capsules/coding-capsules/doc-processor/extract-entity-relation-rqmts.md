@@ -17,9 +17,21 @@
 - Create a test markdown document `extract-entity-relation-test.md`
 - Output should be strict JSON
 - All textual attributes MUST be in its input language and add the '_en' attribute that is the English translation of the original textual attribute if the input language is not English
+- Add 'create_time' to every entity in its '.entities' file and every relation in its '.relations' file
+- Use 'line_spans' (not 'source_line_spans') as the attribute name for line span references
+- Line span numbers use the format 'n-m' (e.g., '21-25'), not 'n:m'
 
 IMPORTANT NOTES
 - If combining extraction and translation into the same LLM call is too much for LLMs, consider using two passes.
+
+# Specification
+Refer to [4] for its specification.
+
+# Implementation
+Refer to [5] for its implementation.
+
+# Test
+Refer to [6] for its test.
 
 # References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md
@@ -27,3 +39,9 @@ IMPORTANT NOTES
 [2] KnowledgeStore/Capsules/coding-capsules/chunking/+CAPSULE.md
 
 [3] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md
+
+[4] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-spec.md
+
+[5] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-impl.md
+
+[6] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-test.md
