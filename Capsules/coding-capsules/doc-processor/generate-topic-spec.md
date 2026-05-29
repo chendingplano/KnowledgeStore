@@ -125,18 +125,25 @@ Topics in 'topics.txt' are sorted by record IDs.
 Persist operation status using canonical name:
 - `operation = "generate_topics"`
 
-Status payload (underscore fields only):
-Payload schema:
+**Progress Update (per chunk):**
+- When beginning the extraction, update the `progress` attribute of the corresponding entry in `kb.inputs.status` with "0 %".
+- After extracting topics from each chunk, update the `progress` attribute of the corresponding entry in `kb.inputs.status` with the current progress.
+
+```text
+progress = current_chunk (starting from 1) / total_chunks * 100
+```
+
+Status payload schema:
 
 ```json
 {
     "record_id":"ddd",
     "file_type":"pdf | doc | docx | ppt | pptx | ...",
     "operation": "generate_topics",
-    "proc_status":"success | failed",
+    "proc_status":"success | failed | stopped",
     "num_topics":ddd,
-    "input_filename": "xxx"
-    "output_filename": "xxx"
+    "input_filename": "xxx",
+    "output_filename": "xxx",
     "error":"xxx",
     "start_time":"yyyymmdd hh:mm:ss",
     "ms_used":ddd,
@@ -145,6 +152,7 @@ Payload schema:
 
 Notes:
 - `error` is present only when `proc_status = "failed"`.
+- `proc_status = "stopped"` is written when a user stop request is detected at an LLM call boundary. `num_topics` reflects topics extracted before the stop. `output_filename` and `error` are absent.
 - Prefer snake_case keys (for example `ms_used`, `proc_status`) for consistency.
 
 ## Failure Semantics
@@ -153,5 +161,17 @@ If any step fails:
 - upsert `kb.inputs.status` with `proc_status = "failed"` and a non-empty `error`,
 - do not mark operation as successful.
 
+## Stop Semantics
+When a user stop request is detected at the boundary of an LLM call (i.e. `isCtxStopped(ctx)` returns true):
+- Stop processing immediately — do not attempt the current or any remaining LLM call.
+- Upsert `kb.inputs.status` with `proc_status = "stopped"` and the topics extracted so far in `num_topics`. No `error` field.
+- Write a finish log entry to `kb.doc_proc_logs` (entry type `extract_topics_finish`) with the stopped reason in `errors`.
+- Return `ErrPipelineStopped` to the pipeline controller.
+
 ## Implementations
-Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-topic-impl.md
+Refer to [1]
+
+# References
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-topic-impl.md
+
+[2] KnowledgeStore/Capsules/coding-capsules/doc-processor/doc-processor-log-spec.md

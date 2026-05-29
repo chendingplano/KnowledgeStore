@@ -51,21 +51,21 @@ The input file MUST conform to the canonical Line File spec:
 ## Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
-| Seqno | Processor Name | Type | Dependence | Explanation |
-|---|---|---|---|---|
-|1 | blocking | mandatory | after 1 | Blocking Processor. Refer to [6]. This processor is always executed. |
-|2 | structure_analyzer | mandatory | none | Doc Structure Static Analyzer. Refer to [1] |
-|3 | chunking | mandatory | after 1 | Chunking Processor. Refer to [2]|
-|4 | extract_metadata | mandatory | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
-|5 | extract_metrics | configurable | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
-|6 | extract_provisions | configurable | after 1 | Extract provisions. Refer to [5] |
-|7 | generate_summaries | configurable | after 3 | Generate summaries. Refer to [7] |
-|8 | generate_topics | configurable | after 3 | Generate topics. Refer to [8] |
-|9 | generate_scene_blocks | configurable | after 3 | Generate scene blocks. Refer to [9] |
-|10 | extract_products | configurable | after 1 | Extract product relations. Refer to [10] |
-|11 | extract_semantic_projections | configurable | after 3 | Extract semantic projections. Refer to [11] |
-|12 | extract_structured_knowledge | configurable | after 3 | Extract structured knowledge. Refer to [12] |
-|13 | extract_entity_relation | configurable | after 3 | Extract entities and relations. Refer to [13] |
+| Seqno | Processor Name | Type | Require LLMs | Dependence | Explanation |
+|---|---|---|---|---|---|
+|1 | blocking | mandatory | No | after 1 | Blocking Processor. Refer to [6]. This processor is always executed. |
+|2 | structure_analyzer | mandatory | No | none | Doc Structure Static Analyzer. Refer to [1] |
+|3 | chunking | mandatory | No | after 1 | Chunking Processor. Refer to [2]|
+|4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
+|5 | extract_metrics | configurable | Yes | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
+|6 | extract_provisions | configurable | Yes | after 1 | Extract provisions. Refer to [5] |
+|7 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
+|8 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
+|9 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
+|10 | extract_products | configurable | Yes | after 1 | Extract product relations. Refer to [10] |
+|11 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
+|12 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
+|13 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -86,7 +86,7 @@ If `required_processors` is absent or empty, no configurable processors run by d
 
 ### Record Completion Criteria
 
-A record in `kb.inputs` is considered **finished** when every processor that is expected to run for that record has reached `proc_status` = `"success"` or `"failed"`. The expected set is:
+A record in `kb.inputs` is considered **finished** when every processor that is expected to run for that record has reached `proc_status` = `"success"`, `"failed"`, or `"stopped"`. The expected set is:
 
 1. All four mandatory processors.
 2. Every configurable processor listed in `config.toml` `[doc-processing].required_processors` at the time the event was dispatched.
@@ -100,6 +100,16 @@ Important:
 - To preserve the old behavior, include `generate_summaries` and/or `generate_topics` explicitly in the requested `operation` list, or omit `operation` so the full configured pipeline runs.
 
 ## Doc Process Status
+
+Refer to [14] about updating the following entry in `kb.inputs.status`:
+
+```json
+  {
+    "operation": "doc_processing",
+    "start_time": "20260528 17:56:10",
+    "proc_status": "running"
+  }
+```
 
 ### Structure Analayzer
 When: When the structure analyzer finishes.
@@ -211,7 +221,7 @@ Status JSON:
 ```
 
 ### Generate Topics
-When: When the Generate Topics ([8]) processor finishes.
+When: When the Generate Topics ([8]) processor finishes (success, failure, or user-requested stop).
 
 Status JSON:
 ```json
@@ -219,15 +229,17 @@ Status JSON:
     "record_id":"ddd",
     "file_type":"pdf | doc | docx | ppt | pptx | ...",
     "operation": "generate_topics",
-    "proc_status":"success | failed",
+    "proc_status":"success | failed | stopped",
     "num_topics":ddd,
-    "input_filename": "xxx"
-    "output_filename": "xxx"
+    "input_filename": "xxx",
+    "output_filename": "xxx",
     "error":"xxx",
     "start_time":"yyyymmdd hh:mm:ss",
     "ms_used":ddd,
 }
 ```
+
+`proc_status = "stopped"` is written when a user stop request is detected mid-execution (at the boundary of an LLM call). `num_topics` reflects how many topics were extracted before the stop. `error` is absent on a clean stop.
 
 ### Extract Semantic Projection
 When: When the extract semantic projection ([11]) processor finishes.
@@ -276,6 +288,79 @@ Status JSON:
   "ms_used": ddd
 }
 ```
+
+## Handle Stop Request
+
+A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
+
+### Shared Function: `CheckAndHandleStop`
+
+Every doc processor that makes LLM calls **must** call `CheckAndHandleStop` at each LLM call boundary to provide prompt, consistent stop behaviour. The function is defined in `ChenWeb/server/api/doc-processing/stop.go`.
+
+```go
+// CheckAndHandleStop checks whether the pipeline context was cancelled by a user
+// stop request. If it was, onStop is called with a background context (for DB
+// writes), and the function returns true. The caller must then return
+// ErrPipelineStopped immediately.
+func CheckAndHandleStop(ctx context.Context, onStop OnStopFunc) bool
+```
+
+`OnStopFunc` is `func(bgCtx context.Context)`. The background context is always passed because the pipeline context is already cancelled at the point of the call.
+
+### Contract for Each Processor
+
+When `CheckAndHandleStop` returns true the `onStop` callback **must**:
+
+1. Write `proc_status = "stopped"` to the appropriate `kb.inputs.status` entry, preserving progress counters accumulated so far (e.g. `num_topics`, `num_metrics`).
+2. Write a finish log entry to `kb.doc_proc_logs` (the processor's `finish` entry type) with a human-readable stopped reason in the `errors` field.
+3. Use the provided background context for all DB writes.
+
+After `CheckAndHandleStop` returns true, the calling function returns `ErrPipelineStopped` immediately — no further LLM calls or artifact writes.
+
+### Call-Site Pattern
+
+```go
+// Define the callback once, before the loop.
+onStop := func(bgCtx context.Context) {
+    s.stopAndPersistFoo(bgCtx, rec, inputFilename, start, itemsSoFar)
+}
+
+for _, item := range items {
+    // Check before the primary LLM call.
+    if CheckAndHandleStop(ctx, onStop) {
+        return ErrPipelineStopped
+    }
+    result, err := callLLM(ctx, ...)
+
+    if err != nil {
+        if s.FallbackExtractor != nil {
+            // Check before the fallback LLM call.
+            if CheckAndHandleStop(ctx, onStop) {
+                return ErrPipelineStopped
+            }
+            result, err = callFallbackLLM(ctx, ...)
+            if err != nil {
+                // Check after fallback failure (context may have been cancelled
+                // during the call).
+                if CheckAndHandleStop(ctx, onStop) {
+                    return ErrPipelineStopped
+                }
+                // handle normal fallback failure...
+            }
+        } else {
+            // Check before returning a real error.
+            if CheckAndHandleStop(ctx, onStop) {
+                return ErrPipelineStopped
+            }
+            return fmt.Errorf("...: %w", err)
+        }
+    }
+}
+```
+
+### Reference Implementation
+
+`generate_topics` (`ChenWeb/server/api/doc-processing/fix-size-chunking.go`, function `handleGenerateTopicsLines`) is the reference implementation. Use it as the template when adding stop support to other processors.
 
 ## JetStream Request
 
@@ -369,7 +454,7 @@ Update `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte
 - **`ALL_PROCESSOR_IDS`** — if configurable, add it so it appears as a toggleable checkbox in the Manual Launch and Restart dialogs. Mandatory processors are always included and shown disabled; do not add them here.
 - **`isActiveRecord` downstream guard** — add the processor name to the list of downstream processors checked when blocking has succeeded but leaf processors have not yet started.
 
-Also update `ChenWeb/server/api/doc-processing/doc-processor-dashboard-impl.md` to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_IDS` lists.
+Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_IDS` lists.
 
 ## References
 
@@ -398,3 +483,5 @@ Also update `ChenWeb/server/api/doc-processing/doc-processor-dashboard-impl.md` 
 [12] Extract Structured Knowledge: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-structured-knowledge-spec.md
 
 [13] Extract Entity & Relation: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-spec.md
+
+[14] KnowledgeStore/Capsules/coding-capsules/doc-processor/doc-processor-dashboard-spec.md

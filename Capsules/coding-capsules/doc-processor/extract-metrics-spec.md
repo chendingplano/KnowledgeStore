@@ -81,14 +81,6 @@ Pass 1 rules:
 - do not translate
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
 
-### Deterministic Candidate Merge
-
-Merge is currently **disabled**. Each mention from Pass 1 becomes its own candidate directly (no cross-block deduplication). Overlap-only candidates (those without any normal-line support) are still dropped.
-
-Rationale: the global merge by metric name/subject/unit/value was combining mentions from non-adjacent blocks, causing `source_line_spans` to contain line numbers from widely separated parts of the document (e.g., lines 237 and 2364 in the same span list).
-
-### Pass 2: Final Metric Rows
-
 Pass 2 uses:
 
 - model env priority:
@@ -96,7 +88,6 @@ Pass 2 uses:
   - `EXTRACT_METRICS_MODEL_NAME`
 - prompt env priority:
   - `ENRICH_METRICS_PROMPT`
-  - `EXTRACT_METRICS_PROMPT`
 
 Pass 2 output:
 
