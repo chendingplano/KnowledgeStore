@@ -48,6 +48,26 @@ Error Handling:
 The input file MUST conform to the canonical Line File spec:
 `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
+## LLM Input Format
+
+All doc processors that make LLM calls **must** send lines to the LLM as a **JSON array**, not as tab-separated text. Each element in the array is an object with this shape:
+
+```json
+{ "flag": "n", "line_number": 42, "page_number": 3, "line_type": "text", "content": "..." }
+```
+
+Three shared conversion functions in `ChenWeb/server/api/doc-processing/input_lines.go` cover all line source types:
+
+| Function | Input type | When to use |
+|---|---|---|
+| `blockLinesToJSON([]BlockLine)` | `BlockLine` | Processors whose input comes from the Blocking Processor output (blocks) |
+| `markedLinesToJSON([]MarkedLine)` | `MarkedLine` | Processors whose input comes from chunked `Chunk.Lines` |
+| `rawLinesToJSON([]Line)` | `Line` | Processors that receive raw `Line` slices (e.g. topic extraction from a single flat slice) |
+
+`markedLinesToJSON` and `rawLinesToJSON` skip lines whose `line_type` is `"image"`.
+
+**Do not** convert lines to tab-separated strings (via `.String()`, `formatMarkedChunkLine`, or `buildMarkedChunkInputText`) and then marshal the string slice. Call the appropriate function above instead.
+
 ## Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
@@ -421,6 +441,7 @@ Use this checklist when adding a new doc processor (mandatory or configurable).
 - Implement the processor in `ChenWeb/server/api/doc-processing/`.
 - Register it in `ChenWeb/server/cmd/doc-processor/main.go`.
 - If configurable, add its name to `[doc-processing].required_processors` in `config.toml`.
+- When building LLM input text from lines, call the appropriate shared helper (`blockLinesToJSON`, `markedLinesToJSON`, or `rawLinesToJSON`). See **LLM Input Format** above.
 
 ### 3. Full-Text Search Index
 

@@ -12,6 +12,14 @@ recommendations.
 - blocks: refer to 'spec-blocking.md' for blocks.
 
 # Workflow
+- At the start of processing, upsert the following entry to `kb.inputs.status`:
+```json
+{
+  "operation": "extract_provisions",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "proc_status": "running"
+}
+```
 - For each block, use the EXTRACT_PROVISIONS_MODEL_NAME model with the EXTRACT_PROVISIONS_PROMPT prompt to extract provisions from the block. 
 - The LLM generates zero or more provisions for each block. 
 - Provisions are identified by `prov_id`, which is a sequence number, starting at 1.

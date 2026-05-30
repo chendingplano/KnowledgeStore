@@ -437,3 +437,16 @@ Very important document. Need to read!
 Source WeChat
 
 This link has a few skills, including a contract review skill.
+
+= 2026/05/30 - Ingesting 1Gbps of Logs into Clickhouse for \$180/month
+
+#let a_021 = link(
+  "https://www.opendata.dev/blog/ingesting-1gbps-logs-to-clickhouse/"
+)[#text(fill:blue)[Link]]
+
+#a_021 \
+Source: Hacker News
+
+This is from OpenData. Looks like it is very cheap.
+
+

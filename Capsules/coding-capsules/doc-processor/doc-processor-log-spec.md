@@ -307,7 +307,7 @@ One row per block. Populated fields:
 - `prompt_name`: the prompt name
 - `proc_progress`: "20%",
 - `record_id`: the ID of the record the doc processor is processing
-- `entry_type = 'extract_metrics'`
+- `entry_type = 'enrich_metrics'`
 - `llm_call_id`: unique ID (e.g. UUID) for deduplication / correlation
 - `activity_name` = 'extract_metrics_candidates'
 - `proc_loc`

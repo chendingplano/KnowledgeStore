@@ -5,7 +5,7 @@ This processor uses a multi-pass extraction strategy.
 ## Input
 
 - `record_id`: the value of `kb.inputs.id`
-- `blocks`: see the blocking spec
+- `chunks`: see the chunking spec
 - file name
 
 ## Implementation
@@ -27,7 +27,7 @@ Single-pass design asks one LLM call to do all of the following at once:
 This caused:
 
 - unstable extraction counts
-- duplicate metrics from overlapping blocks
+- duplicate metrics from overlapping chunks
 - prompt/schema overload on smaller models
 - malformed or partial JSON outputs
 - weak deterministic cleanup
@@ -37,9 +37,9 @@ This caused:
 To solve the single-pass problem, we will use multi-pass pipeline, which 
 breaks the processing into multiple passes:
 
-1. Pass 1: extract metric candidates from each block
-2. Deterministic Step A: merge and deduplicate candidates across overlapping blocks
-3. Pass 2: enrich each merged candidate into final metric rows
+1. Pass 1: extract metric candidates from each chunk
+2. Deterministic Step A: merge and deduplicate candidates across overlapping chunks
+3. Pass 2: enrich candidates into final metric rows, batched by chunk (see `METRIC_ENRICH_GROUP_SIZE`)
 4. Deterministic Step B: final metric dedup before persistence
 
 ### Pass 1: Metric Candidates
@@ -81,6 +81,13 @@ Pass 1 rules:
 - do not translate
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
 
+Pass 2 batching:
+
+- Candidates that share the same source chunk are grouped into one LLM call
+- Batch size is controlled by `METRIC_ENRICH_GROUP_SIZE` env var (default: 5)
+- The batch prompt sends all candidates and source lines once, reducing repeated input tokens
+- Each batch returns a `metrics` array covering all candidates in that batch
+
 Pass 2 uses:
 
 - model env priority:
@@ -121,9 +128,7 @@ Pass 2 output:
       "confidence": 0.0,
       "is_explicit_metric": true,
       "table_name_or_section": "string",
-      "reasoning_tags": ["string"],
-      "category_paths": [],
-      "category_paths_en": []
+      "reasoning_tags": ["string"]
     }
   ],
   "uncertain_metrics": []
@@ -135,7 +140,32 @@ Important notes:
 - one output row = one metric
 - use only the merged candidate and its supporting evidence
 - `uncertain_metrics` may be returned by the LLM but are not persisted to `kb.metrics`
-- legacy typo `caetgory_paths_en` may appear in LLM output and should be normalized to `category_paths_en`
+- category paths are not generated or stored by the enrichment pass
+
+### Deterministic Step B: Final Metric Dedup
+
+`dedupeFinalMetricRows` deduplicates the enriched metric rows before persistence.
+
+**Dedup key** — built by `normalizedMetricCandidateKey` over five fields (each lowercased, trimmed, and whitespace-collapsed, then joined with `|`):
+
+1. `metric_name`
+2. `subject`
+3. `unit`
+4. `metric_value`
+5. normalized `source_line_spans` joined with `,`
+
+`source_line_spans` normalization (`normalizeSourceLineSpans`):
+- Accepts string spans (`"12"`, `"13:15"`), bare `float64` integers, or `{"line_number": N}` objects
+- Discards zero/negative line numbers
+- Sorts spans by start then end
+- Merges adjacent or overlapping spans (gap ≤ 1) into a single span
+- Returns canonical strings: `"N"` for single lines, `"N:M"` for ranges
+
+**Merge behavior for duplicates** (same key, multiple rows):
+- `source_line_spans`: union of both rows' spans (no duplicates; order is preserved from first-seen row then appended new spans)
+- `confidence`: keeps the higher value between the two rows
+
+**Output order**: first-seen order (insertion order of the first occurrence of each key).
 
 ### Thinking Behavior
 
@@ -179,15 +209,14 @@ where `seqno` starts at `1`.
 
 ## Workflow
 
-- For each block, run Pass 1 to extract metric candidates.
+- For each chunk, run Pass 1 to extract metric candidates.
 - Retry candidate extraction with `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK` when the primary candidate model fails.
-- If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, treat the block as an empty candidate result.
+- If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, treat the chunk as an empty candidate result.
 - Merge and deduplicate candidates deterministically.
-- For each merged candidate, run Pass 2 to enrich it into final metrics.
+- Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
 - Save final metrics to `kb.metrics`.
 - Write `.metrics` artifact output.
-- Index metrics.
 - Upsert status in `kb.inputs.status`.
 
 Failure status entry:
@@ -273,7 +302,7 @@ Inputs:
 
 - treat selected lines as normal lines `n`
 - treat the five lines immediately before and after as overlap lines `o`
-- convert the raw lines into standard block format
+- convert the raw lines into standard chunk format
 
 ### Handler Workflow
 
@@ -318,9 +347,7 @@ Inputs:
       "confidence": 0.0,
       "is_explicit_metric": true,
       "table_name_or_section": "...",
-      "reasoning_tags": ["..."],
-      "category_paths": [],
-      "category_paths_en": []
+      "reasoning_tags": ["..."]
     }
   ]
 }
@@ -362,9 +389,7 @@ This API persists reviewed final metric rows returned by the preview flow.
       "confidence": 0.0,
       "is_explicit_metric": true,
       "table_name_or_section": "...",
-      "reasoning_tags": ["..."],
-      "category_paths": [],
-      "category_paths_en": []
+      "reasoning_tags": ["..."]
     }
   ]
 }

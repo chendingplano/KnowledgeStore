@@ -78,3 +78,8 @@ https://cc.storyfox.cz/
 -----------
 
 Hooks support 5 handler types: command, http, mcp_tool, prompt, and agent. Configuration goes in any of 6 locations (from lowest to highest priority): user settings → policy settings → plugin hooks → project settings → project local settings → skill/agent frontmatter.
+
+# References
+
+## Article - Undocumented Claude Code Configuration
+URL: https://buildingbetter.tech/p/i-read-the-claude-code-source-code
