@@ -10,10 +10,13 @@ A document is broken down into a number of chunks. This feature does the followi
 ### 1.1 Workflow
 - For each chunk, it uses GENERATE_SUMMARY_MODEL_NAME model with GENERATE_SUMMARY_PROMPT to generate 
   a summary for the chunk.  
+- Summaries that belong to the same level may be generated concurrently, capped by
+  `GENERATE_SUMMARY_MAX_TASKS`.
 - Generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries using the 
   same model and prompt. 
 - Recursively, it generates higher level summaries in the same fashion until there is only
   one summary in its level.
+- Higher summary levels still wait for the previous level to finish before they begin.
 
 ### 1.2 Save Summaries
 - Leaf summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_0_dddd.txt`, where
@@ -96,6 +99,26 @@ When a document is re-chunked, it should clear all the related data and before r
 
 Persist operation status using canonical name:
 - `operation = "generate_summaries"`
+
+**Progress Update (per summary):**
+- When beginning generation, set `progress` to `"0%"` in `kb.inputs.status`.
+- After each summary generation (at every level), insert a log entry to `kb.doc_proc_logs` with `proc_progress` set to the current progress (see [doc-processor-log-spec.md Section 1.3.1](doc-processor-log-spec.md)), then update the `progress` attribute of the corresponding entry in `kb.inputs.status`.
+
+```text
+total_planned_summaries =
+  level0_count +
+  ceil(level0_count / SUMMARY_GROUP_SIZE) +
+  ceil(level1_count / SUMMARY_GROUP_SIZE) + ...
+  (stop when the level count becomes 1)
+
+percent = floor(completed_summaries * 100 / total_planned_summaries)
+progress = "<percent>% (<completed_summaries>/<total_planned_summaries>)"
+```
+
+Examples:
+- 1 of 3 summaries finished → `33% (1/3)`
+- 2 of 3 summaries finished → `66% (2/3)`
+- 3 of 3 summaries finished → `100% (3/3)`
 
 Status payload (underscore fields only):
 

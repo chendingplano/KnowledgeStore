@@ -219,6 +219,27 @@ where `seqno` starts at `1`.
 - Write `.metrics` artifact output.
 - Upsert status in `kb.inputs.status`.
 
+**Progress Update (per block):**
+- When beginning extraction, set `progress` to `"0%"` in `kb.inputs.status`.
+- After each block completes in either pass, insert a log entry to `kb.doc_proc_logs` with `proc_progress` set to the current progress (see [doc-processor-log-spec.md Section 1.3.3](doc-processor-log-spec.md)), then update the `progress` attribute of the corresponding entry in `kb.inputs.status`.
+
+```text
+total_blocks = total_blocks_pass1 + total_blocks_pass2
+
+percent = floor(completed_blocks * 100 / total_blocks)
+progress = "<percent>% (<completed_blocks>/<total_blocks>)"
+```
+
+Notes:
+- `total_blocks_pass1` = number of chunks
+- `total_blocks_pass2` = number of enrichment batches (candidates grouped by source chunk, batched by `METRIC_ENRICH_GROUP_SIZE`); calculated after pass 1 completes
+- Failed calls do not increment `completed_blocks`
+
+Examples:
+- Pass 1, 2 of 15 blocks done (total 30 blocks) → `6% (2/30)`
+- Pass 1 complete → `50% (15/30)`
+- All done → `100% (30/30)`
+
 Failure status entry:
 
 ```json

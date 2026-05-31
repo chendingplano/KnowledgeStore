@@ -96,7 +96,9 @@ This pass operates on the marked chunk text and returns a small candidate schema
   - `ENRICH_SCENE_BLOCKS_PROMPT`
   - `ENRICH_SCENE_BLOCKS_MODEL_NAME`
 
-This pass operates on one merged candidate plus its supporting lines and returns the full `scene_blocks` schema for storage.
+Merged candidates are grouped by primary chunk (the chunk where each candidate was first seen via `PrimaryChunkIndex`). One LLM call is made per group. The prompt includes all candidates in the group as a JSON array under `Candidates:`, plus the union of their supporting lines. This reduces the number of Pass 2 calls when multiple candidates originate from the same chunk.
+
+`buildSceneRelationUserPromptForGroup` constructs the prompt. `normalizeSceneBlockListForGroup` normalizes the returned `scene_blocks`, delegating to `normalizeSceneBlockList` for single-candidate groups and using a scene-key lookup for fallback field population in multi-candidate groups.
 
 ---
 

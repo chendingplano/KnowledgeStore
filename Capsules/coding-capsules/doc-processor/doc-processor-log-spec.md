@@ -538,6 +538,28 @@ It is similar to Section "1.3.3 Extract Metrics"
 
 It is similar to Section "1.3.4 Extract Semantic Projections"
 
+Pass 1 `extra_info` shape:
+```json
+{
+  "chunk": 17,
+  "num_scens": 3,
+  "total_so_far": 15,
+  "percent": "47% (pass 1: 17/18)",
+  "total_chunks": 18
+}
+```
+
+Pass 2 `extra_info` shape:
+```json
+{
+  "chunk": 9,
+  "num_scenes": 3,
+  "total_scenes": 25,
+  "percent": "80% (pass 2: 9/15)",
+  "total_chunks": 15
+}
+```
+
 ### 1.3.7 Extract Structured Knowledge
 
 It is similar to Section "1.3.4 Extract Semantic Projections"

@@ -21,7 +21,8 @@ The doc processor upserts the following entry to its `kb.inputs.status` after a 
   {
     "operation": "doc_processing",
     "start_time": "20260528 17:56:10",
-    "proc_status": "running"
+    "proc_status": "running",
+    "doc_processor_name": "extract_metrics"
   }
 ```
 

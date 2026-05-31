@@ -41,7 +41,7 @@ The processor should split the work into the following stages:
 
 1. Pass 1: extract lightweight scene candidates per chunk
 2. Deterministic Step A: merge and deduplicate scene candidates across overlapping chunks
-3. Pass 2: enrich each merged candidate into one or more final scene blocks
+3. Pass 2: group merged candidates by primary chunk; enrich each group in a single LLM call
 4. Deterministic Step B: final scene-block dedup before persistence
 
 ## Pass 1 Output: Scene Candidates
@@ -214,7 +214,8 @@ Assign a scene object ID for each of the scene object generated.
 - The input to this processor is chunks
 - For each chunk, run Pass 1 to extract scene candidates.
 - After all chunks are processed, run deterministic candidate merge and overlap cleanup.
-- For each merged candidate, run Pass 2 to enrich it into one or more final scene blocks.
+- Group merged candidates by primary chunk (the chunk where each candidate was first seen).
+- For each group, run one Pass 2 LLM call to enrich all candidates in that group into final scene blocks.
 - Run final scene-block dedup before persistence.
 - After processed all the chunks, save the extracted scene blocks to kb.scene_blocks (refer to "Output Storage" section).
 - Upsert the following entry to kb.input.status if faled:

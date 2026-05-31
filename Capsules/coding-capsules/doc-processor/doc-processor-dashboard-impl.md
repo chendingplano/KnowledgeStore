@@ -18,7 +18,7 @@ Single Svelte 5 component (`$props`, `$state`, `$derived`) with two sections:
 
 Polls `GET /api/v1/kb/inputs` every 5 s via `setInterval` in `onMount` with cleanup. The query includes `operation=doc_processing`, `proc_status=running`, and `page_size = max_doc_process_pipelines` from `GET /api/v1/kb/config`.
 
-The backend writes `{"operation":"doc_processing","proc_status":"running"}` after a doc-processing slot is acquired and replaces it with `success` or `failed` when the pipeline exits. This makes the active list reflect actual running processor slots instead of the newest unfinished records. Results still exclude `.zip` records client-side by `file_name` suffix and apply `isActiveRecord()` as a defensive UI guard.
+The backend writes `{"operation":"doc_processing","proc_status":"running"}` after a doc-processing slot is acquired and replaces it with `success` or `failed` when the pipeline exits. As each individual processor starts, the entry is updated to include `"doc_processor_name": "<processor>"` indicating which processor is currently executing; the field is absent when the pipeline is between processors or has finished. This makes the active list reflect actual running processor slots instead of the newest unfinished records. Results still exclude `.zip` records client-side by `file_name` suffix and apply `isActiveRecord()` as a defensive UI guard.
 
 **Active record detection (`isActiveRecord`):**
 - No status entries → considered staged/active

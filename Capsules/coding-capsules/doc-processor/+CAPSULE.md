@@ -75,7 +75,7 @@ Currently, it has the following doc processors:
 |---|---|---|---|---|---|
 |1 | blocking | mandatory | No | after 1 | Blocking Processor. Refer to [6]. This processor is always executed. |
 |2 | structure_analyzer | mandatory | No | none | Doc Structure Static Analyzer. Refer to [1] |
-|3 | chunking | mandatory | No | after 1 | Chunking Processor. Refer to [2]|
+|3 | chunking | mandatory | No | after 2 | Chunking Processor. Refer to [2]|
 |4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
 |5 | extract_metrics | configurable | Yes | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
 |6 | extract_provisions | configurable | Yes | after 1 | Extract provisions. Refer to [5] |

@@ -16,6 +16,11 @@ Input file line format:
 - The input file MUST conform to the canonical Line File spec:
   `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
+Pipeline ordering requirement:
+- When the line file comes from the PDF converter, the static analyzer MUST run before chunking.
+- Chunking MUST consume the current writable `.txt` after static-analyzer corrections and removals have been applied.
+- Any persisted `.chunks` artifact built from pre-static-analyzer line numbering is stale and MUST NOT be reused.
+
 ## 3. Environment Variables
 - CHUNK_SIZE: optional, the chunk size, default:300
 - CHUNK_OVERLAP_PERCENT: optional, the overlap percent, default: 20%
