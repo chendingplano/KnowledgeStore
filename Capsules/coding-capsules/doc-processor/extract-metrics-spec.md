@@ -429,6 +429,9 @@ This API persists reviewed final metric rows returned by the preview flow.
 - leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
 - return the number of inserted metrics
 
+## Implementations
+Refer to [3].
+
 ## References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md\
 [2] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-design.md \

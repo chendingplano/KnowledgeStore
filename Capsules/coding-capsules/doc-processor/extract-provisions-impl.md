@@ -54,7 +54,10 @@ Key public construction and interfaces:
 - `ProvisionsStore` abstracts existence checks, deletion, and persistence
 - `ProvisionsSQLStore` stores rows in `kb.provisions`
 
-The processor follows the same broad shape as the existing `MetricsProcessor`, but its input path follows the provisions spec more directly: it processes document blocks instead of chunk artifacts.
+The processor supports two input modes controlled by `EXTRACT_PROVISIONS_INPUT` (default `"chunks"`):
+
+- `"chunks"`: iterates over `Chunk` units produced by the Chunking Processor. Lines are serialised with `markedLinesToJSON`. The chunk buffer is read from context (`ChunkBufferFromContext`) or loaded from the `.chunks` artifact file on disk via `loadChunksFromArtifactFile`.
+- `"blocks"`: iterates over `Block` units produced by the Blocking Processor. Lines are serialised with `blockLinesToJSON`. The block buffer is read from context (`BlockBufferFromContext`) or built from the input line file via `buildBlocks`.
 
 ## Event Workflow
 
@@ -67,12 +70,12 @@ The processor follows the same broad shape as the existing `MetricsProcessor`, b
 5. If model configuration failed, persist a failed `extract_provisions` status and return without crashing the subscriber.
 6. If `force=true`, delete existing provisions for the input record.
 7. If `force=false`, skip extraction when provisions already exist.
-8. Resolve input blocks:
-   - Prefer `BlockBufferFromContext(ctx)`, populated by `BlockingProcessor`.
-   - Fall back to reading the line file and calling `buildBlocks`.
-9. For each block, call the LLM with `EXTRACT_PROVISIONS_PROMPT` and `EXTRACT_PROVISIONS_MODEL_NAME`.
+8. Resolve input units based on `EXTRACT_PROVISIONS_INPUT`:
+   - `"chunks"` (default): call `resolveChunks` — prefers `ChunkBufferFromContext(ctx)`, falls back to loading the `.chunks` artifact file via `loadChunksFromArtifactFile`.
+   - `"blocks"`: call `resolveBlocks` — prefers `BlockBufferFromContext(ctx)`, falls back to reading the line file and calling `buildBlocks`.
+9. For each unit, call the LLM with `EXTRACT_PROVISIONS_PROMPT` and `EXTRACT_PROVISIONS_MODEL_NAME`.
 10. Treat an empty decoded JSON object such as `{}` as a failed extraction, not a success.
-11. If the primary extraction fails and `EXTRACT_PROVISIONS_MODEL_CALLBACK` is configured, retry the same block with the callback model.
+11. If the primary extraction fails and `EXTRACT_PROVISIONS_MODEL_CALLBACK` is configured, retry the same unit with the callback model.
 12. Normalize returned provisions.
 13. Assign per-record `prov_id` values starting at 1.
 14. Upsert provisions into `kb.provisions`.

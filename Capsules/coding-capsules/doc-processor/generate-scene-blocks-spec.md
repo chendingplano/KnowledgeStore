@@ -210,12 +210,22 @@ relative to the record, starting at 1. Examples:
 
 Assign a scene object ID for each of the scene object generated.
 
+## Concurrency
+
+Both LLM passes support bounded parallelism controlled by `GENERATE_SCENE_BLOCKS_MAX_TASKS`:
+
+- Pass 1 chunks may be processed concurrently up to `GENERATE_SCENE_BLOCKS_MAX_TASKS` at a time.
+- Pass 2 chunk groups may be processed concurrently up to `GENERATE_SCENE_BLOCKS_MAX_TASKS` at a time.
+- The deterministic merge step (between Pass 1 and Pass 2) always runs after all Pass 1 jobs complete; Pass 2 does not start until the merge is done.
+- Result ordering is deterministic regardless of completion order: Pass 1 results are flattened in chunk index order; Pass 2 results are flattened in chunk group order.
+- The default value of `GENERATE_SCENE_BLOCKS_MAX_TASKS` is `1` (sequential), preserving the original behavior when the variable is unset.
+
 ## Workflow
 - The input to this processor is chunks
-- For each chunk, run Pass 1 to extract scene candidates.
-- After all chunks are processed, run deterministic candidate merge and overlap cleanup.
+- Run Pass 1 on all chunks concurrently (up to `GENERATE_SCENE_BLOCKS_MAX_TASKS`) to extract scene candidates.
+- After all Pass 1 jobs complete, run deterministic candidate merge and overlap cleanup.
 - Group merged candidates by primary chunk (the chunk where each candidate was first seen).
-- For each group, run one Pass 2 LLM call to enrich all candidates in that group into final scene blocks.
+- Run Pass 2 on all chunk groups concurrently (up to `GENERATE_SCENE_BLOCKS_MAX_TASKS`) to enrich each group into final scene blocks.
 - Run final scene-block dedup before persistence.
 - After processed all the chunks, save the extracted scene blocks to kb.scene_blocks (refer to "Output Storage" section).
 - Upsert the following entry to kb.input.status if faled:

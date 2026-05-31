@@ -17,6 +17,7 @@ This processor is independent of [`extract_structured_knowledge`](extract-struct
 | `EXTRACT_ENTITY_RELATION_MODEL_NAME` | yes | Primary LLM model reference |
 | `EXTRACT_ENTITY_RELATION_FALLBACK` | optional | Fallback LLM model reference, used if the primary model errors on a chunk |
 | `EXTRACT_ENTITY_RELATION_PROMPT` | optional | Prompt file ref. Defaults to `prompt-extract-entity-relation-v1.md` |
+| `EXTRACT_ENTITY_RELATION_MAX_TASKS` | optional | Max concurrent chunk-processing goroutines. Default `1` (sequential). |
 | `ARTIFACT_DIR` | yes | Root artifact directory where `.chunks`, `.entities`, `.relations` files live |
 | `MODEL_DEF_FILE` | yes | Model registry used by the shared model loader |
 
@@ -195,7 +196,7 @@ The status entry is keyed by `operation = "extract_entity_relation"`. A second i
 5. If `force = true`, delete any prior `kb.entities` and `kb.relations` rows for this record. Otherwise, if rows already exist, persist a success status and return (idempotent skip).
 6. Read and parse the line file.
 7. Resolve the chunk artifact file (`.chunks`); on error, persist a failed status and return.
-8. For each chunk: build the marked input text, call the LLM with the entity-relation prompt (with fallback model on error), parse the JSON, normalize entities and relations.
+8. For each chunk: build the marked input text, call the LLM with the entity-relation prompt (with fallback model on error), parse the JSON, normalize entities and relations. Chunks may be processed concurrently up to `EXTRACT_ENTITY_RELATION_MAX_TASKS` workers. An LLM error on one chunk skips that chunk without cancelling siblings; only a pipeline-stop signal cancels all in-flight workers. Results are aggregated in original chunk-index order so `entity_id` and `relation_id` assignment remains deterministic.
 9. Detect input language from the first non-empty `language` field returned. Default to `"unknown"` if nothing was detected.
 10. Assign `entity_id = <record_id>_e_<seqno>` and `relation_id = <record_id>_r_<seqno>` globally across all chunks.
 11. Insert entity rows into `kb.entities` and relation rows into `kb.relations`.

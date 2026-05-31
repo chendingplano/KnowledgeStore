@@ -78,7 +78,7 @@ Currently, it has the following doc processors:
 |3 | chunking | mandatory | No | after 2 | Chunking Processor. Refer to [2]|
 |4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
 |5 | extract_metrics | configurable | Yes | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
-|6 | extract_provisions | configurable | Yes | after 1 | Extract provisions. Refer to [5] |
+|6 | extract_provisions | configurable | Yes | after 3 (default) or after 1 (EXTRACT_PROVISIONS_INPUT="blocks") | Extract provisions. Refer to [5] |
 |7 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
 |8 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
 |9 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
@@ -86,6 +86,7 @@ Currently, it has the following doc processors:
 |11 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
 |12 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
 |13 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
+|14 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -99,7 +100,7 @@ For instance, 'after 1' means it uses the Blocking Processor's output as its inp
 
 ```toml
 [doc-processing]
-required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_products", "extract_semantic_projections", "extract_structured_knowledge", "extract_entity_relation"]
+required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_products", "extract_semantic_projections", "extract_structured_knowledge", "extract_entity_relation", "extract_inventory_items"]
 ```
 
 If `required_processors` is absent or empty, no configurable processors run by default.
@@ -309,6 +310,23 @@ Status JSON:
 }
 ```
 
+### Extract Inventory Items
+When: When the extract inventory items ([15]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_inventory_items",
+  "proc_status": "success | failed",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "error": "xxx",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
 ## Handle Stop Request
 
 A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
@@ -396,12 +414,22 @@ Important:
 - If `operation` is omitted or empty, Doc Processor applies all configured processors in the configured order.
 - If `operation` is `"chunking"`, Doc Processor runs the always-on `blocking` processor and then the `chunking` processor only.
 - `generate_summary` and `generate_topics` are no longer implicitly included in `chunking`.
-- `extract_provisions` is a separate processor. To run it with chunking, request both operations, for example:
+- `extract_provisions` is a separate processor. When `EXTRACT_PROVISIONS_INPUT="chunks"` (default), it depends on the chunking output and both must be requested together:
 
 ```json
 {
   "record_id": "123",
   "operation": ["chunking", "extract_provisions"],
+  "force": true
+}
+```
+
+When `EXTRACT_PROVISIONS_INPUT="blocks"`, it depends only on the blocking processor (always-on) and can be requested standalone:
+
+```json
+{
+  "record_id": "123",
+  "operation": ["extract_provisions"],
   "force": true
 }
 ```
@@ -506,3 +534,5 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 [13] Extract Entity & Relation: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-spec.md
 
 [14] KnowledgeStore/Capsules/coding-capsules/doc-processor/doc-processor-dashboard-spec.md
+
+[15] Extract Inventory Items Spec: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md

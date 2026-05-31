@@ -9,7 +9,9 @@ recommendations.
 # Input
 
 - record_id: the value of kb.inputs.id, identifies the record to process
-- blocks: refer to 'spec-blocking.md' for blocks.
+- `EXTRACT_PROVISIONS_INPUT` (default `"chunks"`): controls the unit fed to the LLM.
+  - `"chunks"` (default): use chunks produced by the Chunking Processor. Each chunk's lines are converted with `markedLinesToJSON`.
+  - `"blocks"`: use blocks produced by the Blocking Processor (refer to `spec-blocking.md`). Each block's lines are converted with `blockLinesToJSON`.
 
 # Workflow
 - At the start of processing, upsert the following entry to `kb.inputs.status`:
@@ -20,7 +22,9 @@ recommendations.
   "proc_status": "running"
 }
 ```
-- For each block, use the EXTRACT_PROVISIONS_MODEL_NAME model with the EXTRACT_PROVISIONS_PROMPT prompt to extract provisions from the block. 
+- Depending on `EXTRACT_PROVISIONS_INPUT`, iterate over chunks (default) or blocks. For each unit, use the EXTRACT_PROVISIONS_MODEL_NAME model with the EXTRACT_PROVISIONS_PROMPT prompt to extract provisions. Units may be processed concurrently up to `EXTRACT_PROVISIONS_MAX_TASKS` at a time (default 1, sequential). Results are collected in unit order regardless of completion order.
+  - `"chunks"`: convert lines with `markedLinesToJSON`
+  - `"blocks"`: convert lines with `blockLinesToJSON`
 - The LLM generates zero or more provisions for each block. 
 - Provisions are identified by `prov_id`, which is a sequence number, starting at 1.
 - If primary extraction fails and the fallback model also returns an empty/truncated JSON response (for example `unexpected end of JSON input` with an effectively empty payload), treat that block as a successful empty extraction rather than a processor failure.
