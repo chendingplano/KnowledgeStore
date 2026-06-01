@@ -105,6 +105,17 @@ required_processors = ["extract_metrics", "extract_provisions", "generate_summar
 
 If `required_processors` is absent or empty, no configurable processors run by default.
 
+### Pipeline Execution Model
+
+The pipeline uses a two-phase model per record:
+
+- **Phase A (sequential):** the four mandatory processors (`blocking`, `structure_analyzer`/`static_analyzer`, `chunking`, `extract_metadata`) are executed **in dependency order, one at a time**, regardless of the concurrency flag. Their outputs feed downstream processors. The block buffer is cleared after `static_analyzer` (stale pre-analysis blocks); chunk-buffer consumers read only.
+- **Phase B (concurrent):** all configured configurable processors (#5–#14 from the pipeline table) are **fanned out as concurrent goroutines** under a `sync.WaitGroup`, because they have no cross-dependencies. A per-record mutex serializes all `kb.inputs.status` read-modify-write sequences so concurrent status entries are never lost. Each processor runs to completion independently; a failure in one does not cancel siblings.
+
+Controlled by `RUN_DOC_PROCESSOR_CONCURRENT` env var (default `"true"`). Set to `"false"` to fall back to the original sequentially-ordered pipeline.
+
+**Single-instance constraint:** the status lock is an in-process mutex. If doc-processor is ever scaled to multiple replicas, upgrade to a DB row lock (`SELECT … FOR UPDATE`) + `jsonb_set` or a shared coordinator (Redis / dedicated primary status instance). See `ChenWeb/server/api/doc-processing/status_lock.go` and `docs/superpowers/specs/2026-06-01-concurrent-doc-processors-design.md`.
+
 ### Record Completion Criteria
 
 A record in `kb.inputs` is considered **finished** when every processor that is expected to run for that record has reached `proc_status` = `"success"`, `"failed"`, or `"stopped"`. The expected set is:
@@ -411,7 +422,7 @@ If multiple processors are specified, they must be applied in the order in which
 Important:
 
 - The `operation` field is an explicit processor filter.
-- If `operation` is omitted or empty, Doc Processor applies all configured processors in the configured order.
+- If `operation` is omitted or empty, Doc Processor applies all configured processors. Mandatory (Phase A) processors always run in dependency order; configurable (Phase B) processors run concurrently (order unspecified).
 - If `operation` is `"chunking"`, Doc Processor runs the always-on `blocking` processor and then the `chunking` processor only.
 - `generate_summary` and `generate_topics` are no longer implicitly included in `chunking`.
 - `extract_provisions` is a separate processor. When `EXTRACT_PROVISIONS_INPUT="chunks"` (default), it depends on the chunking output and both must be requested together:
