@@ -74,6 +74,7 @@ The controller also writes a `doc_processing` status entry tracking the overall 
 
 When run concurrently, Phase B processors all append their entries to this shared array. The naive read-modify-write (read the whole array into Go, append the local entry, write the whole array back) loses writes from sibling processors because each goroutine reads a snapshot that may be stale before it writes.
 
+
 #### Fix: re-read inside a per-record lock
 
 A sharded in-process mutex striped by `record_id` (256 shards, fixed-size array, no allocation) serializes the status read-modify-write. The critical design rule is: **re-read the database status inside the lock**, never use a locally cached `rec.StatusRaw` that was loaded outside the lock.
@@ -86,6 +87,13 @@ Two complementary primitives cover the two store interfaces used by Phase B proc
 | `(*FixedSizeChunkingService).updateInputStatusLocked(ctx, id, errMsg, build)` | `Store.UpdateInputStatus` | `build` receives `current` and returns the new status JSON string |
 
 Both use the same sharded lock. The LLM calls and artifact writes happen **outside** the lock, so the ~50s of work stays fully concurrent; only the brief status mutation (sub-millisecond) serializes.
+
+With this in place, the only difference from sequential execution of doc processors
+is that when RUN_DOC_PROCESSOR_CONCURRENT=true, each status write acquires the per-record 
+lock, re-reads kb.inputs.status from the database inside the lock, appends its entry, 
+and writes back — so concurrent processors don't clobber each other. The frontend keeps 
+reading kb.inputs.status directly from the database as it always did; live progress updates 
+still hit the DB on every write.
 
 **Before (racy):**
 ```go

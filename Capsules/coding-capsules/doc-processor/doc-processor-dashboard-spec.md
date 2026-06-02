@@ -32,13 +32,43 @@ A record is considered **finished** when all expected processors have reached `p
 
 ## Dashboard 
 ### Show Pipelines
-- For each processing thread, show the pipeline and mark the current stage
+- For each processing thread, show the pipeline and mark the current stage(s)
 - Fetch active pipelines by querying records with `operation = "doc_processing"` and `proc_status = "running"`, capped by `MAX_DOC_PROCESS_PIPELINES`.
 - Visually distinguish **mandatory** processors (always run) from **configurable** processors (driven by `[doc-processing].required_processors` in `config.toml`). For example, use a filled badge for mandatory and an outlined badge for configurable.
 - When mouse hovers over a node in a pipeline, show the node details including whether it is mandatory or configurable
 - **Stop a processing thread** — see "Stop Pipeline" section below
 - Restart a processing thread, hand-pick the processors to re-run. Default: re-run all.
 - Exclude records whose `file_name` ends with `.zip` — do not monitor or display `.zip` file status
+
+#### Two-Phase Pipeline Layout
+
+The pipeline runs in two phases. The dashboard must reflect this structure visually:
+
+- **Phase A — Sequential** (`blocking → structure_analyzer → chunking → extract_metadata`): render as a horizontal chain. Exactly one node is active at a time; highlight the single node whose `proc_status = "running"`.
+- **Phase B — Concurrent** (all configurable processors): render as a parallel fan-out below/after Phase A. During Phase B, **multiple nodes may carry `proc_status = "running"` simultaneously**; highlight all of them at once.
+
+#### Determining Active Nodes
+
+For a given record, the set of active nodes is determined from `kb.inputs.status`:
+
+- Collect all entries where `proc_status = "running"`.
+- If the running entry is one of the four mandatory processors, only that single node is highlighted (Phase A is in progress).
+- If one or more running entries are configurable processors, Phase B is in progress — highlight every configurable processor whose entry shows `proc_status = "running"` concurrently.
+- A configurable processor node that has already reached `"success"`, `"failed"`, or `"stopped"` is shown in its terminal state even while sibling processors are still running.
+
+#### Node State Rendering
+
+Each pipeline node reflects its `proc_status` value:
+
+| `proc_status`  | Visual state            |
+|----------------|-------------------------|
+| *(no entry)*   | Pending / not started   |
+| `"running"`    | Active / highlighted    |
+| `"success"`    | Complete                |
+| `"failed"`     | Error                   |
+| `"stopped"`    | Stopped                 |
+
+During Phase B, the dashboard may show several configurable nodes in `"running"` state simultaneously alongside others already in a terminal state — this is the expected concurrent behavior, not an error.
 
 ### Manual Launch Pipelines
 - Search records in 'kb.inputs'
