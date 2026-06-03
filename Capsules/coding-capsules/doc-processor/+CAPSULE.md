@@ -77,16 +77,15 @@ Currently, it has the following doc processors:
 |2 | structure_analyzer | mandatory | No | none | Doc Structure Static Analyzer. Refer to [1] |
 |3 | chunking | mandatory | No | after 2 | Chunking Processor. Refer to [2]|
 |4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
-|5 | extract_metrics | configurable | Yes | after 1 | Extract Metrics Processor. Refer to [4] for its spec |
+|5 | extract_metrics | configurable | Yes | after 3 | Extract Metrics Processor. Refer to [4] for its spec |
 |6 | extract_provisions | configurable | Yes | after 3 (default) or after 1 (EXTRACT_PROVISIONS_INPUT="blocks") | Extract provisions. Refer to [5] |
 |7 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
 |8 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
 |9 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
-|10 | extract_products | configurable | Yes | after 1 | Extract product relations. Refer to [10] |
-|11 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
-|12 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
-|13 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
-|14 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
+|10 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
+|11 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
+|12 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
+|13 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.

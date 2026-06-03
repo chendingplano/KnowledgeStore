@@ -148,3 +148,13 @@ Note that prompt caching (or input caching) is NOT response caching
 [4]: https://llm-d.ai/blog/kvcache-wins-you-can-see?utm_source=chatgpt.com "KV-Cache Wins You Can See: From Prefix ..." \
 [5]: https://medium.com/%40michael.hannecke/prompt-caching-explained-what-it-is-what-it-isnt-and-when-to-use-it-9f5c6fce7bdb?utm_source=chatgpt.com "Prompt Caching: What It Is, What It Is Not"
 
+= 2026/06/03 - Kapa
+#let a_003 = link(
+  "https://www.kapa.ai/request-demo"
+)[#text(fill:blue)[URL]]
+
+#a_003 \
+Source: Techcrunch
+
+This is a competitor of SemOS. It offers doc services.
+

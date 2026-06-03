@@ -67,6 +67,11 @@ The current implementation does not persist the raw line bodies inside the `.chu
 - Chunk by line boundaries only.
 - Chunk target size: `CHUNK_SIZE` bytes (not lines).
 - Overlap: `CHUNK_OVERLAP_PERCENT` (line-based overlap ratio).
+- Chunk-size sanity check:
+  - For every non-final chunk, the regular `lines` payload, excluding `overlap`, MUST be at least `80%` of `CHUNK_SIZE` by byte size.
+  - The overlap payload SHOULD be no more than `20%` of `CHUNK_SIZE` by byte size.
+  - If overlap is larger than `20%` of `CHUNK_SIZE`, remove overlap lines from the front until the overlap is under that limit or only one overlap line remains.
+  - The final chunk may have a regular payload smaller than `80%` of `CHUNK_SIZE`.
 - Represent the persisted chunk artifact using line-number ranges:
   - `overlap`: overlap lines carried from the previous chunk
   - `lines`: regular lines in the chunk

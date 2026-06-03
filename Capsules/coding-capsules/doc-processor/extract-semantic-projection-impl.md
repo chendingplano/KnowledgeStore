@@ -63,6 +63,10 @@ For each Pass 1 result, the processor calls the enrich model with the candidate'
 }
 ```
 
+## Line Spans
+
+Each projection carries `line_spans`: the compressed line-number ranges of the regular (non-overlap) lines in its source chunk, derived via `chunkLineSpans` (filters `MarkedLine.Mark == "r"`, then calls `lineRangesFromNumbers`). This is stamped onto the projection map alongside `semantic_proj_id` and `create_time` before saving.
+
 ## Semantic Projection ID
 
 Each projection is assigned an ID:
@@ -86,8 +90,11 @@ CREATE TABLE IF NOT EXISTS kb.semantic_projections (
     descriptive_name_en  TEXT,
     keywords         JSONB,
     keywords_en      JSONB,
+    semantic_projection TEXT,
+    semantic_projection_en TEXT,
     category_paths   JSONB,
     category_paths_en JSONB,
+    line_spans       JSONB,
     model_name       TEXT,
     prompt_name      TEXT,
     search_document  TEXT,

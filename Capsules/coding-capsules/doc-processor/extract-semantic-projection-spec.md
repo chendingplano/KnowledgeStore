@@ -103,6 +103,22 @@ where `<level>` is the chunk level, `<seqno>` is a sequence number within a give
 
 Assign a semantic projection ID to each semantic projection.
 
+### Line Spans
+
+Each semantic projection records the source lines it was derived from in a
+`line_spans` field. Because there is a one-to-one mapping between a chunk and a
+semantic projection, `line_spans` is taken from the source chunk's lines.
+
+- **Format:** a JSON array of line-range strings, e.g. `["1-4", "9-12"]`. Each
+  entry is either a single line number (`"7"`) or an inclusive range
+  (`"start-end"`). Contiguous line numbers are collapsed into ranges; overlap
+  (carry-over) lines are excluded.
+- **Storage:** persisted to the `kb.semantic_projections.line_spans` JSONB
+  column.
+
+`line_spans` provides the line-level grounding for a projection — the spans that
+tie it back to the source document.
+
 ## Workflow
 
 - For each chunk, run Pass 1 to extract its semantic projection.
@@ -110,6 +126,7 @@ Assign a semantic projection ID to each semantic projection.
 - If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, it is an error.
 - For each semantic projection, run Pass 2 to enrich it into final semantic projection.
 - Generate a semantic projection ID for each semantic projection and save it as `semantic_proj_id`
+- Derive `line_spans` from the source chunk (see [Line Spans](#line-spans); one-to-one mapping between chunks and semantic projections) and save it as `line_spans`.
 - Add a `create_time` to each semantic projection.
 - Save final semantic projection to `kb.semantic_projections`.
 - Write `.semantic_projections` artifact output.
@@ -154,10 +171,13 @@ Construct a row for each final semantic projection and insert it.
 Rules:
 
 - save the JetStream event ID to `event_id`
+- save `line_spans` (the source chunk's line ranges; see [Line Spans](#line-spans)) to the `line_spans` JSONB column
 - if the original language is English, do not generate/store the "_en" fields.
 - save additional information to `ext_info`
 
 ### Save to File
+
+Each semantic projection written to the file includes `line_spans` (see [Line Spans](#line-spans)).
 
 Write all final semantic projections in JSON to:
 

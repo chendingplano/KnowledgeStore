@@ -23,6 +23,8 @@ A document is broken down into a number of chunks. This feature does the followi
   'dddd' is a sequence number, starting from 1.
 - Summaries of summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_n_dddd.txt`,
   where 'n' is the level: 1, 2, ... and 'dddd' is a sequence number, starting from 1.
+- For a leaf summary, the saved `lines` field MUST cover the full chunk input sent to the summary model,
+  including both overlap context and regular chunk lines.
 
 ### 1.3 Model Output Format
 The model generates JSONs of the following format:
