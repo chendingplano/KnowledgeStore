@@ -132,10 +132,12 @@ double-generating the same page.
 
 ## Prerequisites
 
-1. **Expose `metric_id` in search results.** The documented `KbSearchResponse`
-   lists `metric_name`, `input_record_id`, `score` but not `metric_id`. Routing a
-   clicked Metrics result requires `metric_id`; if absent, surfacing it from
-   `kb.search_artifacts` / the registry handler is a precursor task.
+1. **Derive `metric_id` from search results (no schema change).** A Metrics
+   result already carries `artifact_id`, which the search-artifacts registration
+   builds as `<record_id>_mtc_<seqno>` (see
+   `20260526000004_add_search_artifacts_knowledge_partition.sql`). `metric_id` is
+   `<record_id>_<seqno>`, so it is recovered by replacing `_mtc_` with `_`. No new
+   column or migration is needed — just a parse on the result.
 2. **Wire the result link** for the Metrics scope to the new section.
 
 ## Configuration

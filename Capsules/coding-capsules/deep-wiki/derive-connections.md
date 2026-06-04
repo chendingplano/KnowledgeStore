@@ -2,9 +2,18 @@
 Artifacts are connected in various forms. This document focuses on connecting artifacts
 through shared lines.
 
-## Connect Topics and Metrics
+## Connections for Metrics
+### Metric and Chunk Connection
+
+### Metric and Topic Connection
 If a metric and a topic of the same document (identified by `record_id`) 
 share at least one line (by line numbers), create a connection:
+- Source: topic
+- Target: metric
+- Relation Type: has-metric
+- Relation Method: line-overlap
+- Confidence: 1.0
+- Semantic Signature: 
 
 ## 'kb.topic_conns'
 It stores connections whose sources are topics and targets can be docs and artifacts.
