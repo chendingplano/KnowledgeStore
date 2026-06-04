@@ -481,28 +481,54 @@ Use this checklist when adding a new doc processor (mandatory or configurable).
 - If configurable, add its name to `[doc-processing].required_processors` in `config.toml`.
 - When building LLM input text from lines, call the appropriate shared helper (`blockLinesToJSON`, `markedLinesToJSON`, or `rawLinesToJSON`). See **LLM Input Format** above.
 
-### 3. Full-Text Search Index
+### 3. Hybrid Search Index (BM25 + embeddings)
 
-Every processor whose output should be full-text searchable needs a dedicated `search_artifacts` partition and indexer:
+> **Status — target design (migration in progress).** Search is moving from `tsvector` + GIN
+> to ParadeDB `pg_search` (BM25 + Jieba) for lexical retrieval plus `pgvector` for semantic
+> retrieval, fused with RRF. See `KnowledgeStore/Research/PostgreSQLIndex.typ`. Until the
+> migration lands, the live `kb.search_artifacts` partitions and `search_indexing.go` still use
+> `search_vector TSVECTOR` / `USING GIN` — treat the steps below as the destination, not the
+> current code.
+
+Every processor whose output should be searchable needs a dedicated `kb.search_artifacts`
+partition and indexer:
 
 - Add a `searchArtifactXxx` string constant in `ChenWeb/server/api/doc-processing/search_indexing.go`.
-- Add `ReindexXxxSearchForRecord` and `buildXxxRegistryRows` functions following the pattern of the existing artifact types in the same file.
-- Call `ReindexXxxSearchForRecord` at the end of the processor's workflow (after saving output to the database).
+- Add `ReindexXxxSearchForRecord` and `buildXxxRegistryRows` functions following the pattern of the existing artifact types in the same file. `buildXxxRegistryRows` maps the artifact's own columns onto the generic search fields (`title`, `keywords`, `description`, `context`, `source_text`) and builds the synthetic `embedding_text` used to compute the embedding (see `KnowledgeStore/Research/PostgreSQLIndex.typ` → "Create a normalized embedding text").
+- Call `ReindexXxxSearchForRecord` at the end of the processor's workflow (after saving output to the database). It upserts one flattened row per artifact into `kb.search_artifacts`; the BM25 and HNSW indexes are live, so no materialized-view refresh is needed.
 - In `buildXxxRegistryRows`, scan any nullable column (`TEXT`, `JSONB`, etc.) into `sql.NullString` / `[]byte` — never into a plain `string`. Scanning a NULL PostgreSQL column into a plain Go `string` produces `sql: Scan error … converting NULL to string is unsupported` at runtime. Use `nullVar.String` when building the `RegistryRow` fields.
 
-- Add a goose migration in `ChenWeb/project_migrations/` to create the partition and its indexes:
+- Add a goose migration in `ChenWeb/project_migrations/` to create the partition and its indexes. ParadeDB BM25 indexes do **not** propagate from the partitioned parent, so create both the BM25 and HNSW indexes on the partition itself:
 
 ```sql
 CREATE TABLE IF NOT EXISTS kb.search_artifacts_<type> PARTITION OF kb.search_artifacts
     FOR VALUES IN ('<type>');
 
-CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_search_vector
-    ON kb.search_artifacts_<type> USING GIN (search_vector);
+-- lexical: BM25 + Jieba (replaces the old GIN (search_vector) index)
+CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_bm25
+    ON kb.search_artifacts_<type>
+    USING bm25 (
+        id,
+        (title::pdb.jieba),
+        (keywords::pdb.jieba),
+        (description::pdb.jieba),
+        (context::pdb.jieba),
+        (source_text::pdb.jieba)
+    )
+    WITH (key_field = 'id');
+
+-- semantic: pgvector HNSW over the embedding column
+CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_hnsw
+    ON kb.search_artifacts_<type>
+    USING hnsw (embedding vector_cosine_ops);
+
 CREATE INDEX IF NOT EXISTS idx_kb_search_artifacts_<type>_record
     ON kb.search_artifacts_<type> (input_record_id);
 ```
 
 Skipping this migration causes a `pq: no partition of relation "search_artifacts" found for row` error at runtime.
+
+Requires the `pg_search`, `vector` (pgvector), and Jieba tokenizer extensions installed on the instance.
 
 ### 4. Dashboard
 

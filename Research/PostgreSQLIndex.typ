@@ -967,15 +967,31 @@ This helps because users may query in either language.
 For Chinese, the extracted keywords are especially important. They act as your own controlled 
 segmentation and synonym layer.
 
-= Search Design for `kb.metrics`
+= Search Design: Unified `kb.search_artifacts`
 
-Use `PostgreSQL` + `ParadeDB` + `Jieba`.
+Use `PostgreSQL` + `ParadeDB pg_search` (BM25 + Jieba) + `pgvector` (embeddings).
 
-Design `kb.metrics` search as a metric object retrieval system, not just full-text search over one text column.
+Design search as an *artifact object retrieval* system over a single unified table, not
+as full-text search over one text column. Every searchable artifact — metrics, summaries,
+semantic projections, provisions, topics, entities — is projected into one table
+`kb.search_artifacts`, partitioned by `artifact_type`. The authoritative artifact tables
+(`kb.metrics`, etc.) remain the source of record; a search hit carries
+`(artifact_type, artifact_id)` so callers can join back for full detail.
 
-== Treat each metric as a searchable knowledge object
+Lexical and semantic retrieval are two independent, complementary paths:
 
-A metric table fields:
+- *Lexical* (`pg_search` BM25 + Jieba) — token/keyword matching, replaces `tsvector`.
+- *Semantic* (`pgvector`, embedding + cosine) — meaning-based matching; handles synonyms
+  and cross-lingual mismatch that BM25 cannot.
+
+Results from both are fused with Reciprocal Rank Fusion (RRF). Neither path requires the
+other; `tsvector` is not used anywhere in this design.
+
+== Keep authoritative artifact tables; project them into one search table
+
+Each artifact type keeps its own authoritative table. `kb.metrics` below is one example
+(summaries, semantic projections, provisions, topics, and entities each have their own).
+The metric table fields:
 
 ```sql
 	id                      bigserial NOT NULL,
@@ -1040,93 +1056,104 @@ threashold_or_target
 document title / category / standard name
 ```
 
-== Build a dedicated search document per metric
+== Build one flattened search row per artifact
 
-Create a separate table or materialized view:
+Do *not* use a materialized view: ingestion is per-record and asynchronous (JetStream),
+and a materialized view cannot refresh a single record. Instead each doc processor
+*upserts* one flattened row into `kb.search_artifacts` at the end of its run (replacing the
+per-type `tsvector` reindex step in the doc-processor capsule).
 
 ```sql
-CREATE MATERIALIZED VIEW kb.metric_search_docs AS
-SELECT
-    m.metric_id,
-    m.record_id,
+CREATE TABLE kb.search_artifacts (
+    id                bigserial PRIMARY KEY,
+    artifact_type     text  NOT NULL,   -- 'metric' | 'summary' | 'semantic_projection' | ...
+    artifact_id       text  NOT NULL,   -- source row id, e.g. kb.metrics.metric_id
+    input_record_id   int8  NOT NULL,
 
-    coalesce(m.metric_name, '') AS metric_name,
-    coalesce(m.metric_name_en, '') AS metric_name_en,
-    coalesce(m.subject, '') AS metric_name,
-    coalesce(m.subject_en, '') AS metric_name_en,
-    coalesce(array_to_string(m.metric_keywords, ' '), '') AS keywords,
-    coalesce(array_to_string(m.metric_keywords_en, ' '), '') AS keywords_en,
-    coalesce(m.metric_desc, '') AS description,
-    coalesce(m.metric_desc_en, '') AS description_en,
-    coalesce(m.metric_context, '') AS context,
-    coalesce(m.metric_context_en, '') AS context_en,
-    coalesce(m.search_document, '') AS search_document,
-    ...
-    ) AS search_vector
-FROM kb.metrics m;
+    -- weighted lexical fields (zh + en), fed to the BM25 index via jieba
+    title             text, title_en        text,
+    keywords          text, keywords_en      text,
+    description       text, description_en   text,
+    context           text, context_en       text,
+    source_text       text,
+
+    -- semantic
+    embedding_text    text,              -- synthetic doc that gets embedded (see below)
+    embedding         vector(1536),      -- pgvector; EMBEDDING_MODEL_NAME = gpt-embedding-small
+
+    created_at        timestamptz DEFAULT now() NOT NULL
+) PARTITION BY LIST (artifact_type);
 ```
 
-== Set Jieba Index
+Each artifact type maps its own columns onto these generic fields when it upserts
+(for a metric: `metric_name` -> `title`, `metric_keywords` -> `keywords`, and so on).
 
+== Lexical index: BM25 + Jieba
 
-```text
-CREATE INDEX metric_search_idx
-ON kb.metrics
+ParadeDB BM25 indexes do not propagate from a partitioned parent the way B-tree does, so
+create the BM25 index *on each partition* (this also gives free partition pruning when a
+query filters by `artifact_type`). For one partition:
+
+```sql
+CREATE INDEX search_artifacts_metric_bm25
+ON kb.search_artifacts_metric
 USING bm25 (
     id,
-    (metric_name_zh::pdb.jieba),
-    (metric_keywords_zh::pdb.jieba),
-    (metric_description_zh::pdb.jieba),
-    (metric_context_zh::pdb.jieba),
-    (source_text_zh::pdb.jieba)
+    (title::pdb.jieba),
+    (keywords::pdb.jieba),
+    (description::pdb.jieba),
+    (context::pdb.jieba),
+    (source_text::pdb.jieba)
 )
 WITH (key_field = 'id');
 ```
 
-== Set Field Weights
-```text
+== Field weights (BM25)
+
+Keywords are the strongest signal (your curated, controlled-vocabulary layer), so boost
+them highest:
+
+```sql
 WHERE id @@@ paradedb.boolean(
   should => ARRAY[
-    paradedb.match('metric_keywords_zh', :query, boost => 10),
-    paradedb.match('metric_name_zh', :query, boost => 8),
-    paradedb.match('metric_description_zh', :query, boost => 5),
-    paradedb.match('metric_context_zh', :query, boost => 2),
-    paradedb.match('source_text_zh', :query, boost => 1)
+    paradedb.match('keywords',    :query, boost => 10),
+    paradedb.match('title',       :query, boost => 8),
+    paradedb.match('description', :query, boost => 5),
+    paradedb.match('context',     :query, boost => 2),
+    paradedb.match('source_text', :query, boost => 1)
   ]
 )
 ```
 
-== Add vector search separately
+== Semantic search (`pgvector`)
 
-BM25 will not solve semantic mismatch.
+BM25 is purely lexical and will not solve semantic mismatch. The query `vaccine temperature
+alarm` should match artifact text `cold-chain excursion notification`, but BM25 misses it
+unless the keywords happen to bridge the gap. Embeddings + cosine similarity close this
+gap, and also bridge Chinese <-> English, which token-based BM25 cannot.
 
-Query:
-
-```text
-vaccine temperature alarm
-```
-
-Metric text:
-
-```text
-cold-chain excursion notification
-```
-
-BM25 may miss it unless your keywords bridge the gap. Add embeddings:
+The `embedding` column on `kb.search_artifacts` (above) holds the vector; index it with
+HNSW for ANN search:
 
 ```sql
-ALTER TABLE kb.metrics
-ADD COLUMN embedding vector(1536);
+CREATE INDEX search_artifacts_metric_hnsw
+ON kb.search_artifacts_metric
+USING hnsw (embedding vector_cosine_ops);
 ```
 
-Then use:
+Embeddings use `EMBEDDING_MODEL_NAME` (currently `gpt-embedding-small`, 1536 dims). Note it
+is an OpenAI general model — adequate for Chinese, but weaker than a dedicated multilingual
+model (bge-m3 / multilingual-e5). If Chinese semantic recall underperforms, the embedding
+model is the first knob to turn.
+
+The two paths combine as:
 
 ```text
-BM25 / FTS candidates
+BM25 candidates    (pg_search + jieba)
 +
-vector candidates
+vector candidates  (pgvector cosine)
 +
-metadata filters
+metadata filters   (artifact_type, input_record_id, ...)
 +
 final reranking
 ```
@@ -1138,47 +1165,54 @@ User query
   ↓
 Query normalization / expansion
   ↓
-BM25 search over metric fields
+BM25 search over kb.search_artifacts   (lexical)
+  +
+Vector search over kb.search_artifacts (semantic)
   ↓
-Vector search over metric semantic text
+Merge with Reciprocal Rank Fusion (RRF)
   ↓
-Merge with Reciprocal Rank Fusion
+[ graph expansion — deferred, see future work ]
   ↓
-Optional LLM/reranker
+Optional LLM / cross-encoder reranker
   ↓
-Return top metrics with evidence
+Return top artifacts with evidence (join back to source table)
 ```
+
+Lexical and semantic run in parallel as candidate *generators* (not semantic-as-rerank);
+RRF fuses them. Graph expansion over artifact connections is intentionally left out of
+this version and revisited later.
 
 == Create a normalized embedding text
 
-Do not embed only raw source text. Embed a synthetic metric document:
+Do not embed only raw source text. Embed a synthetic, normalized artifact document and
+store it in `kb.search_artifacts.embedding_text` before computing the vector:
 
 ```text
-Metric name: Temperature monitoring alarm requirement
+Name: Temperature monitoring alarm requirement
 Keywords: vaccine storage, cold chain, temperature excursion, alarm, monitoring
 Description: Measures whether vaccine storage equipment continuously monitors temperature and raises alarms during excursions.
 Context: Applies to vaccine cold-chain storage and transportation.
 Source: ...
 ```
 
-Store this as:
-
-```sql
-metric_embedding_text
-```
-
-This gives much better semantic retrieval than embedding raw extracted snippets only.
+This gives much better semantic retrieval than embedding raw extracted snippets only, and
+works for every artifact type, not just metrics.
 
 == Final Design
 
-For `kb.metrics`, use this architecture:
+Unified architecture for all searchable artifacts:
 
 ```text
-kb.metrics                = authoritative metric records
-kb.metric_search_docs     = flattened searchable documents
-ParadeDB / BM25           = better lexical ranking, if available
-RRF                       = combine BM25 + vector results
+kb.metrics, kb.summaries, ...  = authoritative artifact records (source of truth)
+kb.search_artifacts            = one flattened search row per artifact,
+                                 partitioned by artifact_type
+pg_search (BM25) + jieba       = lexical ranking (replaces tsvector)
+pgvector (embedding + cosine)  = semantic ranking
+RRF                            = fuse BM25 + vector results
 ```
+
+Deferred to a later iteration: graph expansion over artifact connections
+(weighted edges, bounded hops, re-scoring).
 
 = References
 [1]: https://pgxn.org/dist/pg_search/?utm_source=chatgpt.com "pg_search: Full text search for PostgreSQL using BM25 / ..."\
