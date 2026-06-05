@@ -26,7 +26,7 @@ recommendations.
   - `"chunks"`: convert lines with `markedLinesToJSON`
   - `"blocks"`: convert lines with `blockLinesToJSON`
 - The LLM generates zero or more provisions for each block. 
-- Provisions are identified by `prov_id`, which is a sequence number, starting at 1.
+- Provisions are identified by `prov_id`, using the format `<record_id>_prv_<sequence_number>`. The sequence number starts at 1 within the input record.
 - If primary extraction fails and the fallback model also returns an empty/truncated JSON response (for example `unexpected end of JSON input` with an effectively empty payload), treat that block as a successful empty extraction rather than a processor failure.
 - After processing all blocks, save all the extracted provisions from all the blocks to the table `kb.provisions` (refer to "Output Storage" section).
 - Save all extracted provisions to a `.provisions` artifact file (refer to "Output Storage" section).
@@ -70,7 +70,7 @@ The LLM output format is:
       "provision_en": "<English translation or same as original if English>",
       "provision_desc": <the description about the provision>,
       "provision_desc_en": <the English translation of provision_desc>,
-      "source_line_spans": ["<page>:<line>", "<page>:<line>"],
+      "source_line_spans": ["<line>", "<start_line>-<end_line>"],
       "context":"<the context>",
       "context_en":"<the English translation of the context if its input lanuage is not English>",
       "subject":"<the provision's subject>",
@@ -130,7 +130,7 @@ Refer to 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categori
 
 ### Output Record
 
-For each extracted provision, generate a unique Provision ID (`prov_id`) as a sequence number starting from 1. The `prov_id` is relative to the input record, so uniqueness is:
+For each extracted provision, generate a unique Provision ID (`prov_id`) using the format `<record_id>_prv_<sequence_number>`, where the sequence number starts at 1 within the input record. The `prov_id` is relative to the input record, so uniqueness is:
 
 ```text
 (input_record_id, prov_id)
@@ -138,7 +138,7 @@ For each extracted provision, generate a unique Provision ID (`prov_id`) as a se
 
 Normalize each extracted provision to:
 
-- `prov_id`: integer sequence number starting from 1 within the input record
+- `prov_id`: string in the format `<record_id>_prv_<sequence_number>`
 - `prov_name`: normalized provision name
 - `prov_name_en`: English translation of prov_name
 - `provision`: original provision text
@@ -179,7 +179,7 @@ where:
 ```text
 [
     {
-      "prov_id":1,
+      "prov_id":"173_prv_273",
       "prov_name": "<provision name>",
       "prov_name_en": "<provision name>",
       "prov_type": "mandatory",
@@ -187,7 +187,7 @@ where:
       "provision_en": "<English translation or same as original if English>",
       "provision_desc": <the description about the provision>,
       "provision_desc_en": <the English translation of provision_desc>,
-      "source_line_spans": ["<page>:<line>", "<page>:<line>"],
+      "source_line_spans": ["497-498"],
       "context":"<the context>",
       "context_en":"<the English translation of the context if its input lanuage is not English>",
       "subject":"<the provision's subject>",

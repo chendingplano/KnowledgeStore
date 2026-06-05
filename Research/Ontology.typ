@@ -110,14 +110,14 @@ instances of Relation Class.
 
 === Rule-004 Relation Hierarchy
 
-== Reviews
+= Reviews
 
-=== Open-Source: OntoFlow
+== Open-Source: OntoFlow
 
 #a_001 \
 Date: 2026/04/27
 
-=== OLOGS: A Categorical Framework for Knowledge Representation
+== OLOGS: A Categorical Framework for Knowledge Representation
 #let a_002 = link(
   "https://arxiv.org/pdf/1102.1889"
 )[#text(fill:blue)[URL]]
@@ -125,12 +125,12 @@ Date: 2026/04/27
 #a_002 \
 Source: WeChat
 
-==== Concepts
-*Category*
+=== Concepts
+==== Category
 
 A category is a mathematical structure that appears much like a directed
-graph: it consists of objects and arrows between them (a graph).
-The feature of catgegories that distinguishes them from graphs is
+graph: it consists of objects (nodes) and arrows (edges) between them (a graph).
+The feature of categories that distinguishes them from graphs is
 the ability to declare an equivalence relation on the set of paths.
 
 *Objects*\
@@ -158,7 +158,7 @@ a food f and a child c such that c ate all of f
 a triple (p, a, j) where p is a paper, a is an author of p, and j is a journal in which p was published
 ```
 
-*Aspects*\
+==== Aspects
 An aspect of a thing x is a way of viewing it. Below is a view:
 ```text
 'a woman --is--> 'a person'
@@ -182,7 +182,13 @@ Aspects that violate the above two rules are invalid aspects.
 
 This is an invalid aspect because not all persons (dots in X) has one and only one child (dots in Y).
 
+It appears that `aspect` is a formal way of `edges`. Note that edges are kind of vague.
+When we say "chunk has metric", it connects a chunk to a metric. From `aspect` point of view,
+this is an invalid aspect because not all chunks have metrics. I am not sure whether `aspect`
+is truly useful.
 
-== References
+==== Facts
+
+= References
 [1] #a_001 \
 [2] #ref_ontology_vs_semantic_layer \

@@ -1,7 +1,7 @@
-## Summary
+## 1. Summary
 This is a service to process parsed store objects. Its main.go is in ChenWeb/server/cmd/doc-processsor.
 
-## JetStream Subscription
+## 2. JetStream Subscription
 It subscribes to JetStream, with subject 'kb.line-file-generated'. The event payload is:
 ```json
 {
@@ -17,14 +17,14 @@ where:
 - "operation": optional. If present, which is a list of doc processor names, it lists the doc processor(s) this service will use on the input. Refer to "Operation" section for more info. 
 - "force": optional. If not specified, it defaults to true.
 
-## Handle JetStream Events
+## 3. Handle JetStream Events
 
 Since processing an event can potentially take long time, Doc Processor will handle JetStream events as follows:
 - Receive an event
 - Insert a record to 'kb.events' (refer to KnowledgeStore/database-table-schemas/table-kb-events.md)
 - Respond JetSteram
 
-## Retrieve Record
+## 4. Retrieve Record
 
 It retrieves the record from 'kb.inputs' by 'kb.inputs.id' = 'event.record_id'. 
 
@@ -32,7 +32,7 @@ Error Handling:
 - If failed accessing the database, report the error and finish.
 - If the record does not exist, report the error and finish.
 
-## Input File
+## 5. Input File
 - If event.filename is present and not empty, it specifies the input file.
 - If the file name does not contain path, its directory is derived from kb.inputs.result_filename. 
 - If the file name contains path, it must be an absolute path
@@ -44,11 +44,11 @@ Error Handling:
 - If the specified input file does not exist, update 'kb.inuts.status' with error "input file not exist" and then finish.
 - If the specified file is empty, update 'kb.inputs.status' with error "input file empty" and then finish.
 
-## Input File Format
+## 6. Input File Format
 The input file MUST conform to the canonical Line File spec:
 `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
 
-## LLM Input Format
+## 6.1. LLM Input Format
 
 All doc processors that make LLM calls **must** send lines to the LLM as a **JSON array**, not as tab-separated text. Each element in the array is an object with this shape:
 
@@ -68,7 +68,7 @@ Three shared conversion functions in `ChenWeb/server/api/doc-processing/input_li
 
 **Do not** convert lines to tab-separated strings (via `.String()`, `formatMarkedChunkLine`, or `buildMarkedChunkInputText`) and then marshal the string slice. Call the appropriate function above instead.
 
-## Doc Processing Pipeline
+## 7. Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
 | Seqno | Processor Name | Type | Require LLMs | Dependence | Explanation |
@@ -79,10 +79,10 @@ Currently, it has the following doc processors:
 |4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
 |5 | extract_metrics | configurable | Yes | after 3 | Extract Metrics Processor. Refer to [4] for its spec |
 |6 | extract_provisions | configurable | Yes | after 3 (default) or after 1 (EXTRACT_PROVISIONS_INPUT="blocks") | Extract provisions. Refer to [5] |
-|7 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
-|8 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
-|9 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
-|10 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
+|7 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
+|8 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
+|9 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
+|10 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
 |11 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
 |12 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
 |13 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
@@ -91,7 +91,7 @@ Currently, it has the following doc processors:
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
 For instance, 'after 1' means it uses the Blocking Processor's output as its input.
 
-### Processor Categories
+### 7.1 Processor Categories
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
@@ -104,18 +104,28 @@ required_processors = ["extract_metrics", "extract_provisions", "generate_summar
 
 If `required_processors` is absent or empty, no configurable processors run by default.
 
-### Pipeline Execution Model
+### 7.2 Pipeline Invocation Modes
 
-The pipeline uses a two-phase model per record:
+The doc processor pipeline can be invoked in one of the following modes:
+- All-Processor Mode: run all the configured doc processors
+- Selected-Processor Mode: run only selected processors
+
+The `all-processor` mode is used to process documents as whole. The `selected-processor` 
+mode is normally invoked by users through GUI or CLI to chery pick the ones to run.
+
+### 7.3 Pipeline Execution Model
+
+The pipeline uses a three-phase model per record:
 
 - **Phase A (sequential):** the four mandatory processors (`blocking`, `structure_analyzer`/`static_analyzer`, `chunking`, `extract_metadata`) are executed **in dependency order, one at a time**, regardless of the concurrency flag. Their outputs feed downstream processors. The block buffer is cleared after `static_analyzer` (stale pre-analysis blocks); chunk-buffer consumers read only.
 - **Phase B (concurrent):** all configured configurable processors (#5–#14 from the pipeline table) are **fanned out as concurrent goroutines** under a `sync.WaitGroup`, because they have no cross-dependencies. A per-record mutex serializes all `kb.inputs.status` read-modify-write sequences so concurrent status entries are never lost. Each processor runs to completion independently; a failure in one does not cancel siblings.
+- **Phase C (indexing):** after all doc processors finish, it kicks off this phase [Post Process](#post_process), which indexes the artifacts of the artifacts the doc processors generated.
 
 Controlled by `RUN_DOC_PROCESSOR_CONCURRENT` env var (default `"true"`). Set to `"false"` to fall back to the original sequentially-ordered pipeline.
 
 **Single-instance constraint:** the status lock is an in-process mutex. If doc-processor is ever scaled to multiple replicas, upgrade to a DB row lock (`SELECT … FOR UPDATE`) + `jsonb_set` or a shared coordinator (Redis / dedicated primary status instance). See `ChenWeb/server/api/doc-processing/status_lock.go` and `docs/superpowers/specs/2026-06-01-concurrent-doc-processors-design.md`.
 
-### Record Completion Criteria
+### 7.4 Record Completion Criteria
 
 A record in `kb.inputs` is considered **finished** when every processor that is expected to run for that record has reached `proc_status` = `"success"`, `"failed"`, or `"stopped"`. The expected set is:
 
@@ -130,287 +140,15 @@ Important:
 - As a result, running `chunking` alone no longer implicitly runs `generate_summaries` or `generate_topics`.
 - To preserve the old behavior, include `generate_summaries` and/or `generate_topics` explicitly in the requested `operation` list, or omit `operation` so the full configured pipeline runs.
 
-## Doc Process Status
+### 7.4 Post Process
+Indexing the artifacts processed by doc processors is not done by doc processors.
+When the pipeline finishes Phase B (i.e., finish processing all doc processors),
+the pipeline goes to this phase to (re-)index only the artifacts from the 
+invoked doc processors in this pipeline.
 
-Refer to [14] about updating the following entry in `kb.inputs.status`:
+For more information about indexing artifacts, refer to [16].
 
-```json
-  {
-    "operation": "doc_processing",
-    "start_time": "20260528 17:56:10",
-    "proc_status": "running"
-  }
-```
-
-### Structure Analayzer
-When: When the structure analyzer finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation":"static_analzyer",
-    "proc_status":"success | failed",
-    "input_filename": "std_20039_opendata.txt",
-    "num_lines": 703,
-    "num_pages": 26,
-    "num_labeled_lines": 610,
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Chunking
-When: When the Chunking processor finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation":"chunked",
-    "proc_status":"success | failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "num_lines": 703,
-    "num_pages": 26,
-    "num_labeled_lines": 610,
-    "num_chunks": 40,
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Extract Doc Metadata 
-When: When the Extract Doc Metadata processor finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation":"extract_metadata",
-    "proc_status":"success | failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Extract Provisions
-When: When the Extract Provisions processor finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "extract_provisions",
-    "proc_status":"success | failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Extract Metrics
-When: When the Extract Metrics processor finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "extract_metrics",
-    "proc_status":"success | failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Generate Summaries
-When: When the Generate Summary ([7])processor finishes.
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "generate_summaries",
-    "proc_status":"success | failed",
-    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-### Generate Topics
-When: When the Generate Topics ([8]) processor finishes (success, failure, or user-requested stop).
-
-Status JSON:
-```json
-{
-    "record_id":"ddd",
-    "file_type":"pdf | doc | docx | ppt | pptx | ...",
-    "operation": "generate_topics",
-    "proc_status":"success | failed | stopped",
-    "num_topics":ddd,
-    "input_filename": "xxx",
-    "output_filename": "xxx",
-    "error":"xxx",
-    "start_time":"yyyymmdd hh:mm:ss",
-    "ms_used":ddd,
-}
-```
-
-`proc_status = "stopped"` is written when a user stop request is detected mid-execution (at the boundary of an LLM call). `num_topics` reflects how many topics were extracted before the stop. `error` is absent on a clean stop.
-
-### Extract Semantic Projection
-When: When the extract semantic projection ([11]) processor finishes.
-
-Status JSON:
-```json
-{
-  "record_id": "ddd",
-  "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_semantic_projections",
-  "proc_status": "success",
-  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
-  "start_time": "yyyymmdd hh:mm:ss",
-  "ms_used": ddd
-}
-```
-
-### Extract Structured Knowledge
-When: When the extract structured knowledge ([12]) processor finishes.
-
-Status JSON:
-```json
-{
-  "record_id": "ddd",
-  "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_structured_knowledges",
-  "proc_status": "success | failed",
-  "start_time": "yyyymmdd hh:mm:ss",
-  "ms_used": ddd
-}
-```
-
-### Extract Entity & Relation
-When: When the extract entity-relation ([13]) processor finishes.
-
-Status JSON:
-```json
-{
-  "record_id": "ddd",
-  "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_entity_relation",
-  "proc_status": "success | failed",
-  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
-  "error": "xxx",
-  "start_time": "yyyymmdd hh:mm:ss",
-  "ms_used": ddd
-}
-```
-
-### Extract Inventory Items
-When: When the extract inventory items ([15]) processor finishes.
-
-Status JSON:
-```json
-{
-  "record_id": "ddd",
-  "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_inventory_items",
-  "proc_status": "success | failed",
-  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
-  "error": "xxx",
-  "start_time": "yyyymmdd hh:mm:ss",
-  "ms_used": ddd
-}
-```
-
-## Handle Stop Request
-
-A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
-
-### Shared Function: `CheckAndHandleStop`
-
-Every doc processor that makes LLM calls **must** call `CheckAndHandleStop` at each LLM call boundary to provide prompt, consistent stop behaviour. The function is defined in `ChenWeb/server/api/doc-processing/stop.go`.
-
-```go
-// CheckAndHandleStop checks whether the pipeline context was cancelled by a user
-// stop request. If it was, onStop is called with a background context (for DB
-// writes), and the function returns true. The caller must then return
-// ErrPipelineStopped immediately.
-func CheckAndHandleStop(ctx context.Context, onStop OnStopFunc) bool
-```
-
-`OnStopFunc` is `func(bgCtx context.Context)`. The background context is always passed because the pipeline context is already cancelled at the point of the call.
-
-### Contract for Each Processor
-
-When `CheckAndHandleStop` returns true the `onStop` callback **must**:
-
-1. Write `proc_status = "stopped"` to the appropriate `kb.inputs.status` entry, preserving progress counters accumulated so far (e.g. `num_topics`, `num_metrics`).
-2. Write a finish log entry to `kb.doc_proc_logs` (the processor's `finish` entry type) with a human-readable stopped reason in the `errors` field.
-3. Use the provided background context for all DB writes.
-
-After `CheckAndHandleStop` returns true, the calling function returns `ErrPipelineStopped` immediately — no further LLM calls or artifact writes.
-
-### Call-Site Pattern
-
-```go
-// Define the callback once, before the loop.
-onStop := func(bgCtx context.Context) {
-    s.stopAndPersistFoo(bgCtx, rec, inputFilename, start, itemsSoFar)
-}
-
-for _, item := range items {
-    // Check before the primary LLM call.
-    if CheckAndHandleStop(ctx, onStop) {
-        return ErrPipelineStopped
-    }
-    result, err := callLLM(ctx, ...)
-
-    if err != nil {
-        if s.FallbackExtractor != nil {
-            // Check before the fallback LLM call.
-            if CheckAndHandleStop(ctx, onStop) {
-                return ErrPipelineStopped
-            }
-            result, err = callFallbackLLM(ctx, ...)
-            if err != nil {
-                // Check after fallback failure (context may have been cancelled
-                // during the call).
-                if CheckAndHandleStop(ctx, onStop) {
-                    return ErrPipelineStopped
-                }
-                // handle normal fallback failure...
-            }
-        } else {
-            // Check before returning a real error.
-            if CheckAndHandleStop(ctx, onStop) {
-                return ErrPipelineStopped
-            }
-            return fmt.Errorf("...: %w", err)
-        }
-    }
-}
-```
-
-### Reference Implementation
-
-`generate_topics` (`ChenWeb/server/api/doc-processing/fix-size-chunking.go`, function `handleGenerateTopicsLines`) is the reference implementation. Use it as the template when adding stop support to other processors.
-
-## JetStream Request
+## 8. JetStream Request
 
 JetStream request payload may have an 'operation' attribute. If present, it specifies the doc
 processor to apply to the input file (or chunk files). Its value must be the ones in the 
@@ -454,7 +192,287 @@ When `EXTRACT_PROVISIONS_INPUT="blocks"`, it depends only on the blocking proces
 }
 ```
 
-## Workflow
+## 9. Doc Process Status
+
+Refer to [14] about updating the following entry in `kb.inputs.status`:
+
+```json
+  {
+    "operation": "doc_processing",
+    "start_time": "20260528 17:56:10",
+    "proc_status": "running"
+  }
+```
+
+### 9.1 Structure Analayzer
+When: When the structure analyzer finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"static_analzyer",
+    "proc_status":"success | failed",
+    "input_filename": "std_20039_opendata.txt",
+    "num_lines": 703,
+    "num_pages": 26,
+    "num_labeled_lines": 610,
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.2 Chunking
+When: When the Chunking processor finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"chunked",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "num_lines": 703,
+    "num_pages": 26,
+    "num_labeled_lines": 610,
+    "num_chunks": 40,
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.3 Extract Doc Metadata 
+When: When the Extract Doc Metadata processor finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation":"extract_metadata",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.4 Extract Provisions
+When: When the Extract Provisions processor finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "extract_provisions",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.5 Extract Metrics
+When: When the Extract Metrics processor finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "extract_metrics",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.6 Generate Summaries
+When: When the Generate Summary ([7])processor finishes.
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "generate_summaries",
+    "proc_status":"success | failed",
+    "input_filename": "Artifacts/0/100/std_20039_opendata.txt"
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+### 9.7 Generate Topics
+When: When the Generate Topics ([8]) processor finishes (success, failure, or user-requested stop).
+
+Status JSON:
+```json
+{
+    "record_id":"ddd",
+    "file_type":"pdf | doc | docx | ppt | pptx | ...",
+    "operation": "generate_topics",
+    "proc_status":"success | failed | stopped",
+    "num_topics":ddd,
+    "input_filename": "xxx",
+    "output_filename": "xxx",
+    "error":"xxx",
+    "start_time":"yyyymmdd hh:mm:ss",
+    "ms_used":ddd,
+}
+```
+
+`proc_status = "stopped"` is written when a user stop request is detected mid-execution (at the boundary of an LLM call). `num_topics` reflects how many topics were extracted before the stop. `error` is absent on a clean stop.
+
+### 9.8 Extract Semantic Projection
+When: When the extract semantic projection ([11]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_semantic_projections",
+  "proc_status": "success",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+### 9.9 Extract Structured Knowledge
+When: When the extract structured knowledge ([12]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_structured_knowledges",
+  "proc_status": "success | failed",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+### 9.10 Extract Entity & Relation
+When: When the extract entity-relation ([13]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_entity_relation",
+  "proc_status": "success | failed",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "error": "xxx",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+### 9.11 Extract Inventory Items
+When: When the extract inventory items ([15]) processor finishes.
+
+Status JSON:
+```json
+{
+  "record_id": "ddd",
+  "file_type": "pdf | doc | docx | ppt | pptx | ...",
+  "operation": "extract_inventory_items",
+  "proc_status": "success | failed",
+  "input_filename": "Artifacts/0/100/std_20039_opendata.txt",
+  "error": "xxx",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "ms_used": ddd
+}
+```
+
+## 10 Handle Stop Request
+
+A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
+
+### 10.1 Shared Function: `CheckAndHandleStop`
+
+Every doc processor that makes LLM calls **must** call `CheckAndHandleStop` at each LLM call boundary to provide prompt, consistent stop behaviour. The function is defined in `ChenWeb/server/api/doc-processing/stop.go`.
+
+```go
+// CheckAndHandleStop checks whether the pipeline context was cancelled by a user
+// stop request. If it was, onStop is called with a background context (for DB
+// writes), and the function returns true. The caller must then return
+// ErrPipelineStopped immediately.
+func CheckAndHandleStop(ctx context.Context, onStop OnStopFunc) bool
+```
+
+`OnStopFunc` is `func(bgCtx context.Context)`. The background context is always passed because the pipeline context is already cancelled at the point of the call.
+
+### 10.2 Contract for Each Processor
+
+When `CheckAndHandleStop` returns true the `onStop` callback **must**:
+
+1. Write `proc_status = "stopped"` to the appropriate `kb.inputs.status` entry, preserving progress counters accumulated so far (e.g. `num_topics`, `num_metrics`).
+2. Write a finish log entry to `kb.doc_proc_logs` (the processor's `finish` entry type) with a human-readable stopped reason in the `errors` field.
+3. Use the provided background context for all DB writes.
+
+After `CheckAndHandleStop` returns true, the calling function returns `ErrPipelineStopped` immediately — no further LLM calls or artifact writes.
+
+### 10.3 Call-Site Pattern
+
+```go
+// Define the callback once, before the loop.
+onStop := func(bgCtx context.Context) {
+    s.stopAndPersistFoo(bgCtx, rec, inputFilename, start, itemsSoFar)
+}
+
+for _, item := range items {
+    // Check before the primary LLM call.
+    if CheckAndHandleStop(ctx, onStop) {
+        return ErrPipelineStopped
+    }
+    result, err := callLLM(ctx, ...)
+
+    if err != nil {
+        if s.FallbackExtractor != nil {
+            // Check before the fallback LLM call.
+            if CheckAndHandleStop(ctx, onStop) {
+                return ErrPipelineStopped
+            }
+            result, err = callFallbackLLM(ctx, ...)
+            if err != nil {
+                // Check after fallback failure (context may have been cancelled
+                // during the call).
+                if CheckAndHandleStop(ctx, onStop) {
+                    return ErrPipelineStopped
+                }
+                // handle normal fallback failure...
+            }
+        } else {
+            // Check before returning a real error.
+            if CheckAndHandleStop(ctx, onStop) {
+                return ErrPipelineStopped
+            }
+            return fmt.Errorf("...: %w", err)
+        }
+    }
+}
+```
+
+### 10.4 Reference Implementation
+
+`generate_topics` (`ChenWeb/server/api/doc-processing/fix-size-chunking.go`, function `handleGenerateTopicsLines`) is the reference implementation. Use it as the template when adding stop support to other processors.
+
+## 11. Workflow
 
 - Receive an event
 - Retrieve the record by event.record_id
@@ -462,11 +480,11 @@ When `EXTRACT_PROVISIONS_INPUT="blocks"`, it depends only on the blocking proces
 - Apply Blocking Processor to break the input file into blocks. Save the result into Block Buffer.
 - Apply all the doc processors in the same order as listed in "Doc Processing Pipeline" section
 
-## Add New Doc Processor
+## 12. Add New Doc Processor
 
 Use this checklist when adding a new doc processor (mandatory or configurable).
 
-### 1. Documentation
+### 12.1. Documentation
 
 - Create a spec file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-spec.md`
 - Create an impl file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-impl.md`
@@ -474,14 +492,14 @@ Use this checklist when adding a new doc processor (mandatory or configurable).
 - Add a status JSON subsection under **Doc Process Status** in this file.
 - If configurable, add the processor name to the `required_processors` example in the **Processor Categories** section.
 
-### 2. Implementation
+### 12.2. Implementation
 
 - Implement the processor in `ChenWeb/server/api/doc-processing/`.
 - Register it in `ChenWeb/server/cmd/doc-processor/main.go`.
 - If configurable, add its name to `[doc-processing].required_processors` in `config.toml`.
 - When building LLM input text from lines, call the appropriate shared helper (`blockLinesToJSON`, `markedLinesToJSON`, or `rawLinesToJSON`). See **LLM Input Format** above.
 
-### 3. Hybrid Search Index (BM25 + embeddings)
+### 12.3. Hybrid Search Index (BM25 + embeddings)
 
 > **Status — target design (migration in progress).** Search is moving from `tsvector` + GIN
 > to ParadeDB `pg_search` (BM25 + Jieba) for lexical retrieval plus `pgvector` for semantic
@@ -530,7 +548,7 @@ Skipping this migration causes a `pq: no partition of relation "search_artifacts
 
 Requires the `pg_search`, `vector` (pgvector), and Jieba tokenizer extensions installed on the instance.
 
-### 4. Dashboard
+### 12.4. Dashboard
 
 Update `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte`:
 
@@ -541,7 +559,7 @@ Update `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte
 
 Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_IDS` lists.
 
-## References
+## 13. References
 
 [1] Doc Structure Analyzer Spec: KnowledgeStore/Capsules/coding-capsules/doc-processor/structure-analyzer-static-spec.md
 
@@ -572,3 +590,5 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 [14] KnowledgeStore/Capsules/coding-capsules/doc-processor/doc-processor-dashboard-spec.md
 
 [15] Extract Inventory Items Spec: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md
+
+[16] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md

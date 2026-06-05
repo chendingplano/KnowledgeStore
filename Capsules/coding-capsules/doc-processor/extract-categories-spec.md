@@ -113,12 +113,14 @@ present in this file, add them.
 When a new category path is generated and its categories match an existing directory,
 if the directory does not have the 'metadta.txt' file yet, add it.
 
-## 4.2 Index Summaries
-Given a document, the doc processing pipeline breaks the document into chunks, generates a summary
-for each chunk and generates category paths for the summary (refer to documents in 
+## 4.2 Index Semantic Projections 
+Given a document, the doc processing pipeline breaks the document into chunks, generates a semantic projection
+for each chunk and generates category paths for the semantic projection (refer to documents in 
 'KnowledgeStore/Capsules/coding-capsules/chunking' for document chunking, chunk summary generation and summary storage).
 
-Below is the workflow of indexing summaries:
+Semantic projections must have at least one category path. Otherwise, it is an error.
+
+Below is the workflow of indexing semantic projections:
 
 * Category paths are defined in pairs: `category_paths` in the input language and `category_paths_en` in English. If `category_paths_en` does not exist or empty, and `category_paths` is not in English, report an error, then translate it to English and save it to `category_paths_en`. 
 * If `category_paths` is not in English, always process `category_paths` and `category_paths_en` in pairs. 
@@ -127,31 +129,53 @@ Below is the workflow of indexing summaries:
   * For the i-th category in `category path`, use its English version to find the sub-directories in the current directory by the normalized category name:
     * If the sub-directory exists, merge its keywords/keywords_en and its original category name to 'metadata.txt', if the original name is not in English, and set the sub-directory as its current directory. Move on to the next category, if any.
     * Otherwise, create the sub-directory using its English version and create its metadata file for the sub-directory. Set the sub-directory as the current directory. Then move on to the next category, if any.
-  * Upsert its summary to 'summaries.txt', if the current directory matches the last category of the category path
+  * Upsert its semantic projection to 'semantic_projections.txt', if the current directory matches the last category of the category path
 
 Note that:
 - All directory names are in English
 - The original category names are stored in the metadata file
 
-`summaries.txt` format:
+`semantic_projections.txt` format:
 ```text
-<summary_id>
-<summary_id>
+<proj_id>
+<proj_id>
 ...
 ```
 
-Note that `<summary_id>` format is `<record_id>_<level>_<seqno>`. Summary IDs are sorted based on `record_id`, 
+Note that `<proj_id>` format is `<record_id>_<level>_<seqno>`. <proj_id> are sorted based on `record_id`, 
 `level` and `seqno`.
 
-## Index Metrics
-Indexing metrics is the same as indexing summaries, except that metrics are stored in `metrics.txt` file.
-`metrics.txt` file format is:
+## Index Summaries
+Summaries are generated per chunk. Generating summaries must run after generating semantic projections (refer to [1]).
+There is a one-to-one mapping between summaries and semantic projections of the same document.
+
+The workflow to index summaries is:
+- For each summary, use <summary_id> to retrieve the corresponding semantic projection
+- Retrieve the category paths from the semantic projection
+- The rest of indexing summaries is the same as that of indexing semantic projections, except that it stores summaries to the file `summaries.txt`.
+
+`summaries.txt` file format:
 ```text
-<record_id>_<seqno>
-<record_id>_<seqno>
+<summary_id>
+<summary_id>
 ...
 ```
-where `<record_id>` is the record ID and `<seqno>` is the sequence number for the given record, starting from 1.
+
+## Index Metrics on Category Paths
+Workflow:
+- Use its `source_line_spans` to find the semantic projections of the same document:
+  - `kb.semantic_projections.input_record_id` = `kb.metrics.input_record_id`
+  - `kb.semantic_projections.line_spans` and `kb.metrics.source_line_spans` share at least one line number
+- If no semantic projections are found, it is an error
+- For each semantic projection, retrieve its category_paths and index the metric in the same way as indexing semantic projections, except that metrics are saved in `metrics.txt` file.
+
+`metrics.txt` file format is:
+```text
+<record_id>_`mtc`_<seqno>
+<record_id>_`mtc`_<seqno>
+...
+```
+where `<record_id>` and `<seqno>` are from `kb.metrics.metric_id`
 
 ## Index Topics
 Indexing topics is the same as indexing summaries, except that topics are stored in `topics.txt` file.
@@ -199,3 +223,6 @@ are stored in `semantic_projections.txt`. Save semantic projects (JSON) in the f
 ## Index Structured Knowledge
 Indexing structured knowledge is the same as indexing summaries, except that structured knowledge
 is stored in `knowledges.txt`. Save structured knowledge JSON (not just its `knowledge_id`) in the file.
+
+## References
+[1] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md

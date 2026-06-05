@@ -58,7 +58,7 @@ The LLM output format is:
       "scene_type_hint": "workflow|operation|failure|decision|monitoring|compliance|state_transition|interaction|other",
       "title": "human readable title",
       "summary_hint": "one sentence description of the scene",
-      "evidence_quote": "short supporting quote",
+      "evidence_quote": "short exact quote from the input",
       "line_spans": ["12", "13-15"],
       "confidence": 0.0,
       "confidence_reason": "brief reason"
@@ -95,35 +95,30 @@ The LLM output format is:
       "scene_id": "stable_snake_case_identifier",
       "scene_type": "string",
       "title": "human readable title",
-
+      "title_en": "human readable title",
+      "line_spans": ["12", "13-15"],
       "summary": "standalone description of the semantic situation",
-
+      "summary_en": "standalone description of the semantic situation",
       "actors": [
         {
           "type": "human|system|organization|service|device|agent|role",
-          "name": "string"
+          "name": "string",
+          "name_en": "string"
         }
       ],
-
       "resources": [
         {
           "type": "document|system|database|file|equipment|tool|record|artifact|resource",
-          "name": "string"
+          "name": "string",
+          "name_en": "string"
         }
       ],
-
-      "preconditions": [
-        "conditions that must already be true"
-      ],
-
-      "triggers": [
-        "events that activate this scene"
-      ],
-
-      "states": [
-        "important states during this scene"
-      ],
-
+      "preconditions": ["string"],
+      "preconditions_en": ["string"],
+      "triggers": ["string"],
+      "triggers_en": ["string"],
+      "states": ["string"],
+      "states_en": ["string"],
       "actions": [
         {
           "sequence": 1,
@@ -131,69 +126,42 @@ The LLM output format is:
           "action": "string"
         }
       ],
-
-      "constraints": [
-        "rules, thresholds, deadlines, obligations"
+      "actions_en": [
+        {
+          "sequence": 1,
+          "actor": "string",
+          "action": "string"
+        }
       ],
-
-      "decisions": [
-        "branching decision logic if applicable"
-      ],
-
-      "outcomes": [
-        "expected results"
-      ],
-
-      "failure_modes": [
-        "what can go wrong"
-      ],
-
-      "root_causes": [
-        "if causal failure analysis is present"
-      ],
-
-      "resolutions": [
-        "corrective actions if applicable"
-      ],
-
+      "constraints": ["string"],
+      "constraints_en": ["string"],
+      "decisions": ["string"],
+      "decisions_en": ["string"],
+      "outcomes": ["string"],
+      "outcomes_en": ["string"],
+      "failure_modes": ["string"],
+      "failure_modes_en": ["string"],
+      "root_causes": ["string"],
+      "root_causes_en": ["string"],
+      "resolutions": ["string"],
+      "resolutions_en": ["string"],
       "relationships": [
         {
           "type": "depends_on|causes|triggers|constrains|uses|applies_to|references|produces",
           "target": "semantic target"
         }
       ],
-
-      "discriminators": [
+      "relationships_en": [
         {
-          "intent": "short interpretation of user need",
-          "domain": ["domain1", "domain2"],
-          "discriminators": [
-            {
-              "category": "lexical | synonym | abbreviation | metadata | structural | graph | heuristic",
-              "value": "string",
-              "confidence": 0.0,
-              "reason": "why this helps discriminate"
-          }
-          ],
-          "exploration_plan": [
-            "ordered recommended exploration steps"
-          ]
-        },
-      ],
-
-      "keywords": [
-        "normalized_keyword"
-      ],
-
-      "confidence": 0.95,
-
-      "source_refs": [
-        {
-          "source_id": "string",
-          "evidence_type": "raw_text|summary|provision|topic|execution_trace|conversation",
-          "reference": "location reference"
+          "type": "depends_on|causes|triggers|constrains|uses|applies_to|references|produces",
+          "target": "semantic target"
         }
-      ]
+      ],
+      "discriminators": [],
+      "keywords": ["normalized_keyword"],
+      "keywords_en": ["normalized_keyword"],
+      "confidence": 0.0,
+      "line_spans": ["12", "18-20"]
     }
   ]
 }

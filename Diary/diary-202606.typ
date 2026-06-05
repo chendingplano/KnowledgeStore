@@ -158,3 +158,21 @@ Source: Techcrunch
 
 This is a competitor of SemOS. It offers doc services.
 
+= 2026/06/05 - Anthropic Open-Source Security Package
+
+#let a_004 = link(
+  "https://github.com/anthropics/defending-code-reference-harness/tree/main"
+)[#text(fill: blue)[URL]]
+
+#a_004 \
+Source: Hacker News
+
+This is a reference implementation for scan vulnerabilities automatically
+and then use LLM to fix them.
+
+It is written in Python. My thoughts are:
+1. We do need such a module to constantly scan the security and fixed vulnerabilities, either
+   automatically or with human assistance.
+2. This should be a module in SemOS.
+3. Generate Security Report, weekly or monthly
+4. Collect security information through the Internet, automatically

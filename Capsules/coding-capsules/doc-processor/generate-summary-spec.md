@@ -30,25 +30,11 @@ A document is broken down into a number of chunks. This feature does the followi
 The model generates JSONs of the following format:
 ```json
 {
+  "language": "string",
   "summary": "summary in its input language",
   "summary_en": "the accurate English translation of 'summary' if its input language is not English",
   "keywords": ["xxx", ...], the keywords for the summary in its input language",
   "keywords_en": ["xxx", ...], the accurate English translation of 'keywords' if its input language is not English",
-  "categories": [
-    {
-      "category_path": [
-        {
-          "name": "public_health",
-          "keywords": ["health management", "disease prevention", "public health"],
-          "confidence": 0.95
-        },
-        ...
-      ],
-      "path_keywords": ["vaccination records", "recipient data", "information system"],
-      "path_confidence": 0.92
-    }
-  ], // in the input language
-  "categories_en": [...] // the same structure, generate only when its input language is not English
 }
 ```
 
@@ -79,6 +65,7 @@ record_id": 123
 level: 2
 lines: [ddd, ddd-ddd]
 children: ["1_0012", "1_0013"]
+language: "the language"
 keywords: ["xxx",...]
 keywords_en: ["xxx",...]
 category_paths: [(<path_keywords>, <path_confidence>, [<category_name>, <keywords>, <confidence>]), ...]
@@ -92,6 +79,7 @@ summary_en_end
 ```
 
 ### 1.8 Index Summaries
+
 Refer to Section "Index Summaries" in 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md' for indexing summaries.
 
 ### 1.9 Idempotent
