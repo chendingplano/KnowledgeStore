@@ -53,11 +53,19 @@ A topic must have at least one category path.
 For each category path, the file 'topics.txt' in the leaf directory must contain the topic ID.
 
 ## Metrics Sanity Check
-### Rule 1
-A topic must have at least one category path.
+### Rule 1 - `kb.metrics.metric_categories`
+- `kb.metrics.metric_categories` must not be null or empty
+- `kb.metrics.metric_categories_en` must not be null or empty
+- If `kb.inputs.doc_metadata.metadata.language` is not English, `kb.metrics.metric_categories` must not be in English unless the category names are acronyms
+- If `kb.metrics.metric_categories` is not in English, the lengths of `kb.metrics.metric_categories` and `kb.metrics.metric_categories_en` must be the same. Otherwise, `kb.metrics.metric_categories_en` is either null/empty or identical to `kb.metrics.metric_categories`
 
 ### Rule 2
-For each category path, the file 'topics.txt' in the leaf directory must contain the topic ID.
+For each metric category in `kb.metrics.metric_categories`, a corresponding record in `kb.category_instance`
+must exist:
+- `SELECT category_id FROM kb.category_instance.input_record_id = input_record_id`
+- Convert all category ids to category_names
+- `category_names` must be the same as `kb.metric_categories`
+```
 
 # References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md

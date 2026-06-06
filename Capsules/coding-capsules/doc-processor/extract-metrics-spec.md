@@ -172,7 +172,16 @@ Important notes:
 
 ### Indexing
 
-Metrics indexing runs after final metric rows are saved to `kb.metrics`. It has five outputs:
+Metrics indexing runs in the pipeline's **Phase C (post-process)** — after every doc
+processor for the record has finished — not inside the metrics processor's Phase B
+handler. This is required because metric indexing reads other processors' artifacts
+(semantic projections, topics, scene blocks, provisions, entities, inventory items, and
+their `kb.search_artifacts` rows), which may not exist yet while the metrics processor is
+still running in Phase B. See the doc-processor capsule's "Post Process" section.
+
+Indexing runs after the final metric rows are saved to `kb.metrics`. It is idempotent and
+re-runs for pre-existing metrics (e.g. when extraction was skipped because metrics already
+exist). It has five outputs:
 
 1. the metric row in `kb.search_artifacts`
 2. deterministic line-overlap links in `kb.metrics.connected_artifacts`
@@ -225,13 +234,14 @@ Connect each metric to its artifact categories.
 Rules:
 
 - `kb.metrics.metric_categories` must not be null or empty. If it is null or empty, report an indexing error for that metric.
-- For each category key in `kb.metrics.metric_categories`, find the corresponding category in `kb.artifact_categories`.
+- For each category key in `kb.metrics.metric_categories`, resolve the category via the **Identify Artifact Categories** procedure in [9], passing `(category_key, category_type = "metric")`. That procedure normalizes the key, matches an existing category (exact/alias, then hybrid semantic), and creates one via the LLM on a true miss — do not insert categories directly here.
 - For each resolved category, upsert one row in `kb.category_instance`.
 - The `kb.category_instance` row connects:
   - `category_id` from `kb.artifact_categories`
   - `artifact_id` = `kb.metrics.metric_id`
   - `input_record_id` = `kb.metrics.input_record_id`
   - `extra_info` containing at least `{"artifact_type":"metric","source":"extract_metrics"}`
+- Do not use `kb.inventory_categories` for metric categories.
 
 #### Index Metrics by Category Paths
 
@@ -352,9 +362,15 @@ where `seqno` starts at `1`.
 - Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
 - Save final metrics to `kb.metrics`.
-- Index final metrics: upsert `kb.search_artifacts`, populate `kb.metrics.connected_artifacts`, upsert `kb.category_instance`, write category-path `metrics.txt` entries, and upsert semantic links to `kb.artifact_connections`.
 - Write `.metrics` artifact output.
 - Upsert status in `kb.inputs.status`.
+
+Indexing is **not** part of this Phase B handler. After the whole pipeline finishes
+(Phase C / post-process), the controller invokes the metrics processor's post-process
+indexing step, which: upserts `kb.search_artifacts`, populates
+`kb.metrics.connected_artifacts`, upserts `kb.category_instance`, writes category-path
+`metrics.txt` entries, and upserts semantic links to `kb.artifact_connections`. See the
+[Indexing](#indexing) section.
 
 **Progress Update (per block):**
 - When beginning extraction, set `progress` to `"0%"` in `kb.inputs.status`.
@@ -427,6 +443,16 @@ Rules:
 - save `metric_categories` to support category-instance indexing
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
 - save additional information to `ext_info`
+
+### Category Table Migration
+
+Metric categories are managed by `kb.artifact_categories`.
+
+Rules:
+
+- Resolve every metric category through the **Identify Artifact Categories** procedure in [9] (with `category_type = "metric"`), which creates the category via the LLM on a true miss. Do not insert into `kb.artifact_categories` directly from the metric workflow.
+- Remove the retired `kb.inventory_categories` table.
+- Do not create, read, or write `kb.inventory_categories` in the metric extraction or indexing workflow.
 
 ### Save to File
 
@@ -586,4 +612,5 @@ Refer to [3], [4], [5] and [6].
 [5] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-design.md \
 [6] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-impl.md \
 [7] KnowledgeStore/Capsules/coding-capsules/llm-wiki/hybrid-search.md \
-[8] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md
+[8] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md \
+[9] KnowledgeStore/Capsules/coding-capsules/categories/category-mgmt-spec.md

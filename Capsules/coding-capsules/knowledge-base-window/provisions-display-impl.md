@@ -185,30 +185,31 @@ The PdfViewWindow toolbar exposes:
 
 ## Span normalisation — provision-specific
 
-Provision `source_line_spans` use a different encoding than metrics. Three formats
+Provision `source_line_spans` now use canonical line-only spans. The viewer still
+accepts a couple of legacy formats while older rows are read back. These formats
 are handled by `normalizeMetricSpans`:
 
 | Format | Example | Written by |
 |---|---|---|
-| `"page:line"` string | `"3:90"` | `CreateProvision` handler |
-| `{page_number, line_number}` object | `{"page_number":3,"line_number":90}` | Extraction pipeline |
-| Bare line-number string or number | `"90"` / `90` | Legacy / fallback |
+| Canonical line-only string | `"90"` / `"90-93"` | Current extraction pipeline |
+| `"page:line"` string | `"3:90"` | Legacy rows |
+| `{page_number, line_number}` object | `{"page_number":3,"line_number":90}` | Legacy / manual rows |
 
-For the `"page:line"` format the page number is taken directly. For bare
+For the `"page:line"` format the page number is taken directly. For canonical
 line-only forms the page is resolved via `lineNumToPage` (a `Map<lineNo, pageNo>`
-built from the loaded `RawLine[]`). Bracket characters (`[`, `]`) are stripped
-before matching so compacted JSON array strings are handled gracefully.
+built from the loaded `RawLine[]`), and hyphen ranges are expanded to individual
+lines for highlighting. Bracket characters (`[`, `]`) are stripped before
+matching so compacted JSON array strings are handled gracefully.
 
 ```ts
-const mm = s.match(/^(\d+)\s*:\s*(\d+)$/);
-if (mm) {
-    // "page:line"
-    pushLine(parseInt(mm[2], 10), parseInt(mm[1], 10));
+const range = s.match(/^(\d+)\s*-\s*(\d+)$/);
+if (range) {
+    pushRange(parseInt(range[1], 10), parseInt(range[2], 10));
 }
 ```
 
-Each span entry references a single source line (no range expansion), so
-`spanCount(m)` is simply `raw.length`.
+`spanCount(m)` therefore reflects expanded individual lines rather than just the
+raw array length when a range is present.
 
 ## Add Provision dialog
 

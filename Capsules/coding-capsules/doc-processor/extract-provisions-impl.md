@@ -170,13 +170,15 @@ Supported aliases during normalization:
 - `type` or `provision_type` -> `provision_type`
 - `source_text` or `provision_original` -> `source_text`
 
-`source_line_spans` are normalized with page numbers. For example, a line number `10` in a block where line 10 is on page 2 becomes:
+`source_line_spans` are normalized into canonical line-only spans. For example,
+line numbers `10` and `11` in the same provision become:
 
 ```text
-2:10
+10-11
 ```
 
-When the model already returns a string span such as `2:10`, that value is preserved as-is.
+Legacy values such as `2:10` are reduced to the line number component during
+normalization, and contiguous line numbers are merged into `"start-end"` ranges.
 
 ## Fallback Behavior
 

@@ -70,7 +70,7 @@ The LLM output format is:
       "provision_en": "<English translation or same as original if English>",
       "provision_desc": <the description about the provision>,
       "provision_desc_en": <the English translation of provision_desc>,
-      "source_line_spans": ["<line>", "<start_line>-<end_line>"],
+      "source_line_spans": ["20", "25-29"],
       "context":"<the context>",
       "context_en":"<the English translation of the context if its input lanuage is not English>",
       "subject":"<the provision's subject>",
@@ -81,47 +81,15 @@ The LLM output format is:
       "confidence": 0.0,
       "is_explicit": true or false,
       "need_verify": true or false,
-      "category_paths": [
-        {
-          "category_path": [
-            {
-              "name": "category-name",
-              "keywords": ["keyword", "keyword"...],
-              "confidence": ddd
-            },
-            {
-              <the next category>
-            },
-            ...
-          ],
-          "path_keywords": ["keyword", "keyword"...],
-          "path_confidence": ddd
-        }
-      ]
-      "category_paths_en": [    // This is the English translation of 'category_path', present only when the input language is not English!
-        {
-          "category_path": [
-            {
-              "name": "category-name",
-              "keywords": ["keyword", "keyword"...],
-              "confidence": ddd
-            },
-            {
-              <the next category>
-            },
-            ...
-          ],
-          "path_keywords": ["keyword", "keyword"...],
-          "path_confidence": ddd
-        }
-      ]
-    },
-    {
-      <next provision>
-    },...
+    }
   ]
 }
 ```
+
+`source_line_spans` uses canonical line-only spans. Each value MUST be either a
+single line number such as `"15"` or an inclusive line range such as `"15-18"`.
+Do not include page numbers or use `<page_number>:<line_number>` values such as
+`"4:48"`.
 
 ## Index Provisions
 Refer to 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md'
@@ -198,44 +166,8 @@ where:
       "confidence": 0.0,
       "is_explicit": true or false,
       "need_verify": true or false,
-      "category_paths": [
-        {
-          "category_path": [
-            {
-              "name": "category-name",
-              "keywords": ["keyword", "keyword"...],
-              "confidence": ddd
-            },
-            {
-              <the next category>
-            },
-            ...
-          ],
-          "path_keywords": ["keyword", "keyword"...],
-          "path_confidence": ddd
-        }
-      ]
-      "category_paths_en": [    // This is the English translation of 'category_path', present only when the input language is not English!
-        {
-          "category_path": [
-            {
-              "name": "category-name",
-              "keywords": ["keyword", "keyword"...],
-              "confidence": ddd
-            },
-            {
-              <the next category>
-            },
-            ...
-          ],
-          "path_keywords": ["keyword", "keyword"...],
-          "path_confidence": ddd
-        }
-      ]
     },
-    {
-      <next provision>
-    },...
+    ...
 ]
 ```
 

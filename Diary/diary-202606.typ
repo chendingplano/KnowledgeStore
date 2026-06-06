@@ -176,3 +176,16 @@ It is written in Python. My thoughts are:
 2. This should be a module in SemOS.
 3. Generate Security Report, weekly or monthly
 4. Collect security information through the Internet, automatically
+
+= 2026/06/06 - Prompt Sanitizer
+
+#let a_005 = link(
+  "https://github.com/SaiTeja-Erukude/promptsanitizer"
+)[#text(fill: blue)[URL]]
+
+#a_005 \
+Source: dzone
+
+This open-source is an LLM fileware. It sanitizes prompts. This can be a module
+we are going to have for SemOS.
+

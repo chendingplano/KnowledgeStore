@@ -134,7 +134,29 @@ The feature of categories that distinguishes them from graphs is
 the ability to declare an equivalence relation on the set of paths.
 
 *Objects*\
-This is the node.
+This is the node. The main differences are that a node may have parameters.
+```text
+Node A: "a pair (w, m) where w is a woman and m is a man" is a node. The node has
+two parameters: `w` and `m`. In general, nodes do have attributes in graphs.
+```
+
+Then we can ask "Is w a man or woman?". In Olog, we can draw a relation:
+
+```text
+Node B: a woman
+Node C: m man
+
+Edge: Node A 'w' B
+Edge: Node A 'm' C
+```
+
+We can further derive:
+```text
+Node D: "a person"
+
+D has-as-mother C
+
+```
 
 *Arrows*\
 This is the edge.
@@ -188,6 +210,9 @@ this is an invalid aspect because not all chunks have metrics. I am not sure whe
 is truly useful.
 
 ==== Facts
+A `Fact` is a derived relation. This is quite counterintuitive. We can declare "Person A is a woman"
+as a fact. But in Olog, we need to list "Person A has-as-parents a pair (w, m) where w is a woman
+and m is a man", then we can declare "Person A has-as-mother is a woman".
 
 = References
 [1] #a_001 \

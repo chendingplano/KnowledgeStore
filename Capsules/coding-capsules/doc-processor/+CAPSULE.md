@@ -146,7 +146,50 @@ When the pipeline finishes Phase B (i.e., finish processing all doc processors),
 the pipeline goes to this phase to (re-)index only the artifacts from the 
 invoked doc processors in this pipeline.
 
+**Implementation:** the controller (`ChenWeb/server/api/doc-processing/control.go`) defines
+`PostProcessIndexer { PostProcessIndex(ctx, recordID) error }`. After Phase B completes
+(and the pipeline was not stopped), `runPostProcessIndexing` calls `PostProcessIndex` on
+each invoked processor that implements the interface. Indexing errors are logged and do
+not abort sibling processors. `MetricsProcessor` is the first adopter (its
+`PostProcessIndex` reindexes `kb.search_artifacts`, then builds `connected_artifacts`,
+`category_instance`, category-path `metrics.txt`, and `hybrid_search` links). Other
+processors still index inline at the end of their Phase B `HandleEvent`; migrate them to
+`PostProcessIndexer` as cross-artifact indexing is added.
+
 For more information about indexing artifacts, refer to [16].
+
+### 7.5 Artifact Category Creation Under Concurrent Pipelines
+
+Some doc processors, currently `extract_metrics` and
+`extract_inventory_items`, may discover new artifact categories while they run.
+Because configurable processors already run concurrently in Phase B, and
+multiple documents may be processed at the same time, category creation must
+not perform synchronous one-by-one LLM calls in the request path.
+
+The pipeline contract is:
+
+- a processor may resolve a category and receive a valid `category_id`
+  immediately, even if that category's metadata is still incomplete;
+- the processor must not wait for category-enrichment LLM work before finishing;
+- category enrichment is delegated to a shared background worker pool that is
+  global across all pipelines;
+- multiple processors and multiple pipelines may race on the same missing
+  `(category_type, category_key)`, but they must all converge on the same
+  placeholder category row;
+- only the background enricher performs the expensive LLM call, using a
+  database-backed claim/lease mechanism so exactly one worker enriches a given
+  category at a time.
+
+Operationally, this turns category creation into a two-stage flow:
+
+1. The doc processor synchronously performs a fast placeholder upsert and gets
+   back the canonical `category_id`.
+2. The doc processor continues normal artifact persistence and indexing.
+3. A shared category-enricher service later fills in aliases, description,
+   specs, keywords, and embeddings concurrently.
+
+This model preserves Phase B processor concurrency and scales cleanly when the
+system runs multiple pipelines at once.
 
 ## 8. JetStream Request
 
