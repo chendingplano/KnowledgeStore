@@ -51,14 +51,15 @@
 
 ## Config Design
 
-- New `[metric_search]` section in `config.toml`
+- New `[artifact_search]` section in `config.toml`
+- New `[metric_search_weights]` section in `config.toml`
 - Configurable knobs:
   - dictionary
   - default/max page size
   - preview length
   - phrase-friendly query parsing
   - minimum rank
-  - per-field weights, with keywords highest
+  - per-field weights in the metric-specific block, with keywords highest
 
 ## UI Design
 

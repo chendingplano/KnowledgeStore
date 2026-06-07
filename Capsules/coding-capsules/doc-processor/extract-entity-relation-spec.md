@@ -152,6 +152,26 @@ At the end of every successful processor run, the processor calls:
 
 These read back the persisted rows and rebuild that record's portion of the search registry, deleting any prior rows first.
 
+Shared lexical / hybrid-search behavior is configured by `ChenWeb/config.toml`
+`[artifact_search]`. Entity-specific lexical emphasis is configured by
+`[entities_search_weights]`, and relation-specific lexical emphasis is configured by
+`[relations_search_weights]`.
+
+## Hybrid Artifact Connections
+
+After a successful processor run, the implementation also runs the hybrid
+artifact-connection step for both entities and relations:
+
+- entities use `kb.entities.search_document` to search `kb.search_artifacts`
+- relations use `kb.relations.search_document` to search `kb.search_artifacts`
+
+Both reuse the shared acceptance policy described in
+`KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md`:
+`artifact_search.min_rank` for the lexical channel, `ARTIFACT_CONNECT_MIN_COSINE`
+for the semantic channel, RRF fusion for ranking, and source-scoped idempotent
+replacement of `relation_method='hybrid_search'` /
+`relation_name='semantically_related'` edges.
+
 ## Status JSON
 
 At the end of every processor invocation, append (or replace) a status entry on the record:

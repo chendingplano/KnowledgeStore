@@ -138,3 +138,9 @@ When failed:
     "ms_used":ddd,
 }
 ```
+
+## Search And Artifact Connections
+
+- The shared hybrid-search behavior is configured by `ChenWeb/config.toml` `[artifact_search]`.
+- Summary-specific lexical emphasis is configured by `ChenWeb/config.toml` `[summaries_search_weights]`.
+- After summaries are persisted, the implementation rebuilds that record's summary rows in `kb.search_artifacts`, writes the line-overlap `has-summary` edges for level-0 summaries, and runs the hybrid artifact-connection step using `kb.summaries.search_document` against `kb.search_artifacts`.

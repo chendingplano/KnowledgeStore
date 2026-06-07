@@ -172,4 +172,10 @@ where:
 ```
 
 ## Implementations
+### Search And Artifact Connections
+
+- The shared hybrid-search behavior is configured by `ChenWeb/config.toml` `[artifact_search]`.
+- Provision-specific lexical emphasis is configured by `ChenWeb/config.toml` `[provisions_search_weights]`.
+- After a successful run, the implementation rebuilds the provision rows in `kb.search_artifacts`, writes the line-overlap `has-provision` connections, and runs the hybrid artifact-connection step using `kb.provisions.search_document` against `kb.search_artifacts`.
+
 Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-impl.md

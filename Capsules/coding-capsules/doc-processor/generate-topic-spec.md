@@ -168,6 +168,12 @@ When a user stop request is detected at the boundary of an LLM call (i.e. `isCtx
 - Write a finish log entry to `kb.doc_proc_logs` (entry type `extract_topics_finish`) with the stopped reason in `errors`.
 - Return `ErrPipelineStopped` to the pipeline controller.
 
+## Search And Artifact Connections
+
+- The shared hybrid-search behavior is configured by `ChenWeb/config.toml` `[artifact_search]`.
+- Topic-specific lexical emphasis is configured by `ChenWeb/config.toml` `[topics_search_weights]`.
+- After topics are persisted, the implementation rebuilds that record's topic rows in `kb.search_artifacts`, writes the line-overlap `has-topic` edges, and runs the hybrid artifact-connection step using `kb.topics.search_document` against `kb.search_artifacts`.
+
 ## Implementations
 Refer to [1]
 

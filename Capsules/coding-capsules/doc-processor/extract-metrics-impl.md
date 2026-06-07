@@ -182,7 +182,7 @@ inside `HandleEvent`.
    hybrid search (`queryMetricHybridCandidates`) over `kb.search_artifacts` using the
    metric's `search_document`; accepts a candidate when
    `cosine_sim >= METRIC_CONNECT_MIN_COSINE` (default 0.75) **or**
-   `lexical_score >= metric_search.min_rank`; ranks by RRF, caps at
+   `lexical_score >= artifact_search.min_rank`; ranks by RRF, caps at
    `METRIC_CONNECT_MAX_LINKS` (default 10), excludes self; upserts edges with
    `relation_method='hybrid_search'`, `relation_name='semantically_related'` via
    `ReplaceConnectionsBySource` (source-scoped, cross-document idempotent replace).
@@ -191,7 +191,7 @@ inside `HandleEvent`.
 
 - `METRIC_CONNECT_MIN_COSINE` (default `0.75`)
 - `METRIC_CONNECT_MAX_LINKS` (default `10`)
-- `metric_search.min_rank`, `metric_search.dictionary` (reused from the metric search config)
+- `artifact_search.min_rank`, `artifact_search.dictionary` (reused from the shared artifact search config)
 - semantic half gated by `SEARCH_SEMANTIC_ENABLED` / `kbsearch.SemanticSearchEnabled()`;
   lexical-only fallback when semantic search is off or the query cannot be embedded.
 

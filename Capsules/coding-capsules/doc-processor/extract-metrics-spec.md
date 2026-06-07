@@ -286,7 +286,7 @@ The hybrid search mechanics are defined in [7] (lexical + semantic RRF fusion); 
 **Acceptance threshold** — accept a candidate iff it clears at least one channel:
 
 - **Semantic channel:** `cosine_sim >= METRIC_CONNECT_MIN_COSINE` (default `0.75`), OR
-- **Lexical channel:** `lexical_score >= metric_search.min_rank` (the existing metric-search minimum rank)
+- **Lexical channel:** `lexical_score >= artifact_search.min_rank` (the shared artifact-search minimum rank)
 
 This OR rule matches the hybrid philosophy already in the search path: a semantically similar artifact can be accepted even when it shares no query terms, and a strong lexical match can be accepted even without an embedding.
 
@@ -309,7 +309,7 @@ This OR rule matches the hybrid philosophy already in the search path: a semanti
 
 - Candidates span the whole `kb.search_artifacts` registry (cross-document discovery is the purpose of the global registry); they are not restricted to the metric's own `input_record_id`.
 - Reprocessing must replace a document's metric semantic edges idempotently. Because these edges can target other documents, the replace scope must be keyed on the source side only: delete existing rows where `source_type = 'metric'` AND `source_record_id = <record_id>` AND `relation_method = 'hybrid_search'` AND `relation_name = 'semantically_related'`, then insert the freshly accepted edges. (The line-overlap replace path is intra-document; this source-scoped replace is the cross-document variant.)
-- These thresholds and limits are configurable via env vars (`METRIC_CONNECT_MIN_COSINE`, `METRIC_CONNECT_MAX_LINKS`) and the existing `metric_search.min_rank` config; defaults are `0.75`, `10`, and the configured `min_rank` respectively.
+- These thresholds and limits are configurable via env vars (`METRIC_CONNECT_MIN_COSINE`, `METRIC_CONNECT_MAX_LINKS`) and the shared `artifact_search.min_rank` config; defaults are `0.75`, `10`, and the configured `min_rank` respectively.
 
 ### Thinking Behavior
 
