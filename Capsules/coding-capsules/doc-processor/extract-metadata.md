@@ -76,6 +76,11 @@ Doc Metadata
   - "doc_no" 'kb.inputs.doc_no'
   - "publish_date" to 'kb.inputs.publish_date'
 
+Language Normalization
+- Before saving the JSON doc, normalize `metadata.language` by calling `ApiUtils.NormalizeLang(metadata.language)`.
+  This maps full language names and locale variants (e.g. "Chinese", "中文", "zh-CN", "English", "en-US", "日本語") to canonical lowercase BCP-47 base codes (e.g. "zh", "en", "ja").
+  Store the normalized value back into `metadata.language` before writing to `kb.inputs.doc_metadata`.
+
 'kb.inputs.authors' Field
   - If "authors" is not empty, save it to 'kb.inputs.authors'
   - Otherwise, if "main_drafting_persons" is not empty, save it to 'kb.inputs.authors'

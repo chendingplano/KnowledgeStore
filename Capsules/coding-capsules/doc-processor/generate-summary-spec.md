@@ -38,11 +38,17 @@ The model generates JSONs of the following format:
 }
 ```
 
+#### Language Override
+After receiving the model's output, apply the following language override rule before saving:
+- Read the doc metadata language from `kb.inputs.doc_metadata.metadata.language` (already normalized via `ApiUtils.NormalizeLang`).
+- If the metadata language is **not empty** and differs from the summary's `language` field, replace the summary's `language` with the metadata language.
+- This ensures consistent language tagging across all summaries of a document, overriding any per-chunk inference the model may have made.
+
 ### 1.4 Edge Cases
 - The last group takes the remaining chunks, which may be less than SUMMARY_GROUP_SIZE chunks.
 
 ### 1.5 Summary ID
-```<record_id>_<level>_<seqno>```
+```<record_id>_sum_<level>_<seqno>```
 
 where:
 - `<record_id>` is the record ID
@@ -60,7 +66,7 @@ For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 ### 1.7 Summary File Format
 
 ```text
-summary_id: "<record_id>_<level>_dddd"
+summary_id: "<record_id>_sum_<level>_dddd"
 record_id": 123
 level: 2
 lines: [ddd, ddd-ddd]

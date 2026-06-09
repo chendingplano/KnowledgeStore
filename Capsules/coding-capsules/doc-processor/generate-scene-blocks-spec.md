@@ -168,11 +168,11 @@ The LLM output format is:
 ```
 
 ## Scene Block ID
-Scene blocks are identified by Scene Block IDs: `<record_id>_<seqno>`, where `<seqno>` is a sequence number 
+Scene blocks are identified by Scene Block IDs: `<record_id>_sbk_<seqno>`, where `<seqno>` is a sequence number 
 relative to the record, starting at 1. Examples:
 ```
-201_1
-201_2
+201_sbk_1
+201_sbk_2
 ...
 ```
 

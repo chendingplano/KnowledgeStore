@@ -52,7 +52,7 @@ Per-item LLM output is normalized into two row shapes.
 
 | Field | Type | Notes |
 |---|---|---|
-| `entity_id` | text | `<record_id>_e_<seqno>`; seqno starts at 1 |
+| `entity_id` | text | `<record_id>_ent_<seqno>`; seqno starts at 1 |
 | `event_id` | text | JetStream event ID (or `rest-api` for API path) |
 | `input_record_id` | bigint | source `kb.inputs.id` |
 | `language` | text | detected input language |
@@ -80,7 +80,7 @@ Per-item LLM output is normalized into two row shapes.
 
 | Field | Type | Notes |
 |---|---|---|
-| `relation_id` | text | `<record_id>_r_<seqno>`; seqno starts at 1 |
+| `relation_id` | text | `<record_id>_rel_<seqno>`; seqno starts at 1 |
 | `event_id` | text | as above |
 | `input_record_id` | bigint | source `kb.inputs.id` |
 | `language` | text | detected input language |
@@ -218,7 +218,7 @@ The status entry is keyed by `operation = "extract_entity_relation"`. A second i
 7. Resolve the chunk artifact file (`.chunks`); on error, persist a failed status and return.
 8. For each chunk: build the marked input text, call the LLM with the entity-relation prompt (with fallback model on error), parse the JSON, normalize entities and relations. Chunks may be processed concurrently up to `EXTRACT_ENTITY_RELATION_MAX_TASKS` workers. An LLM error on one chunk skips that chunk without cancelling siblings; only a pipeline-stop signal cancels all in-flight workers. Results are aggregated in original chunk-index order so `entity_id` and `relation_id` assignment remains deterministic.
 9. Detect input language from the first non-empty `language` field returned. Default to `"unknown"` if nothing was detected.
-10. Assign `entity_id = <record_id>_e_<seqno>` and `relation_id = <record_id>_r_<seqno>` globally across all chunks.
+10. Assign `entity_id = <record_id>_ent_<seqno>` and `relation_id = <record_id>_rel_<seqno>` globally across all chunks.
 11. Insert entity rows into `kb.entities` and relation rows into `kb.relations`.
 12. Write the `.entities` and `.relations` artifact files.
 13. Reindex search via `ReindexEntitySearchForRecord` and `ReindexRelationSearchForRecord`.

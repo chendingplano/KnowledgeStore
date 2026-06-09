@@ -7,7 +7,7 @@ LLM Output JSON format:
 {
 "topics": [
     {
-      "topic_id":<seqno>,
+      "topic_id":"<record_id>_tpc_<seqno>",
       "topic_type": "string",
       "lines": ["38-45", "47"],
       "topic_keywords": ["keyword", "keyword",...],

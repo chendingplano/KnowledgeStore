@@ -92,6 +92,11 @@ makes instance writes idempotent (`ON CONFLICT (category_id, artifact_id)`).
 
 # 3. Identify Artifact Categories
 
+> **NOTE:** The resolution algorithm in this section is superseded by
+> [`category-resolution-redesign-2026-06-07.md`](category-resolution-redesign-2026-06-07.md).
+> Steps 1–4 below describe the original design; the implementation now uses a
+> process-wide hashmap index with no embedding or cosine matching.
+
 **Input:** `(category_key, category_type)`. **Output:** exactly one
 `kb.artifact_categories` row (the resolved canonical category).
 

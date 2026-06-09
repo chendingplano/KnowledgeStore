@@ -93,13 +93,13 @@ The shared LLM client should also log the raw HTTP response body before decoding
 
 ### Semantic Projection ID
 
-Semantic projectionsare identified by:
+Semantic projections are identified by:
 
 ```text
-<record_id>_<level>_<seqno>
+<record_id>_smp_<seqno>
 ```
 
-where `<level>` is the chunk level, `<seqno>` is a sequence number within a given level, starts at `1`.
+where `<seqno>` is a global sequence number across all chunks, starts at `1`.
 
 Assign a semantic projection ID to each semantic projection.
 

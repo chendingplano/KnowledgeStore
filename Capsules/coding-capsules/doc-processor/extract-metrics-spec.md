@@ -348,7 +348,7 @@ The shared LLM client should also log the raw HTTP response body before decoding
 Metrics are identified by:
 
 ```text
-<record_id>_<seqno>
+<record_id>_mtc_<seqno>
 ```
 
 where `seqno` starts at `1`.
@@ -594,7 +594,7 @@ This API persists reviewed final metric rows returned by the preview flow.
 - validate every metric has non-empty `metric_categories`
 - create `kb.metrics` table if needed
 - insert rows into `kb.metrics`
-- assign `metric_id = <record_id>_<seqno>` based on existing row count
+- assign `metric_id = <record_id>_mtc_<seqno>` based on existing row count
 - set `event_id = rest-api`
 - save `ext_info = {"source":"rest-api","schema_version":"2"}`
 - run the same post-save metrics indexing workflow used by the document processor

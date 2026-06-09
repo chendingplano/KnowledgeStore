@@ -19,7 +19,7 @@ The processor should use a multiple LLM passes. The first pass focuses on recall
 Assign a unique Product Relation ID to each final product relation. The ID format is:
 
 ```text
-<record_id>_<seqno>
+<record_id>_prd_<seqno>
 ```
 
 where `<record_id>` is the record ID and `<seqno>` is a sequence number relative to `<record_id>`, starting from `1`.

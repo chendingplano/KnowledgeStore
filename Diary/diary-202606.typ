@@ -189,3 +189,22 @@ Source: dzone
 This open-source is an LLM fileware. It sanitizes prompts. This can be a module
 we are going to have for SemOS.
 
+= 2026/06/08 - 3D Map
+#let a_006 = link(
+  "https://github.com/knight-L/sc-datav/tree/main"
+)[#text(fill: blue)[URL]]
+
+#a_006
+Source: WeChat
+
+This is a library that draws maps in 3D.
+
+= 2026/06/08 - Create GUI Interactively
+#let a_007 = link(
+    "https://www.toutiao.com/video/7648765558611116553/?app=news_article&category_new=tt_video_immerse&module_name=iOS_tt_others&req_id_new=202606080602289D8086EB948AD3179F90&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=8b30c438-62c4-11f1-b0ce-1070fd7eb9e6&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1780873171&tt_from=weixin&upstream_biz=iOS_wechat&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect")
+[#text(fill:blue)[URL]]
+
+#a_007 \
+Source: WeChat
+
+The author did not use skills. He created a wonderful web site by talking to LLMs.

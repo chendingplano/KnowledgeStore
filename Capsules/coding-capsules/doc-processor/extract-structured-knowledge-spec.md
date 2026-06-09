@@ -288,10 +288,10 @@ The shared LLM client should also log the raw HTTP response body before decoding
 Structured knowledge is identified by:
 
 ```text
-<record_id>_<level>_<seqno>
+<record_id>_knw_<seqno>
 ```
 
-where `<level>` is the chunk level, `<seqno>` is a sequence number within a given level, starts at `1`.
+where `<seqno>` is a global sequence number, starts at `1`.
 
 Assign a structured knowledge ID to each structured knowledge.
 

@@ -84,7 +84,7 @@ The LLM output is only the first pass. The Go processor performs deterministic n
 - compute `missing_required_attrs`
 - compute `validation_flags`
 - compute stable `dedupe_key`
-- assign `inventory_item_id = <record_id>_i_<seqno>`
+- assign `inventory_item_id = <record_id>_inv_<seqno>`
 
 This is an important design point: the LLM proposes candidate item attributes, but the system-owned normalization and validation logic lives in Go.
 
@@ -138,7 +138,7 @@ Each extracted item is normalized into a row with these main fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `inventory_item_id` | text | `<record_id>_i_<seqno>` |
+| `inventory_item_id` | text | `<record_id>_inv_<seqno>` |
 | `input_record_id` | bigint | source `kb.inputs.id` |
 | `language` | text | detected input language |
 | `item_name` | text | source-language item string |
@@ -356,7 +356,7 @@ The same physical item commonly appears in multiple chunks because chunks overla
 
 Discarded duplicates are **not** dropped. Every non-survivor row is persisted to a dedicated audit table, `kb.inventory_item_duplicates`, with:
 
-- its own `inventory_item_id` (`<record_id>_d_<seqno>`),
+- its own `inventory_item_id` (`<record_id>_dup_<seqno>`),
 - a `duplicate_of` pointer to the survivor's `inventory_item_id`,
 - the same `dedupe_key` as its survivor (so groups can be reconstructed by join),
 - all of its **own** original attributes (own `confidence`, `evidence_quote`, `source_line_spans`, etc.) retained for audit.
