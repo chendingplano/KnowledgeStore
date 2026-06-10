@@ -8,7 +8,7 @@ This document describes the current behavior of the parser-result-converter serv
 Its job is to convert parser outputs for PDF inputs into a canonical **Line File**, which is the internal standard input consumed by the downstream document-processing pipeline.
 
 The produced Line File MUST conform to:
-`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`
+`KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`
 
 ## Service Role
 
@@ -17,7 +17,8 @@ The produced Line File MUST conform to:
 - Validate that the record is eligible for conversion
 - Convert the parser result into a canonical Line File
 - Update `kb.inputs.status` with operation `converted`
-- Publish a completion event to `kb.line-file-generated`
+- Publish a completion event to `kb.line-file-generated` only when
+  `DOC_PROCESSOR_MODE=auto` or `DOC_PROCESSOR_MODE` is unset/empty
 
 ## Incoming Message
 
@@ -56,8 +57,8 @@ If these checks fail, the service writes a failed `converted` status entry.
 Current behavior:
 
 - empty parser name or `opendata`: supported
+- `mineru`: supported
 - `paddleocr`: recognized but not implemented
-- `mineru`: recognized but not implemented
 - `docline`: recognized but not implemented
 - any other parser name: unsupported
 
@@ -157,6 +158,41 @@ Configuration:
 
 This cleanup runs after page-number cleanup and before final line rendering.
 
+## mineru Conversion Rules
+
+### Input Format
+
+The mineru parser produces a tab-separated text file. Each record is a single line with 7 fields, but the raw output may contain multi-line values in the `bbox` field. Specifically, the bounding box is emitted as a JSON array spanning multiple lines:
+
+```text
+1	1	heading(1)	unknown-font	12	[
+            176,
+            384,
+            865,
+            462
+          ]	健康信息学 健康体检基本内容与格式规范
+```
+
+### Coordinate Normalization
+
+The converter MUST collapse multi-line JSON array coordinates into a single line with space-separated numbers:
+
+- strip the surrounding `[` and `]`
+- strip commas and surrounding whitespace from each number
+- join the numbers with a single space
+
+Example: `[\n  176,\n  384,\n  865,\n  462\n]` → `176 384 865 462`
+
+The normalized output line for the example above is:
+
+```text
+1	1	heading(1)	unknown-font	12	176 384 865 462	健康信息学 健康体检基本内容与格式规范
+```
+
+### Other Fields
+
+All other fields (line number, page number, type, font, font size, content) are taken from the mineru record as-is, following the same fallback rules as opendata: `unknown-font` and `12` when font or font size are absent.
+
 ## Content Escaping
 
 Before writing the Line File:
@@ -193,7 +229,18 @@ Failure shape:
 
 ## Completion Event
 
-After status update, the service publishes to `kb.line-file-generated`.
+After status update, the service may publish to `kb.line-file-generated`.
+
+Publishing is controlled by `DOC_PROCESSOR_MODE`:
+
+| `DOC_PROCESSOR_MODE` value | Completion event behavior |
+|---|---|
+| unset or empty | Publish to `kb.line-file-generated` |
+| `auto` | Publish to `kb.line-file-generated` |
+| any other value, including `dev` | Do not publish any event |
+
+Conversion and `kb.inputs.status` updates still run regardless of
+`DOC_PROCESSOR_MODE`; only the downstream completion event is suppressed.
 
 Current payload:
 
@@ -218,6 +265,10 @@ Important runtime variables:
 - `NATS_USER`
 - `NATS_PASS`
 - `NATS_TOKEN`
+- `DOC_PROCESSOR_MODE`: defaults to `auto`. When unset, empty, or `auto`, the
+  converter publishes `kb.line-file-generated` after successful conversion.
+  For any other value, including `dev`, the converter does not publish any
+  completion event.
 - `PARSER_RESULT_CONVERTER_DURABLE`
 - `PARSER_RESULT_CONVERTER_STREAM`
 - `PARSER_RESULT_CONVERTER_AUTO_RECREATE_STREAM`

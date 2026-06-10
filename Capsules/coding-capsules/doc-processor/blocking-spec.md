@@ -9,7 +9,7 @@ It breaks its input into blocks.
 
 Input File Format:
 The input file MUST conform to the canonical Line File spec:
-`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
+`KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`.
 
 ## Filter
 - If the config item: 'doc-processing.remove_toc_in_blocks' (in 'config.toml') is true, remove all the lines whose line type = 'toc'.

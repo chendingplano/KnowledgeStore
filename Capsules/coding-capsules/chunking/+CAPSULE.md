@@ -14,7 +14,7 @@ This service chunks a parsed line file into fixed-size chunks and persists chunk
 
 Input file line format:
 - The input file MUST conform to the canonical Line File spec:
-  `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
+  `KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`.
 
 Pipeline ordering requirement:
 - When the line file comes from the PDF converter, the static analyzer MUST run before chunking.

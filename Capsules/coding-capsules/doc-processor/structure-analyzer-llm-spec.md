@@ -19,7 +19,7 @@ The processor preserves the original input line type and adds:
 
 Input format requirement:
 - Input MUST conform to the canonical Line File spec:
-  `KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
+  `KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`.
 
 Related context:
 - metadata extraction spec:

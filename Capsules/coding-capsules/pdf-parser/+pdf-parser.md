@@ -1,0 +1,365 @@
+# PDF Parser Service
+
+## 1. Summary
+
+`ChenWeb/python/pdf-parser/` is a Python service that pulls PDF records from `kb.inputs`, dispatches each to a pluggable parser backend, writes a structured JSON result to the record's repository directory, updates the record's status in PostgreSQL, and publishes a parsed-result event to NATS JetStream so downstream processors can continue automatically.
+
+It supports two intake modes — **poll** (periodic DB scan) and **jetstream** (event-driven) — and four parser backends that can be selected per-record or forced service-wide via an environment variable.
+
+---
+
+## 2. Source Files
+
+| File | Role |
+|---|---|
+| `pdf_parser.py` | Entry point; configuration, dispatch loop, JetStream bus |
+| `shared.py` | PostgreSQL helpers, file utilities, status management |
+| `parser_base.py` | `ParserBackend` abstract base class |
+| `parser_opendata.py` | OpenDataLoader-PDF backend (Java subprocess) |
+| `parser_mineru.py` | MinerU backend (CLI subprocess) |
+| `parser_paddle.py` | PaddleOCR-VL backend (in-process Python) |
+| `parser_docling.py` | Docling backend (in-process Python) |
+
+---
+
+## 3. Pipeline Modes
+
+Set via `PDF_PIPELINE_MODE` (default: `poll`).
+
+### 3.1 Poll Mode
+
+`run()` loops indefinitely:
+
+1. Scan the staging directory for new PDFs (`scan_staging_once`).
+2. Fetch up to `PDF_BATCH_SIZE` candidate `kb.inputs` rows that have no `parsing` or `parsed` status entry.
+3. Process each record (`_process_record`).
+4. Publish one `kb.pdf.parsed` event per record.
+5. Sleep `PDF_POLL_INTERVAL` seconds.
+
+PostgreSQL errors trigger a reconnect and the loop continues. Other errors are logged and the loop continues.
+
+### 3.2 JetStream Mode
+
+`run_jetstream()` subscribes to `kb.pdf.staged` with a durable consumer:
+
+1. Pull one message at a time.
+2. Validate: `record_id > 0`, `type == "pdf"` (or absent), `status == "success"` (or absent).
+3. Load the matching `kb.inputs` row.
+4. Call `_process_record`.
+5. Publish the parsed event, then ACK.
+6. Permanent data errors (bad `record_id`, record not found) are ACKed and dropped. Transient errors are NAKed for retry.
+
+**Shutdown:** The service uses `loop.add_signal_handler` so that SIGINT/SIGTERM immediately cancels the pending `sub.fetch` task and exits the loop without waiting for the fetch timeout. NATS drain is given a 3-second timeout before the process exits.
+
+---
+
+## 4. Parser Backends
+
+Parser selection priority (highest first):
+
+1. `PDF_PARSER_NAME` environment variable — forces all records to use this parser.
+2. `kb.inputs.parser_name` — per-record override.
+3. `PDF_DEFAULT_PARSER` — service-level default (default: `opendata`).
+
+Backends are instantiated lazily and cached for the lifetime of the process.
+
+### 4.1 `opendata` — OpenDataLoader-PDF
+
+**File:** `parser_opendata.py`  
+**Engine:** Java subprocess (`opendataloader-pdf-cli.jar`)  
+**Third-party source:** `ThirdParty/opendataloader-pdf`
+
+Runs the JAR, reads the first `*.json` output file, and maps `kids` → `pages`.
+
+Configuration:
+
+| Variable | Description |
+|---|---|
+| `OPENDATA_JAR_PATH` | Override path to the JAR. Falls back to the default location in `ThirdParty/opendataloader-pdf`. |
+
+Requirement: `java` on PATH.
+
+### 4.2 `mineru` — MinerU
+
+**File:** `parser_mineru.py`  
+**Engine:** `mineru` CLI subprocess  
+**Third-party source:** `ThirdParty/mineru`
+
+Runs `mineru -p <pdf> -o <output_dir>`, then locates `*_content_list.json` under the output tree. Content items are grouped by `page_idx` to produce a page list.
+
+Output layout written by MinerU:
+
+```
+<output_dir>/<pdf_stem>/<backend>_auto/
+    <pdf_stem>_content_list.json
+    <pdf_stem>.md
+    <pdf_stem>_middle.json
+    <pdf_stem>_model.json
+    <pdf_stem>_layout.pdf
+    images/
+```
+
+Configuration:
+
+| Variable | Description |
+|---|---|
+| `MINERU_CLI` | Path to the `mineru` binary. Falls back to `which mineru`. |
+| `MINERU_BACKEND` | MinerU backend (e.g. `pipeline`, `vlm-transformers`). Omit to use MinerU's default. |
+| `MINERU_EXTRA_ARGS` | Space-separated extra CLI arguments appended to the command. |
+
+The `mineru` binary must be installed in the active Python environment. MinerU is installed as an editable package pointing to `ThirdParty/mineru`; its full dependency set must be present (`pip install -e ThirdParty/mineru`).
+
+### 4.3 `paddleocr` — PaddleOCR-VL
+
+**File:** `parser_paddle.py`  
+**Engine:** In-process PaddleOCR / PaddleOCR-VL
+
+Renders each page to a PNG via PyMuPDF at 2× scale, runs the OCR engine on the image array, and returns one entry per page with simplified block output (label, content, bbox, page number, image filename).
+
+Configuration:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PDF_USE_VL` | `true` | Use PaddleOCR-VL (VLM-enhanced). Set `false` for classic PaddleOCR. |
+| `PDF_MPS` | `false` | Move the VLM PyTorch model to Apple Metal GPU. |
+| `PDF_TIMING` | `false` | Emit per-block `[TIMING]` log lines for performance profiling. |
+| `PDF_QUANTIZE_ENABLED` | `false` | Apply torchao weight-only quantization to the VLM. |
+| `PDF_QUANTIZE_BITS` | `8` | `8` → Int8WeightOnly, `4` → Int4WeightOnly. |
+| `PDF_VLM_OCR_MAX_PIXELS` | `50176` | Cap on `min_pixels` for OCR-type blocks (224²). Non-OCR blocks (table, formula, chart) are unaffected. |
+
+### 4.4 `docling` — Docling
+
+**File:** `parser_docling.py`  
+**Engine:** In-process `docling` Python package
+
+Converts the PDF using `DocumentConverter`, exports to dict, writes `<pdf_stem>.docling.json`, and maps document pages to the output format.
+
+Requirement: `docling` package installed (`uv pip install -e ".[docling,dev]"`).
+
+---
+
+## 5. Environment Variables
+
+### PostgreSQL (required)
+
+| Variable | Description |
+|---|---|
+| `PG_HOST` | Database host (default: `127.0.0.1`) |
+| `PG_PORT` | Database port (default: `5432`) |
+| `PG_DB_NAME` | Database name (default: `miner`) |
+| `PG_USER_NAME` | User (default: `admin`) |
+| `PG_PASSWORD` | Password |
+
+### Directory layout
+
+| Variable | Description |
+|---|---|
+| `DATA_HOME_DIR` | Comma-separated list of repository root directories. Paths under these roots are stored relative in the DB. |
+| `PDF_BACKUP_DIR` | Backup directory for original PDFs before parsing. |
+| `STAGING_DIR` / `PDF_STAGING_DIR` / `DATA_STAGING_DIR` | Staging directory scanned for new PDFs (poll mode). |
+
+### Parser selection
+
+| Variable | Description |
+|---|---|
+| `PDF_PARSER_NAME` | **Force** all records to use this parser: `opendata` or `mineru`. Overrides `kb.inputs.parser_name`. |
+| `PDF_DEFAULT_PARSER` | Fallback parser when neither `PDF_PARSER_NAME` nor a per-record `parser_name` is set. Default: `opendata`. |
+
+### Poll mode
+
+| Variable | Default | Description |
+|---|---|---|
+| `PDF_PIPELINE_MODE` | `poll` | `poll` or `jetstream` |
+| `PDF_POLL_INTERVAL` | `10` | Seconds between DB polls |
+| `PDF_BATCH_SIZE` | `25` | Records per poll cycle |
+
+### JetStream / NATS
+
+| Variable | Default | Description |
+|---|---|---|
+| `NATS_URL` | `nats://127.0.0.1:4222` | NATS server URL |
+| `NATS_USER` | | NATS username |
+| `NATS_PASS` | | NATS password |
+| `NATS_TOKEN` | | NATS auth token |
+| `PDF_STAGE_EVENT_SUBJECT` | `kb.pdf.staged` | Subject to consume |
+| `PDF_PARSED_EVENT_SUBJECT` | `kb.pdf.parsed` | Subject to publish results |
+| `PDF_STAGE_EVENT_DURABLE` | `pdf-parser` | Durable consumer name |
+| `PDF_STAGE_EVENT_STREAM` | | Stream name for stage events (auto-created if set) |
+| `PDF_PARSED_EVENT_STREAM` | | Stream name for parsed events (auto-created if set) |
+
+---
+
+## 6. Directory and File Layout
+
+### Record directory
+
+For a record with `id = N`:
+
+```
+{DATA_HOME_DIR}/Artifacts/{N // 1000}/{N}/
+    <pdf_stem>.pdf              ← original PDF (copied from staging)
+    <pdf_stem>_<parser>.json    ← aggregated result written by pdf_parser.py
+    <pdf_stem>_content_list.json  ← MinerU raw output (mineru backend only)
+    page_1.png, page_2.png, …  ← page renders (paddleocr backend only)
+```
+
+Stored paths in `kb.inputs` are relative to `DATA_HOME_DIR`:
+
+```
+file_name       →  Artifacts/0/202/std_1521701.pdf
+result_filename →  Artifacts/0/202/std_1521701_mineru.json
+```
+
+### Staging flow
+
+When a PDF arrives in the staging directory:
+
+1. `scan_staging_once` computes its MD5.
+2. If no existing `kb.inputs` record has that MD5, a new record is inserted.
+3. Duplicate staged files are moved to backup and skipped.
+
+When the record is later processed from staging:
+
+1. The PDF is copied to its record directory under `DATA_HOME_DIR`.
+2. The PDF is also copied to `PDF_BACKUP_DIR` (with collision-avoidance naming).
+3. The staging file is deleted after successful parsing.
+
+---
+
+## 7. Status Tracking
+
+`kb.inputs.status` is a JSONB array. Each entry has an `operation` field. This service maintains a
+**single `parsed` entry** whose `proc_status` transitions through the parse lifecycle.
+
+### Status entries written by this service
+
+**During parsing** (claimed, in progress):
+
+```json
+[{"operation": "parsed", "proc_status": "active", "progress": "42%", "start_time": "20260609 04:49:28", "ms_used": 5200}]
+```
+
+**On success**:
+
+```json
+[{"operation": "parsed", "proc_status": "success", "parser_name": "mineru", "start_time": "...", "ms_used": 18400, "num_pages": 12, "error": ""}]
+```
+
+**On failure**:
+
+```json
+[{"operation": "parsed", "proc_status": "fail", "parser_name": "mineru", "start_time": "...", "ms_used": 1200, "error": "mineru exited 1: ..."}]
+```
+
+**On duplicate**:
+
+```json
+[{"operation": "parsed", "proc_status": "duplicated", "dup_rcd_id": 87, "start_time": "..."}]
+```
+
+Progress updates are throttled to at most one DB write every 3 seconds to avoid excessive load during long parses.
+
+### Status rollups — `parse_state` (indexed)
+
+`kb.inputs.status` is the source of truth, but querying tens of millions of rows by a predicate
+*inside* the JSON array required a sequential scan. A DB trigger on `kb.inputs` maintains a
+denormalized, indexed **`parse_state`** column derived from the `parsed` entry (migration
+`ChenWeb/project_migrations/20260609000002_add_kb_inputs_status_rollups.sql`):
+
+| `parsed` entry `proc_status` | `parse_state` |
+|---|---|
+| (no `parsed` entry) | `pending` |
+| `active` | `parsing` |
+| `success` | `parsed_success` |
+| `fail` / `duplicated` / other | `parsed_failed` |
+
+Implications for this service:
+
+- **Writes need no change.** Every `UPDATE kb.inputs SET status = …` here (claim, success, fail,
+  duplicate) fires the trigger, which recomputes `parse_state` automatically.
+- **Reads use the rollup column, not JSON scans.** `claim_candidates` selects
+  `parse_state = 'pending'` (never parsed) `OR (parse_state = 'parsing' AND modify_time` stale`)`;
+  `find_duplicate_processed_record` selects `parse_state = 'parsed_success'`. Both are indexed and
+  replace the former `jsonb_path_exists(...)` predicates.
+- See `KnowledgeStore/Capsules/coding-capsules/input-management/input-status-mgmt.md` for the full
+  rollup design (it also covers `pipeline_state` and the per-processor `kb.input_proc_status`
+  table used by the downstream doc-processor).
+
+---
+
+## 8. Duplicate Detection
+
+Before parsing, the service checks `kb.inputs` for another record with the same MD5 that already has a `parsed / proc-status == "success"` entry. Records marked only as `duplicated` themselves are excluded from the search, so if the original is deleted, one of the remaining copies will still be processed.
+
+---
+
+## 9. Parsed Event Payload
+
+Published to `PDF_PARSED_EVENT_SUBJECT` after each record:
+
+```json
+{
+  "record_id": 202,
+  "type": "pdf",
+  "status": "success",
+  "file_format": "json",
+  "result_filename": "Artifacts/0/202/std_1521701_mineru.json"
+}
+```
+
+---
+
+## 10. Running the Service
+
+```bash
+cd ChenWeb/python/pdf-parser
+
+# Foreground (sync)
+mise run ocr-service-start-sync
+
+# Background (daemonized)
+mise run ocr-service-start
+
+# Stop background instance
+mise run ocr-service-stop
+
+# Check status
+mise run ocr-service-status
+```
+
+Key env vars for a MinerU deployment (set in `mise.local.toml` or shell):
+
+```toml
+[env]
+PDF_PIPELINE_MODE    = "jetstream"
+PDF_PARSER_NAME      = "mineru"
+DATA_HOME_DIR        = "/Users/cding/Apps/SemOS"
+PDF_BACKUP_DIR       = "/Users/cding/Apps/Backup/pdf_files"
+NATS_URL             = "nats://127.0.0.1:4222"
+```
+
+---
+
+## 11. Adding a New Parser Backend
+
+1. Create `parser_<name>.py` in `ChenWeb/python/pdf-parser/`.
+2. Subclass `ParserBackend` from `parser_base.py`.
+3. Set the class attribute `name = "<name>"`.
+4. Implement `init()` for one-time setup (model loading, binary checks).
+5. Implement `parse(pdf_path, output_dir, on_progress) -> dict` returning `{"pages": [...], "total_pages": int, "engine": str}`.
+6. Import the class in `pdf_parser.py` and add it to `PARSER_REGISTRY`.
+
+```python
+# pdf_parser.py
+from parser_newbackend import NewBackendParser
+
+PARSER_REGISTRY: dict[str, type[ParserBackend]] = {
+    "opendata":  OpenDataParser,
+    "paddleocr": PaddleParser,
+    "mineru":    MineruParser,
+    "docling":   DoclingParser,
+    "newbackend": NewBackendParser,   # ← add here
+}
+```
+
+The backend is instantiated on first use and cached for the process lifetime. `init()` is called exactly once before the first `parse()` call.

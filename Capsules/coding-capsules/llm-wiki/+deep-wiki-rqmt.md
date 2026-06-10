@@ -85,6 +85,6 @@ Similar to the lower-right part of https://www.wikipedia.org, with the following
 Refer to [3] about the implementations.
 
 ## References
-[1] KnowledgeStore/DevDocuments/Specs/spec-line-file.md \
+[1] KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md \
 [2] KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md \
 [3] KnowledgeStore/Capsules/coding-capsules/deep-wiki/deep-wiki-impl.md

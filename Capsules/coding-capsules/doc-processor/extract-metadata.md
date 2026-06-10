@@ -17,7 +17,7 @@ Error Handling:
 
 Input File Format:
 The input file MUST conform to the canonical Line File spec:
-`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
+`KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`.
 
 ## Workflow
 - Retrieve the record by 'record_id'. 

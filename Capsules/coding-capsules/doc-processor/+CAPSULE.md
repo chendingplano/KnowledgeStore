@@ -2,12 +2,48 @@
 This is a service to process parsed store objects. Its main.go is in ChenWeb/server/cmd/doc-processsor.
 
 ## 2. JetStream Subscription
-It subscribes to JetStream, with subject 'kb.line-file-generated'. The event payload is:
+It subscribes to JetStream, with subject `kb.pdf.start-doc-processing`.
+
+The service has two invocation modes:
+
+- **Auto Mode:** the normal pipeline path. A payload with a single `record_id`
+  and no Dev Mode selectors runs the configured doc-processing pipeline for that
+  record, preserving the previous "process this parsed document" behavior.
+- **Dev Mode:** an explicit reprocessing command. It selects records by
+  `record_ids` or `all`, optionally selects processors with `doc-processors`,
+  and defaults to rerunning only failed processors.
+
+### 2.1 DOC_PROCESSOR_MODE
+
+`DOC_PROCESSOR_MODE` controls how messages on `kb.pdf.start-doc-processing`
+are interpreted.
+
+| `DOC_PROCESSOR_MODE` value | Mode | Behavior |
+|---|---|---|
+| unset or empty | Auto Mode | Default. Treat each message as a normal single-record doc-processing event. |
+| `auto` | Auto Mode | Treat each message as a normal single-record doc-processing event. |
+| `dev` | Dev Mode | Treat each message as an explicit reprocessing command. |
+| any other value | Error | The service must fail fast during startup. |
+
+Examples:
+
+```bash
+# Default behavior; equivalent to DOC_PROCESSOR_MODE=auto
+unset DOC_PROCESSOR_MODE
+
+# Explicit Auto Mode
+DOC_PROCESSOR_MODE=auto go run ./server/cmd/doc-processor
+
+# Dev Mode for reprocessing commands
+DOC_PROCESSOR_MODE=dev go run ./server/cmd/doc-processor
+```
+
+Auto Mode payload:
 ```json
 {
 	"record_id":"...",
 	"filename":"...",
-    "operation":"...",
+	"operation":"...",
 	"force":true | false
 }
 ```
@@ -16,6 +52,38 @@ where:
 - "filename": optional. If specified, it specifies the name of its input. If the file name has no path, the file is in the same directory derived the field kb.inputs.result_filename.
 - "operation": optional. If present, which is a list of doc processor names, it lists the doc processor(s) this service will use on the input. Refer to "Operation" section for more info. 
 - "force": optional. If not specified, it defaults to true.
+
+Dev Mode payload:
+```json
+{
+  "record_ids": [12, "22-31"],
+  "all": "parsed | failed-procs",
+  "doc-processors": ["<doc-processor-name>", "..."],
+  "failed-proc-only": true
+}
+```
+
+where:
+- `record_ids`: optional list of record ids. Items may be numbers or quoted
+  ranges such as `"22-31"`. JSON does not permit an unquoted `22-31` token.
+- `all`: optional selector. If `all` is `"parsed"`, reprocess every PDF record
+  in `kb.inputs` whose PDF parsing status is success
+  (`operation = "parsed"` and `proc-status`/`proc_status = "success"`).
+  If `all` is `"failed-procs"` (also accepted: `"with-failed-procs"`),
+  reprocess every record that contains at least one failed doc processor status.
+  Any other non-empty value is an error.
+- If `all` is empty and `record_ids` is empty, the request is an error.
+- Otherwise, the command reprocesses the listed records.
+- `doc-processors`: optional processor allow-list. If omitted, it defaults to
+  all configured doc processors.
+- `failed-proc-only`: optional boolean or boolean string. It defaults to `true`
+  in Dev Mode. When true, only failed doc processors are reprocessed. When false,
+  all selected doc processors are reprocessed.
+
+Compatibility aliases:
+- `record_id` is accepted as a single-record target.
+- `doc_processors` is accepted as an alias for `doc-processors`.
+- `failed_proc_only` is accepted as an alias for `failed-proc-only`.
 
 ## 3. Handle JetStream Events
 
@@ -46,7 +114,7 @@ Error Handling:
 
 ## 6. Input File Format
 The input file MUST conform to the canonical Line File spec:
-`KnowledgeStore/DevDocuments/Specs/spec-line-file.md`.
+`KnowledgeStore/Capsules/coding-capsules/input-management/spec-line-file.md`.
 
 ## 6.1. LLM Input Format
 
@@ -112,6 +180,15 @@ The doc processor pipeline can be invoked in one of the following modes:
 
 The `all-processor` mode is used to process documents as whole. The `selected-processor` 
 mode is normally invoked by users through GUI or CLI to chery pick the ones to run.
+
+JetStream command mode selection:
+- When `DOC_PROCESSOR_MODE=auto`, the default subject runs Auto Mode. It runs
+  the configured pipeline unless `operation` explicitly filters processors.
+- When `DOC_PROCESSOR_MODE=dev`, the default subject runs Dev Mode. It accepts
+  `record_ids`, `all`, `doc-processors`, and `failed-proc-only`; it defaults
+  `failed-proc-only` to `true`.
+- If Dev Mode selects no processors for a record because no selected processor
+  is currently failed, the record is skipped and a log entry is emitted.
 
 ### 7.3 Pipeline Execution Model
 
@@ -193,7 +270,7 @@ system runs multiple pipelines at once.
 
 ## 8. JetStream Request
 
-JetStream request payload may have an 'operation' attribute. If present, it specifies the doc
+JetStream request payload may have an `operation` or `doc-processors` attribute. If present, it specifies the doc
 processor to apply to the input file (or chunk files). Its value must be the ones in the 
 table [Doc Processing Pipeline](#doc-processing-pipeline).
 
@@ -236,6 +313,33 @@ When `EXTRACT_PROVISIONS_INPUT="blocks"`, it depends only on the blocking proces
 ```
 
 ## 9. Doc Process Status
+
+`kb.inputs.status` is a JSON array holding one entry per processor and is the **source of truth**
+for doc-processing status. Processors append/replace their own entry exactly as documented below.
+
+**Indexed projections (do not write these directly).** Because filtering tens of millions of rows
+by a predicate *inside* the JSON array forced sequential scans, two read-optimized projections of
+`status` are maintained automatically by **database triggers** on `kb.inputs` (migration
+`ChenWeb/project_migrations/20260609000002_add_kb_inputs_status_rollups.sql`):
+
+- Rollup columns on `kb.inputs`: `parse_state` (`pending|parsed_success|parsed_failed`),
+  `pipeline_state` (`pending|running|success|failed|stopped`, from the `doc_processing` entry),
+  and `has_failed_proc` (boolean, real doc-processor failures only).
+- Child table `kb.input_proc_status (record_id, processor, proc_status, start_time, ms_used,
+  error, ...)` — one row per processor, for per-processor status queries.
+
+Implications for processor authors:
+
+- **You do not change anything.** Keep writing `kb.inputs.status`; the triggers derive the
+  projections on every write. This holds for every writer across pdf-parser, file-converters and
+  doc-processor — none of them maintain the projections in code.
+- A **new** processor needs no schema change: its `kb.input_proc_status` row appears automatically
+  once it writes a status entry. Only extend `kb.canonical_op` if it introduces a legacy
+  operation-name alias.
+- Read/filter status via the rollup columns (`parse_state`, `pipeline_state`, `has_failed_proc`)
+  or `kb.input_proc_status`, never via `jsonb_array_elements(status)` / `jsonb_path_exists`.
+- See `KnowledgeStore/Capsules/coding-capsules/input-management/input-status-mgmt.md` for the full
+  design.
 
 Refer to [14] about updating the following entry in `kb.inputs.status`:
 
