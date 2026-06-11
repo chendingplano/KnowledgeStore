@@ -208,3 +208,14 @@ This is a library that draws maps in 3D.
 Source: WeChat
 
 The author did not use skills. He created a wonderful web site by talking to LLMs.
+
+= 2026/06/11 - Go Library for Embedding
+
+#let a_008 = link(
+  "https://www.sbert.net/docs/cross_encoder/pretrained_models.html"
+)[#text(fill:blue)[URL]]
+
+#a_008 \
+Source: dzone
+
+This is a Go library that does embedding.

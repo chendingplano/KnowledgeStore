@@ -120,6 +120,56 @@ column / child-table lookups:
    'parsed_success'`). This is why `parse_state` distinguishes `parsing` (in-progress claim,
    `proc_status = active`) from `pending` (never parsed).
 
+## `kb.input_proc_status` reference
+
+### `processor` identifiers
+
+The `processor` column stores `kb.canonical_op(operation)` — the operation name from the status
+JSON after lowercasing, hyphen-to-underscore conversion, and alias folding. One row per record per
+identifier.
+
+| `processor` value | Source binary | Notes |
+|---|---|---|
+| `parsed` | pdf-parser | PDF parsing stage |
+| `converted` | file-converters | File format conversion |
+| `static_analzyer` | doc-processor | Structure analyzer — **typo is in the source code** (`static_analzyer`, missing second 'z'); the DB value matches exactly |
+| `chunking` | doc-processor | Chunking processor (raw operation name is `"chunked"`; `kb.canonical_op` folds it to `"chunking"`) |
+| `extract_doc_metadata` | doc-processor | Extract doc metadata (raw `"extract_metadata"` → canonical `"extract_doc_metadata"`) |
+| `extract_metrics` | doc-processor | Extract metrics |
+| `extract_provisions` | doc-processor | Extract provisions |
+| `extract_semantic_projections` | doc-processor | Extract semantic projections |
+| `generate_summaries` | doc-processor | Generate summaries |
+| `generate_topics` | doc-processor | Generate topics |
+| `extract_scene_blocks` | doc-processor | Scene blocks — **on success** |
+| `generate_scene_blocks` | doc-processor | Scene blocks — **on failure** (the processor writes different operation names per outcome; both alias to the same logical processor) |
+| `extract_structured_knowledge` | doc-processor | Extract structured knowledge (the §9.9 capsule example has a stale typo `extract_structured_knowledges` with a trailing 's'; the actual code writes without 's') |
+| `extract_entity_relation` | doc-processor | Extract entity & relation |
+| `extract_inventory_items` | doc-processor | Extract inventory items |
+
+**Processors with no child-table row:** `blocking` does not write a status entry and does not appear in `kb.input_proc_status`.
+
+**Entries excluded from the child table** (aggregate/control entries written to `kb.inputs.status` but not synced to the child table): `doc_processing`, `doc_processor`, `consumed`, `stop_requested`.
+
+### `proc_status` canonical values
+
+The trigger stores `lower(proc_status)` (or `lower(proc-status)` for the file converter which uses
+a hyphenated key). All values in the table are lowercase.
+
+| `proc_status` | Who writes | Meaning |
+|---|---|---|
+| `active` | pdf-parser only | Parse in progress (claim held) |
+| `success` | all processors | Completed successfully |
+| `failed` | doc-processors, file-converter | Failed |
+| `fail` | pdf-parser only | Parse failed — **different spelling from `failed`**; intentional in the parser code |
+| `stopped` | doc-processors that support stop | User-requested stop mid-execution |
+| `skipped` | doc-processor control | Processor skipped: either `force=false` and already succeeded, or filtered out by the `operation` allow-list |
+| `duplicated` | pdf-parser only | Duplicate PDF — another record with the same MD5 already has `parse_state = 'parsed_success'` |
+
+**`has_failed_proc` note:** the trigger checks `proc_status = 'failed'` exactly. The pdf-parser's
+`'fail'` value does not match, so a parse failure sets `parse_state = 'parsed_failed'` but does
+**not** set `has_failed_proc = true`. This is intentional — `has_failed_proc` tracks real
+doc-processor failures only.
+
 ## Adding a future doc processor
 
 Because the child table is keyed by processor *value*, a new processor needs **no schema change**:
