@@ -129,7 +129,28 @@ The results:
 - Line 7, 26, 35, 45, 272 and 684 should be removed
 - Line 683 becomes "683	24	table-row	unknown-font	12	[99.42,376.32,541.08,422.82]	|注2 1高毒...<br>www.weboos.com|||"
 
-### 1.6.3 Detect Table of Content
+### 1.6.3 Truncate Long `\dots` Sequences
+
+This should be run before TOC, heading, and list detection.
+
+PDF parsers sometimes produce equation lines with extremely long runs of `\dots`. Replace any sequence of 6 or more consecutive `\dots` macros (separated by optional spaces or tabs) with exactly 5 `\dots`.
+
+Example input:
+```
+116	7	equation	unknown-font	12	[407,401,914,453]	$$\n\eta = (1 - \frac {\gamma}{6 8 4}) \times 1 0 0 \% \dots \dots \dots \dots \dots \dots \dots \dots \dots \dots$$
+```
+
+Example output:
+```
+116	7	equation	unknown-font	12	[407,401,914,453]	$$\n\eta = (1 - \frac {\gamma}{6 8 4}) \times 1 0 0 \% \dots \dots \dots \dots \dots$$
+```
+
+Rules:
+- A run of exactly 5 or fewer `\dots` is left unchanged.
+- The replacement is always `\dots \dots \dots \dots \dots` (5 occurrences, single-space separated).
+- This applies to all line types (paragraph, equation, etc.).
+
+### 1.6.4 Detect Table of Content
 
 This should be run in the first round.
 
@@ -159,16 +180,16 @@ Once a 'Table of Content' is detected:
 - Change all its line-type to 'toc'
 - Do not detect 'Table of Content' anymore.
 
-### 1.6.4 Correct Headings
+### 1.6.5 Correct Headings
 
-#### 1.6.4.1 Rule 1
+#### 1.6.5.1 Rule 1
 If line type is `heading`, change it to `heading-1`. 
 
 Example:
 
   - `heading` => `heading-1`
 
-#### 1.6.4.2 Rule 2
+#### 1.6.5.2 Rule 2
 If line type is `heading(n)`, where n is a number, change to `heading-n`.
 
 Examples:
@@ -176,7 +197,7 @@ Examples:
   - `heading(2)` => `heading-2`
   - `heading(3)` => `heading-3`
 
-#### 1.6.4.3 Rule 3
+#### 1.6.5.3 Rule 3
 
 Condition:
 - It is a heading line
@@ -199,9 +220,9 @@ Examples
 - 's.2' => '5.1'
 - 'S.3' => '5.3'
 
-### 1.6.5 Detect Headings
+### 1.6.6 Detect Headings
 
-#### 1.6.5.1 Detect Normal Headings
+#### 1.6.6.1 Detect Normal Headings
 Starting from the beginning of the input, numerical headings should form a continuous sequence of lines of
 the following pattern:
 ```
@@ -228,7 +249,7 @@ If the current heading is '[level1, level2, level3]', the next valid heading sho
 - '[level1, level2 + 1]'
 - '[level11 + 1]'
 
-### 1.6.5.2 Detect Appendix Headings
+### 1.6.6.2 Detect Appendix Headings
 
 This should be run in the first round.
 
@@ -248,7 +269,7 @@ Where '<appendix-symbol>' is a single letter, such as 'A', 'B'.
 
 Predicting the next heading is similar to that of the numerical headings.
 
-### 1.6.5.3 Corner Cases for Detecting Headings
+### 1.6.6.3 Corner Cases for Detecting Headings
 
 This applies to both normal headings and appendix headings.
 
@@ -266,11 +287,11 @@ This applies to both normal headings and appendix headings.
 ```
 The extra '0' happens at heading2 only.
 
-### 1.6.6 Merge Lines
+### 1.6.7 Merge Lines
 
 Purpose: lines that belong to the same natural paragraphs are often in separate lines.
 
-#### 1.6.6.1 Merge Chinese-Style Lines
+#### 1.6.7.1 Merge Chinese-Style Lines
 
 The first line of paragraphs in Chinese normally indent with two Chinese characters.
 
@@ -299,10 +320,10 @@ to detect line-start and line end reliably).
 Since Line 80 starts a paragraph, ends at line-and and its next line (Line 81) starts at line-start, they should
 be merged.
 
-#### 1.6.6.2 Merge English-Style Lines
+#### 1.6.7.2 Merge English-Style Lines
 English-Style lines will start paragraphs without indenting. Otherwise, the merge logic is the same as the Chinese-style merging.
 
-### 1.6.7 Detect Item Lists
+### 1.6.8 Detect Item Lists
 
 This should be run in the second round.
 

@@ -392,6 +392,26 @@ Status JSON:
 }
 ```
 
+The chunking processor also inserts a row into `kb.chunks` for each chunk run:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `BIGSERIAL` | Primary key |
+| `source_record_id` | `BIGINT` | FK → `kb.inputs.id` |
+| `chunking_method` | `VARCHAR(64)` | `fix-size-chunking` or `topic-chunking` |
+| `chunking_size` | `INTEGER` | Byte size (fixed) or page count (topic) per chunk |
+| `overlap_percent` | `INTEGER` | Overlap percentage between chunks |
+| `notes` | `TEXT` | Free-text notes about the chunk run |
+| `overlap_lines` | `TEXT` | JSON array of overlap line ranges per chunk, e.g. `["[12-15]","[87-90]"]` |
+| `normal_lines` | `TEXT` | JSON array of normal (non-overlap) line ranges per chunk |
+| `chunk_lines` | `TEXT` | JSON array of raw text content per chunk |
+| `create_time` | `TIMESTAMPTZ` | Row creation timestamp |
+| `update_time` | `TIMESTAMPTZ` | Row last-update timestamp |
+
+For semantic (topic) chunking, `overlap_lines` is always `"[]"` since semantic chunking has no overlap markers.
+
+See ADR: [doc-2026061107](../../doc-repo/202606/2026061107-adr-chunk-table-changes.md).
+
 ### 9.3 Extract Doc Metadata 
 When: When the Extract Doc Metadata processor finishes.
 
