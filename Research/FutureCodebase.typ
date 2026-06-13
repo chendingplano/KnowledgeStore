@@ -47,7 +47,7 @@
 = Overview
 #let a_001 = link(
   "https://openai.com/index/harness-engineering/"
-)[#text(fill: blue)[OpenAI Article])]
+)[#text(fill: blue)[OpenAI Article]]
 
 #a_001 
 
@@ -56,24 +56,728 @@ and verification, instead of coding. This means (at least to me) human programme
 be less 'coder' and more 'knowledge worker'. They will spend more time on documents. The 
 questions: 
 
-1 A natural way of making a code base friendly for both human programmers and agents 
+1. A natural way of making a code base friendly for both human programmers and agents 
   is blend documents and code files. But blending documents and code files often make 
   it less 'natural' to human programmers since we are less interested in actual code. 
-  In OpenAI's artifle, it mentions Slack, and possibly some other external sources of 
+  #a_001 mentions Slack, and possibly some other external sources of 
   information. How in general we bring the information all in one place and in such a 
   way that is both narual for human programmers and for coding assistants? 
-2 More generally, what future codebases look like? Pure codebases + separate document 
+2. More generally, what future codebases look like? Pure codebases + separate document 
   repo? Add an Agents.md to each directory?
 
-== ChatGPT 
+== Future Codebase Characteristics 
+=== Repo Becomes Operational Knowledge Base
+
+Repos are not just source-code containers.
+```text
+Codebase = source code
+         + executable tests
+         + product specs
+         + architecture rules
+         + decision history
+         + agent instructions
+         + generated indexes
+         + validation harnesses
+         + observability recipes
+```
+
+=== Repo Structure
+```text
+repo/
+  AGENTS.md                 # short navigation map, not full knowledge
+  ARCHITECTURE.md           # top-level system map
+  docs/
+    specs/
+    design/
+    decisions/              # ADRs, Slack-derived decisions
+    plans/
+      active/
+      completed/
+    generated/
+      db-schema.md
+      api-reference.md
+    references/
+      llms.txt-style external docs
+    quality/
+    security/
+    reliability/
+  packages/                 # mainly code
+  services/                 # mainly code
+  tests/                    # mainly code
+```
+
+=== Agents.md/CLAUDE.md
+Not one giant `AGENTS.md`. A short `AGENTS.md` as map plus deeper structured docs.
+Important directories have their own specialized `AGENTS.md`
+
+A root-level `AGENTS.md` (or `CLAUDE.md`, etc.) carrying global conventions — build commands, testing norms, 
+style decisions, "how we do things here." Subdirectory-level files only where a module has genuinely local 
+rules that differ from the global ones, e.g. `payments/AGENTS.md` saying "all money is integer cents, never 
+floats, see ADR-014." These act like scoped configuration: closest file wins, and most directories need nothing.
+
+=== Centralized External Information
+External information MUST be converted into repo-local, and versioned!
+
+=== Documents as a First-Class Engineering Artifact
+
+The right move in future codebases and in vibe coding is to treat documentation as a first-class 
+engineering artifact with the same discipline we apply to code.
+
+=== ADRs as the Canonical Capture Mechanism.
+*ADRs (Architecture Decision Records)* are invented for: a lightweight, append-only log of "we chose 
+X over Y because Z".
+
+Before, writing the ADR was a tax paid for a hypothetical future reader. Now there's an immediate, 
+every-day consumer. 
+
+*Let Agent write ADRs*. 
+
+=== Make docs executable or testable where possible.
+The deepest answer to "natural for both humans and agents" is to reduce the amount of prose that can drift. 
+Schemas instead of data-format descriptions. Executable examples (doctests, example-based tests) instead of 
+usage paragraphs. OpenAPI specs instead of endpoint wikis. Property-based test suites as the formal statement 
+of requirements. Prose documentation rots because nothing breaks when it's wrong; executable artifacts are 
+kept honest by CI, which makes them more trustworthy for humans *and* agents. The article's choice to 
+reimplement `p-limit` rather than depend on it is this same instinct: prefer artifacts whose full semantics 
+are inspectable and verifiable in-repo.
+
+=== Keeping `docs/` in Sync with `src/`
+
+Put it in `CLAUDE.md`/`AGENTS.md` as a hard rule. Something like:
+```text
+Definition of done for any change that alters behavior: 
+(1) regression test added, 
+(2) the governing spec in `specs/` updated in the same change, 
+(3) if the fix contradicts a prior design assumption, append a note to the relevant ADR. Never report a 
+    task complete without these.
+```
+
+=== Enforce coupling mechanically where you can.
+Hooks and CI are the backstop for both human and agent forgetfulness. Concretely: a pre-commit or CI check 
+that flags any PR touching `src/payments/` without touching `docs/payments/` or `specs/payments/`, requiring 
+either a doc change or an explicit `no-doc-impact` label. The label matters — plenty of changes genuinely 
+don't affect docs, and a gate without an escape hatch just trains people to game it. The point isn't to 
+force a doc edit every time; it's to force a *conscious decision* every time, which is precisely what's missing 
+today. Claude Code's hooks can do a softer version: a stop-hook that asks the model "did this session change 
+behavior? if so, were docs updated?" before the session ends.
+
+=== Run a drift auditor as a background agent.
+This is the genuinely new capability that didn't exist in the stone age. A scheduled job — nightly or weekly — 
+that takes the commits since its last run, reads the diffs, reads the corresponding docs, and answers: 
+"does the documentation still accurately describe this code?" Where it finds drift, it opens a PR with 
+proposed doc updates, which you review in two minutes over coffee. This reframes the problem completely: 
+instead of needing sync to be maintained *transactionally* (every change updates docs atomically — hard), 
+you only need it maintained *eventually* with a bounded staleness window (much easier). Reconciliation loops 
+are how distributed systems handle exactly this kind of consistency problem, and a codebase plus its docs 
+is a distributed system in the relevant sense.
+
+=== Mine the transcripts — the knowledge already exists in writing.
+Here's something underappreciated about your bug-fixing workflow: those "quite a few rounds of interactions 
+with my tests and feedbacks" *are* the documentation, in raw form. The conversation contains the symptom, 
+the false leads, the root cause, and the fix rationale — better material than most postmortems. It's just 
+trapped in a chat log. So the ritual to build isn't "remember to write a doc," it's a one-liner at session 
+end: "distill this session into a bug note: symptom, root cause, fix, and any invariant we discovered; file 
+it and update affected specs." Even better, make it a hook or a slash command so it's a keystroke, not a 
+sentence. The general principle: never ask a human to *author* documentation post-hoc; ask them to *approve* 
+documentation the agent derives from work that already happened.
+
+=== Shrink the surface that can drift.
+Every paragraph of prose describing behavior is a sync liability. The durable artifact from a bug fix is the 
+regression test — it can't drift, because CI executes it. So push as much "documentation" as possible into 
+forms that are checked: the test (with a comment linking the incident), the schema, the type signature, the 
+assertion. Reserve prose for the two things code can't express: *intent* ("this module exists to enforce X") 
+and *rationale* ("we rejected approach Y because Z"). Intent and rationale drift much more slowly than 
+behavioral descriptions — they're invalidated by re-decisions, not by refactors — so the prose that remains 
+is naturally more stable. A lot of perceived doc-drift pain comes from docs that describe *what the code does*, 
+which is exactly the content that should be derived or tested, not hand-maintained.
+
+=== Accept asymmetric trust and make staleness visible. 
+Even with all of the above, perfect sync is unachievable, so the last defense is epistemic honesty in the docs 
+themselves. Two cheap conventions help a lot. First, freshness metadata: each spec carries a `last-verified: 
+<commit-hash>` line, updated whenever someone (or the auditor agent) confirms it still matches reality — now 
+staleness is *queryable* rather than invisible. Second, a reading discipline for agents, written into the context 
+file: "specs describe intent; code is ground truth; when they conflict, flag the conflict rather than silently 
+trusting either." This matters because the failure that actually burns you isn't a stale doc — it's a stale 
+doc *trusted blindly*, by you or by the agent. A doc system that knows its own uncertainty degrades gracefully; 
+one that presents everything with equal confidence degrades catastrophically.
+
+If I had to compress all this: stop trying to make sync a matter of discipline and make it a matter of architecture. 
+Transactional coupling where it's cheap (definition-of-done rules, CI gates), eventual consistency where it's not 
+(auditor agents, reconciliation PRs), drift-proof artifacts wherever possible (tests over prose), and visible staleness 
+for whatever prose remains. Your current workflow is actually very close — the spec-first habit and the "review 
+my spec before implementing" step are the hard parts that most people don't do. What's missing is just the closing 
+of the loop, and the lesson from your own experience is that the loop won't be closed by resolution. It has to be 
+closed by machinery.
+
+=== Docs as First-Class Objects
+(From ChatGPT)
+
+The way out is not “write better docs.” The way out is to treat docs as *first-class change artifacts* with the 
+same lifecycle as code, tests, migrations, and API contracts.
+
+A code change should not be considered complete unless the system has answered:
+
+```text
+What knowledge changed?
+Which docs/specs/ADRs/tests are affected?
+Which docs were updated?
+Which docs are now stale?
+What was intentionally left undocumented?
+```
+
+This should become part of the development protocol.
+
+=== Three Kinds of Docs
+
+Not all docs need the same sync strategy. I would separate them into three classes.
+
+*1. Normative Docs*
+
+These define what must be true.
+
+Examples:
+
+```text
+product specs
+API contracts
+schema contracts
+security rules
+permission models
+business rules
+invariants
+architecture decisions
+```
+
+These must be kept tightly in sync with code. If they drift, the system becomes dangerous.
+
+For these, you want strict traceability:
+
+```text
+spec section -> implementation files -> tests -> behavior
+```
+
+Example:
+
+```md
+## Requirement R-023: Users cannot delete published metrics
+
+Implementation:
+- src/metrics/delete.go
+- src/metrics/permissions.go
+
+Tests:
+- tests/metrics/delete_published_metric_test.go
+
+Status:
+- implemented
+- verified
+
+Last verified:
+- 2026-06-10
+```
+
+The important point is that the spec is not just prose. It has anchors.
+
+*2. Explanatory Docs*
+
+These explain how or why the system works.
+
+Examples:
+
+```text
+implementation notes
+module overviews
+developer guides
+architecture walkthroughs
+debugging guides
+```
+
+These are useful, but they do not need to block every commit. They should be checked when nearby code changes.
+
+For example, if files under `src/search/` changed, the assistant should inspect:
+
+```text
+docs/implementation/search.md
+src/search/AGENTS.md
+docs/design-docs/search-ranking.md
+```
+
+and ask whether they still match.
+
+*3. Historical Docs*
+
+These record what happened.
+
+Examples:
+
+```text
+ADRs
+bug postmortems
+design discussions
+release notes
+migration notes
+```
+
+These do not need to be constantly updated. They are append-only or mostly append-only.
+
+A bug fix may produce:
+
+```text
+docs/bugs/2026-06-10-metric-keyword-tokenization.md
+docs/decisions/2026-06-10-normalize-keywords-before-indexing.md
+```
+
+This kind of documentation is not about current truth only. It is about preserving reasoning.
+
+=== The Mistake to Avoid
+
+The common mistake is to ask agents:
+
+```text
+Please update the docs.
+```
+
+That is too vague.
+
+A better instruction is:
+
+```text
+Before finishing, inspect the diff and produce a documentation impact report:
+1. Which requirements/specs are affected?
+2. Which docs are now stale?
+3. Which docs were updated?
+4. Which new ADR/implementation note/bug note should be added?
+5. Which tests verify the updated behavior?
+```
+
+This turns doc maintenance from a memory task into a checklist.
+
+=== A Practical Workflow
+
+```text
+1. Draft spec
+2. Agent reviews spec
+3. Agent creates implementation plan
+4. Agent implements
+5. Agent updates tests
+6. Agent produces doc-impact report
+7. Agent updates affected docs
+8. Agent writes completion report
+```
+
+The key addition is step 6.
+
+The assistant should not directly jump from implementation to “done.” It should pause at:
+
+```text
+What did I change semantically?
+```
+
+Not just:
+
+```text
+What files did I edit?
+```
+
+Because docs track semantic changes, not textual changes.
+
+=== Add a `CHANGELOG_OF_KNOWLEDGE.md` Concept
+
+For your SemOS-style thinking, I would introduce something like a Knowledge Delta.
+
+Every meaningful change should produce a small structured record:
+
+```yaml
+knowledge_delta:
+  change_type: bug_fix
+  affected_area: metric keyword extraction
+  behavioral_change: >
+    Keywords are now rejected if they contain long sentence-like phrases.
+  affected_specs:
+    - docs/specs/topic-extraction.md
+  affected_tests:
+    - tests/topic_keywords_test.go
+  affected_docs_updated:
+    - docs/implementation/topic-extraction.md
+  adr_needed: false
+  bug_note_added:
+    - docs/bugs/2026-06-10-sentence-keyword-extraction.md
+```
+
+This is very useful because it creates an intermediate object between code and docs.
+
+The agent can reason from:
+
+```text
+git diff -> knowledge delta -> docs/tests/ADRs to update
+```
+
+Instead of trying to directly infer:
+
+```text
+git diff -> all necessary documentation changes
+```
+
+=== Future Repositories Need “Documentation Impact Analysis”
+
+I think future agent-friendly repos will have a command like:
+
+```bash
+make doc-check
+```
+
+or:
+
+```bash
+agent doc-impact
+```
+
+It would inspect:
+
+```text
+git diff
+changed source files
+changed tests
+linked specs
+nearby AGENTS.md files
+doc ownership metadata
+```
+
+and produce:
+
+```text
+Potential stale docs:
+- docs/specs/search-ranking.md
+  Reason: src/search/rank.go changed ranking formula
+
+- docs/implementation/search.md
+  Reason: new recency boost parameter added
+
+Missing ADR:
+- Change modifies architecture-level ranking behavior
+```
+
+This does not need to be perfect. Even a noisy first pass is useful because it reminds the human and agent what knowledge may have changed.
+
+=== Use Links, not Duplication
+
+Another way out is to reduce the amount of prose that must be synchronized.
+
+Bad:
+
+```md
+The search system uses cosine similarity, BM25, recency, and diversity penalty.
+```
+
+Then the code has:
+
+```go
+score := 0.5*cosine + 0.3*bm25 + 0.15*recency - 0.05*diversity
+```
+
+This will drift.
+
+Better:
+
+```md
+The ranking formula is defined in:
+- src/search/ranking.go
+- tests/search/ranking_formula_test.go
+
+Conceptually, it combines semantic similarity, lexical relevance, freshness, and diversity.
+```
+
+The doc explains intent. The exact formula is either generated from code or referenced.
+
+So the rule should be:
+
+```text
+Docs should explain intent, invariants, rationale, and examples.
+Code/tests should own exact executable behavior.
+Generated docs should expose exact signatures, schemas, formulas, and APIs.
+```
+
+Do not manually duplicate low-level facts unless necessary.
+
+=== Generated Docs Should Be More Common
+
+Some docs should not be manually maintained at all.
+
+Generated:
+
+```text
+API references
+database schema docs
+CLI command references
+configuration options
+OpenAPI docs
+protobuf docs
+dependency graphs
+module maps
+test coverage maps
+```
+
+Human-written:
+
+```text
+why this exists
+what the user problem is
+what tradeoffs were made
+what invariants matter
+what bugs taught us
+what not to change casually
+```
+
+This distinction is crucial.
+
+Humans and agents should write *semantic docs*. Tools should generate *mechanical docs*.
+
+=== Add Doc Ownership Metadata
+
+Each important doc should declare what source areas it depends on.
+
+Example:
+
+```md
+---
+doc_type: implementation_note
+owns:
+  - src/search/**
+  - tests/search/**
+depends_on:
+  - docs/specs/search.md
+staleness_policy: review_on_change
+---
+```
+
+Then when `src/search/**` changes, the agent knows this doc may need review.
+
+For specs:
+
+```md
+---
+doc_type: normative_spec
+requirement_ids:
+  - SEARCH-RANKING-001
+  - SEARCH-RANKING-002
+implemented_by:
+  - src/search/ranking.go
+verified_by:
+  - tests/search/ranking_test.go
+---
+```
+
+This makes docs machine-navigable without making them unnatural for humans.
+
+=== Directory-level `AGENTS.md` can help, but should not carry the burden
+
+A local `AGENTS.md` should not become the full documentation. It should say:
+
+```md
+# src/search/AGENTS.md
+
+This directory implements search ranking and retrieval.
+
+Before changing ranking behavior, read:
+- docs/specs/search-ranking.md
+- docs/design-docs/hybrid-search.md
+- docs/decisions/2026-05-22-use-postgres-full-text-search.md
+
+After changing ranking behavior, update or review:
+- docs/implementation/search-ranking.md
+- tests/search/ranking_test.go
+```
+
+This is extremely useful. It tells the agent where the knowledge lives and what must be synchronized.
+
+But `AGENTS.md` should be a *routing layer*, not the knowledge base itself.
+
+=== Bug fixes need their own documentation protocol
+
+Bug fixes are exactly where docs drift most often.
+
+I would require every non-trivial bug fix to produce a small bug note:
+
+```md
+# Bug: Sentence-like phrases extracted as keywords
+
+## Symptom
+The keyword extractor produced long sentence fragments as keywords.
+
+## Root cause
+The prompt constrained keywords but did not define rejection criteria strongly enough.
+
+## Fix
+Added explicit validation rules:
+- reject keywords containing spaces
+- reject sentence-like phrases
+- reject boilerplate publication terms
+
+## Regression test
+tests/topic_keywords_test.go
+
+## Related docs
+- docs/specs/topic-extraction.md
+```
+
+Not every bug deserves an ADR. But many bugs deserve a *bug knowledge object*.
+
+For SemOS, this is very important: bugs are not just defects; they are evidence 
+that the current model of the system was incomplete.
+
+=== Agent Should Always Finish with a “Knowledge Closure” Section
+
+At the end of every implementation session, the agent should report something like:
+
+```md
+## Knowledge closure
+
+Updated:
+- src/search/ranking.go
+- tests/search/ranking_test.go
+- docs/implementation/search-ranking.md
+
+Reviewed but unchanged:
+- docs/specs/search-ranking.md
+  Reason: behavior still satisfies existing spec
+
+New knowledge captured:
+- Added bug note for stale recency scoring edge case
+
+Potential remaining drift:
+- docs/product/search-overview.md may need human review because product wording may change
+```
+
+This is much better than a generic “done.”
+
+=== A good repo may eventually have these files
+
+```text
+repo/
+  AGENTS.md
+  docs/
+    index.md
+    specs/
+    design/
+    decisions/
+    implementation/
+    bugs/
+    generated/
+    glossary.md
+  src/
+    search/
+      AGENTS.md
+      ranking.go
+    metrics/
+      AGENTS.md
+  tests/
+  knowledge/
+    deltas/
+      2026-06-10-search-ranking-change.yaml
+    traceability/
+      requirements.yaml
+      doc-ownership.yaml
+```
+
+The `knowledge/` directory is optional, but conceptually important.
+
+It stores machine-readable coordination artifacts:
+
+```text
+requirements -> code -> tests -> docs
+source files -> owning docs
+change deltas -> affected knowledge
+```
+
+This is the part that makes the repo agent-legible.
+
+I would use five mechanisms together:
+
+1. *Docs as contracts, not essays*
+   Important docs should have requirement IDs, implementation links, test links, and status.
+
+2. *Doc impact analysis after every code change*
+   The agent must inspect what semantic knowledge changed and which docs may be stale.
+
+3. *Knowledge Delta files*
+   Every meaningful change creates a small structured summary of what changed and what docs/tests/specs it affects.
+
+4. *Generated mechanical docs*
+   Do not manually maintain API/schema/config docs when they can be generated.
+
+5. *Local navigation files*
+   Use `AGENTS.md` per major directory to point agents to relevant specs, tests, invariants, and documentation obligations.
+
+=== The deeper point
+
+In pre-AI development, documentation drift was annoying.
+
+In AI-assisted development, documentation drift becomes a *control-plane failure*.
+
+Because the human is increasingly steering through specs, plans, tests, and review 
+notes rather than reading every line of code, the docs become the human’s interface 
+to the codebase.
+
+So the future codebase needs two synchronized planes:
+
+```text
+Implementation plane:
+  src/
+  tests/
+  migrations/
+  configs/
+
+Knowledge plane:
+  specs/
+  design docs/
+  ADRs/
+  bug notes/
+  implementation notes/
+  generated references/
+  traceability maps/
+```
+
+The solution is not to merge these planes into one messy pile. The solution is to 
+create *explicit synchronization protocols* between them.
+
+For your own workflow, I would add one standing instruction to Claude Code/Codex:
+
+```text
+Before considering the task complete, perform knowledge closure:
+- summarize the semantic change
+- identify affected specs/docs/ADRs/bug notes
+- update required docs
+- state which docs were reviewed but unchanged
+- state any potential remaining drift
+```
+
+That single protocol would probably eliminate a large portion of the doc drift you are seeing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+== From ChatGPT  
 The key shift is: *the repo becomes the operational knowledge base*, not just the 
 source-code container.
 
-OpenAI’s article says their `AGENTS.md` is not an encyclopedia; it is a short table 
+#a_001 says their `AGENTS.md` is not an encyclopedia; it is a short table 
 of contents, while structured `docs/` is the system of record: design docs, product 
 specs, execution plans, generated schemas, references, quality/security/reliability 
 docs, etc. They also emphasize that Slack/Google Docs/people’s heads must be converted 
-into repo-local, versioned artifacts or agents cannot use them reliably. ([OpenAI][1])
+into repo-local, versioned artifacts or agents cannot use them reliably.
 
 *Important* External information MUST be converted into repo-local, and versioned!
 
@@ -156,9 +860,9 @@ Codebase = source code
 Not “pure codebase + separate document repo.” Separate docs will still exist for human-facing 
 material, but the agent-operational truth should live near the code.
 
-Also, not one giant `AGENTS.md`. OpenAI explicitly says that failed because it wastes context, 
+Also, not one giant `AGENTS.md`. #a_001 explicitly says that failed because it wastes context, 
 rots, and is hard to verify. Their better pattern is a short `AGENTS.md` as map plus deeper 
-structured docs. ([OpenAI][1])
+structured docs.
 
 A good pattern is:
 
@@ -550,7 +1254,7 @@ Because docs track semantic changes, not textual changes.
 
 === Add a `CHANGELOG_OF_KNOWLEDGE.md` Concept
 
-For your SemOS-style thinking, I would introduce something like a **Knowledge Delta**.
+For your SemOS-style thinking, I would introduce something like a Knowledge Delta.
 
 Every meaningful change should produce a small structured record:
 

@@ -23,7 +23,7 @@ where `<group_id>` = floor(`record_id` / 1000).
 The directory contains the following files and directories:
 | File Name | Explanation |
 |-----------|-------------|
-| std_33830_images_pages | List all the page images, one image per page |
+| images/ | A directory that lists all the images extracted from the doc for pictures, tables, and formulas|
 | std_33830_opendata.chunks | List the document chunks |
 | std_33830_opendata.entities | All the entities extracted by LLM from this document |
 | std_33830_opendata.json | The parse result in JSON |
@@ -49,16 +49,20 @@ where `<orig_filename>` is the root of `kb.inputs.staging_filename`, `<parser_na
 ## 2.2 Documents in Database Tables
 | Table Name | Explanation |
 |------------|-------------|
-| `kb.chunks` | |
-| `kb.entities` | |
-| `kb.relations` | |
-| `kb.inventory_items` | |
-| `kb.metrics` | |
-| `kb.provisions` | |
-| `kb.scene_objects` | |
-| `kb.semantic_projections` | |
-| `kb.summaries` | |
-| `kb.topics` | |
+| `kb.chunks` | artifact table for chunks |
+| `kb.entities` | artifact table for entities |
+| `kb.relations` | artifact table for entities |
+| `kb.inventory_items` | artifact table for inventory items|
+| `kb.metrics` | artifact table for metrics |
+| `kb.provisions` | artifact table for provisions |
+| `kb.scene_objects` | artifact table for scene blocks |
+| `kb.semantic_projections` | artifact table for semantic projections |
+| `kb.summaries` | artifact table for summaries |
+| `kb.topics` | artifact table for topics |
+| `kb.artifact_categories` | store artifact categories |
+| `kb.artifact_connections` | relations between artifacts |
+| `kb.category_instance` | relations between artifact categories and artifacts (mainly metrics and inventory items|
+| `kb.search_artifcts` | all searchable artifacts |
 
 # References
 [1] KnowledgeStore/doc-repo/202604/2026042101-line-file-spec.md

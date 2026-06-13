@@ -72,8 +72,11 @@ Looking at Claude Code, Codex, or any coding assistant, they are essentially an 
 - LLM understand what it needs to do
 - Formulate search requests, often the time through tool-calling, such as 'grep ...', as needed
 - The coding assistant checks whether it has right to run the tool
-- Run the tool if it can
-- Get results, feed back with session history (memory) to the LLM
+- Run the tool if it can. This includes asking users for clarity, providing additional information,
+  chooses the way to move forward, etc.
+- Get results, feed back with session history (memory) to the LLM. This includes user feedbacks
+  such as whether it solves the problem, if not, the reasons, etc.
+- LLM reviews the results, reasons
 - (...) essentially going back to the beginning of the loop
 
 My understanding is an agentic RAG is an RAG that has a 'brain'. It uses the brain to think, 
@@ -151,6 +154,56 @@ given partial control of the retrieval process but the system's identity is stil
 over a corpus" rather than "does things in the world." You're right that it's not a third kind 
 of thing; it's a waypoint between two kinds, named from the perspective of people who started at 
 the RAG end.
+
+== Engineering Closed-Loop
+#let a_001 = link(
+  "https://dzone.com/articles/graph-rag-closed-loop"
+)[#text(fill: blue)[Engineering Closed-Loop]]
+
+Most RAG systems use open-loop:
+```text
+Query → Retrieve → Generate → Answer
+```
+Once the answer is generated, the system stops (#a_001).
+
+A closed-loop:
+```text
+Query → Retrieve → Generate → Validate → Answer → Observe Outcome → Update System
+```
+
+The content to update include:
+- The embedding index?
+- The graph?
+- The prompt?
+- The ranking function?
+- The rule layer?
+- The source document?
+- The user profile?
+- Nothing until a human reviews it?
+
+Feedbacks should not be just thumbs up or thumbs down. The system needs detailed
+information about the problems.
+
+When receiving a feedback, the system classifies the feedback and route it 
+to the correponding module using a map such as the one below:
+```text
+Wrong document retrieved      → retrieval index or ranking review
+Missing relationship          → graph edge review
+Unsupported claim             → generation prompt or validation rule review
+Policy violation              → rule layer update or blocklist review
+Low usefulness but correct    → personalization or response format update
+Repeated user confusion       → explanation template review
+Expert correction             → human-approved graph or source update
+Latency failure               → retrieval depth, caching, or model routing update
+```
+
+*What Feedbacks Should Update*
+- Retrieval Weights among vector search, BM25, etc.
+- Graph Edges: we may need to add new edges
+- Source Knowledge: missing source knowledge
+- Prompt/Response Template
+- Rule Layer
+- The `Query → Retrieve → Generate → Validate → Answer → Observe Outcome → Update System` loop
 
 == References
 [1] "Engineering Closed-Loop Graph-RAG Systems", 
