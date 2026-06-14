@@ -1,1 +1,1 @@
-../../../doc-repo/202606/2026061207-spec-extract-entities-relations.md
+../../../doc-repo/specs/202606/2026061207-spec-extract-entities-relations.md

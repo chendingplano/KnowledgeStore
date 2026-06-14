@@ -64,5 +64,18 @@ where `<orig_filename>` is the root of `kb.inputs.staging_filename`, `<parser_na
 | `kb.category_instance` | relations between artifact categories and artifacts (mainly metrics and inventory items|
 | `kb.search_artifcts` | all searchable artifacts |
 
+## 2.3 Category Tree
+Documents are broken down to chunks. The system generates a semantic projection for 
+each chunk. Semantic projections are categorized by one or more category paths.
+Category paths form a Category Tree under ARTIFACT_WEB_DIR.
+
+Each subdirectory in ARTIFACT_WEB_DIR may have the following files:
+| File Name | Required | Explanation |
+|-----------|----------|-------------|
+| `metadata.txt` | required | the metadata about the node |
+| `inventory_items.txt` | optional | list all the inventory items that fall in this node |
+| `metrics.txt` | optional | list all the metrics that fall in this node |
+| `semantic_projections.txt` | optional | list all the semantic projections that fall in this node |
+
 # References
 [1] KnowledgeStore/doc-repo/202604/2026042101-line-file-spec.md

@@ -205,7 +205,42 @@ Latency failure               → retrieval depth, caching, or model rout
 - Rule Layer
 - The `Query → Retrieve → Generate → Validate → Answer → Observe Outcome → Update System` loop
 
+== Contextual RAG
+Anthropic publishes an article ([2]), introducting "Contextual Retrieval". The main idea
+is to use LLMs to generate a context for a given chunk. It then embeds the context
+and the chunk.
+
+Chunk size should be around 500 bytes. Note that if we want to embed chunks (normally we should),
+chunks should not be too big.
+
+Here is the prompt the article recommends:
+```text
+<document> 
+{{WHOLE_DOCUMENT}} 
+</document> 
+Here is the chunk we want to situate within the whole document 
+<chunk> 
+{{CHUNK_CONTENT}} 
+</chunk> 
+Please give a short succinct context to situate this chunk within the overall document for the 
+purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else.
+```
+
+#figure(
+  image("Images/image_2026061401.png"),
+  caption: [Anthropic Contextual Retrieval]
+)
+
+Using a rerank step will introduce latency. Normally, in search, we do not want to use rerank.
+In more advanced apps, such as deep research, agentic apps, QA, etc., we may use rerank.
+As the figure shows, reranking can further improve retrieval quality.
+#figure(
+  image("Images/image_2026061402.png"),
+  caption: [Contextual Retrieval Performance]
+)
+
 == References
-[1] "Engineering Closed-Loop Graph-RAG Systems", 
+[1] Engineering Closed-Loop Graph-RAG Systems, 
 https://dzone.com/articles/graph-rag-closed-loop-retrieval-reasoning
 
+[2] Introducing Contextual Retrieval, https://www.anthropic.com/engineering/contextual-retrieval

@@ -219,3 +219,30 @@ The author did not use skills. He created a wonderful web site by talking to LLM
 Source: dzone
 
 This is a Go library that does embedding.
+
+= 2026/06/14 - Qwen Embedding Models and Prices
+#let a_009 = link(
+  "https://www.alibabacloud.com/help/en/model-studio/embedding?scm=20140722.S_help%40%40%E6%96%87%E6%A1%A3%40%402842587._.ID_help%40%40%E6%96%87%E6%A1%A3%40%402842587-RL_embeddingmodels-LOC_doc%7EUND%7Eab-OR_ser-PAR1_6a0b3f0a17814319688477421d6331-V_4-PAR3_r-RE_new5-P0_0-P1_0&spm=a2c63.p38356.help-search.i20"
+)[#text(fill: blue)[URL]]
+
+#let a_011 = link(
+  "https://qwen.ai/blog?id=qwen3-embedding"
+)[#text(fill: blue)[Qwen3 Embedding]]
+
+#a_009 \
+#a_011
+
+#table(
+  columns: 6,
+  align: left,
+  [Model], [Embedding dimensions], [Batch size], [Max batch tokens (Note)], [Price / 1M tokens], [Language],
+  [text-embedding-v4, Part of the Qwen3-Embedding series], [2,048, 1,536, 1,024 (default), 768, 512, 256, 128, 64], [10], [8,192], [\$0.07], [100+ major languages, including Chinese, English, Spanish, French, Portuguese, Indonesian, Japanese, Korean, German, and Russian],
+  [text-embedding-v3], [1,024 (default), 768, 512], [10], [8,192], [\$0.07], [50+ major languages, including Chinese, English, Spanish, French, Portuguese, Indonesian, Japanese, Korean, German, and Russian]
+)
+
+#let a_010 = link(
+  "https://openrouter.ai/qwen/qwen3-embedding-8b"
+)[#text(fill: blue)[OpenRouter]]
+
+#a_010
+
