@@ -66,15 +66,19 @@ Per-item LLM output is normalized into two row shapes.
 | `desc_en` | text | English translation; empty if input is English |
 | `keywords` | jsonb | original-language keyword array |
 | `keywords_en` | jsonb | English-translated keyword array; empty if input is English |
-| `source_line_spans` | jsonb | array of `"ddd"` or `"ddd-ddd"` line spans |
+| `line_spans` | jsonb | array of `"ddd"` or `"ddd-ddd"` line spans |
 | `confidence` | double | model-reported confidence 0.0–1.0 |
-| `chunk_seq_no` | int | chunk this row came from (also stored in `ext_info`) |
 | `model_name` | text | model used |
 | `prompt_name` | text | prompt ref |
-| `search_document` | text | maintained by trigger; concatenation of searchable fields |
-| `search_vector` | tsvector | maintained by trigger; `to_tsvector('simple', search_document)` |
+| `search_document` | text | see [search_document composition](#search_document-composition) below |
+| `search_vector` | tsvector | `to_tsvector('simple', search_document)`; kept in sync by trigger and post-insert UPDATE calls |
 | `ext_info` | jsonb | `{"language", "schema_version", "chunk_seq_no"}` |
 | `create_time` | timestamptz | row creation time |
+| `connected_artifacts` | jsonb | the connected artifacts |
+| `entity_context` | text| the entity context |
+| `doc_name` | text| the document name |
+| `categories` | jsonb | the categories for the entity |
+| `entity_status` | text | the entity's status |
 
 ### Relation row
 
@@ -94,13 +98,15 @@ Per-item LLM output is normalized into two row shapes.
 | `desc_en` | text | English translation; empty if input is English |
 | `keywords` | jsonb | original-language keyword array |
 | `keywords_en` | jsonb | English-translated keyword array; empty if input is English |
-| `source_line_spans` | jsonb | array of `"ddd"` or `"ddd-ddd"` line spans |
+| `line_spans` | jsonb | union of subject/object entity spans, derived by `resolveAndLinkRelations` (not cited by the LLM) |
 | `confidence` | double | 0.0–1.0 |
-| `chunk_seq_no` | int | chunk this row came from (also stored in `ext_info`) |
+| `subject_entity_id` | text | canonical `entity_id` of the subject (D1/ADR 2026061302); may reference a provisional entity |
+| `object_entity_id` | text | canonical `entity_id` of the object (D1/ADR 2026061302); may reference a provisional entity |
+| `categories` | jsonb | generic relation categories from `relation_categories` in the Phase 2 LLM response |
 | `model_name` | text | model used |
 | `prompt_name` | text | prompt ref |
-| `search_document` | text | maintained by trigger |
-| `search_vector` | tsvector | maintained by trigger |
+| `search_document` | text | trigger-computed concatenation of searchable fields |
+| `search_vector` | tsvector | `to_tsvector('simple', search_document)`; maintained by trigger |
 | `ext_info` | jsonb | `{"language", "schema_version", "chunk_seq_no"}` |
 | `create_time` | timestamptz | row creation time |
 
@@ -115,7 +121,7 @@ Two tables in schema `kb`:
 - `kb.entities`
 - `kb.relations`
 
-Both tables get a `search_document` `TEXT` column plus a `search_vector` `TSVECTOR` column, populated by triggers, and a `GIN` index on `search_vector`. Pattern is the same as `kb.metrics`. See [Full-Text Search](#full-text-search) below.
+Both tables get a `search_document` `TEXT` column plus a `search_vector` `TSVECTOR` column, and a `GIN` index on `search_vector`. Unlike `kb.metrics` (trigger-only), `kb.entities.search_document` is built in three layers — see [search_document composition](#search_document-composition) and [Full-Text Search](#full-text-search) below.
 
 ## Artifact Files
 
@@ -135,6 +141,37 @@ where:
 File format: pretty-printed JSON array of the same shape as the rows persisted to the table (one array per file). This mirrors `.metrics` from `extract_metrics`.
 
 This processor MUST NOT index into `ARTIFACT_WEB_DIR` (no category-paths tree). Entities and relations have no category paths in their output schema.
+
+## search_document composition
+
+`kb.entities.search_document` is built in three successive layers after each processor run.
+
+**Layer 1 — DB trigger (on INSERT / UPDATE)**
+
+`trg_refresh_entity_search_columns` calls `kb.entity_search_document(...)` and writes the base value as a space-joined concatenation of:
+
+| # | Column | Source |
+|---|---|---|
+| 1 | `entity` | TEXT |
+| 2 | `entity_en` | TEXT |
+| 3 | `entity_type` | TEXT |
+| 4 | `entity_type_en` | TEXT |
+| 5 | `aliases` | JSONB, flattened via `kb.search_jsonb_array_text()` |
+| 6 | `aliases_en` | JSONB, flattened |
+| 7 | `desc_text` | TEXT |
+| 8 | `desc_text_en` | TEXT |
+| 9 | `keywords` | JSONB, flattened |
+| 10 | `keywords_en` | JSONB, flattened |
+
+**Layer 2 — Post-insert UPDATE (Go, after `SaveEntities`)**
+
+`AppendSummaryKeywordsToEntitySearch` runs `UPDATE kb.entities SET search_document = trim(concat_ws(' ', search_document, $extra)) ...` to append the deduplicated union of all `keywords` + `keywords_en` from `kb.summaries` for the same `input_record_id`. This call is best-effort: a failure is logged at `Warn` and does not abort the processor.
+
+**Layer 3 — Weighted search registry (`kb.search_artifacts_entity`)**
+
+`buildEntityRegistryRows` (called from `ReindexEntitySearchForRecord`) constructs a separate, weight-repeated search document using `buildEntitySearchDocument`. High-weight fields are repeated proportionally per `[entities_search_weights]` in `ChenWeb/config.toml`. This document is written to `kb.search_artifacts_entity.search_document`, **not** back to `kb.entities.search_document`.
+
+`kb.relations.search_document` is trigger-only (Layer 1 equivalent); no post-insert keyword appends are performed on relations.
 
 ## Full-Text Search
 
@@ -171,6 +208,27 @@ Both reuse the shared acceptance policy described in
 for the semantic channel, RRF fusion for ranking, and source-scoped idempotent
 replacement of `relation_method='hybrid_search'` /
 `relation_name='semantically_related'` edges.
+
+## Canonical Relation Store (ADR 2026061401)
+
+After relations are saved and reindexed, the processor materializes each relation into
+the canonical edge store `kb.artifact_connections` via `IndexRelationGraphForRecord`
+(`relation_graph_indexing.go`). For every `kb.relations` row it writes three triples,
+all tagged `relation_method = 'entity_relation'` so they are replaced idempotently as a
+group on every reprocess:
+
+1. **subject → object** — `(entity:subject_entity_id) --[predicate_en]--> (entity:object_entity_id)`.
+   Skipped when either endpoint is unlinked.
+2. **predicate-of** — `(relation_predicate:predicate_key) --[has-predicate]--> (relation:relation_id)`.
+3. **belong-to-category** — `(relation:relation_id) --[belong-to-category]--> (category:category_id)`,
+   one per resolved category.
+
+Relation categories are resolved with `category_type = 'relation'` (reusing the shared
+category resolver) and also written to `kb.category_instance` (the membership projection).
+Each distinct predicate is catalogued in the new dictionary table **`kb.relation_predicates`**
+(keyed by the normalized English `predicate_key`); see migration
+`20260614000002_create_kb_relation_predicates.sql`. Predicate cataloguing is a deterministic
+upsert — predicates are already normalized to snake_case English at extraction time.
 
 ## Status JSON
 

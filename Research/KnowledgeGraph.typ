@@ -71,21 +71,46 @@
 
 = Knowledge Wiki
 
-*Are Knowledge Wiki Useful*
+Knowledge Wiki (K-Wiki) is closely related to knowledge graphs. Before we introduce knowledge wiki,
+we need to answer the question: *Are knowledge graphs useful?*.
 
 My answer is YES or NO, and mostly not much. It is useful to 'programs', or any object that does not 
 understand natural languages. For instance, if "Mary is John's wife" is a relation, if we ask a program
 "Is John Mary's husband?", it will probably answer "I don't know". The reason? Because programs can't
 understand natural languages. If we ask an LLM, it can easily tell the relations between John and Mary.
 
-I think most people did not think twice about who are going to use knowledge graphs or knowledge wiki
+I think most people did not think twice about who are going to use knowledge graphs
 in general before diving into building them.
 
-Can we add rules to programs so that programs can reason? Absolutely YES. For a small set of datasets,
-rules may be defined. But for an open model, it will be difficult. 
+So my answer to the question is yes if and only if we have a 'program' that can reason over it.
 
-So my answer to the question "Are knowledge wiki useful?" is yes if and only if we have a 'program'
-that can reason on knowledge wiki.
+Knowledge Wiki is similar to knowledge graphs:
+- There are nodes and connections (edges)
+- Fully connected
+
+Nodes in K-Wiki are quite different. 
+
+== Nodes
+#table(
+  columns: 3,
+  align: left,
+  [Name], [Type], [Purpose],
+  [Document], [User Input], [source of true],
+  [Chunk], [static generated], [the base to extract artifacts],
+  [Summary], [LLM generated], [search, context],
+  [Semantic Projection], [LLM generated], [search, context],
+  [Topic], [LLM generated], [information],
+  [Scene Blocks], [LLM generated], [information],
+  [Metric], [LLM generated], [information],
+  [Compliance Provisions], [LLM generated], [information],
+  [Inventory Items], [LLM generated], [Information],
+  [Entity], [LLM generated], [Information],
+  [Relation], [LLM generated], [Information],
+  [Artifact Category], [LLM generated], [categorize and organize artifact],
+  [Entity Name], [LLM synthesized], [categorize and organize entities],
+  [Relation Predicate], [LLM synthesized], [categorize and organize relation predicates],
+)
+== Connections
 
 == Types of Relations
 #table(

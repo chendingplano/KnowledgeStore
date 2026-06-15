@@ -1,36 +1,47 @@
 # ADR 2026061202 — Manual Launch: Select Failed & Select Incompleted Processor Buttons
 
-# ADR 2026061202 — Manual Launch: Select Failed & Select Incompleted Processor Buttons
-
-**Date:** 2026-06-13 \
-**Status:** Active \ 
-**Component:** ChenWeb/Doc Processor/extract-entities-relations \
-**Authors**: Chen Ding\
-**Tags**: Doc Processor, extract entities, \
+**Date:** 2026-06-14 \
+**Status:** Proposal \ 
+**Component:** ChenWeb\
+**Authors**: Chen Ding \
+**Tags**: search artifacts, \
 
 ---
 
 ## Change Logs
-* 2026/06/13, ADR Created
+* 2026/06/14, ADR Created
+
+---
 
 ## Context
-Entities are extracted by `extract-entities-relations` doc processor ([1]).
+Changes to `kb.search_artifacts`:
+1. Add `kb.search_artifacts.keywords` and move the 'keywords' attribute in `kb.search_artifacts.semantic_payload.keywords` to it.
 
 ---
 
 ## Decision
 
+---
+
 ### Alternative Decisions
+
+---
 
 ### Database Migrations
 
+---
+
 ### Data Formats
+
+---
 
 ### Environment Variables
 
 ---
 
 ## Implementation
+
+---
 
 ### Code Changes
 
@@ -57,4 +68,3 @@ Entities are extracted by `extract-entities-relations` doc processor ([1]).
 ---
 
 ## References
-[1] 2026061207-spec-extract-entities-relations.md

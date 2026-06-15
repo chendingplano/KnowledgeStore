@@ -609,13 +609,6 @@ When the system fails solving a problem, humans may help,
 - Provide more information
 - Instruct the system how to reason or how to solve the problem
 
-==== Self-Learning
-There is a background job that monitors the system use. Pick the popular ones,
-see whether there are something SemOS can do to make the system more reliable
-in the future.
-
-These steps balances the advances of SemOS and practically executability.
-
 == Storing Thoughts, too?
 My point of view is that SemOS should not merely store knowledge. It should store 
 the structure of thought itself. That means SemOS becomes not a knowledge base,

@@ -4,6 +4,117 @@
 **Status:** Accepted — implemented (D1–D6) \
 **Component:** Doc Processor — Entities & Relations
 
+## Change Logs
+### Change 01
+Problems: when extracting relations, it needs to build the context 
+for entities. In the current implementation, for each entity, its
+context is:
+  - the chunk summary
+  - file leading lines
+  - the line in which the entity is extracted
+
+Note that this is for each entity. Below is the analysis for a 12-page document:
+- Number of entities: 192 (after consolidation)
+- Total size in bytes of its line file: 26,759
+- The total size of the context is: 432,044, nearly 25x size of the entire line file.
+
+### Decisions:
+Change the context to the line file.
+
+### Evaluation (2026-06-14)
+
+**Verdict: the proposal is sound and is a net improvement — but the one-line
+decision is under-specified and must be tightened before implementation.**
+
+**Where the 25x blowup comes from (confirmed in code).** Phase 2 input is
+assembled by `buildRelationWindowInputText` (`entity-relation-linking.go:396`),
+which emits, *per entity*, the `entity_context` produced by
+`buildEntityContextForEntities` (`extract-entity-relation.go:1078`). That context
+is `chunk_summary + leading_lines + span_lines` for each entity. Within a window
+the entities overwhelmingly share the same chunks, so the **chunk summary and the
+leading/span lines are re-emitted once per entity**. With 192 entities the same
+underlying text is duplicated dozens of times — hence 432 KB of context over a
+26.7 KB line file. The redundancy is structural, not incidental.
+
+**Does it make sense? Yes.** The line file is the source of truth that every
+`entity_context` is sliced from. Feeding the (windowed) line text *once* and
+listing the entities separately removes the duplication by construction.
+
+**Effect on extraction effectiveness — expected to improve, not degrade:**
+- Relations are asserted in *contiguous* prose ("A … relates to … B", with A and
+  B near each other). Per-entity context **fragments** that prose into per-entity
+  snippets and loses the connective tissue between the two endpoints. Contiguous
+  line text preserves the sentence that actually states the relation, which
+  should raise recall and precision for exactly the local relations D5 targets.
+- It directly relieves the "lost-in-the-middle / `n²` pair dilution" pressure
+  that D5 (and the timeout/empty-JSON fallback) were fighting: a shorter,
+  non-redundant prompt is more needle-rich.
+- Minor loss: the `chunk_summary` abstraction drops out of the relation input.
+  For *local* relation extraction this is acceptable (raw lines are the better
+  signal); summaries were never where relations are stated.
+
+**Required clarifications (the decision must specify these):**
+1. **"The line file" = the window's contiguous line-range *slice*, not the whole
+   file per call.** Feeding the entire line file into *every* window call would
+   re-introduce the precise failure modes D5 exists to prevent (context bloat on
+   large docs, `n²` dilution) and would not scale beyond the 12-page example.
+   `buildRelationWindows` currently returns only entity groups and discards the
+   window's `[lo, hi]` line bounds; it must also return the line range so the
+   slice can be cut. (Whole-file context is acceptable *only* as the degenerate
+   small-doc / spanless-entity case that already collapses to one window.)
+2. **Keep passing the entity roster** (id / name / type / aliases) alongside the
+   line text. The line slice replaces *per-entity context only*; without the
+   explicit id-bearing list the relations can no longer be entity-linked (D1) and
+   D4 resolution loses its anchor.
+3. **Scope is the Phase 2 relation input, not the stored field.**
+   `kb.entities.entity_context` is still persisted and consumed elsewhere
+   (`SaveEntities`/artifact reads, search/display). So `buildEntityContextFor
+   Entities` is *not* removed — only `buildRelationWindowInputText` stops
+   embedding it. (Whether to keep computing `entity_context` at all is a separate
+   question, out of scope for Change 01.)
+
+**Bonus opportunity.** If the sliced line text carries **line numbers**, the
+model can cite `lines` directly. Today relation grounding is endpoint-derived
+(`relationSpansFromEndpoints`, per the Implementation Status) precisely because
+the window input has no line numbers; numbered slices would let relations ground
+to the line where they are stated, a strict improvement over endpoint-union
+spans.
+
+**Consequences / migration.** Code-only change (prompt input composition +
+`buildRelationWindows` returning ranges + `processRelationWindow` reading the
+slice). No schema change. Phase 2 cost/latency drop substantially; the per-window
+fallback to Phase-1 relations is unaffected. Relation prompt
+(`prompt-extract-relations-v1.md`) should be re-checked: it currently expects a
+"context:" block per entity and must be reworded for "here is the source text +
+here is the entity list."
+
+### Resolution / chosen design (2026-06-14)
+
+The whole document (or whole line file) is **not** fed in — it can exceed the
+context window and a too-large context degrades relation recall (lost-in-the-
+middle, `n²` pair dilution; see D5). Windowing is retained; only the **unit** of
+the window size and the **content** of each window change:
+
+- **`RELATION_WINDOW_SIZE` is now expressed in *pages* (default `20`)**, replacing
+  the previous line-count semantics (was `200` lines). A window covers a
+  contiguous page range; its content is the materialized **line-file text for that
+  page range** (cut once, contiguous), not per-entity `entity_context`.
+- **`RELATION_WINDOW_OVERLAP` stays in *lines* (default `20`)**. Adjacent windows
+  share an `overlap`-line band at the page-window boundary so a relation whose
+  endpoints straddle the boundary still lands in a window holding both.
+- Each window call carries: (a) the **entity roster** for entities positioned in
+  the window (id / name / type / aliases — required so relations stay
+  entity-linked per D1/D4), plus (b) the **contiguous source text** of the
+  window. Per-entity `entity_context` is no longer embedded in the Phase 2 input.
+- `kb.entities.entity_context` is still computed and persisted for its other
+  consumers (search / display); only its use as Phase 2 relation input is dropped.
+
+### Change 02
+Need to treat `kb.entities.entity_en` the same way as `kb.relations.predicates`:
+* It is a dictionary for entity names
+* Need normalize
+* Need to relate the dictionary key to 'instance'
+
 ---
 
 ## Context
@@ -226,6 +337,8 @@ or the relation prompt over-reaching beyond the supplied list).
   whereas a flagged provisional entity preserves the edge *and* surfaces the
   consolidation gap (often a missed alias) for correction.
 
+### Change 02
+
 ---
 
 ## Alternatives Considered
@@ -314,11 +427,15 @@ or the relation prompt over-reaching beyond the supplied list).
     (`{language, relations}`).
   - `buildRelationWindows` is consumed by `extractRelationsFromWindows` /
     `processRelationWindow`: one entity-aware LLM call per overlapping window
-    (input = `buildRelationWindowInputText`: entity id/name/type/aliases +
-    `entity_context`), concurrent under `EXTRACT_ENTITY_RELATION_MAX_TASKS`,
-    failed windows skipped.
-  - Window sizing via env `RELATION_WINDOW_SIZE` (default 200 lines) and
-    `RELATION_WINDOW_OVERLAP` (default 10 lines, per Q4).
+    (input = `buildRelationWindowInputText`: entity roster id/name/type/aliases +
+    the contiguous line-file **source text** for the window's page range — per
+    Change 01, no longer per-entity `entity_context`), concurrent under
+    `EXTRACT_ENTITY_RELATION_MAX_TASKS`, failed windows skipped.
+  - Window sizing via env `RELATION_WINDOW_SIZE` (default **20 pages**, per
+    Change 01) and `RELATION_WINDOW_OVERLAP` (default **20 lines**). Each window's
+    LLM input is the entity roster plus the contiguous line-file text for the
+    window's page range (Change 01); per-entity `entity_context` is no longer
+    embedded in the relation input.
   - The shared extractor path was refactored into
     `extractStructuredWithFallback` / `extractStructuredPayload` so the entity
     and relation calls reuse the same primary/fallback model policy.
@@ -347,7 +464,9 @@ or the relation prompt over-reaching beyond the supplied list).
     referenced only by spanless relations stays ungrounded (no document evidence).
 
 **Notes / follow-ups:**
-- `RELATION_WINDOW_SIZE` is interpreted in document lines; tune on real docs.
+- `RELATION_WINDOW_SIZE` is interpreted in **document pages** (default 20) as of
+  Change 01 (2026-06-14); `RELATION_WINDOW_OVERLAP` remains in lines (default 20).
+  Tune on real docs.
 - Required env for the two-phase flow:
   - `EXTRACT_ENTITY_RELATION_PROMPT=prompt-extract-entity-relation-v3.md` (entity-only)
   - `EXTRACT_RELATION_PROMPT=prompt-extract-relations-v1.md` (relations; **no default**)
@@ -382,9 +501,10 @@ or the relation prompt over-reaching beyond the supplied list).
 
 ## Open Questions
 
-- Concrete defaults for `RELATION_WINDOW_SIZE` (and whether it is expressed in
-  lines, chars, or chunks) — a tuning task on real documents. Overlap defaults to
-  10 lines (Q4).
+- ~~Concrete defaults for `RELATION_WINDOW_SIZE` (and whether it is expressed in
+  lines, chars, or chunks)~~ → Resolved by Change 01 (2026-06-14):
+  `RELATION_WINDOW_SIZE` is in **pages** (default 20); `RELATION_WINDOW_OVERLAP`
+  in **lines** (default 20). Exact page count remains a tuning task on real docs.
 - Entity ordering within a window when an entity's `line_spans` cover multiple
   distant regions — order by first span, or place the entity in every window its
   spans touch?
@@ -407,4 +527,5 @@ or the relation prompt over-reaching beyond the supplied list).
 ## References
 
 [1] 2026061201-adr-entity-amend.md — Entity context, doc_name, categories, search.
+
 [2] 2026061207-spec-extract-entities-relations.md — Extraction spec.

@@ -43,6 +43,9 @@ returned from the LLM.
 
 Populate `entity_categories` to `kb.entities.categories`.
 
+### Changes - 2026/06/14
+Do not 
+
 ---
 
 ## Implementation
