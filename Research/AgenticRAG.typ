@@ -205,6 +205,67 @@ Latency failure               → retrieval depth, caching, or model rout
 - Rule Layer
 - The `Query → Retrieve → Generate → Validate → Answer → Observe Outcome → Update System` loop
 
+== Evaluating a Graph-RAG System
+(Refer to [4])
+
+*Seven Layers of Evaluation Framework*
+
+=== Layer 1 - Retrieval Quality
+
+Some useful metrics:
+- Precision\@k
+- Recall\@k
+- MRR\@k
+- Node recall
+- Edge recall
+- Path correctness
+- evidence Coverage
+
+=== Layer 2 - Relation-Based Reasoning
+
+Ask questions like:
+- Did the system identify the correct entity?
+- Did it traverse the right relationship?
+- Did it avoid irrelevant neighboring nodes?
+- Did it distinguish prerequisite, correlation, ownership, and policy relationships?
+- Did it explain the evidence path clearly?
+
+Note that without graphs, LLMs can search nodes, normally by keywords. 
+BM25 can be a critical
+tool. In debugging, for instance, if it fails loading a page, by looking at the 
+url, it checks where the url is routed. Once related code is found, it reads the
+code, checking for every failure case. 
+
+For each failure case, it traces back, again by keyword search. Note that if 
+graphs are available, it can use graphs. But what if the relations were not 
+captured during building time? Search on graphs is unreliable, to say the least.
+Graphs are at best a complement.
+
+Even without graphs, LLMs can still reason by search. 
+One important thing to note is that after LLMs generate answers, we should
+ask the LLM to summarize its reasoning, such as:
+- Search '/home3/knowledge' to find out how the url is routed
+- Found the file: '...'
+- Examine the failure case: ...
+- Trace back for the reasons why it fails
+- ...
+
+The LLM then generate the following relations:
+- `url-xxx` `is-routed` `file-name-1`
+- `url-xxx` `handled-by` `function-name-1`
+- `function-name-1` `fail-on` `failure-case-1`
+- `function-name-1` `fail-on` `failure-case-2`
+- `failure-case-1` `source-code` `function-name-2`
+- `failure-case-1` `source-code` `function-name-2`
+- `function-name-2` `fail-on` `failure-case-3`
+- ...
+
+This is important for two reasons:
+- To explain the problem and how the problem is solved
+- The more the system is used, its knowledge base is better
+
+This is called Self-Evolving Knowledge System
+
 == Contextual RAG
 Anthropic publishes an article ([2]), introducting "Contextual Retrieval". The main idea
 is to use LLMs to generate a context for a given chunk. It then embeds the context
@@ -240,7 +301,14 @@ As the figure shows, reranking can further improve retrieval quality.
 )
 
 == References
-[1] Engineering Closed-Loop Graph-RAG Systems, 
+[1] From Retrieval to Reasoning (part 1), 
 https://dzone.com/articles/graph-rag-closed-loop-retrieval-reasoning
 
-[2] Introducing Contextual Retrieval, https://www.anthropic.com/engineering/contextual-retrieval
+[2] Introducing Contextual Retrieval, 
+https://www.anthropic.com/engineering/contextual-retrieval
+
+[3] Closing the Loop in Graph-RAG Systems (part 3), 
+https://dzone.com/articles/graph-rag-closed-loop
+
+[4] Evaluating a Graph-RAG System (part 4), 
+https://dzone.com/articles/graph-rag-closed-loop-evaluation-system
