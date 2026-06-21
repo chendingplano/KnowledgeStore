@@ -266,6 +266,80 @@ This is important for two reasons:
 
 This is called Self-Evolving Knowledge System
 
+=== Layer 3 - Answer Generation Quality
+
+Metrics:
+- Factual correctness
+- Completeness
+- Clarity
+- Grounding in retrieved evidence
+- Absence of unsupported claims
+- Appropriate uncertainty
+- Fit to the detected problem
+- Specificity
+- Actionability: if the query requires actions, check whethere the recommendation
+  contains actionable content
+- Personalization
+- Measurable next step
+- Tone and usefulness
+
+=== Layer 4 - Rules of Compliance
+
+Questions to ask:
+```text
+Does the answer cite supporting evidence?
+Does the recommendation match the user’s role?
+Does it avoid unsupported claims?
+Does it include a measurable next step?
+Does it avoid resources the user already completed?
+Does it require human approval?
+```
+
+=== Layer 5 - Expert and User Value
+Ask experts for opinions and recommendations.
+```text
+The recommendation is technically correct but unrealistic.
+The evidence is weak.
+The system missed an important contextual clue.
+The response is too generic.
+The next step is measurable but not meaningful.
+```
+
+=== Layer 6 - Latency and Dependability
+Metrics:
+```text
+Entity extraction latency
+Graph traversal latency
+Vector search latency
+Reranking latency
+Prompt construction latency
+LLM generation latency
+Rule validation latency
+Total response latency
+```
+
+Measure them for P50, P95 and P99.
+- P50 measures the normal or typical experience
+- P95 measures the experience of users encountering moderately slow requests
+- P99 exposes severe tail-latency problems, such as cache misses, garbage
+  collection, database contention, retries, or overloaded downstream services.
+
+=== Layer 7 - Closed-Loop System Health
+If the system uses feedback (can be from human users or LLMs), 
+determine whether that learning is both safe and beneficial.
+
+Evaluate:
+```text
+Feedback volume by type
+Feedback classification accuracy
+Percentage routed to human review
+Approved vs. rejected graph updates
+Prompt or rule changes after feedback
+Rollback frequency
+Performance before and after updates
+Drift by domain or user segment
+```
+
 == Contextual RAG
 Anthropic publishes an article ([2]), introducting "Contextual Retrieval". The main idea
 is to use LLMs to generate a context for a given chunk. It then embeds the context

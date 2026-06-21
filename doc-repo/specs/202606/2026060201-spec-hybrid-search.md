@@ -16,11 +16,12 @@ independent, complementary retrieval paths fused with Reciprocal Rank Fusion (RR
 - **Semantic** — `pgvector` embedding cosine similarity, meaning-based matching that
   bridges synonyms and Chinese ⇄ English gaps that lexical search cannot.
 
-This is the **pgvector interim** of the larger design in
-`KnowledgeStore/Research/PostgreSQLIndex.typ`. The eventual target replaces the lexical
-half with ParadeDB `pg_search` (true BM25 + Jieba) and adds graph-traversal expansion;
-both are **deferred** (see [Future Work](#future-work)). Everything below describes what
-is actually implemented today.
+This is the **pgvector + ParadeDB** implementation of the larger design in
+`KnowledgeStore/Research/PostgreSQLIndex.typ`. The lexical half now defaults to
+ParadeDB `pg_search` (BM25 + Jieba), with PostgreSQL `tsvector` retained as a fallback
+backend. Graph-traversal expansion remains **deferred** (see
+[Future Work](#future-work)). Everything below describes what is actually implemented
+today.
 
 ## Status & feature flag
 
@@ -117,6 +118,74 @@ ReindexXxxSearchForRecord
 `extract_metrics` on record X embeds only record X's metrics, not the rest of the corpus.
 Use the backfill endpoint for pre-existing rows.
 
+## Registry search documents and weights
+
+Hybrid search runs against the normalized registry table `kb.search_artifacts`, not
+directly against each source artifact table. For each artifact, the reindexer reads the
+source row (`kb.entities`, `kb.metrics`, `kb.summaries`, etc.) and builds one
+`kbsearch.RegistryRow`:
+
+- `primary_label`, `secondary_label`, `snippet_basis`, `semantic_payload`, and other
+  display/filter fields are stored separately.
+- `search_document` is the lexical text indexed in `kb.search_artifacts.search_vector`
+  and, for ParadeDB, in the `pg_search` BM25 index.
+- `embedding_text` is stored only when semantic indexing succeeds. If no explicit
+  `EmbeddingText` is supplied by the registry row builder, the embedding path uses
+  `SearchDocument` as the text to embed.
+
+Artifact-specific weight blocks in `config.toml`, such as:
+
+```toml
+[entities_search_weights]
+entity = 1.8
+entity_type = 1.2
+aliases = 1.2
+desc_text = 1.0
+keywords = 2.2
+```
+
+do **not** mean that BM25 queries the raw source columns
+`kb.entities.entity`, `kb.entities.entity_type`, `kb.entities.aliases`,
+`kb.entities.desc_text`, and `kb.entities.keywords` as separate weighted fields.
+Instead, those weights are applied during registry-row construction in
+`search_indexing.go` by repeating each field's text in the single registry
+`search_document`.
+
+The current conversion is:
+
+```go
+repeats = round(weight * 2)
+```
+
+So `entity = 1.8` and `keywords = 2.2` both currently become about four repeats, while
+`desc_text = 1.0` becomes about two repeats. BM25 still sees one text field; the
+repetition changes term frequency and therefore influences the lexical score.
+
+For entities specifically:
+
+```
+kb.entities fields
+  entity, entity_en,
+  entity_type, entity_type_en,
+  aliases, aliases_en,
+  desc_text, desc_text_en,
+  keywords, keywords_en
+    ↓ buildEntityRegistryRows + entities_search_weights
+kb.search_artifacts.search_document
+    ↓ lexical BM25 / tsvector search
+kb.search_artifacts.embedding_text / embedding
+    ↓ semantic pgvector search
+```
+
+This means `search_document` is not "mainly for embedding." It is the primary lexical
+document searched by BM25/FTS, and it is also the fallback text embedded for semantic
+search when `EmbeddingText` is not separately set.
+
+> **Design note:** true BM25 field weighting would require preserving source fields as
+> distinct indexed fields in `kb.search_artifacts` or querying artifact-specific source
+> tables/indexes directly with field boosts. The current implementation approximates
+> field weights through controlled repetition in a single `search_document`.
+
 ## Read path (RRF fusion)
 
 `ChenWeb/server/api/kbhandler/search_registry.go`. The handler entry
@@ -140,8 +209,12 @@ $1 = query text     $2 = query embedding (::vector)     $3.. = structural filter
 - **lexical CTE**
   - *Postgres:* rows matching `tsvector @@ tsquery` (+ CJK ILIKE fallback), ranked by
     `ts_rank_cd`, `ROW_NUMBER()` → `rnk`, `LIMIT hybridCandidateLimit` (200).
-  - *ParadeDB:* rows matching `field ||| $query` (BM25), ranked by `pdb.score(artifact_id)`,
-    same limit. No CJK ILIKE fallback needed (Jieba tokenizer handles CJK).
+  - *ParadeDB:* rows matching registry fields with `field ||| $query`, ranked by
+    `pdb.score(artifact_id)`, same limit. The searched registry fields include
+    `search_document`, `primary_label`, `secondary_label`, `snippet_basis`,
+    `source_title`, and `source_filename`; they do not include raw source-table fields
+    such as `kb.entities.entity` directly. No CJK ILIKE fallback is needed because the
+    BM25 index uses the Jieba tokenizer.
 - **semantic CTE** — rows with `embedding IS NOT NULL`, ranked by `embedding <=>
   $2::vector` (cosine), `ROW_NUMBER()` → `rnk`, same limit. Identical in both backends.
 - **fused** — `FULL OUTER JOIN` on `(artifact_type, artifact_id)`; score =
@@ -170,6 +243,7 @@ that share no query terms can still surface.
 | `hybridCandidateLimit` | kbhandler/search_registry.go | 200 | Per-list candidate cap before fusion |
 | `maxEmbeddingRunes` | doc-processing/search_indexing_embedding.go | 6000 | Index-time embed text cap |
 | `embeddingQueryMaxRunes` | kbhandler/search_embedding_query.go | 6000 | Query/backfill embed text cap |
+| `*_search_weights` | config.toml | artifact-specific | Registry `search_document` repeat weights |
 
 ## Verifying the rollout
 
@@ -204,7 +278,8 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | RegistryRow + insert statements | `ChenWeb/server/api/kbsearch/registry.go` |
 | Backfill engine | `ChenWeb/server/api/kbsearch/backfill.go` |
 | Embedding-on-reindex | `ChenWeb/server/api/doc-processing/search_indexing_embedding.go` |
-| Reindex choke point | `ChenWeb/server/api/doc-processing/search_indexing.go` |
+| Reindex choke point + weighted registry document builders | `ChenWeb/server/api/doc-processing/search_indexing.go` |
+| Search weight config | `ChenWeb/config.toml`, `ChenWeb/server/cmd/config/config.go` |
 | Hybrid RRF query + filters | `ChenWeb/server/api/kbhandler/search_registry.go` |
 | Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |

@@ -187,7 +187,7 @@ Add environment-backed configuration to `FixedSizeChunkingService`:
 - `ARTIFACT_WEB_DIR`
 - `SUMMARY_CLUSTER_SIMILARITY_THRESHOLD`
 - `RECLUSTERING_DAYS`
-- `SUMMARY_EMBEDDING_MODEL_NAME` if embeddings are generated through a separate model
+- `EMBEDDING_MODEL_NAME` if embeddings are generated through a separate model
 
 Defaults:
 

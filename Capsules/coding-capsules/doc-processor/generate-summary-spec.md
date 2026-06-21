@@ -56,7 +56,7 @@ where:
 - `<seqno>`: the summary seqno
 
 ### 1.6 Summary Embedding
-- Use SUMMARY_EMBEDDING_MODEL_NAME to embed summaries.
+- Use EMBEDDING_MODEL_NAME to embed summaries.
 - Each summary's embedding vector is stored in a dedicated file alongside its summary file:
 
 `ARTIFACT_DIR + /<group_id>/<record_id>/embeddings/summary_<level>_<dddd>.embed`

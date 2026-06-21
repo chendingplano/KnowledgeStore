@@ -1,1 +1,1 @@
-../../../doc-repo/202606/2026060201-hybrid-search.md
+../../../doc-repo/specs/202606/2026060201-spec-hybrid-search.md

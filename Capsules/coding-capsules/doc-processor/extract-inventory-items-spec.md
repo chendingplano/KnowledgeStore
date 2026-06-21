@@ -117,6 +117,105 @@ For more information about creating new artifact categories, refer to [5].
 
 The curation pass is batched per document and builds an intra-document snapshot for convergence: a category minted early in a document is matchable by later surface forms in the same pass.
 
+## Semantic Clustering
+
+After extraction, deduplication, persistence, and search reindex (step 15 in [Workflow](#workflow)), every newly extracted inventory item runs through a **semantic clustering** step that determines whether it refers to the *same physical inventory item* as items already in `kb.inventory_items`. When it does, the duplicate is absorbed into the existing canonical node. This is the same identity-resolution pattern applied to entities in ADR 2026061701, adapted for inventory items.
+
+**Design:** see `doc-2026062001` ([Semantic Clustering — Design Spec](../../../../KnowledgeStore/doc-repo/specs/202606/2026062001-spec-semantic-clustering.md)) for the full algorithm description. Only the type-specific differences are documented here.
+
+### Algorithm (inventory-item-specific)
+
+```
+for each newly extracted inventory item I in record R:
+    1.  SEARCH
+        Hybrid-search kb.search_artifacts (artifact_type = 'inventory_item')
+        with I.search_document (BM25 + pgvector RRF).
+        Exclude I's own artifact_id from results.
+
+    2.  NO MATCH
+        If no candidate passes the coarse filter (step 3) →
+            Mark I as its own cluster head:
+              canonical_item_id  = I.inventory_item_id  (self-reference)
+              reconcile_status   = 'clustered'
+            Continue to next item.
+
+    3.  COARSE FILTER
+        Keep only candidates where ALL of:
+          semantic_cosine ≥ SEMCLUSTER_MIN_BLOCK_COSINE (default 0.85)
+          shared item_categories (≥ 1 overlapping category if both sides
+          have non-empty categories; same as hasCommonCategory)
+        → candidate set C
+
+    4.  FORM WORK UNIT → group G = {I} ∪ C
+
+    5.  BATCH → pack SEMCLUSTER_GROUP_SIZE groups per LLM call
+
+    6.  HYDRATE (identity signature only)
+        For each member in G, load:
+          inventory_item_id, item_name, canonical_name, categories,
+          manufacturer, brand, model_number, part_number, aliases, standards
+        Carry search cosine + lexical scores as why-grouped hints.
+        Do NOT load source_line_spans or evidence_quote.
+
+    7.  LLM ADJUDICATE → partition G into identity sets.
+        Output follows the same contract as entity adjudication (groups keyed
+        by group_id, member_item_ids, confidence, rationale, evidence).
+
+    8.  DECISION POLICY
+        confidence ≥ SEMCLUSTER_MERGE_MIN (default 0.90) → apply merge
+        confidence ≥ SEMCLUSTER_HUMAN_MIN (default 0.60) → needs_human (batch)
+        confidence <  human-min                            → keep separate
+
+    9.  APPLY MERGE (reversible)
+        For each confirmed group:
+          - elect survivor (deterministic lexicographic inventory_item_id)
+          - set absorbed.canonical_item_id = survivor.inventory_item_id
+          - write reversible kb.inventory_item_merges row
+          - set absorbed.reconcile_status = 'merged'
+          - set survivor.reconcile_status = 'clustered'
+```
+
+### Identity signature
+
+The identity signature for inventory items is the set of attributes that defines *what the item is*, independent of the source document:
+
+- `item_name` — the source-language surface form
+- `canonical_name` — the normalized display name
+- `manufacturer` / `brand` — maker identity
+- `model_number` / `part_number` — manufacturer-assigned identifiers
+- `item_categories` — the controlled-vocabulary category key(s)
+- `aliases` / `standards` — cross-references and alt identifiers
+
+The identity signature is intentionally narrower than the full row: `normalized_specs`, `raw_specs`, `source_line_spans`, and `evidence_quote` are excluded because they vary by document context and are not intrinsic to the item.
+
+### Coarse filter differences from entities
+
+Unlike entity clustering (`sameEntityType`), inventory items have no `entity_type` field. The coarse filter relies on **category overlap** (`hasCommonCategory`) as the primary gate. This means items assigned to unrelated categories (e.g. `pump` vs `bearing`) are never clustered regardless of name or maker similarity.
+
+When both sides have empty categories, the category gate is skipped (the candidate passes) so that the LLM adjudicator can decide based on other attributes.
+
+### Survivor election
+
+Deterministic, handled in Go (not the LLM): lexicographically smaller `inventory_item_id` wins. This is simpler than entity survivor election because all inventory items carry the same `extracted` provenance — there is no provisional/minted equivalent to distinguish.
+
+### Graceful degradation
+
+Same as entity clustering:
+
+- **Feature flag off** (`SEMCLUSTER_ENABLED = false`): function returns immediately; items are left with `reconcile_status = 'pending'`.
+- **Model / prompt unavailable**: items are marked as cluster heads (safe default).
+- **LLM adjudication error**: primary model + optional fallback (`SEMCLUSTER_INVITEM_ADJ_FALLBACK`) are tried. If both fail, all pending items are marked as cluster heads — no false merges.
+- **Search degraded** (`SEARCH_SEMANTIC_ENABLED = false`): hybrid search falls back to lexical-only (BM25). Candidate recall is lower but the algorithm runs correctly.
+
+### Schema impact
+
+- `kb.inventory_items.canonical_item_id` — the cluster head (defaults to self)
+- `kb.inventory_items.reconcile_status` — `'pending'` (initial) → `'clustered'` (head) or `'merged'` (absorbed)
+- `kb.inventory_items.reconciled_at` — timestamp of last reconciliation
+- `kb.inventory_item_merges` — immutable merge provenance (from_item_id, into_item_id, method, confidence, reason, evidence)
+
+Migration: `20260620000002_add_kb_inventory_item_reconciliation.sql`.
+
 ## Category Review
 
 A `pending_review` category has been observed in the corpus but has not yet been curated by a human. Its schema body (`required_attrs`, `specs`, `plausible_ranges`) is empty.
@@ -319,9 +418,10 @@ All body fields are optional — only supplied fields are updated.
 12. Persist survivors to `kb.inventory_items` (log `inserted_items=M`), then persist the discarded duplicates to `kb.inventory_item_duplicates` (best-effort; failure is logged, not fatal).
 13. Write the `.inventory_items` artifact file (survivors only, with merged provenance; non-fatal if it fails).
 14. Reindex search via `ReindexInventoryItemSearchForRecord(...)`.
-15. **Post-pass curation**: call `CurateObservedCategories` with the extracted `item_categories` surface forms (flattened across all items) — match-before-mint against the registry, mint `pending_review` for genuinely new types.
-16. Persist the `extract_inventory_items` status entry on the record.
-17. Write doc-proc logs for chunk calls and run summary.
+15. **Semantic clustering** (Phase C): call `semClusterInventoryItems` with the newly extracted items — hybrid search against the search registry, coarse filter by category and cosine similarity, LLM adjudication, and application of merges via `InventoryItemClusterStore` (write `kb.inventory_item_merges`, fold losers into `canonical_item_id`, mark heads). Best-effort; failure is logged and non-fatal. See [Semantic Clustering](#semantic-clustering).
+16. **Post-pass curation**: call `CurateObservedCategories` with the extracted `item_categories` surface forms (flattened across all items) — match-before-mint against the registry, mint `pending_review` for genuinely new types.
+17. Persist the `extract_inventory_items` status entry on the record.
+18. Write doc-proc logs for chunk calls and run summary.
 
 ## Deduplication
 
@@ -435,3 +535,8 @@ A provision may mention an inventory item, but the provision is the rule and the
 - [3]: [Chunking](../chunking/+CAPSULE.md)
 - [4]: [Research Note: Semantic Projection / Inventory Item Objects](../../../Research/LLMPoweredDeepParsing.typ)
 - [5]: KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md
+- [6]: [Semantic Clustering — Design Spec](../../../../KnowledgeStore/doc-repo/specs/202606/2026062001-spec-semantic-clustering.md)
+- [7]: ADR 2026061701 — Corpus-Level Entity Reconciliation (batch reconciler; block → adjudicate → apply → enrich)
+- [8]: `project_migrations/20260620000002_add_kb_inventory_item_reconciliation.sql` — migration for `canonical_item_id`, `reconcile_status`, and `kb.inventory_item_merges`
+- [9]: `inventory_item_semantic_clustering.go` — `semClusterInventoryItems`, `InventoryItemClusterStore.ApplyMerge`, `InventoryItemClusterStore.MarkClustered`
+- [10]: `inventory_item_indexing.go` — `InventoryItemsProcessor.PostProcessIndex` wiring

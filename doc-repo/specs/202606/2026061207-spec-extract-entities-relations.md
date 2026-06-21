@@ -18,6 +18,9 @@ This processor is independent of [`extract_structured_knowledge`](extract-struct
 | `EXTRACT_ENTITY_RELATION_FALLBACK` | optional | Fallback LLM model reference, used if the primary model errors on a chunk |
 | `EXTRACT_ENTITY_RELATION_PROMPT` | optional | Prompt file ref. Defaults to `prompt-extract-entity-relation-v1.md` |
 | `EXTRACT_ENTITY_RELATION_MAX_TASKS` | optional | Max concurrent chunk-processing goroutines. Default `1` (sequential). |
+| `DOC_PROCESS_LLM_MAX_INFLIGHT_PER_MODEL` | optional | Process-wide default permit limit per resolved model name. Default `64`. |
+| `DOC_PROCESS_LLM_MAX_INFLIGHT_OVERRIDES` | optional | Per-model permit overrides, e.g. `gpt-5.4-mini=16,deepseek-v4-flash=64`. |
+| `DOC_PROCESS_LLM_PERMIT_TTL_SEC` | optional | Permit lease TTL. Expired permits are reclaimed automatically. Default `320`. |
 | `ARTIFACT_DIR` | yes | Root artifact directory where `.chunks`, `.entities`, `.relations` files live |
 | `MODEL_DEF_FILE` | yes | Model registry used by the shared model loader |
 
@@ -37,6 +40,11 @@ When a chunk's primary LLM call errors:
 2. If `EXTRACT_ENTITY_RELATION_FALLBACK` is set and loads cleanly, retry the same chunk with the fallback model.
 3. If the fallback also errors with an "empty JSON" shape, treat the chunk as having no extractions and continue.
 4. If both error in any other way, log at `Error` and skip the chunk.
+
+Each LLM call must first acquire a process-wide permit keyed by the resolved
+model name. The permit is released when the call returns, and it also carries a
+lease timer so a stuck or leaked request does not hold capacity forever. If the
+lease expires while requests are waiting, the next waiter may run immediately.
 
 A chunk being skipped is not a processor-level failure; the processor only fails when:
 
@@ -274,7 +282,7 @@ The status entry is keyed by `operation = "extract_entity_relation"`. A second i
 5. If `force = true`, delete any prior `kb.entities` and `kb.relations` rows for this record. Otherwise, if rows already exist, persist a success status and return (idempotent skip).
 6. Read and parse the line file.
 7. Resolve the chunk artifact file (`.chunks`); on error, persist a failed status and return.
-8. For each chunk: build the marked input text, call the LLM with the entity-relation prompt (with fallback model on error), parse the JSON, normalize entities and relations. Chunks may be processed concurrently up to `EXTRACT_ENTITY_RELATION_MAX_TASKS` workers. An LLM error on one chunk skips that chunk without cancelling siblings; only a pipeline-stop signal cancels all in-flight workers. Results are aggregated in original chunk-index order so `entity_id` and `relation_id` assignment remains deterministic.
+8. For each chunk: build the marked input text, acquire a per-model LLM permit, call the LLM with the entity-relation prompt (with fallback model on error), release the permit, parse the JSON, normalize entities and relations. Chunks may be processed concurrently up to `EXTRACT_ENTITY_RELATION_MAX_TASKS` workers, but active calls to the same model are additionally bounded by the permit controller. An LLM error on one chunk skips that chunk without cancelling siblings; only a pipeline-stop signal cancels all in-flight workers. Results are aggregated in original chunk-index order so `entity_id` and `relation_id` assignment remains deterministic.
 9. Detect input language from the first non-empty `language` field returned. Default to `"unknown"` if nothing was detected.
 10. Assign `entity_id = <record_id>_ent_<seqno>` and `relation_id = <record_id>_rel_<seqno>` globally across all chunks.
 11. Insert entity rows into `kb.entities` and relation rows into `kb.relations`.

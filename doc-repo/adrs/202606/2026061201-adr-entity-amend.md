@@ -19,7 +19,7 @@ Entities are stored in the table `kb.entities`.
 the entity has multiple `<line_range>`, separate the elements `<context>` with two '\n'. 
 * Add field `kb.entity.entity_context` (text) to save all its `<chunk_context>` to it, separate them by '\n\n', if there are multiple `<chunk_text>`.
 * Add field `kb.entity.doc_name` (text). Populate `kb.inputs.title` to it.
-* Retrieve the keywords from all the `kb.summaries.keywords` and `kb.summaries.keywords_en` and add them to `kb.entities.search_document`
+* Retrieve the keywords from all the `kb.summaries.keywords` and `kb.summaries.keywords_en` and add them to `kb.entities.search_document`. *(Superseded on 2026/06/17: do not append summary keywords to entity search.)*
 
 ### Changes - 2026/06/13
 
@@ -32,7 +32,7 @@ Original:
 Change: "`<chunk_context>` = `<chunk_summary>` + ..." to: "`<chunk_context>` = 'Summary: ' + `<chunk_summary>` + ..."
 
 #### Change 02
-Retrieve the keywords from the chunk's semantic projection and add them to `kb.entities.search_document`.
+Retrieve the keywords from the chunk's semantic projection and add them to `kb.entities.search_document`. *(Superseded on 2026/06/17: do not append semantic projection keywords to entity search.)*
 
 #### Change 03
 * Add `kb.entities.categories` field.
@@ -44,7 +44,36 @@ returned from the LLM.
 Populate `entity_categories` to `kb.entities.categories`.
 
 ### Changes - 2026/06/14
-Do not 
+No additional decision recorded.
+
+### Changes - 2026/06/17
+
+#### Change 01
+Keep the `kb.entities.entity_context` column for now, but stop generating and
+persisting `entity_context` in the entity extraction write path. Its content can
+be reconstructed from line spans, chunks, summaries, source lines, and
+`ARTIFACT_CONTEXT_SIZE`; if needed, reconstruct it at runtime instead of storing
+new derived copies on each entity row. Revisit column removal later.
+
+#### Change 02
+Do not append chunk summary keywords to `kb.entities.search_document`.
+`kb.entities.search_document` should remain focused on entity-local searchable
+content. Chunk/document-level keywords broaden entity search too much and can
+make unrelated entities match topic-level terms.
+
+#### Change 03
+Do not append semantic projection keywords to `kb.entities.search_document`.
+Semantic projection keywords are also contextual/chunk-level signals unless they
+are explicitly produced for a specific entity, so they should not be mixed into
+each entity row's own search text.
+
+#### Change 04
+Deduplicate `kb.entities.search_document` across entity-local fields. The search
+document is built from `entity`, `entity_en`, entity types, aliases,
+descriptions, `keywords`, and `keywords_en`; repeated values such as an entity
+name also appearing as a keyword should only appear once. JSONB array fields must
+be deduped element-by-element rather than after joining the whole array into one
+string.
 
 ---
 
@@ -63,17 +92,21 @@ Do not
 - `DocMetadataInputRecord` gained a `Title string` field; all three SQL queries in `extract-doc-metadata-store.go` (`GetInputRecord`, `ListParsedInputRecords`, `ListRecordsWithFailedDocProcessors`) were updated to fetch `COALESCE(title, '')`.
 
 ### Store interface additions (`EntityRelationStore`)
-Three new methods on `EntityRelationSQLStore`:
+One new method on `EntityRelationSQLStore`:
 - `GetChunkSummaries(ctx, inputRecordID) map[int]string` — queries `kb.summaries` (level 0) and returns a `seqNo → summaryText` map.
-- `AppendSummaryKeywordsToEntitySearch(ctx, inputRecordID)` — queries all `kb.summaries.keywords` / `keywords_en` for the record, deduplicates, and does a direct `UPDATE kb.entities SET search_document = concat_ws(' ', …), search_vector = to_tsvector(…)` that bypasses the entity-specific trigger (which only fires on updates to entity name/type/keyword columns).
-- `AppendSemanticProjectionKeywordsToEntitySearch(ctx, inputRecordID)` *(2026-06-13)* — same pattern as above but reads `kb.semantic_projections.keywords` / `keywords_en` for the record.
+
+The previously planned `AppendSummaryKeywordsToEntitySearch` and
+`AppendSemanticProjectionKeywordsToEntitySearch` methods are not used. Entity
+search text must not be expanded with chunk summary keywords or semantic
+projection keywords.
 
 ### Entity context building
 `buildEntityContextForEntities(entities, chunks, allLines, chunkSummaries, contextSize)`:
 1. Builds a `lineNo → Line` map and a `lineNo → chunk.SeqNo` map from the loaded chunks.
 2. For each entity, groups its `line_spans` by chunk (falls back to the entity's own `chunk_seq_no` if the span's start line isn't in any loaded chunk).
 3. For each chunk group: prepends `"Summary: " + chunk summary text` *(2026-06-13: "Summary: " prefix added)*, then for each span appends up to `contextSize` leading document lines followed by the span lines.  Multiple spans within a chunk are separated by `\n\n`; multiple chunk-contexts are also separated by `\n\n`.
-4. Sets `entity["entity_context"]` in-place before `SaveEntities` is called.
+4. Produces the same context string for runtime use, but the extraction write
+   path no longer calls it before `SaveEntities`.
 
 `contextSize` is read from the `ARTIFACT_CONTEXT_SIZE` environment variable (default 3).
 
@@ -83,15 +116,17 @@ Three new methods on `EntityRelationSQLStore`:
 
 ### HandleEvent orchestration changes
 After LLM extraction and entity ID assignment:
-1. Call `GetChunkSummaries` → pass to `buildEntityContextForEntities`.
-2. `SaveEntitiesRequest` now carries `DocName` (from `rec.Title`); `SaveEntities` inserts it into `doc_name`.
-3. `SaveEntities` inserts `entity_categories` into `kb.entities.categories` (JSONB). *(2026-06-13)*
-4. After entities are saved, call `AppendSummaryKeywordsToEntitySearch`; failures are logged as warnings (non-fatal).
-5. After step 4, call `AppendSemanticProjectionKeywordsToEntitySearch`; failures are logged as warnings (non-fatal). *(2026-06-13)*
+1. `SaveEntitiesRequest` now carries `DocName` (from `rec.Title`); `SaveEntities` inserts it into `doc_name`.
+2. `SaveEntities` inserts `entity_categories` into `kb.entities.categories` (JSONB). *(2026-06-13)*
+3. Do not generate or persist `entity_context`; leave it NULL in newly written rows.
+4. Do not append chunk summary keywords or semantic projection keywords to
+   `kb.entities.search_document`. The row's search document is produced by the
+   entity search trigger from entity-local fields.
 
 ### Files changed
 - `project_migrations/20260612000003_add_entity_context_doc_name_to_kb_entities.sql` (new)
 - `project_migrations/20260613000001_add_categories_to_kb_entities.sql` (new, 2026-06-13)
+- `project_migrations/20260617000003_dedupe_kb_entity_search_document.sql` (new, 2026-06-17)
 - `server/api/doc-processing/extract-doc-metadata-store.go`
 - `server/api/doc-processing/extract-entity-relation.go`
 - `server/api/doc-processing/extract-entity-relation_test.go`
@@ -100,15 +135,17 @@ After LLM extraction and entity ID assignment:
 
 ## Alternatives Considered
 
-- **Trigger-based `search_document` update for summary keywords**: rejected because a trigger cannot efficiently JOIN another table. Direct `UPDATE` after insert bypasses the trigger without side effects since the trigger only fires on writes to the entity's own searchable columns.
+- **Appending chunk/document keywords to entity search**: rejected because it improves recall by making every entity inherit chunk-level terms, but it reduces precision and makes unrelated entities match topic-level keywords.
 - **Storing `entity_context` in a separate table**: rejected; a single TEXT column on the row keeps reads simple.
+- **Removing `entity_context` immediately**: deferred. The field is derivable and may be removed later; for now it remains in the schema but is not populated by the extraction write path.
 
 ---
 
 ## Consequences
 
-- All new entity rows carry a pre-computed `entity_context` and `doc_name`.
-- `kb.entities.search_document` now includes the record's summary keywords, improving full-text search recall.
+- All new entity rows carry `doc_name`; `entity_context` is left NULL by the extraction write path.
+- `kb.entities.search_document` does not include chunk summary keywords or semantic projection keywords.
+- `kb.entities.search_document` deduplicates repeated entity-local values, including values repeated between `entity` / `entity_en` and `keywords` / `keywords_en`.
 - `ARTIFACT_CONTEXT_SIZE` (env var, default 3) controls how many leading lines precede each cited line range in the context.
 - Existing rows remain NULL for the new columns until re-processed with `force=true`.
 
@@ -118,6 +155,8 @@ After LLM extraction and entity ID assignment:
 - `TestBuildEntityContextForEntities` — verifies `"Summary: "` prefix + summary text, leading line, and span line all appear in output.
 - `TestBuildEntityContextForEntities_NoSpans` — verifies no key is set for entities with empty spans.
 - `TestNormalizeEntityRowsCategories` *(2026-06-13)* — verifies `entity_categories` is populated from the LLM response and defaults to empty when absent.
+- `TestHandleEventDoesNotGenerateEntityContext` *(2026-06-17)* — verifies the entity processor does not generate `entity_context` before saving entities.
+- `TestEntitySearchDocumentDedupeMigrationExists` *(2026-06-17)* — verifies the migration that deduplicates entity search text exists and backfills existing rows.
 
 ## References
 [1] 2026061207-spec-extract-entities-relations.md

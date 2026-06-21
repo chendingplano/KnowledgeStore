@@ -1,7 +1,8 @@
 # ADR 2026061302 — Entity-Relation Extraction: Entity-Linked Relations
 
 **Date:** 2026-06-13 \
-**Status:** Accepted — implemented (D1–D6) \
+**Status:** Accepted — implemented (D1–D6). **D2/D3/D5/D6 superseded by ADR 2026061702**
+(decoupled free-form relation extraction); **D1/D4 retained**. \
 **Component:** Doc Processor — Entities & Relations
 
 ## Change Logs
@@ -114,6 +115,33 @@ Need to treat `kb.entities.entity_en` the same way as `kb.relations.predicates`:
 * It is a dictionary for entity names
 * Need normalize
 * Need to relate the dictionary key to 'instance'
+
+### Change 03 — Cross-document entity merging: analysis (2026-06-20)
+Artifacts (entities in particular) are document-independent: the *same* entity —
+semantically, not just syntactically — can be extracted from many documents
+(e.g. "Odor Treatment Facility"). This change records an analysis of whether the
+current implementation actually merges such entities. See the full write-up in
+[Analysis — Entity Merging Across Documents (2026-06-20)](#analysis--entity-merging-across-documents-2026-06-20).
+**Verdict: intra-document merging works and is lexical-only; cross-document
+merging is designed and partly coded but does not run, and is structurally
+incapable of catching purely-semantic duplicates.**
+
+### Change 04 — Proposal: hybrid-search online entity merge (2026-06-20)
+Proposal under evaluation: for each newly extracted entity, run hybrid search ([5]); if
+it is *very close* to one or more existing entities, merge into them (each entity
+forms a cluster); otherwise treat it as a true new entity. Full evaluation in
+[Proposal Evaluation — Hybrid-Search Online Entity Merge (2026-06-20)](#proposal-evaluation--hybrid-search-online-entity-merge-2026-06-20).
+**Verdict: the right *candidate-generation* mechanism — it fixes the semantic-recall
+gap the lexical-only reconciler (ADR 2026061701) cannot — and it reuses search the
+processor already runs (§3.8.9). But "very close ⇒ merge" must not equal the
+existing link-acceptance threshold: similarity ≠ identity, and naive single-link
+clustering will over-merge by chaining. Adopt it as hybrid *blocking* feeding a
+strict identity gate, not as direct auto-merge on raw search proximity.**
+**Implemented 2026-06-20** as P1 entity semantic clustering ([spec
+2026062001](../../specs/202606/2026062001-spec-semantic-clustering.md)):
+coarse filter (cosine + type + category) → LLM adjudicator
+(`prompt-entity-adjudicate-v1.md`) → confidence-gated reversible merge.
+The `MergeAdjudicator` noted below as unimplemented is now live.
 
 ---
 
@@ -508,9 +536,12 @@ or the relation prompt over-reaching beyond the supplied list).
 - Entity ordering within a window when an entity's `line_spans` cover multiple
   distant regions — order by first span, or place the entity in every window its
   spans touch?
-- Provisional-entity hygiene: should provisional rows be periodically re-checked
+- ~~Provisional-entity hygiene: should provisional rows be periodically re-checked
   against the consolidated set (e.g. a later doc revision adds the missing
-  alias), and merged?
+  alias), and merged?~~ → **Resolved by ADR 2026061701** (2026061701-adr-entity-reconciliation.md):
+  a corpus-level reconciliation job (block → adjudicate → apply → enrich) merges
+  cross-document duplicates and promotes provisionals, with reversible merge
+  provenance.
 
 ### Resolved since first draft
 
@@ -524,8 +555,331 @@ or the relation prompt over-reaching beyond the supplied list).
 
 ---
 
+## Analysis — Entity Merging Across Documents (2026-06-20)
+
+**Question.** Entities are extracted *from* documents but are *document-independent*:
+the same real-world entity ("Odor Treatment Facility") can appear in many
+documents, sometimes under different surface forms or different languages. Does
+the current implementation merge these into one entity, where "same" means
+**semantic** identity, not just **syntactic** string match?
+
+**Short answer.** There are two distinct merge problems, and they are in very
+different states:
+
+| Scope | Mechanism | State | Match basis |
+|---|---|---|---|
+| **Within one document** | `consolidateEntities` (Phase 1.5 / D6) | **Works, in production** | Lexical only (normalized surface-form equality) |
+| **Across documents** | corpus reconciler (ADR 2026061701) | **Coded + tested, but does not run** | Lexical blocking + (absent) LLM judge |
+
+Neither layer performs semantic matching today. The cross-document layer that is
+*supposed* to is not wired to any scheduler, and even its design can only reach
+semantic duplicates that already share a surface string.
+
+### 1. Intra-document consolidation — what actually happens
+
+`consolidateEntities` (`server/api/doc-processing/entity-relation-linking.go:57`)
+runs union-find over the per-chunk entities of a single document. Two entities
+are unioned iff they **share at least one identical normalized surface form**,
+where a surface form is any of `entity`, `entity_en`, `aliases[]`, `aliases_en[]`
+and "normalized" = trim + lowercase + collapse internal whitespace
+(`normalizeSurfaceForm`, line 23). The fullest (longest) name wins as canonical;
+the highest-confidence member anchors scalar attributes; aliases / keywords /
+spans / categories are unioned (`mergeEntityGroup`, line 121).
+
+Consequences:
+- **"Acme Corporation" + "Acme"** merge **only if** one row lists the other as an
+  alias. If chunk 2 says "Acme Corporation" and chunk 7 says "Acme" and neither
+  carries the other as an alias, they stay **two** entities. Consolidation is
+  therefore only as good as the LLM's per-chunk alias emission.
+- There is **no** fuzzy, embedding, or semantic comparison at this layer. It is
+  pure string-set intersection.
+- `entity_id` is record-scoped (`<record_id>_ent_<seqno>`), so this layer cannot,
+  by construction, merge across documents — it only ever sees one document's
+  entities.
+
+### 2. Cross-document reconciliation — the intended design vs. reality
+
+ADR 2026061701 (block → adjudicate → apply → enrich, watermark-driven) is the
+*only* place cross-document identity is meant to be resolved. The code exists:
+`entity-reconciliation.go` (`Reconciler.Run`), `entity-reconciliation-store.go`
+(`ReconcileSQLStore`), `entity-reconciliation_test.go`, and migration
+`20260617000004_create_kb_entity_reconciliation_tables.sql` (adds
+`canonical_entity_id`, `reconcile_status`, `entity_merge_candidates`,
+`entity_merges`, `reconcile_runs`, `relations_resolved`).
+
+But verified against the code, **the corpus merger does not actually run, and
+cannot find semantic duplicates even if it did:**
+
+1. **It is never invoked.** No production code constructs a `Reconciler` or calls
+   `Reconciler.Run`. The only `.Run(ctx)` hit in a `cmd/` main is the *autotester
+   runner*, unrelated to reconciliation. `config.go` defines
+   `ReconciliationRunHour` (default 2 a.m.) but it is **only validated, never
+   read** by any scheduler. Net effect: same real-world entity across N documents
+   = N distinct `entity_id`s, forever. Every `kb.entities` row is still its own
+   canonical head (`canonical_entity_id` defaults unset).
+
+2. **Blocking is exact-normalized-name only.** `BlockCandidates`
+   (`entity-reconciliation-store.go:63`) pairs entities solely where
+   `lower(whitespace-folded(entity_en, fallback entity))` is **equal**. The store
+   comment is explicit: *"the codebase has no pg_trgm, so fuzzy blocking is a
+   later addition"*, and ADR R4 notes **no pgvector** exists. So the candidate set
+   is built purely lexically.
+
+3. **The only semantic judge (the LLM) never sees purely-semantic pairs.** The
+   adjudication tiers (`Reconciler.Run`, line 174) are: `score ≥ AutoMergeMin`
+   → rule auto-merge; `score ≤ AutoRejectMax` → rule auto-reject; the **ambiguous
+   middle band → LLM** (`MergeAdjudicator.Adjudicate`). The LLM is the only
+   component that could reason about meaning. **But it only adjudicates pairs that
+   blocking already produced, and blocking is lexical.** A pair with no shared
+   surface form is never blocked, so it never reaches the LLM.
+   **No `MergeAdjudicator` implementation existed at the time** — `r.llm` was nil, so
+   the blocked middle band was silently skipped. (Resolved 2026-06-20 for the
+   online path: `callAdjudicator` in `semantic_clustering.go` implements
+   the adjudicator; the batch reconciler path remains pending.)
+
+4. **Scoring rewards exact names, not meaning.** `scoreCandidate` (line 293):
+   `name_exact` = +0.7, `surface_jaccard` = +0.2·j, `type_match` = +0.1, with a
+   type-conflict cap at 0.6. Because every blocked pair *already* has
+   `name_exact = true`, scoring mostly separates "same name, same type" (auto-merge)
+   from "same name, conflicting type" (held). It adds no semantic signal.
+
+5. **Enrich is a TODO** (`Run`, line 218): surviving heads are not backfilled.
+
+### 3. Does it work *at all*?
+
+- **Intra-document, syntactic merge:** yes, and reliably, *to the extent the LLM
+  supplies shared surface forms / aliases.*
+- **Cross-document, syntactic merge:** the machinery to do exact-name corpus merge
+  is built and unit-tested, but it is **dormant** (nothing schedules it). If it
+  were turned on with the SQL store and conservative thresholds, it would correctly
+  collapse entities that share an identical normalized English name across
+  documents, repoint relations, and record reversible `entity_merges`.
+- **Cross-document, semantic merge (the actual question):** **no.** This is the
+  central gap. "Odor Treatment Facility" vs. "Malodour Control Unit" vs. a Chinese
+  surface form vs. an acronym "OTF" — if they do not share a normalized surface
+  string, **nothing in the current pipeline ever proposes them as a merge
+  candidate**, so the LLM (the one component that could judge semantic sameness)
+  never gets the chance.
+
+The architecture has the *right shape* (cheap blocking → selective LLM
+adjudication → reversible apply) but the blocking recall ceiling is the binding
+constraint: **blocking is a lexical pre-filter, and you cannot recover at
+adjudication a pair that blocking never emitted.**
+
+### 4. Recommendations
+
+Ordered by leverage:
+
+1. **Wire the reconciler to a scheduler** so cross-document exact-name merge runs
+   at all. Consume `ReconciliationRunHour`, guard with `RECONCILE_ENABLED`
+   (default off), start with rule tiers only (no LLM) and conservative
+   `AutoMergeMin` so only exact-name + same-type pairs auto-merge. This is the
+   smallest change that turns a dormant feature into a working (if lexical) one.
+2. **Raise blocking recall beyond exact-name — this is what unlocks semantic
+   merge.** Add cheap fuzzy/semantic blocking signals so semantically-close-but-
+   lexically-different entities become *candidates*:
+   - `pg_trgm` similarity on `entity_en` (requires the extension; the store already
+     anticipates this).
+   - **Embedding-based blocking** (the durable fix): the codebase has no pgvector
+     today, but entity search documents already feed an embedding pipeline
+     elsewhere; an ANN/HNSW nearest-neighbour pass over entity-name embeddings is
+     the standard cross-lingual / synonym-tolerant blocker. Without a vector
+     signal, "same meaning, different words" is unreachable in principle.
+   - Alias-overlap, shared-document, and category/type co-occurrence as secondary
+     blockers.
+3. **Implement a `MergeAdjudicator`.** Blocking will over-generate once fuzzy/
+   semantic signals are added; the LLM tier is exactly the mechanism to decide the
+   resulting ambiguous middle band. Until it exists, keep thresholds strict and
+   route the middle band to `needs_human`.
+4. **Lean on `kb.entity_names` (R8 / Change 02) as a strong blocker** — a normalized
+   English-name dictionary with alias links is a cheap, high-precision recall
+   booster that complements trigram/embedding blocking.
+5. **Track recall, not just precision.** Reversibility (R3) already bounds the cost
+   of a bad merge; the real risk here is silent **under**-merging (the dormant job
+   + lexical blocking). Report per-run `candidates`, `auto_merged`, `queued_human`,
+   and a periodic sampled false-negative estimate so the semantic gap is visible.
+
+**Bottom line for the "Odor Treatment Facility" case:** today it is merged across
+documents **only if** every occurrence normalizes to the same surface string and
+the reconciler is manually run. Make it robust by (a) scheduling the reconciler
+and (b) adding embedding/trigram blocking so non-identical surface forms become
+merge candidates that the LLM can adjudicate.
+
+## Proposal Evaluation — Hybrid-Search Online Entity Merge (2026-06-20)
+
+**Proposal.** For each newly extracted entity: (1) hybrid-search the entity against
+existing entities; (2) if it is *very close* to one or more, merge it into them — so
+each real-world entity forms one cluster; (3) otherwise treat it as a true new entity.
+
+**The most important fact: the search step already exists and already runs.**
+Per [hybrid-search spec](../../specs/202606/2026060201-spec-hybrid-search.md) there
+is a live `kb.search_artifacts_entity` partition with both a BM25/Jieba lexical index
+and a pgvector HNSW embedding index, fused by RRF. And per
+[artifact-connections §3.8.9](../../../Capsules/coding-capsules/llm-wiki/artifact-connections.md),
+Phase C **already** does *"use `kb.entities.search_document` to hybrid search
+`kb.search_artifacts`"* for every entity and writes the top hits as
+`relation_method='hybrid_search'`, `relation_name='semantically_related'` edges
+(cross-document, accept at cosine ≥ `ARTIFACT_CONNECT_MIN_COSINE` = 0.75 **or**
+lexical ≥ `artifact_search.min_rank`, top-K ≤ `ARTIFACT_CONNECT_MAX_LINKS` = 10).
+
+So the proposal is mechanically small: **reinterpret the top hit of a search the
+pipeline is already performing as an identity decision instead of a relatedness
+edge.** That reuse is the proposal's biggest strength.
+
+### Why this is the right direction
+
+1. **It closes the exact gap Change 03 identified.** The reconciler (ADR 2026061701)
+   blocks on *lexical* signals only (`pg_trgm`/exact name; no pgvector), so purely-
+   semantic duplicates — "Odor Treatment Facility" ≈ "Malodour Control Unit", an
+   acronym, or a Chinese surface form — are never even proposed as candidates.
+   Hybrid search has the **embedding** channel, which is precisely what bridges
+   synonyms and Chinese ⇄ English (the spec's stated reason for the semantic half).
+   Using it as the candidate generator raises blocking *recall* to where semantic
+   duplicates become reachable at all.
+2. **Online / incremental, no dormant batch job.** It runs at extraction time, so it
+   sidesteps Change 03's "the reconciler is never scheduled" problem. A new entity is
+   resolved when it is created.
+3. **Self-terminating base case is correct.** The first occurrence of a brand-new
+   entity has no near neighbour and correctly becomes a true new entity / its own
+   cluster head.
+
+### Why "very close ⇒ merge" must not be the link threshold (the core risk)
+
+Hybrid entity search is tuned for **relatedness/discovery (recall)**, not **identity
+(precision)**. Treating its acceptance score as an identity test will *over-merge*:
+
+1. **Similarity ≠ identity.** At cosine 0.75 (the `semantically_related` floor), the
+   near neighbours of an entity are dominated by *siblings*, not the same thing:
+   "Odor Treatment Facility" vs "Wastewater Treatment Facility"; "Pump A" vs "Pump B";
+   "Sodium Hydroxide" vs "Sodium Hypochlorite"; a parent ("Treatment Plant") vs a
+   child ("Odor Treatment Unit"). Merging these collapses distinct nodes. Identity
+   needs a **much higher** bar than the link-acceptance threshold, plus structural
+   guards (same `entity_type`/category; name-compatibility, not merely co-embedding).
+2. **Single-link chaining → cluster collapse.** "Each entity forms a cluster" by
+   merging into *any* close member is single-link agglomerative clustering, which is
+   notorious for chaining: A~B, B~C, C~D pairwise-close transitively fuse A and D that
+   are not close. Over a corpus this can melt an entire entity type into one blob.
+   Mitigation: compare each new entity to a **cluster representative/centroid**
+   (complete-/average-link flavour), not to any member, and gate merges on a strict
+   threshold.
+3. **Order dependence / non-determinism.** Online merge makes the clustering depend on
+   document-processing order (a new entity folds into whatever already exists). The
+   reconciler's watermark batch is more order-stable. An online design needs a
+   deterministic canonical-election rule (e.g. survivor = extracted-over-provisional,
+   then richer surface set, then lexicographic id — as `electSurvivor` already does)
+   and should remain idempotent under reprocessing.
+4. **Concurrency races.** Phase B/C run concurrently across processors and documents.
+   Two documents extracting the same new entity simultaneously can both see "no match"
+   and both create it — so a periodic reconciler is still needed to mop up residue, or
+   a claim/lease keyed by normalized name (like the category enricher) is required.
+5. **Reversibility still matters.** Because over-merge risk (1–2) is real, an online
+   merge must keep ADR 2026061701 R3 properties: write a reversible `kb.entity_merges`
+   row, never hard-delete, repoint relations through `canonical_entity_id`.
+6. **Embedding preconditions.** This only works with `SEARCH_SEMANTIC_ENABLED=true`,
+   pgvector installed, and the new entity embedded into `kb.search_artifacts_entity`
+   before (or excluded from) its own search. With the flag off it degrades to lexical
+   blocking — i.e. back to the reconciler's current recall ceiling.
+
+### Recommended synthesis
+
+The proposal and ADR 2026061701 are **complementary, not competing**. Adopt the
+proposal as the *blocking/candidate* upgrade and feed it into the reconciler's
+existing adjudicate → apply → (reversible) merge machinery:
+
+1. **Blocking = hybrid search** (this proposal), replacing/augmenting the lexical-only
+   `BlockCandidates`. This is the change that actually unlocks semantic dedup.
+2. **Identity gate, not link threshold.** Auto-merge only on a *high* cosine
+   (≫ 0.75, tuned conservatively) **and** `entity_type`/category agreement **and** a
+   name-compatibility check; route the ambiguous middle band to an LLM
+   `MergeAdjudicator` (implemented 2026-06-20 for online entity clustering;
+   see [spec 2026062001](../../specs/202606/2026062001-spec-semantic-clustering.md)),
+   and the residue to `needs_human`. Prefer false-splits over false-merges early.
+3. **Centroid comparison** to avoid single-link chaining; one cluster head per
+   identity with `canonical_entity_id`.
+4. **Keep merges reversible** (R3) and **keep a periodic reconciler** as the
+   backstop for concurrency residue and for entities whose later-added aliases change
+   their blocking neighbourhood (watermark re-queue, R6).
+
+### Do we still need the LLM `MergeAdjudicator`?
+
+**Yes — and more than before, not less.** The proposal changes *which component
+generates candidates* and improves it; it does **not** remove the need to *decide*
+identity. These are two different stages of one pipeline:
+
+| Stage | Question | This proposal | Adjudicator |
+|---|---|---|---|
+| Block / generate | "Which entities *might* be the same?" | **Hybrid search (recall)** | — |
+| Adjudicate / decide | "*Are* these actually the same entity?" | high-cosine + type tail only | **the borderline band** |
+
+**What the adjudicator is (in code).** It is the LLM seam of ADR 2026061701 —
+interface `MergeAdjudicator { Adjudicate(ctx, cluster []map[string]any)
+(AdjudicationResult, error) }` (`entity-reconciliation.go`). Given a *cluster* of
+candidate entities (hydrated rows: name, `entity_en`, type, aliases, categories,
+status), it partitions them into true identity groups and returns
+`AdjudicationResult{ Merges []MergeDecision, NeedsHuman []candidate_id }`: confident
+same-entity groups become reversible merges (survivor + confidence + evidence), and
+genuinely ambiguous pairs are escalated to the bounded human queue. The online
+path (`semantic_clustering.go`) now has a real implementation (2026-06-20);
+the batch reconciler's `r.llm` path is still pending.
+
+**Why a similarity score cannot replace it.** A hybrid score is a single scalar that
+conflates *every* kind of closeness — same entity, sibling, parent/child, part/whole,
+co-mention. At cosine 0.82 you cannot tell "Acme Corp" ≈ "Acme Corporation" (merge)
+from "Sodium Hydroxide" ≈ "Sodium Hypochlorite" or "Building A" ≈ "Building B" (do
+**not** merge). Deciding identity requires reasoning over structured attributes and
+world knowledge ("NaOH" = "caustic soda"; "Pump A" ≠ "Pump B") — exactly what an LLM
+does and a threshold cannot. And a false merge is expensive: it collapses two real
+nodes and corrupts every relation pointing at them, so the borderline cases need a
+judge, not a cutoff.
+
+**Going semantic makes it *more* necessary.** The whole point of hybrid blocking is to
+surface synonym / cross-lingual duplicates ("Odor Treatment Facility" ≈ "Malodour
+Control Unit"). Those land in the *ambiguous middle band*, not the trivially-high-cosine
+tail. So the merges this effort most wants are precisely the ones only the adjudicator
+can confirm. Skipping it and merging on a high threshold alone keeps only the easy,
+near-identical-name merges — throwing away most of the benefit of going semantic.
+Higher recall also means *more* borderline candidates, which is why the tiered design
+(auto-merge tail, auto-reject tail, LLM only the middle) stays essential to bound cost.
+
+**It also fixes the proposal's single-link weakness.** Because the adjudicator judges a
+whole *cluster* at once, it can split a mutually-close blob into the 2–3 distinct
+entities it really is — directly countering the chaining/over-merge risk that a
+pairwise threshold (A~B~C~D ⇒ one node) creates.
+
+**When you could skip it:** only by setting the auto-merge bar so high that you accept
+missing most non-identical-surface duplicates, and by sending the entire ambiguous band
+to humans instead — which does not scale (R5 exists precisely to keep humans bounded to
+the residue). The adjudicator is now implemented (2026-06-20, `callAdjudicator` in
+`semantic_clustering.go`); the strict-threshold-only posture is no longer necessary for
+the online path, though it remains a fallback when the LLM is unavailable.
+
+**Bottom line.** Use hybrid search to *find* merge candidates — yes, that is the
+correct and infrastructure-cheap fix for the semantic gap. Do **not** treat a hybrid
+*relatedness* score as a merge decision; gate it with a strict, type-aware identity
+test, centroid (not single-link) clustering, and reversible merges. The LLM
+`MergeAdjudicator` remains required as the decision-maker for the ambiguous band — the
+new method raises its workload and its value, so it should be *implemented*, not
+dropped. Framed that way, this proposal is the recommended way to upgrade ADR
+2026061701's R4 blocking from lexical to semantic.
+
 ## References
 
 [1] 2026061201-adr-entity-amend.md — Entity context, doc_name, categories, search.
 
 [2] 2026061207-spec-extract-entities-relations.md — Extraction spec.
+
+[3] 2026061701-adr-entity-reconciliation.md — Corpus-level reconciliation (block →
+    adjudicate → apply → enrich); the intended cross-document merge layer.
+
+[4] Code: `server/api/doc-processing/entity-relation-linking.go`
+    (`consolidateEntities`), `entity-reconciliation.go` (`Reconciler.Run`,
+    `scoreCandidate`), `entity-reconciliation-store.go` (`BlockCandidates`).
+
+[5] 2026062001-spec-semantic-clustering.md — Semantic Clustering design and
+    implementation (P1, 2026-06-20).
+
+[6] Code: `server/api/doc-processing/semantic_clustering.go`
+    (`semClusterEntities`, `callAdjudicator`, `parseAdjudicationResult`),
+    `prompts/prompt-entity-adjudicate-v1.md` (adjudication prompt).
+
+[5] 202606/2026060201-spec-hybrid-search.md

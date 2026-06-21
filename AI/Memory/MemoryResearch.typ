@@ -269,4 +269,33 @@ The binding between a SemObj and its SemMemory is critical.
 - It contains all the non-trivial information
 - It is constantly checked with its companion SemObj (code) automatically by AI
 
+== Build Agent Memory on ElasticSearch
+The context window is a short-term memory. What is missing is long-term memory: a persistent
+store that survives session end, scales to years of interaction, and lets you
+retrieve facts by content, by time, and by user ([1]).
 
+Agent Memory is an open-source ([2]).
+
+#figure(
+  image("Images/image_2026061901.png"),
+  caption: [Agent Memory ([1])]
+)
+
+=== Three Types of Memory
+- Episodic: Time-stamped events: each user turn as it lands, before any extraction 
+  or interpretation. Most of it is short-lived: not always worth keeping.
+  A few entries become evidence for durable facts later.
+- Semantic: Distilled, stable assertions about the user. These survive across
+  sessions and are what the agent grounds in
+- Procedural: Multi-stp playbooks.
+
+Each category has a different lifecycle. Episodic is written constantly and decays.
+Semantic is curated, deduped, and superseded as the user changes. Procedural
+accumulates outcome feedback that feeds consolidation.
+
+== References
+[1] Build Agent Memory on ElasticSearch,
+https://www.elastic.co/search-labs/blog/agent-memory-elasticsearch
+
+[2] atlas-memory-demo,
+https://github.com/noamschwartz/atlas-memory-demo

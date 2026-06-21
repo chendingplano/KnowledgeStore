@@ -34,7 +34,7 @@ This caused:
 
 ### Multi-Pass Pipeline
 
-To solve the single-pass problem, we will use multi-pass pipeline, which 
+To solve the single-pass problem, we will use multi-pass pipeline, which
 breaks the processing into multiple passes:
 
 1. Pass 1: extract metric candidates from each chunk
@@ -185,7 +185,7 @@ exist). It has five outputs:
 
 1. the metric row in `kb.search_artifacts`
 2. deterministic line-overlap links in `kb.metrics.connected_artifacts`
-3. category-instance rows in `kb.category_instance`
+3. category membership edges in `kb.artifact_connections`
 4. `metrics.txt` entries under matching category paths in `ARTIFACT_WEB_DIR`
 5. semantic similarity links in `kb.artifact_connections`
 
@@ -235,12 +235,18 @@ Rules:
 
 - `kb.metrics.metric_categories` must not be null or empty. If it is null or empty, report an indexing error for that metric.
 - For each category key in `kb.metrics.metric_categories`, resolve the category via the **Identify Artifact Categories** procedure in [9], passing `(category_key, category_type = "metric")`. That procedure normalizes the key, matches an existing category (exact/alias, then hybrid semantic), and creates one via the LLM on a true miss — do not insert categories directly here.
-- For each resolved category, upsert one row in `kb.category_instance`.
-- The `kb.category_instance` row connects:
-  - `category_id` from `kb.artifact_categories`
-  - `artifact_id` = `kb.metrics.metric_id`
-  - `input_record_id` = `kb.metrics.input_record_id`
-  - `extra_info` containing at least `{"artifact_type":"metric","source":"extract_metrics"}`
+- Do not write metric-category membership to `kb.category_instance`.
+- For each resolved category, upsert one row in `kb.artifact_connections`.
+- The category membership edge connects:
+  - `source_type = 'metric'`
+  - `source_id = kb.metrics.metric_id`
+  - `target_type = kb.artifact_categories.category_type`
+  - `target_id = kb.artifact_categories.category_key`
+  - `relation_name = 'belong_to'`
+  - `relation_method = 'category_name'`
+  - `source_record_id = kb.metrics.input_record_id`
+  - `target_record_id = kb.metrics.input_record_id`
+  - `extra_info` containing at least `{"source":"extract_metrics","category_key":<category_key>,"category_id":<category_id>}`
 - Do not use `kb.inventory_categories` for metric categories.
 
 #### Index Metrics by Category Paths
@@ -368,9 +374,9 @@ where `seqno` starts at `1`.
 Indexing is **not** part of this Phase B handler. After the whole pipeline finishes
 (Phase C / post-process), the controller invokes the metrics processor's post-process
 indexing step, which: upserts `kb.search_artifacts`, populates
-`kb.metrics.connected_artifacts`, upserts `kb.category_instance`, writes category-path
-`metrics.txt` entries, and upserts semantic links to `kb.artifact_connections`. See the
-[Indexing](#indexing) section.
+`kb.metrics.connected_artifacts`, upserts `category_name` membership edges to
+`kb.artifact_connections`, writes category-path `metrics.txt` entries, and upserts
+semantic links to `kb.artifact_connections`. See the [Indexing](#indexing) section.
 
 **Progress Update (per block):**
 - When beginning extraction, set `progress` to `"0%"` in `kb.inputs.status`.
@@ -440,7 +446,7 @@ Rules:
   - `metric_unit_en`
   - `value_class_en`
 - when populating `search_document`, concatenate the searchable metric fields only once each; if normalized field text is duplicated across fields such as `metric_desc`/`metric_context` or `metric_unit`/`metric_unit_en`, keep the first occurrence and drop repeats
-- save `metric_categories` to support category-instance indexing
+- save `metric_categories` to support category membership indexing
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
 - save additional information to `ext_info`
 
