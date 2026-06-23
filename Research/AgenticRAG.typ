@@ -374,6 +374,154 @@ As the figure shows, reranking can further improve retrieval quality.
   caption: [Contextual Retrieval Performance]
 )
 
+== UnWeaver
+The paper introduces UnWeaver ([5]), a RAG architecture intended to capture much of GraphRAG’s 
+benefit without constructing or traversing an explicit knowledge graph. The authors argue that 
+conventional VectorRAG retrieves coarse text chunks whose embeddings mix several topics into 
+one representation, while GraphRAG improves structure at the cost of substantially greater 
+indexing complexity, graph maintenance, and retrieval heuristics. UnWeaver instead keeps 
+vector retrieval but inserts an entity-centric semantic layer between queries and source 
+chunks. ([6])
+
+During indexing, an LLM extracts named entities or identifiable “ideas” and a description 
+of each from every chunk. Occurrences with syntactically equivalent names are merged, 
+and their descriptions from different chunks are concatenated into a richer entity 
+representation. These entity descriptions are embedded and stored in a vector index, 
+together with mappings back to the original chunks. At query time, the system retrieves 
+the most similar entities, lets those entities “vote” for the chunks in which they occur, 
+and returns the winning original chunks to the answering LLM. Thus, retrieval operates 
+on distilled semantic units, but generation remains grounded in the source text rather 
+than in generated graph summaries. 
+
+The authors’ main hypothesis is that entity decomposition reduces retrieval noise and 
+links information distributed across multiple chunks, thereby supporting both single-hop 
+and multi-hop questions without explicit entity-to-entity graph edges. They also formulate 
+chunk selection mathematically as an approval-voting or retrieval-alignment problem, 
+where relevant entities are voters and chunks are candidates. A variant using Personalized 
+PageRank was tested, but the simpler voting-based UnWeaver generally performed as well 
+as or better than that graph-like extension, suggesting that graph propagation itself 
+contributed little in these experiments. ([arXiv][6])
+
+Across COVID-QA, eManual, Tech-QA, and the multi-hop MuSiQue dataset, UnWeaver consistently 
+outperformed Microsoft GraphRAG and generally matched plain VectorRAG closely. It slightly 
+exceeded VectorRAG on COVID-QA, eManual, and MuSiQue, but VectorRAG performed better on 
+Tech-QA; HippoRAG2 also achieved the strongest result on Tech-QA and MuSiQue. The clearest 
+advantage was therefore not a dramatic accuracy gain over VectorRAG, but obtaining competitive 
+graph-oriented retrieval quality at far lower indexing and inference cost than full GraphRAG 
+systems. ([arXiv][6])
+
+The practical conclusion is more nuanced than the title: VectorRAG may already be sufficient 
+for many QA workloads, provided its index is enriched with clean, queryable semantic abstractions 
+such as entities or ideas. Full GraphRAG remains potentially useful when explicit relationships, 
+topology, ontology-based traversal, or complex graph operations are intrinsically required. 
+But when the main objective is simply to retrieve coherent evidence across chunks, UnWeaver 
+suggests that entity-enriched vector retrieval may offer a better engineering trade-off 
+than building an entire knowledge graph. ([arXiv][6])
+
+=== Voting
+The voting is a way to convert entity relevance into chunk relevance. The query first retrieves 
+the top-(K) entities by embedding similarity. Each retrieved entity then “votes for” every source 
+chunk from which that entity was extracted. Chunks receiving votes from several query-relevant 
+entities are ranked above chunks supported by only one entity. In the paper’s terminology, 
+entities are the voters, chunks are the candidates, and the system selects several winning 
+chunks rather than one winner. ([arXiv][6])
+
+Suppose the query is:
+
+> What affects response time under heavy load?
+
+The entity search returns:
+```text
+| Retrieved entity      | Source chunks |
+| --------------------- | ------------- |
+| `response time`       | C1, C2        |
+| `load testing`        | C1, C3        |
+| `time to first byte`  | C1, C4        |
+| `database contention` | C2, C5        |
+```
+
+Each entity gives one vote to every chunk associated with it:
+
+```text
+C1: response time + load testing + time to first byte = 3 votes
+C2: response time + database contention             = 2 votes
+C3: load testing                                    = 1 vote
+C4: time to first byte                              = 1 vote
+C5: database contention                             = 1 vote
+```
+
+If the retriever needs three chunks, it chooses C1, C2, and one of C3–C5, subject to 
+its tie-breaking or weighting rule.
+
+The paper formalizes this as a binary entity–chunk matrix:
+
+```text
+                     C1  C2  C3  C4  C5
+response time         1   1   0   0   0
+load testing          1   0   1   0   0
+time to first byte    1   0   0   1   0
+database contention   0   1   0   0   1
+```
+
+After entity retrieval, rows corresponding to irrelevant entities are removed. Summing 
+the remaining columns gives the basic approval-voting score. The paper leaves the exact 
+committee-selection rule open, mentioning possibilities such as ordinary Approval 
+Voting, Proportional Approval Voting, or Chamberlin–Courant. ([arXiv][6])
+
+The implementation uses a slightly more elaborate weighted score:
+
+$score(c) = votes(c) * (1 - bestRank(c) / K)$
+
+where:
+
+- `votes(c)` is the number of retrieved entities associated with chunk (c);
+- `bestRank(c)` is the zero-based rank of the highest-ranked retrieved entity associated with (c);
+- (K) is the number of entities retrieved.
+
+The code first counts how many retrieved entities point to each chunk. It then applies a 
+rank discount based on the first—and therefore highest-ranked—entity that supports that chunk. 
+Finally, it sorts chunks by this score and keeps the top requested number.
+
+For example, assume three entities are retrieved in this order:
+
+```text
+rank 0: response time       → C1, C2
+rank 1: load testing        → C1, C3
+rank 2: database contention → C1, C4
+```
+
+There are six total entity–chunk incidences:
+
+```text
+C1: 3 votes
+C2: 1 vote
+C3: 1 vote
+C4: 1 vote
+```
+
+The implementation calculates approximately:
+
+```text
+C1 = 3/6 × 1       = 0.500
+C2 = 1/6 × 1       = 0.167
+C3 = 1/6 × 2/3     = 0.111
+C4 = 1/6 × 1/3     = 0.056
+```
+
+The main part of the voting mechanism is chunks with multiple entities.
+For the ones with only one vote, it then selects the ones by chunk-hitting
+score of its entity.
+
+*Conclusion*
+- The retrieved are chunks, not entities, relations, or other artifacts
+- Entities are used to remove 'noise' for the hybrid search
+- In SemOS, there are 'entities', 'inventory items', 'metrics' that
+  can be used as the 'niddles'.
+- We may want to consider 'artifact_categories' to help find the niddles
+
+[1]: https://arxiv.org/pdf/2603.29875 "UnWeaving the knots of GraphRAG – turns out VectorRAG is almost enough"
+
+
 == References
 [1] From Retrieval to Reasoning (part 1), 
 https://dzone.com/articles/graph-rag-closed-loop-retrieval-reasoning
@@ -386,3 +534,8 @@ https://dzone.com/articles/graph-rag-closed-loop
 
 [4] Evaluating a Graph-RAG System (part 4), 
 https://dzone.com/articles/graph-rag-closed-loop-evaluation-system
+
+[5] UnWeaving the knots of GraphRAG – turns out VectorRAG is almost enough
+https://arxiv.org/pdf/2603.29875 
+
+[6] https://arxiv.org/pdf/2603.29875

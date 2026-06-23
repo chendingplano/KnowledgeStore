@@ -10,6 +10,33 @@
 
 ## Change Logs
 * 2026/06/18, ADR Created.
+* 2026/06/21, Added the Review Service Layer (DR11–DR13): `DocReviewController`,
+  `DocReviewReportGenerator`, and the Review Request GUI; added
+  `kb.doc_review_requests` and `kb.doc_review_reports`; added the staged plan
+  (Phase VI). Recorded that the original skill proposal (spec 2026061101) is
+  superseded by this ADR.
+* **2026/06/21, DR13 implemented full-stack.** Backend: `kb.doc_review_requests`
+  and `kb.doc_review_reports` tables (goose migrations), `DocReviewController`
+  (service layer with request lifecycle state machine), `DocReviewReportGenerator`
+  (JSON + Markdown + HTML report builder), 9 API endpoints via Echo v4 handler
+  package. Frontend: 5-step review request form (`document-review-view.svelte`),
+  results view with polling, findings table, accept/reject, and report view
+  (`doc-review-results-view.svelte`), integrated into home3 layout under
+  Apps → Document Review. See implementation plan at
+  `docs/superpowers/plans/2026-06-21-doc-review-gui-plan.md`.
+* 2026/06/21, **DR14 (configurable review tiers)** — review tiers and their aspect
+  membership are configurable via a `[doc-reviews]` table in
+  `config.toml` / `config.local.toml`; falls back to priority-derived tiers when
+  absent. Implemented. See spec 2026062104 §DR14.
+* 2026/06/21, **DR15 (per-aspect review status + live job monitor)** — added below.
+  New `kb.doc_review_status` table (one row per `(review_run_id, aspect)`),
+  `review_run_id` assigned at accept time, and a global live monitor
+  (`GET /api/v1/doc-review/active`) listing every job with ≥1 unfinished aspect.
+* **2026/06/22, DR15 implemented.** `kb.doc_review_status` migration; status seeding
+  at accept; coarse controller-driven per-aspect transitions; **async** review
+  execution (background goroutine) so the monitor observes in-flight jobs;
+  `GET /api/v1/doc-review/active`; global `doc-review-monitor.svelte` polling it.
+  Design 2026062105 §3.3/§4.4/§6/§7.2.
 
 ## Context
 
@@ -456,7 +483,432 @@ within the doc processor.
 and 5 in DR9), and (b) prototyping new reviewer prompts and tool definitions before baking
 them into Go.
 
+### DR11 — DocReviewController: the coordinator
+
+The `ReviewProcessor` handles the mechanics of launching reviewers and saving findings,
+but it expects everything to be pre-configured: which aspects to run, which models to use,
+which reference documents to compare against, whether the user chose a priority tier or
+hand-picked individual aspects. There is no place for user intent.
+
+**`DocReviewController` is the service layer that sits between the user request and the
+review execution.** It receives a *review request* from the GUI, resolves it into concrete
+reviewer configurations, invokes `ReviewProcessor`, and returns the outcome.
+
+```
+┌──────────────┐     request      ┌─────────────────────┐     resolve     ┌────────────────────┐
+│    GUI       │ ───────────────▶ │ DocReviewController  │ ─────────────▶ │  ReviewProcessor   │
+│ (review form)│                  │                      │                │  (PostProcessIndex)│
+│              │ ◀─────────────── │                      │ ◀───────────── │                    │
+│              │     response     │                      │   findings     │                    │
+└──────────────┘                  └─────────────────────┘                └────────────────────┘
+                                          │
+                                          │ request finished
+                                          ▼
+                                  ┌─────────────────────────┐
+                                  │ DocReviewReportGenerator │
+                                  │ (DR12)                   │
+                                  └─────────────────────────┘
+```
+
+**Responsibilities:**
+
+| Responsibility | Detail |
+|---------------|--------|
+| Accept review request | Validates the request, stores it in `kb.doc_review_requests` (see data model). |
+| Resolve reviewer set | Translates user intent ("check completeness and grammar at medium priority") into a list of enabled/disabled reviewers. Supports three modes: **by tier** (Must/Should/Review), **by individual aspect** (checkbox), and **default** (run all enabled). |
+| Resolve models per reviewer | Applies group defaults (P1 → cheap, P5 → strongest) with per-request overrides from the user. |
+| Resolve reference docs | User may provide additional supporting/reference documents beyond what DR4 auto-retrieves. Controller merges user-supplied refs with auto-discovered refs. |
+| Run the review | Delegates to `ReviewProcessor.PostProcessIndex(ctx, recordID)`. The controller does **not** own the reviewer goroutines — it owns the *orchestration* (before/after hooks, request lifecycle). |
+| Trigger report generation | After findings are collected, hands off to `DocReviewReportGenerator`. |
+| Enforce idempotency | A document version gets one review request per submission. Re-submission replaces previous findings. |
+
+**Invocation flow:**
+
+```
+GUI submits review request
+        │
+        ▼
+DocReviewController.AcceptRequest(ctx, req)
+        │
+        ├─ Validate: document exists, at least one aspect selected
+        ├─ Store request in kb.doc_review_requests (status = "accepted")
+        ├─ Resolve reviewer configs from request
+        │
+        ▼
+DocReviewController.RunReview(ctx, req)
+        │
+        ├─ Update request status → "running"
+        ├─ Delegate to ReviewProcessor.PostProcessIndex(ctx, recordID)
+        │   (ReviewProcessor reads its own config from env / config.toml as today)
+        ├─ Collect findings
+        ├─ Update request status → "completed" (or "failed")
+        │
+        ▼
+DocReviewController.GenerateReport(ctx, req)
+        │
+        ├─ Delegate to DocReviewReportGenerator.Build(ctx, request, findings)
+        ├─ Store report in kb.doc_review_reports
+        └─ Return report ID to caller
+```
+
+**Request-level configuration overrides:**
+
+Not all user choices map to the static `ReviewerConfig` the `ReviewProcessor` knows
+today. The controller introduces **per-request overrides** that travel alongside the
+review request, stored as JSONB on the request row. Reviewers read these overrides
+at execution time:
+
+| Override | Example | Effect |
+|----------|---------|--------|
+| `enabled` | `{"completeness": false}` | Skip a normally-enabled reviewer. |
+| `model_ref` | `{"standards_compliance": "claude-opus-4-5"}` | Upgrade model for one reviewer. |
+| `reference_docs` | `["ISO 13485:2016", "IEC 62304"]` | Additional reference documents for P5. |
+| `max_tool_turns` | `{"technical_accuracy": 20}` | Extend investigation budget for one reviewer. |
+| `priority_tier` | `"must_review"` | Bulk-enable reviewers in the "Must Review" tier. |
+
+The controller is **not a pipeline processor** — it is a standalone service component
+invoked by the HTTP handler that the GUI calls. It does not implement the `Processor`
+interface; it *uses* the `ReviewProcessor` (which does).
+
+**Internal state machine (per request):**
+
+```
+accepted → running → completed
+                   → failed (retryable)
+                   → stopped (user cancelled)
+```
+
+When `force: true`, a new request replaces the previous one for the same document
+version (DR7 still holds: one review per version).
+
+### DR12 — DocReviewReportGenerator
+
+Review findings alone are a list of issues. The reviewer group sees findings grouped
+by pass; the customer (document owner) wants a **structured report** that:
+
+- Summarizes findings per pass and per severity.
+- Groups related findings (e.g., three terminology-drift findings become one section).
+- Provides an executive summary suitable for non-technical stakeholders.
+- List all review result items
+- Includes actionable fix recommendations with line references.
+- Identifies which findings are `missing_requirement` / `missing_provision` (the
+  compliance-gap highlights the customer cares most about).
+
+`DocReviewReportGenerator` is a **post-review component** that builds this report
+from raw findings + document metadata. It runs synchronously after review completes
+(not an async job — the user is waiting for the result).
+
+**Inputs:**
+
+| Input | Source |
+|-------|--------|
+| `[]ReviewFinding` | `kb.doc_review_findings` for this `review_run_id` |
+| Document metadata | `kb.inputs` row (title, doc_no, file_name, parser_name) |
+| Review request | `kb.doc_review_requests` row (which aspects were selected, user notes) |
+| Artifact summaries | `kb.summaries` for the document (for context in the executive summary) |
+
+**Output:** A full report stored in `kb.doc_review_reports` (see data model) with
+two representations:
+
+1. **Structured JSON** — machine-readable, drives the GUI's report view.
+2. **Markdown** — human-readable, exportable to PDF/DOCX.
+
+**Report skeleton (DR12a):**
+
+```json
+{
+  "meta": {
+    "report_id": "rpt_416_20260621T120000",
+    "document_title": "...",
+    "document_record_id": 416,
+    "generated_at": "2026-06-21T12:00:00Z",
+    "review_run_id": "416_review_20260621T115000",
+    "num_reviewers_ran": 4,
+    "total_findings": 37
+  },
+  "executive_summary": {
+    "text": "...",
+    "top_findings": ["...", "..."],
+    "overall_assessment": "pass_with_issues" | "fail" | "needs_review"
+  },
+  "findings_by_pass": {
+    "P1": { "label": "Language & Style", "findings": [...] },
+    "P3": { "label": "Content Quality", "findings": [...] },
+    ...
+  },
+  "compliance_summary": {
+    "reference_standards_checked": ["ISO 13485:2016"],
+    "provisions_satisfied": 82,
+    "provisions_partially_satisfied": 7,
+    "provisions_not_addressed": 3,
+    "provisions_not_applicable": 12,
+    "missing_requirements": ["design_change_control_procedure", ...]
+  },
+  "findings": [
+    {
+      "pass": "P5",
+      "aspect": "standards_compliance",
+      "severity": "high",
+      "finding_type": "missing_provision",
+      "title": "...",
+      "description": "...",
+      "evidence": "...",
+      "location": { "start_line": 142, "end_line": 148 },
+      "suggestion": "...",
+      "confidence": 0.92
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": 1,
+      "action": "Add documented design change control procedure per ISO 13485 §7.3.7",
+      "related_finding_ids": [3, 17]
+    }
+  ]
+}
+```
+
+**Implementation approach (DR12b):**
+
+The report structure is assembled by Go code (filling the JSON skeleton). The
+*executive summary text* and *top findings selection* may be delegated to an LLM
+call (one-shot, cheap model) fed with the aggregated findings. The compliance
+summary is computed by counting findings by `finding_type` and `pass`.
+
+The Markdown export is a straightforward Go template that renders the JSON report
+as sections with headings. No LLM needed for rendering.
+
+### DR13 — Review Request GUI
+
+Users need a review submission form integrated into the SemOS dashboard. This is
+an incremental addition to the existing Svelte frontend, not a separate application.
+
+**Route:** `/dashboard/doc-review` (new page)
+
+**Page layout:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Document Review                                   [?]  │
+│                                                         │
+│  Step 1: Select Document                                │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ [Search documents...]                              │  │
+│  │ ○ doc-016 — Surgical Instrument SOP v2.3          │  │
+│  │ ○ doc-042 — Temperature Monitoring Procedure       │  │
+│  │ ● doc-087 — Sterilization Validation Protocol     │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  Step 2: Choose Check Level                          │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ ● Must Review (9 aspects)   — Critical only       │  │
+│  │ ○ Should Review (6 aspects) — Recommended          │  │
+│  │ ○ Custom Selection          — Pick individually ▼ │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  Step 3: Customize Aspects (when Custom Selection)    │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ P1 Language & Style                               │  │
+│  │   ☑ Grammar & Spelling    ☑ Tone & Voice          │  │
+│  │   ☐ Formatting             ☐ Readability          │  │
+│  │ P3 Content Quality                                │  │
+│  │   ☑ Completeness          ☑ Correctness           │  │
+│  │   ☑ Clarity               ☐ Conciseness           │  │
+│  │   ☐ Relevance             ☐ Currency              │  │
+│  │   ☐ Examples              ☐ Diagrams              │  │
+│  │   ☑ Testable Claims       ☑ Evidence & Rationale  │  │
+│  │ ... (collapsed by default for P2/P4/P5/P6)        │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  Step 4: Supporting Documents (optional)              │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ [Search and add reference standards...]            │  │
+│  │   ✕ ISO 13485:2016 (already in knowledgebase)     │  │
+│  │   ✕ IEC 62304:2006 (already in knowledgebase)     │  │
+│  │ + Add reference document...                        │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  Step 5: Notes (optional)                             │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Focus especially on sterilization cycle validation │  │
+│  │ sections. The previous review flagged temperature  │  │
+│  │ monitoring gaps.                                   │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│                       [Cancel]    [Start Review]        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Priority tier presets:**
+
+When the user selects a tier, the backend resolves it to a concrete set of aspects
+using the checklist's tier map (spec [1], §3.10). The map is maintained in the
+backend, not hardcoded in the frontend — it is fetched from an endpoint so it
+can evolve as the checklist grows.
+
+| Tier | API key | How many aspects (today) |
+|------|---------|--------------------------|
+| Must Review | `must_review` | 12 |
+| Should Review | `should_review` | 6 (+ 12 from Must) |
+| Review for External/Public | `review_external` | 5 (+ above) |
+| Review for Regulated | `review_regulated` | 6 (+ above) |
+| Custom | `custom` | User picks individually |
+
+**Model selection helper:**
+
+By default, the controller uses group defaults (DR3). For advanced users, an
+expandable "Advanced Settings" section lets them override the model per group:
+
+```
+Model overrides:
+  P1 (Language):    [Default (Haiku 4.5) ▼]
+  P3 (Content):     [Default (Sonnet 4.5) ▼]
+  P5 (Compliance):  [Opus 4.8           ▼]
+```
+
+**After submission — progress and result view:**
+
+Submission redirects to `/dashboard/doc-review/results/<request_id>` which shows:
+
+1. **Progress indicator** — while the review is running (`status: "running"`),
+   poll for status and show a spinner with the current stage.
+2. **Summary cards** — when complete, show: total findings, findings by severity
+   (high/medium/low bar chart), pass-by-pass breakdown, compliance gaps.
+3. **Findings table** — filterable, sortable table of all findings. Each row
+   expandable with evidence, location, and suggestion. "Accept" / "Reject" /
+   "Defer" buttons per finding (writes back to `kb.doc_review_findings.review_status`).
+4. **Full report** — DR12's structured JSON rendered as sections. "Export PDF"
+   and "Export DOCX" buttons.
+
+**API endpoints (new):**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/doc-review/aspects` | Returns all aspects with their group, priority, description (drives the checkbox UI). |
+| `GET` | `/api/doc-review/tiers` | Returns the tier → aspect mapping (drives the priority picker). |
+| `POST` | `/api/doc-review/requests` | Submit a review request. Body: `{record_id, tier, aspects[], reference_docs[], notes, model_overrides{}}`. Returns `{request_id}`. |
+| `GET` | `/api/doc-review/requests/<id>` | Returns request status + findings when complete. |
+| `GET` | `/api/doc-review/reports/<id>` | Returns the full report JSON. |
+| `GET` | `/api/doc-review/reports/<id>/export?format=pdf|docx` | Returns the report as PDF or DOCX. |
+| `PATCH` | `/api/doc-review/findings/<id>` | Update a single finding's `review_status` (accept/reject/defer). |
+| `POST` | `/api/doc-review/requests/<id>/stop` | Request stop during execution. |
+
+Document review report generation is documented in [8].
+
+### DR15 — Per-Aspect Review Status & Live Job Monitor
+
+The original DR13 monitor had a fidelity gap: findings are persisted only when a
+run completes, and `kb.doc_review_requests.status` is a single job-level value, so
+the monitor could only show "all aspects queued → all running → all done." It could
+not show individual reviewers (aspects) progressing independently, nor list *all*
+in-flight jobs the way the Active Pipelines dashboard does for the ingestion pipeline.
+
+**Decision: track review progress at the granularity of a single aspect, in a new
+`kb.doc_review_status` table, and drive the GUI monitor from it.**
+
+- **One row per `(review_run_id, aspect)`.** Created when the request is accepted
+  (status `pending`), so progress is observable from the moment the job is queued.
+- **`review_run_id` is assigned at accept time** (previously at run-start) so the
+  status rows — and the findings — can share the run identity from the start.
+- **Per-aspect lifecycle:** `pending → running → success | failed`. An aspect is
+  **finished iff** its status is `success` or `failed`. Transitions are reported by
+  each reviewer goroutine (true live progress) or, as a fallback, set by the
+  controller after `ReviewProcessor` returns (all aspects flip together).
+- **A review job is finished when all its aspects are finished**; the controller
+  then marks the request `completed`. Per-aspect status — not the request-level
+  status — is the authoritative liveness signal for the monitor.
+- **Global monitor.** `GET /api/v1/doc-review/active` returns every request that
+  still has ≥1 unfinished aspect (across all users/sessions), each with its
+  per-aspect status list. The GUI monitor polls this endpoint and renders one card
+  per active job, with per-aspect status nodes. **A job is removed from the monitor
+  automatically the moment its last aspect finishes** — it simply stops being
+  returned by the active query.
+
+This keeps the monitor honest (it reflects real per-aspect state, not an inferred
+job-level approximation), matches the Active Pipelines UX, and needs no extra
+"is this job still shown?" bookkeeping — the `WHERE EXISTS (… status NOT IN
+('success','failed'))` predicate is the single source of truth.
+
 ## Data Model
+
+### `kb.doc_review_requests`
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.doc_review_requests (
+    id              BIGSERIAL       PRIMARY KEY,
+    input_record_id BIGINT          NOT NULL,  -- the document under review
+    review_run_id   TEXT,                      -- assigned at accept time (DR15); links kb.doc_review_findings + kb.doc_review_status
+    tier            TEXT            NOT NULL,  -- "must_review", "should_review", "custom", ...
+    aspects         JSONB           NOT NULL,  -- ["completeness", "grammar_spelling", ...]
+    reference_docs  JSONB,                     -- [{"record_id": N, "doc_no": "...", "title": "..."}]
+    notes           TEXT,                      -- user-provided notes
+    model_overrides JSONB,                     -- {"P5": {"model_ref": "claude-opus-4-5"}}
+    status          TEXT            NOT NULL DEFAULT 'accepted',  -- accepted, running, completed, failed, stopped
+    created_by      TEXT,                      -- user who submitted
+    create_time     TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    start_time      TIMESTAMPTZ,
+    end_time        TIMESTAMPTZ,
+    error_message   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_review_requests_record ON kb.doc_review_requests (input_record_id);
+```
+
+### `kb.doc_review_reports`
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.doc_review_reports (
+    id                BIGSERIAL       PRIMARY KEY,
+    request_id        BIGINT          NOT NULL,  -- references kb.doc_review_requests.id
+    input_record_id   BIGINT          NOT NULL,
+    review_run_id     TEXT            NOT NULL,
+    report_json       JSONB           NOT NULL,  -- full report per DR12a skeleton
+    report_markdown   TEXT            NOT NULL,  -- Markdown export
+    executive_summary TEXT            NOT NULL,  -- plain-text executive summary
+    total_findings    INT             NOT NULL,
+    high_count        INT             NOT NULL DEFAULT 0,
+    medium_count      INT             NOT NULL DEFAULT 0,
+    low_count         INT             NOT NULL DEFAULT 0,
+    overall_assessment TEXT           NOT NULL,  -- "pass_with_issues" | "fail" | "needs_review"
+    create_time       TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_review_reports_request ON kb.doc_review_reports (request_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_reports_record ON kb.doc_review_reports (input_record_id);
+```
+
+### `kb.doc_review_status` (DR15)
+
+One row per reviewed aspect per run. Seeded at request-accept (status `pending`),
+updated as each reviewer runs. The live monitor lists jobs that still have ≥1 row
+with `status NOT IN ('success','failed')`.
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.doc_review_status (
+    id              BIGSERIAL    PRIMARY KEY,
+    request_id      BIGINT       NOT NULL,                    -- kb.doc_review_requests.id
+    input_record_id BIGINT       NOT NULL,                    -- the document under review
+    review_run_id   TEXT         NOT NULL,                    -- assigned at accept; matches requests + findings
+    aspect          TEXT         NOT NULL,                    -- one row per reviewed aspect
+    pass            TEXT,                                     -- "P1".."P6" (denormalized for grouping)
+    status          TEXT         NOT NULL DEFAULT 'pending',  -- pending | running | success | failed
+    finding_count   INT          NOT NULL DEFAULT 0,
+    error_message   TEXT,                                     -- set when status = 'failed'
+    start_time      TIMESTAMPTZ,
+    end_time        TIMESTAMPTZ,
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    modify_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (review_run_id, aspect)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_review_status_request ON kb.doc_review_status (request_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_status_run     ON kb.doc_review_status (review_run_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_status_active  ON kb.doc_review_status (request_id)
+    WHERE status NOT IN ('success', 'failed');
+```
+
+An aspect is **finished iff** its `status` is `success` or `failed`. A review job is
+finished — and removed from the monitor — when every one of its aspect rows is finished.
 
 ### `kb.doc_review_findings`
 
@@ -677,6 +1129,56 @@ Add remaining P1, P2, and P6 reviewers. Cost optimization (DR8 Phase 2) can run 
 parallel — tune `MaxToolTurns`, downgrade models where quality is preserved, add caching
 for text-only reviewers.
 
+### Phase VI — Review Service Layer (DR11–DR13) ✅ (DR13 implemented)
+
+1. ✅ **`kb.doc_review_requests` table** — database migration, indexes. Includes
+   `requester_name`, `requester_id`, `report_template`, `doc_template` fields.
+2. ✅ **`kb.doc_review_reports` table** — database migration, indexes.
+3. ✅ **`DocReviewController`** — request validation, reviewer resolution (by tier, by
+   individual aspect), reviewer config override merging, request lifecycle state
+   machine, delegation to `ReviewProcessor`, trigger report generation.
+4. ✅ **Review aspect/tier API** — `GET /api/doc-review/aspects` and
+   `GET /api/doc-review/tiers` endpoints, loaded from the checklist spec [1].
+5. ✅ **`POST /api/doc-review/requests`** — submit a review request, persists to
+   `kb.doc_review_requests`, kicks off the review (synchronously). Returns `request_id`.
+6. ✅ **`GET /api/doc-review/requests/<id>`** — pollable status endpoint that returns
+   findings when complete.
+7. ✅ **`DocReviewReportGenerator`** — assembles the report JSON skeleton from findings
+   + metadata, delegates executive summary to LLM (one-shot), computes compliance
+   summary from finding counts, renders Markdown export.
+8. ✅ **`GET /api/doc-review/reports/<id>`** and `.../export`** — report retrieval and
+   Markdown/JSON/HTML export endpoints.
+9. ✅ **`PATCH /api/doc-review/findings/<id>`** — accept/reject/defer individual findings.
+10. ✅ **Review Request GUI (home3 Apps → Document Review)** — document selector,
+    tier picker, individual aspect checkboxes, supporting document search, notes field,
+    model override expandable.
+11. ✅ **Results page (inline in Document Review view)** — polling progress indicator,
+    summary cards (by severity), filterable findings table with accept/reject
+    actions, full report view with export buttons.
+
+### Phase VII — Configurable tiers (DR14) + per-aspect status & live monitor (DR15)
+
+1. ✅ **DR14 — Configurable review tiers** — `[doc-reviews]` config table in
+   `config.toml`/`config.local.toml`, merged at startup, with priority-derived
+   fallback. (`server/api/docreview/aspects.go`, `server/cmd/config/config.go`)
+2. ✅ **DR15 — `kb.doc_review_status` table** — goose migration
+   `20260621000003_create_doc_review_status.sql`; one row per `(review_run_id,
+   aspect)`; partial index for the active-jobs query.
+3. ✅ **DR15 — assign `review_run_id` at accept**; seed `pending` status rows for
+   every aspect in `AcceptRequest`. The run id is passed into
+   `ReviewProcessor.ReviewRunID` so findings share it.
+4. ✅ **DR15 — per-aspect transitions (coarse, controller-driven)** — `markAspectsRunning`
+   at run start; `finalizeAspectsSuccess` (with per-aspect finding counts) on
+   completion; `failOpenAspects` on whole-run failure / stop. Per-reviewer live
+   transitions deferred (Phase-I `ReviewProcessor` runs only `grammar_spelling`).
+5. ✅ **DR15 — async execution** — `SubmitRequest` accepts + seeds, then runs the
+   review in a background goroutine (detached context); the submit response returns
+   immediately so the monitor can observe in-flight jobs.
+6. ✅ **DR15 — `GET /api/v1/doc-review/active`** — lists jobs with ≥1 unfinished
+   aspect + per-aspect status; request marked `completed` when all aspects finish.
+7. ✅ **DR15 — global monitor** — `doc-review-monitor.svelte` polls `/active`,
+   renders one card per job atop the Document Review form, and drops finished jobs.
+
 ## Tests
 
 - **Reviewer interface:** a mock reviewer implementing the `Reviewer` interface can be
@@ -699,6 +1201,28 @@ for text-only reviewers.
   `ErrPipelineStopped`.
 - **Structured output contract:** LLM response with both tool calls and findings in the
   same message is rejected as malformed.
+- **DocReviewController — reviewer resolution:** selecting "Must Review" tier enables
+  exactly the 12 aspects mapped at that tier; custom selection enables only the checked
+  aspects.
+- **DocReviewController — override merging:** per-request model override for P5 replaces
+  the P5 default but leaves P1–P4 defaults untouched.
+- **DocReviewController — state machine:** accepted → running; running → completed (with
+  findings) or failed (with error_message); stop request during running transitions to
+  stopped.
+- **DocReviewController — idempotency:** re-submitting a review for the same document
+  version replaces the previous request and its findings.
+- **DocReviewReportGenerator — JSON skeleton:** report structure conforms to the DR12a
+  schema. Count fields (total_findings, high_count, etc.) match the underlying findings.
+- **DocReviewReportGenerator — compliance summary:** provision counts by relationship
+  label are deterministic given a fixed set of findings.
+- **DocReviewReportGenerator — Markdown export:** produces valid Markdown with correct
+  heading hierarchy matching the JSON report sections.
+- **GUI — form submission:** valid request returns `request_id` and status `accepted`.
+  Missing document or zero aspects selected returns 4xx.
+- **GUI — findings accept/reject:** `PATCH /api/doc-review/findings/<id>` updates
+  `review_status` and `reviewed_by`.
+- **GUI — report export:** requesting `?format=pdf` returns an `application/pdf` response
+  with valid PDF bytes.
 
 ## Consequences
 
@@ -709,18 +1233,24 @@ for text-only reviewers.
   compliance check (DR6) addresses the core use case directly. Human-in-the-loop gates
   (steps 3 and 5 in DR9) ensure the LLM reviews operate on clean input. Staged
   development delivers a working framework in Phase I, validates the approach on real
-  documents in Phases II–III, and reaches full coverage in Phases IV–V.
+  documents in Phases II–III, and reaches full coverage in Phases IV–V. DR11–DR13
+  (Phase VI) provide the user-facing GUI, coordinator, and report generator that make
+  the review service usable by document owners without engineering involvement.
 - **Negative / risk:** Quality is gated on prompt engineering — early runs may produce
   noisy findings. Mitigated by iterative prompt refinement on real documents and the
   human accept/reject loop. P5 reference retrieval quality depends on the reference
   standard corpus coverage — if a needed reference is not in SemOS, compliance checks
   will be incomplete. The large number of concurrent reviewers (~40 goroutines, each
   potentially making per-chunk LLM calls) could strain API rate limits; the framework
-  should support a configurable max-concurrent-LLM-calls bound.
+  should support a configurable max-concurrent-LLM-calls bound. The Phase VI GUI adds
+  a long-running synchronous request path — if review takes minutes, the HTTP connection
+  must be handled with care (SSE polling or a background task pattern).
 - **Cost:** Per-document cost scales with (enabled reviewers × document length × model
   choice). Phase I–II costs are low (1–4 reviewers). Phase V with all 40 reviewers
   enabled would be substantial — mitigation via DR8 Phase 2 (model downgrades, caching,
-  token budgeting) and user-selectable aspect filtering.
+  token budgeting) and user-selectable aspect filtering. The report generator adds one
+  cheap LLM call per review (executive summary). The GUI adds no API cost beyond existing
+  HTTP endpoints.
 
 ## Documentation Impact
 
@@ -728,6 +1258,7 @@ for text-only reviewers.
 - New implementation doc: `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-impl.md`
 - Updated: `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md` (add to pipeline table)
 - Updated: [1] with implementation references
+- Updated: `KnowledgeStore/doc-repo/specs/202606/2026061101-spec-skill-review-document.md` — superseded by this ADR
 - **Stale:** none (new capability)
 
 ## References
@@ -742,3 +1273,7 @@ for text-only reviewers.
 [5] ADR 2026061702 — Decouple Relation Extraction (concurrent Phase B pattern reused)
 
 [6] ADR 2026061701 — Entity Reconciliation (entity-name dictionary reused for DR6)
+
+[7] `KnowledgeStore/doc-repo/specs/202606/2026061101-spec-skill-review-document.md` — Original skill proposal (superseded)
+
+[8] ADR 2026062203 - Document Review Report Generation

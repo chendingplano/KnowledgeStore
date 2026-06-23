@@ -214,6 +214,43 @@ A `Fact` is a derived relation. This is quite counterintuitive. We can declare "
 as a fact. But in Olog, we need to list "Person A has-as-parents a pair (w, m) where w is a woman
 and m is a man", then we can declare "Person A has-as-mother is a woman".
 
+== Four Layers of Knowledge Engineering
+Four layers:
+- Tags: flat, no hierarchy
+- Categories: hierarchical, more organized
+- Ontology: define the semantics
+- Knowledge Graphs: instantiation of ontology, Knowledge Graph = Ontology + Real Instance Data + Semantic Connections
+
+=== Palantir Foundry
+Palantir Foundry focuses on semantics, or ontology. It can be roughly viewed as:
+- Classes: 具有共同特征的对象分组, Example: 设备、供应商、工厂、故障事件
+- Instances: individual instances in the class, example: 三轴CNC-003号（设备类的实例）
+- Properties: member properties in a class, example: 购入日期、供应商.资质等级
+- Relationships: Class/Instance relations, such as 供应商 - 供应 → 配件；配件 — 安装于→ 设备
+- Inference Rules: 从已有知识推导新知识, such as: 如果供应商资质等级=吊销 ∧ 该供应商供应配件X → 所有安装X的设备标记"风险待评估"
+
+本体的最大杀器：推理（Inference）这是分类法永远做不到的事。举个例子：已知事实：
+1. 张三是设备部主管
+2. 设备部主管对所有三轴CNC有审批权限
+3. CNC-003号是三轴CNC
+
+推理结果（无需人工录入）：
+→ 张三对CNC-003号有审批权限
+本体让计算机知道它从未被显式告诉的信息。
+
+*Object*
+Real-world objects are mapped to *Object*.
+Palantir Foundry Ontology 的核心竞争力不是"大数据平台"，而是在数据之上的一层Ontology（本体）。
+它将分散的数据库表映射为"真实世界的对象": Object, such as 卡车、病人、合同、生产线, 并定义它们之间的语义关系。
+- Object Type: 定义实体（如"订单"、"患者"）本体中的"类"
+- Link Type: 定义实体间关系（如"订单 — 包含→ 产品"）本体中的"关系"
+- Action Type: 定义可执行的操作（如"审核订单"）从"知道"到"行动"的闭环
+- Functions: 计算和推理引擎（如自动计算交付优先级）本体推理的实现层
+
 = References
-[1] #a_001 \
-[2] #ref_ontology_vs_semantic_layer \
+[1] #a_001
+
+[2] #ref_ontology_vs_semantic_layer
+
+[3] 标签 vs 分类法 vs 本体 vs 知识图谱：企业知识组织四层金字塔,
+https://mp.weixin.qq.com/s/YSJFvt-J9DHbF5JzFlXTZg 

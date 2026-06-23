@@ -52,7 +52,7 @@ Each document is a Searchable Object. Documents are stored in the table `kb.inpu
 identified by `kb.inputs.id` (`record_id`), which is an auto-incremented integer.
 
 == Documents in Files
-A document, its line file, chunks, and all its artifacts are stored in a specific directory:
+A document, its line file, its chunks, and all its artifacts are stored in a specific directory:
 ```text
     Artifacts/<group_id>/<record_id>/
 ```
@@ -110,7 +110,7 @@ Chunk searchability and explorability are done through related artifacts.
 *Connectivity*
 - Connect to chunks by shared line numbers
 - Connect to other artifacts of the same document by shared line numbers
-- Connect to other artifacts by similarityh (i.e., the hybrid search algorithm)
+- Connect to other artifacts by similarity (i.e., the hybrid search algorithm)
 - Connect to relations by shared entity ids.
 - Connect to entity categories
 - Connect to other entities through entity categories
@@ -233,7 +233,7 @@ All artifact categories are stored in `kb.artifact_categories`, identified
 by (`kb.artifact_categories.category_type`, `kb.artifact_categories.category_key`).
 
 An artifact category serves as a class. The relation between an artifact and
-its instances are stored in the relation table `kb.category_instance`.
+its instances are stored in the relation table `kb.artifact_connections`.
 
 == Artifact Relations
 Artifacts can be connected/related through:
@@ -253,11 +253,10 @@ through special mechanisms:
     align: left,
     [Method], [Explanation], 
     [through `kb.relations`], [connect two entities: (subject, predicate, object)],
-    [through sharing line numbers], [connect artifacts in the same document],
-    [through entity name], [connect entities that share the same entity name]
+    [through sharing line numbers], [connect artifacts in the same document]
 )
 
-These relations are stored in `kb.artifact_connections`.
+Artifact relations are stored in `kb.artifact_connections`.
 
 === Relations through Category Tree
 Documents are broken down to chunks. The system generates a semantic projection for 

@@ -154,6 +154,7 @@ Currently, it has the following doc processors:
 |11 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
 |12 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
 |13 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
+|14 | review_document | configurable | Yes | after 3 | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -758,4 +759,7 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 
 [15] Extract Inventory Items Spec: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md
 
-[16] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md
+[16] ADR 2026061801 — Document Review: LLM-Powered Multi-Aspect Review Pipeline:
+  `KnowledgeStore/doc-repo/adrs/202606/2026061801-adr-document-review.md`
+  
+[17] Document Review Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`

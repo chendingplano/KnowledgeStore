@@ -8,6 +8,9 @@
 
 # 2. Change Logs
 - Created by Chen Ding on 2026/06/11
+- 2026/06/21, Added implementation references [2] and [3].
+  Aspect definitions implemented in `server/api/docreview/aspects.go`.
+  API endpoints at `/api/v1/doc-review/aspects` and `/api/v1/doc-review/tiers`.
 
 # 3 Complete List of Review Aspects
 
@@ -229,3 +232,11 @@ Not all aspects carry equal weight for every document:
 
 ## References
 [1] KnowledgeStore/doc-repo/202604/2026042101-line-file-spec.md
+[2] ADR 2026061801 — Document Review: LLM-Powered Multi-Aspect Review Pipeline.
+    `doc-repo/adrs/202606/2026061801-adr-document-review.md`
+    Aspect definitions implemented in `server/api/docreview/aspects.go` (46 aspects,
+    4 tiers, P1–P6 groups). API endpoints at `/api/v1/doc-review/aspects` and
+    `/api/v1/doc-review/tiers`.
+[3] Document Review Spec & Implementation.
+    `Capsules/coding-capsules/doc-processor/document-review-spec.md`
+    `Capsules/coding-capsules/doc-processor/document-review-impl.md`
