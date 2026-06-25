@@ -6,6 +6,15 @@
 **ADR Reference:** ADR 2026061801 (DR13, DR15)
 
 ## Revisions
+- 2026-06-23a — **Interactive two-panel report viewer.** The report's "View HTML"
+  (a standalone, server-rendered page) was replaced by an in-app, two-panel
+  **Document Review Report** route (`/home3/doc-review-report/[id]`). The left panel
+  renders the report (findings grouped by pass) from the report JSON; the right panel
+  embeds the existing **Document Structure** experience (Line List + PDF) from
+  `doc-structure-view.svelte`, locked to the reviewed document. Clicking a finding on
+  the left scrolls the Line List so its source line(s) are centered, moves the PDF to
+  the correct page, and highlights the source-line region(s). No server/Go changes were
+  required — all data already comes from `GET /reports/:id`. See new §10.
 - 2026-06-22a — **GUI fix: unified Step-2 aspect selection.** The Step-2 "Choose
   Check Level" radios + independent per-tier selections were replaced by a single
   shared aspect set (`selectedAspects`) edited through per-tier **On/Off toggles** and
@@ -16,6 +25,13 @@
   is empty, with a hover help message; submit-time validation now surfaces in a
   confirmation dialog that, on OK, jumps back to the offending step. The persisted
   `tier` is `custom` unless the selection exactly equals one tier's full aspect set.
+- 2026-06-25a — **Config-driven initial aspect selection.** `doc-review.local.toml` now
+  supports a `checked` field per `[reviewers.<aspect>]` block. When `checked = true`, the
+  aspect is pre-selected when Step 2 opens; when `checked = false` (or the field is absent),
+  it is not. The backend exposes this via `AspectInfo.Checked` (new JSON field `checked`) on
+  `GET /api/v1/doc-review/aspects`. The frontend replaces the former hard-coded "default to
+  Must Review" logic with `aspects.filter(a => a.checked)`. See §7.2 and the config file
+  `doc-review.local.toml` (`[reviewers.<aspect>].checked`).
 - 2026-06-21a — Initial DR13 full-stack design.
 - 2026-06-21b — **DR15: per-aspect review status + live job monitor.** Added the
   `kb.doc_review_status` table (one row per reviewed aspect per run), moved
@@ -315,12 +331,18 @@ monitor forever:
 | Format | Storage | Served via |
 |--------|---------|------------|
 | JSON | `report_json` (DB) | `GET /reports/<id>` |
-| HTML | On-the-fly template render | `GET /reports/<id>/html` |
+| HTML | On-the-fly template render | `GET /reports/<id>/html` (legacy standalone) |
 | Markdown | `report_markdown` (DB) | `GET /reports/<id>/export?format=md` |
+| Interactive | Rendered client-side from JSON | `/home3/doc-review-report/<id>` (**§10**, primary) |
 
 The HTML template is a single Go `html/template` driven by the report JSON struct
-with inline CSS for standalone viewing. The Svelte results page can embed it as
-structured content or link to the HTML endpoint.
+with inline CSS for standalone viewing. As of 2026-06-23 the **primary** report view
+is the interactive two-panel SvelteKit route (§10), rendered client-side from the
+report JSON; the `/html` endpoint is retained but no longer the linked default.
+
+Each `ReportFinding` carries a `location` string (e.g. `"2"`, `"158"`, `"120-121"`)
+that the interactive viewer parses to source line numbers — see `parseLocationRange`
+(server: `report.go`; mirrored client-side in the route, §10).
 
 ---
 
@@ -396,6 +418,9 @@ Update `content-panel.svelte` to map this child ID to the view component.
    **On/Off toggles** (On iff ≥1 of the tier's aspects is selected) and per-aspect
    chips grouped by P1–P6. "Next" is disabled (with a hover help message) while the
    set is empty. There is no separate "Customize" step — fine-tuning happens inline.
+   **Initial selection** is driven by `[reviewers.<aspect>].checked` in
+   `doc-review.local.toml` — aspects with `checked = true` are pre-selected when the
+   page opens. (Previously: always defaulted to the full Must Review tier.)
 3. **Supporting Documents** — optional search-and-add reference standards
 4. **Notes/Requester + Submit** — requester name + optional notes, review summary,
    sends POST /requests. Missing-field validation shows a confirmation dialog that
@@ -488,3 +513,82 @@ Using internal state keeps it simpler — the nav rail item stays "Document Revi
 - **(DR15) Active query — inclusion:** a job with ≥1 aspect not in (`success`,`failed`) appears in `GET /active`
 - **(DR15) Active query — removal:** once every aspect of a job is `success`/`failed`, the job is absent from `GET /active`
 - **(DR15) Finished predicate:** an aspect counts as finished iff its status is `success` or `failed` (not `pending`/`running`)
+
+---
+
+## 10. Interactive Two-Panel Report Viewer (2026-06-23)
+
+Replaces the static "View HTML" report with an in-app, interactive page that links
+each finding back to its source location in the document.
+
+### 10.1 Goal & layout
+
+```
+/home3/doc-review-report/[id]        (opened in a new tab from the results view)
+┌──────────────────────────┬───┬──────────────────────────────────────────┐
+│ LEFT — Report            │ ║ │ RIGHT — Document Structure (locked)        │
+│  summary cards           │ ║ │  ┌──────────┬───────────────────────────┐ │
+│  executive summary       │ ║ │  │ Line List│  PDF Display              │ │
+│  findings grouped by pass│ ║ │  │ (centered│  (page + highlight)       │ │
+│  · each finding clickable│ ║ │  │  on src) │                           │ │
+└──────────────────────────┴───┴──────────────────────────────────────────┘
+                            splitter (drag, 25–70%)
+```
+
+- **Left panel** — renders the report skeleton (`meta`, `executive_summary`,
+  `findings_by_pass` in `pass_order`) from `GET /reports/:id`. Each finding is a
+  clickable card showing title, severity, aspect, description, suggestion, location.
+- **Right panel** — reuses `doc-structure-view.svelte` (the same component used at
+  `/home3/knowledge → Document Structure`), **locked** to the report's
+  `input_record_id`. Full line/coordinate editing is retained; only the `kb.inputs`
+  record browser is hidden (the document is fixed).
+
+### 10.2 Linkage (click a finding → focus its source)
+
+Clicking a finding parses its `location` to line numbers and calls the embedded
+panel's exported `focusSourceLines(lineNumbers)`, which:
+1. selects the first matching line (driving the PDF page + single highlight),
+2. highlights **every** matching line for multi-line findings (e.g. `120-121`),
+3. scrolls the Line List so the primary line is **centered**
+   (`scrollIntoView({ block: 'center' })`).
+
+If the target line is hidden by the active line-type filter, the filter resets to
+`all` first so the line is reachable.
+
+### 10.3 Data flow (no server changes)
+
+All required data is already in the `GET /reports/:id` payload:
+`report.input_record_id` (the document's `kb.inputs` id, drives the right panel) and
+`report.report_json` (the skeleton with per-finding `location`). The right panel
+loads its lines (with page + MinerU coords per line) via the existing
+`getKbDocStructure(inputRecordId)`. Mapping is **line number → loaded line →
+page + coords**, so the report only needs to supply line numbers.
+
+### 10.4 Component API added to `doc-structure-view.svelte`
+
+- **Prop** `lockedRecordId?: number | null` — when set, on mount the component hides
+  the record browser (and its collapse toggle) and auto-loads that record.
+- **Exported method** `focusSourceLines(lineNumbers: number[])` — external focus entry
+  point (called by the report's left panel via `bind:this`).
+- **Multi-line highlight** — `findingHighlightLines` state; `renderStructureHighlights`
+  now draws a `pdf-highlight` rect for the primary target **and** each extra finding
+  line on the current page. Cleared on direct row clicks and on record load.
+- **Scroll support** — `data-line-key="{page}-{line}"` on each line card + a container
+  ref for `querySelector` + `scrollIntoView`.
+
+### 10.5 Files
+
+| Path | Change |
+|------|--------|
+| `web/src/routes/home3/doc-review-report/[id]/+page.svelte` | **New** — two-panel route, left report render, draggable splitter, client `parseLocationRange` |
+| `web/src/lib/components/home3/doc-structure-view.svelte` | `lockedRecordId` prop, `focusSourceLines`, multi-line highlight, scroll-to-center, browser hide |
+| `web/src/lib/components/home3/doc-review-results-view.svelte` | "View HTML" → "Open Report" linking `/home3/doc-review-report/<id>` |
+
+### 10.6 Verification
+
+1. Open Document Review → completed review → **Open Report** (new tab → `/home3/doc-review-report/<id>`).
+2. Left shows findings; right shows Line List + PDF for the reviewed document.
+3. Click the medium finding (location `2`) → list centers L2, PDF page 1, title region highlighted.
+4. Click a range finding (location `120-121`) → both lines highlighted, list centered, PDF on the correct page.
+5. Confirm line/coordinate editing still works in the right panel and the record browser is hidden.
+6. `cd web && bun run check` — no new errors in the three changed files.

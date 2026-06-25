@@ -162,6 +162,86 @@
   `GetDocReviewConfig()`/`ResolveReviewer`; disabled if prompt/model unset. Code in
   `server/api/doc-reviews/review-heading-hierarchy.go` (+ wiring in `review-document.go`);
   prompt `prompts/prompt-review-heading-hierarchy.md`.
+* **2026/06/24, `navigability` reviewer wired (P2).** Third P2 (Structure & Organization)
+  reviewer after `logical_flow` and `heading_hierarchy`, and the third `StrategyDocument`
+  reviewer. Like the other P2 reviewers it reasons across the whole document rather than a
+  single passage, but its concern is **findability**: broken cross-references (a "see
+  Appendix C" with no such appendix), vague cross-references ("see above"/"described below"),
+  missing navigational aids (no TOC/index/signposting a document of its type warrants),
+  non-descriptive section titles, missing signposting in long sections, and inconsistent
+  reference style — judged relative to the document type inferred from `doc_context`.
+  Document-level, one-shot, cheap model (`deepseek-v4-flash`); large documents are split into
+  page-aligned blocks of up to `DefaultInputBlockSize` (20) pages via `buildPageBlocks`
+  (ADR DR2) and reviewed concurrently, with the prompt instructing the model to lower
+  confidence when a cross-reference target may fall in an unseen block. Findings default to
+  `pass=P2`, `aspect=navigability`, `finding_type=navigability`. Resolved from
+  `[reviewers.navigability]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
+  prompt/model unset. Code in `server/api/doc-reviews/review-navigability.go` (+ wiring in
+  `review-document.go`); prompt `prompts/prompt-review-navigability.md`.
+* **2026/06/24, `section_balance` reviewer wired (P2).** Fourth P2 (Structure &
+  Organization) reviewer after `logical_flow`, `heading_hierarchy`, and `navigability`,
+  and the fourth `StrategyDocument` reviewer. Like the other P2 reviewers it reasons
+  across the whole document rather than a single passage, but its concern is
+  **proportion**: stub sections (a heading with little/no substantive content), bloated
+  sections, imbalanced sibling sections, disproportionate subsection nesting, and a
+  front/back-loaded structure whose emphasis does not match the document's purpose —
+  judged relative to the document type inferred from `doc_context`. Document-level,
+  one-shot, cheap model (`deepseek-v4-flash`); large documents are split into
+  page-aligned blocks of up to `DefaultInputBlockSize` (20) pages via `buildPageBlocks`
+  (ADR DR2) and reviewed concurrently, with the prompt instructing the model to lower
+  confidence when a section may continue into an unseen block. Findings default to
+  `pass=P2`, `aspect=section_balance`, `finding_type=section_balance`. Resolved from
+  `[reviewers.section_balance]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
+  prompt/model unset. Code in `server/api/doc-reviews/review-section-balance.go` (+ wiring
+  in `review-document.go`); prompt `prompts/prompt-review-section-balance.md`.
+* **2026/06/24, `modularity` reviewer wired (P2).** Fifth P2 (Structure & Organization)
+  reviewer after `logical_flow`, `heading_hierarchy`, `navigability`, and `section_balance`,
+  and the fifth `StrategyDocument` reviewer. Like the other P2 reviewers it reasons across
+  the whole document rather than a single passage, but its concern is **self-containment and
+  reuse**: duplicated content (the same material restated in several places, free to drift),
+  poor separation of concerns (sections that bleed into each other), hidden coupling (a
+  section that cannot stand on its own because it silently depends on context defined far
+  away), un-factored shared material that belongs in a glossary/appendix, and content welded
+  to one narrow context that the document type would expect to be reusable — judged relative
+  to the document type inferred from `doc_context`. Document-level, one-shot, cheap model
+  (`deepseek-v4-flash`); large documents are split into page-aligned blocks of up to
+  `DefaultInputBlockSize` (20) pages via `buildPageBlocks` (ADR DR2) and reviewed
+  concurrently, with the prompt instructing the model to lower confidence when a duplicate or
+  a shared definition may fall in an unseen block. Findings default to `pass=P2`,
+  `aspect=modularity`, `finding_type=modularity`. Resolved from `[reviewers.modularity]` via
+  `GetDocReviewConfig()`/`ResolveReviewer`; disabled if prompt/model unset. Code in
+  `server/api/doc-reviews/review-modularity.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-modularity.md`.
+* **2026/06/25, `completeness` reviewer wired (P3).** First P3 (Content Quality) reviewer.
+  `StrategyChunk` (per-chunk, like the P1 reviewers), one-shot, cheap model
+  (`deepseek-v4-flash`), 200-line windows (wider context to judge whether a section's
+  promised content is delivered within the passage). Detects missing expected
+  topics/sections for the document type (DR6c — implicit expectation injection via
+  `doc_context`), incomplete/stub sections, missing detail (values/units/thresholds/roles),
+  placeholders (TODO/TBD/`[…]`), dangling references whose target is promised but absent,
+  unfinished/truncated passages, and asymmetric coverage. **Scope:** Phase I one-shot only —
+  the cross-document roster comparison against reference standards (DR6a/DR6b) and the
+  tool-use investigation loop (DR10) remain Phase II+. Findings default to `pass=P3`,
+  `aspect=completeness`, `finding_type=incompleteness`, `severity=medium`. Resolved from
+  `[reviewers.completeness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
+  prompt/model unset. Code in `server/api/doc-reviews/review-completeness.go` (+ wiring in
+  `review-document.go`); prompt `prompts/prompt-review-completeness.md`.
+* **2026/06/25, `correctness` reviewer wired (P3).** Second P3 (Content Quality) reviewer
+  after `completeness`. `StrategyChunk` (per-chunk, like `completeness` and the P1 reviewers),
+  one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wider context so a value or
+  claim that contradicts another statement made earlier in the same passage can be caught).
+  Detects internal contradictions, incorrect values/units, broken calculations, factual errors,
+  misstated definitions/references, and logical falsehoods — judged relative to the document
+  type/domain inferred from `doc_context`. It is the complement of `completeness`: completeness
+  flags what is *missing*, correctness flags whether what is *present* is *right*. **Scope:**
+  Phase I one-shot only — errors provable from the passage itself (contradictions, arithmetic,
+  out-of-range values) are high-confidence; claims needing external ground truth are reported at
+  low confidence. The cross-document verification against reference standards (DR4/DR6) and the
+  tool-use investigation loop (DR10) remain Phase II+. Findings default to `pass=P3`,
+  `aspect=correctness`, `finding_type=incorrectness`, `severity=medium`. Resolved from
+  `[reviewers.correctness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
+  prompt/model unset. Code in `server/api/doc-reviews/review-correctness.go` (+ wiring in
+  `review-document.go`); prompt `prompts/prompt-review-correctness.md`.
 
 ## Context
 
@@ -252,13 +332,13 @@ stored alongside the review request:
 ```toml
 [doc_review.reviewers.grammar_spelling]
 enabled = true
-model_ref = "claude-haiku-4-5"
+model_ref = "deepseek-v4-flash"
 prompt = "prompt-review-grammar.md"
 max_tool_turns = 0          # 0 = one-shot (no tools)
 
 [doc_review.reviewers.standards_compliance]
 enabled = true
-model_ref = "claude-sonnet-4-6"
+model_ref = "deepseek-v4-flash"
 prompt = "prompt-review-standards-compliance.md"
 max_tool_turns = 12
 reference_docs = ["ISO 13485:2016", "IEC 62304:2006"]  # optional override
@@ -294,9 +374,11 @@ if no model name or prompt is specified in the configuration, it is treated as
 an error and the reviewer is disabled.
 
 **Currently wired:** the five P1 reviewers `grammar_spelling`, `tone_voice`,
-`formatting_consistency`, `readability`, and `localization`, plus the first two P2
-(document-level) reviewers `logical_flow` and `heading_hierarchy`. All other per-aspect blocks
-are forward-looking config — their reviewers do not exist yet. **Out of scope:**
+`formatting_consistency`, `readability`, and `localization`; the five P2
+(document-level) reviewers `logical_flow`, `heading_hierarchy`, `navigability`,
+`section_balance`, and `modularity`; and the first two P3 (content-quality, per-chunk)
+reviewers `completeness` and `correctness`. All other
+per-aspect blocks are forward-looking config — their reviewers do not exist yet. **Out of scope:**
 per-review-run TOML (single-run overrides must come from the request's stored
 `model_overrides` JSONB, which is persisted but not yet applied at execution time —
 see DR11 gap). `reference_docs` is not supported. `max_tool_turns` is stored but
@@ -714,7 +796,7 @@ at execution time:
 | Override | Example | Effect |
 |----------|---------|--------|
 | `enabled` | `{"completeness": false}` | Skip a normally-enabled reviewer. |
-| `model_ref` | `{"standards_compliance": "claude-opus-4-5"}` | Upgrade model for one reviewer. |
+| `model_ref` | `{"standards_compliance": "deepseek-v4-flash"}` | Upgrade model for one reviewer. |
 | `reference_docs` | `["ISO 13485:2016", "IEC 62304"]` | Additional reference documents for P5. |
 | `max_tool_turns` | `{"technical_accuracy": 20}` | Extend investigation budget for one reviewer. |
 | `priority_tier` | `"must_review"` | Bulk-enable reviewers in the "Must Review" tier. |
@@ -1184,7 +1266,7 @@ CREATE TABLE IF NOT EXISTS kb.doc_review_requests (
     aspects         JSONB           NOT NULL,  -- ["completeness", "grammar_spelling", ...]
     reference_docs  JSONB,                     -- [{"record_id": N, "doc_no": "...", "title": "..."}]
     notes           TEXT,                      -- user-provided notes
-    model_overrides JSONB,                     -- {"P5": {"model_ref": "claude-opus-4-5"}}
+    model_overrides JSONB,                     -- {"P5": {"model_ref": "deepseek-v4-flash"}}
     status          TEXT            NOT NULL DEFAULT 'accepted',  -- accepted, running, completed, failed, stopped
     created_by      TEXT,                      -- user who submitted
     create_time     TIMESTAMPTZ     NOT NULL DEFAULT NOW(),

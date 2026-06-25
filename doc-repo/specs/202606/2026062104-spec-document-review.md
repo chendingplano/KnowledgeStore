@@ -71,6 +71,13 @@ Three tiers:
 - Per-aspect transitions are reported by the reviewer goroutines (recommended) or, as a fallback, set coarsely by the controller after `ReviewProcessor` returns (see design §4.4).
 - **Implementation:** `project_migrations/20260621000003_create_doc_review_status.sql`; `DocReviewController` (`seedAspectStatuses`, `markAspectsRunning`, `finalizeAspectsSuccess`, `failOpenAspects`, `RunReviewAndReport`, `ListActiveJobs`) + `review_run_id` passed into `ReviewProcessor.ReviewRunID`; `GET /active` handler; `doc-review-monitor.svelte` rewritten as a global list polling `/active` (rendered atop the form), with results opened on demand via `doc-review-results-view.svelte`.
 
+### DR16 — Review Request List & Search
+- **Status:** Implemented. The Document Review view now renders a list of **all** review requests below the submit wizard (and below the DR15 live monitor), newest first.
+- New endpoint `GET /api/v1/doc-review/requests` returns the requests with optional filters; each row carries the document title (joined from `kb.inputs`), the selected aspect count (`jsonb_array_length(aspects)`), and the latest report's id + `total_findings` (subquery on `kb.doc_review_reports`). Results are capped (default 100, max 200) and ordered by `create_time DESC`.
+- **Filters (all optional, AND-combined):** `request_id` (exact), `title` (ILIKE on `inputs.title`/`file_name`), `requester` (ILIKE), `tier` (exact), `status` (exact), `create_start`/`create_end` (`create_time` range, `::timestamptz`), `limit`.
+- **Search dialog:** clicking **Search** opens a filter dialog styled after the Knowledge document search dialog (`kb-input-search-dialog.svelte`) and mirrors its interaction model: the dialog's **Search** button runs `listRequests(filter)` and renders the matches in a checkbox table (click to toggle, double-click to pick one, header checkbox selects all); **Select (n)** returns the checked requests to the parent, which then shows just that selection. A "Show all" chip restores the full, unfiltered list. Each row's **View** opens that request in `doc-review-results-view.svelte`.
+- **Implementation:** `DocReviewController.ListRequests` + `RequestListFilter`/`RequestListItem` (models.go); `ListRequests` handler; route `GET /doc-review/requests` (registered before `/:id`); `web/src/lib/services/docReviewService.ts` (`listRequests`); `web/src/lib/components/home3/doc-review-requests-list.svelte`, `doc-review-search-dialog.svelte`; wired into `document-review-view.svelte`.
+
 ## Data Model
 
 ### `kb.doc_review_requests`
@@ -123,6 +130,7 @@ One row per reviewed aspect per run; created at accept time, updated as each rev
 | GET | `/api/v1/doc-review/aspects` | List all aspects + groups |
 | GET | `/api/v1/doc-review/tiers` | List tier→aspect mappings |
 | POST | `/api/v1/doc-review/requests` | Submit review request |
+| GET | `/api/v1/doc-review/requests` | **(DR16)** List all requests (filters: request_id, title, requester, tier, status, create_start/end, limit) |
 | GET | `/api/v1/doc-review/requests/:id` | Get status + findings |
 | GET | `/api/v1/doc-review/reports/:id` | Get report JSON |
 | GET | `/api/v1/doc-review/reports/:id/html` | Get HTML report |

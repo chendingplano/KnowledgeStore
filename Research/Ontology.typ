@@ -222,19 +222,177 @@ Four layers:
 - Knowledge Graphs: instantiation of ontology, Knowledge Graph = Ontology + Real Instance Data + Semantic Connections
 
 === Palantir Foundry
+
+Palantir Foundry is an enterprise data operating system designed to integrate disparate data 
+sources, apply complex logic, and power operational applications and AI-driven workflows. 
+Rather than functioning simply as a data lake or visualization tool, Foundry acts as a 
+complete "Data Operations" platform. It sits alongside Palantir's Artificial Intelligence 
+Platform (AIP) and is underpinned by Apollo, their continuous delivery system. Together, 
+these platforms consist of over 300 microservices running in a highly available, 
+autoscaling compute mesh.
+
+Palantir operates on a common architecture consisting of three primary platforms:
+
+- *Foundry:* The core Data Operations platform, handling data integration, transformation, and application building.
+- *AIP (Artificial Intelligence Platform):* The Generative AI platform that connects Large Language Models (LLMs) with enterprise data securely.
+- *Apollo:* The continuous software delivery platform that autonomously manages and deploys Foundry and AIP updates across diverse environments.
+
+*Compute Modules*
+
+A major architectural component is Compute Modules, which allow organizations to run serverless 
+Docker containers directly within the platform. This enables teams to bring existing 
+codebases (in any language) and host custom models or complex data integrations, 
+dynamically scaling replicas based on load.
+
+=== The Ontology System
+
+The defining feature of Foundry is the *Ontology*. It translates raw data into 
+a semantic representation of the business that both humans and AI agents can interact with.
+
+- *Objects and Links ("Nouns"):* Fragments of data from ERPs, CRMs, and edge 
+  sensors are mapped to real-world entities (e.g., *Manufacturing Plant*, *Customer Order*).
+- *Actions ("Verbs"):* These are executable operations tied to objects (e.g., 
+  *Update Purchase Order*). Actions capture decisions and write data back to 
+  underlying systems safely.
+- *Ontology MCP (Model Context Protocol):* Introduced widely in 2026, Ontology MCP turns 
+  Foundry developer applications into MCP servers. This allows external AI agents 
+  to securely read object types, execute predefined actions, and run query functions.
+
+=== Links
+In Palantir Foundry, if Objects are the "nouns" of the Ontology (like 'Company', 'Employee', 
+or 'Work Order'), Links are the connective tissue that defines how those nouns relate to one 
+another. They transform disconnected tables of data into a traversable, interconnected graph 
+that mirrors the real world.
+
+Under the hood, Foundry translates standard relational database concepts into semantic 
+links. A Link Type is defined by its *Cardinality* and its *Keys*:
+
+- *One-to-One / One-to-Many:* In these relationships, Foundry relies on foreign and 
+  primary keys. For example, to link a *Company* (One) to *Employees* (Many), the 
+  *Employee* object will have a property (like `Employer_ID`) that acts as a foreign 
+  key, pointing to the primary key (`Company_ID`) of the *Company* object.
+- *Many-to-Many:* If a *Direct Report* can have multiple *Managers*, and a 
+  *Manager* can have multiple *Direct Reports*, a single foreign key isn't enough. 
+  Foundry handles this by requiring a *Join Table* (a backing dataset containing 
+  pairs of primary keys) to define the complex web of connections.
+
+*Key Metadata*
+
+When a developer configures a Link Type in the Ontology Manager, they define several 
+critical pieces of metadata:
+
+- *API Name:* This is how developers interact with the link in code (TypeScript or 
+  Python). For example, if the API name for the employee side of a link is `employee`, 
+  a developer writing an AI function could use `Company.employee.get()` to instantly 
+  retrieve all linked employees.
+- *Display Names:* Links have human-readable names for both singular and plural 
+  contexts (e.g., *Employer* vs. *Employees*), ensuring that business users interacting 
+  with dashboards see natural language rather than database column headers.
+- *Visibility:* Developers can set links to be "Prominent," "Normal," or "Hidden." 
+  A hidden link won't show up in user applications, which is useful for internal 
+  system relationships that business users don't need to see.
+
+Links are not just for organizing data; they actively power the kinetic and analytical 
+features of the platform:
+
+- *Graph Navigation for AI and Functions:* Because data is linked semantically, 
+  developers (and AI agents using the Ontology MCP) don't need to write complex 
+  SQL `JOIN` statements to find related data. An LLM can naturally traverse the 
+  graph—moving from a *Factory* object, through a link to its *Production Lines*, 
+  and through another link to the *Sensors* on that line.
+- *Action Types:* Links make data actionable. When a user clicks "Assign Technician" 
+  in an application, the underlying Action Type isn't just updating a spreadsheet; 
+  it is validating and executing a change to the link between a *Work Order* object 
+  and a *Technician* object, strictly according to the permissions and cardinalities 
+  defined in the Ontology.
+- *Rapid Application Development:* In tools like Workshop, builders can drop in 
+  an "Object List" widget that automatically populates with all objects linked to 
+  the user's current selection. If a user clicks on an *Airplane* object, the UI 
+  can instantly surface a table of all linked *Maintenance Logs* without requiring 
+  the builder to wire up custom database queries.
+
+[Hands-On Ontology Modeling: Object Types, Links & Actions](https://www.youtube.com/watch?v=aQ--AP4YJMs)
+
+This hands-on tutorial demonstrates how to configure object relationships in the 
+platform, including setting up foreign key mappings and defining cardinality.
+
+=== Data Integration and Pipelines
+
+Foundry treats data engineering like software engineering, offering robust 
+tools for building and managing pipelines:
+
+- *Data Connection:* Supports over 200 out-of-the-box connectors (REST, JDBC, 
+  streaming, geospatial) with flexible ingress topologies. Recent 2026 updates 
+  include OAuth2 client credentials flows for Snowflake via external identity 
+  providers like Okta or Entra ID.
+- *Pipeline Builder & Code Workspaces:* Low-code and pro-code environments 
+  (PySpark, R, SQL) for data transformation. Pipeline Builder features 
+  "branch-aware auto-upgrades," ensuring inference pipelines always resolve 
+  to the latest published model version on the current branch.
+- *Global Branching:* Development in Foundry is heavily version-controlled. 
+  Global branching allows users to view and interact with modified datasets, 
+  ontology entities, and applications in a secure sandbox before merging 
+  changes to production.
+
+=== Application Development
+
+Foundry provides a suite of tools to build operational applications directly on top of the Ontology:
+
+- *Workshop:* The native low-code application builder. It manages underlying 
+  storage and compute, allowing builders to create highly complex applications 
+  ranging from simple dashboards to mission-critical operations center screens.
+- *Slate:* A platform for front-end developers to build highly customized, 
+  widget-driven web applications using JavaScript and SQL/Ontology data.
+- *Carbon:* A module-based workspace system that allows builders to 
+  string together parameterized Foundry applications (like Workshop 
+  modules and Quiver dashboards) into cohesive navigation workflows.
+
+=== AI Platform (AIP) Integration
+
+AIP embeds generative AI natively into Foundry's data and ontology, ensuring 
+models respect existing security primitives.
+
+- *Model Agnosticism & BYOM:* Foundry supports bring-your-own-model (BYOM), 
+  providing streamlined integration with standard provider APIs (OpenAI, 
+  Anthropic, and recently xAI's Grok via Grok Build 0.1).
+- *AIP Logic & Evals:* Developers can build AI-backed functions and rigorously 
+  test them using *AIP Evals*. The platform includes 19 built-in evaluators 
+  (exact match, LLM-as-a-judge, Levenshtein distance) to automatically run 
+  tests, diagnose failures, and refine prompts.
+- *AIP Chatbots:* Organizations can deploy custom-sourced AI assistants that 
+  respect strict data access controls, complete with session logging and 
+  deployment via the platform's internal Marketplace.
+
+=== Security, Governance & Observability
+
+Palantir is renowned for its military-grade security models, and Foundry enforces 
+a "zero-trust" infrastructure.
+
+- *Granular Security:* Role-, classification-, and purpose-based access controls 
+  propagate automatically through data lineage. If a user does not have permission 
+  to see a row of data, they will not see it in any downstream application, dashboard, 
+  or LLM output.
+- *Data Health & Observability:* The platform features comprehensive telemetry. 
+  *Workflow Lineage* provides seven days of execution history, tracing the full 
+  request journey across functions, actions, and LLM calls. Developers can view 
+  near real-time success/failure counts and P95 execution durations for all 
+  pipelines and active agents.
+
 Palantir Foundry focuses on semantics, or ontology. It can be roughly viewed as:
-- Classes: 具有共同特征的对象分组, Example: 设备、供应商、工厂、故障事件
-- Instances: individual instances in the class, example: 三轴CNC-003号（设备类的实例）
-- Properties: member properties in a class, example: 购入日期、供应商.资质等级
+- Classes: Classify objects with same properties, such as 'device', 'provider', 'factory', 'failure events'
+- Instances: individual instances in the class, such as: three-axile CNC-003号
+- Properties: member properties in a class, example: purchase date, provider.qualification-level, etc.
 - Relationships: Class/Instance relations, such as 供应商 - 供应 → 配件；配件 — 安装于→ 设备
 - Inference Rules: 从已有知识推导新知识, such as: 如果供应商资质等级=吊销 ∧ 该供应商供应配件X → 所有安装X的设备标记"风险待评估"
 
-本体的最大杀器：推理（Inference）这是分类法永远做不到的事。举个例子：已知事实：
+The most important feature of Palantir ontology is *Inference*. 
+It does what tagging and categories fail to do. As an example, below are
+what we know:
 1. 张三是设备部主管
 2. 设备部主管对所有三轴CNC有审批权限
 3. CNC-003号是三轴CNC
 
-推理结果（无需人工录入）：
+we should be able to inference: （无需人工录入）：
 → 张三对CNC-003号有审批权限
 本体让计算机知道它从未被显式告诉的信息。
 
