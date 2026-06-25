@@ -37,6 +37,131 @@
   execution (background goroutine) so the monitor observes in-flight jobs;
   `GET /api/v1/doc-review/active`; global `doc-review-monitor.svelte` polling it.
   Design 2026062105 §3.3/§4.4/§6/§7.2.
+* **2026/06/23, DR3 config loading wired.** `doc-review.local.toml` with
+  `[packages.P1..P6]` group defaults and `[reviewers.<aspect>]` per-aspect blocks
+  (all ~40 aspects configured). Config loaded at startup via
+  `GetDocReviewConfig()` (walks up from CWD; cached via `sync.Once`).
+  `ReviewerConfig` is resolved by merging group defaults → per-aspect overrides.
+  `NewReviewProcessor` reads config exclusively from the TOML file; if no model
+  name or prompt is specified in the configuration, `NewReviewProcessor` treats
+  it as an error and disables the reviewer. Refactored `loadPromptByRef` and
+  `loadModelConfigByRef`
+  out of the env-based loaders so both paths share resolution logic.
+  **Scope:** Phase I — only `grammar_spelling` reviewer is wired to execution;
+  other per-aspect blocks are forward-looking config. Per-review-run TOML and
+  `reference_docs` remain out of scope. Code in `review-config.go` and
+  `review-document.go` (relocated 2026/06/23 to `server/api/doc-reviews`; see the
+  relocation note below).
+* **2026/06/23, `formatting_consistency` reviewer wired (P1).** Third P1 reviewer
+  after `grammar_spelling` and `tone_voice`. `StrategyChunk`, one-shot, cheap model
+  (`deepseek-v4-flash`), 200-line windows (wider context to compare formatting of the
+  same construct across sections). Findings default to `pass=P1`,
+  `aspect=formatting_consistency`, `finding_type=inconsistency`. Resolved from
+  `[reviewers.formatting_consistency]` via `GetDocReviewConfig()`/`ResolveReviewer`;
+  disabled if prompt/model unset. Code in `review-formatting-consistency.go`
+  (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-formatting-consistency.md`.
+* **2026/06/23, reviewer framework relocated to `server/api/doc-reviews`.** Per the
+  ADR's "Implementation Files" directive, all `review-*` files (the `ReviewProcessor`
+  framework, `review-config.go`, and the `grammar_spelling` / `tone_voice` /
+  `formatting_consistency` reviewers) moved from `server/api/doc-processing`
+  (package `docprocessing`) into `server/api/doc-reviews` (package `docreviews`),
+  joining the DR11–DR16 service layer. Rationale: with ~40 reviewers planned,
+  keeping them out of the already-large `doc-processing` package keeps both
+  organized. The reviewers still reuse `doc-processing`'s line-file / LLM / config /
+  concurrency helpers via a thin exported shim (`doc-processing/review_exports.go`,
+  e.g. `BuildReviewerLLMClient`, `RunReviewConcurrent`, `NewLLMJSONInput`) bound to
+  local names in `doc-reviews/review_framework_aliases.go`. No import cycle: nothing
+  in `doc-processing` references the reviewer framework. `controller.go` now
+  constructs `NewReviewProcessor` / `ReviewFindingsSQLStore` locally.
+* **2026/06/23, `readability` reviewer wired (P1).** Fourth P1 reviewer after
+  `grammar_spelling`, `tone_voice`, and `formatting_consistency`. `StrategyChunk`,
+  one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wider context to
+  judge paragraph length and sentence flow across a passage). Checks overlong/complex
+  sentences, dense paragraphs, passive-voice/nominalization overuse, and undefined
+  jargon — judged relative to the audience inferred from `doc_context`. Findings
+  default to `pass=P1`, `aspect=readability`, `finding_type=readability`. Resolved
+  from `[reviewers.readability]` via `GetDocReviewConfig()`/`ResolveReviewer`;
+  disabled if prompt/model unset. Code in `review-readability.go` (+ wiring in
+  `review-document.go`); prompt `prompts/prompt-review-readability.md`.
+* **2026/06/23, `localization` reviewer wired (P1).** Fifth P1 reviewer after
+  `grammar_spelling`, `tone_voice`, `formatting_consistency`, and `readability`.
+  `StrategyChunk`, one-shot, cheap model (`deepseek-v4-flash`), 200-line windows
+  (wider context to catch inconsistent date/number/unit conventions used for the
+  same construct across a passage). Checks locale-inconsistent date/number/currency
+  formats, measurement-unit mismatch, untranslated/mixed-language fragments,
+  untranslatable idioms, culture-specific references, hard-coded locale assumptions,
+  and encoding/typography issues — judged relative to the target locale inferred
+  from `doc_context`. Findings default to `pass=P1`, `aspect=localization`,
+  `finding_type=localization`. Resolved from `[reviewers.localization]` via
+  `GetDocReviewConfig()`/`ResolveReviewer`; disabled if prompt/model unset. Code in
+  `review-localization.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-localization.md`.
+* **2026/06/24, DR16 (finding actions on the report page) implemented.** Added per-finding
+  **LLM Auto Fix**, **Edit Tool** (find/replace dialog), **Delete**, and **Accept** actions,
+  plus a conditional **Regenerate PDF** button, to the Document Review Report page. Auto Fix
+  (model from `AUTO_FIX_MODEL_NAME`, fallback `AUTO_FIX_CALLBACK`) and Edit Tool mutate the
+  document's extracted **line-file** in place; Delete/Accept set `review_status`
+  (`deleted`/`accepted` — set extended with `deleted`+`fixed`); Regenerate rebuilds the
+  report JSON/markdown + Typst PDF into the same report row. Backend:
+  `server/api/doc-reviews/auto_fix.go` (line-file editor, LLM auto-fix, edit-save, report
+  regeneration), handlers in `handler.go`, 4 routes in `routes.go`. Frontend:
+  `edit-tool-dialog.svelte`, report-page wiring, and service functions in
+  `docReviewService.ts`. The Edit Tool dialog shows the finding's suggestion in
+  auto-sizing multi-line fields and, for `…例如：'<content>'`-style suggestions, splits
+  off the quoted proposed content behind an in-dialog **Accept** button (DR16a). The
+  report page groups findings into collapsible package → reviewer sections with a
+  per-reviewer local scrollbar. See DR16 below.
+* **2026/06/24, DR19 (report page action bar) implemented.** The 'Correction Report'
+  and 'Regenerate PDF' buttons were relocated from the `title-row` header to the
+  `show-mode-bar` next to 'Show Active' / 'Show All', renamed 'Generate Change Report'
+  and 'Re-Generate Review Report' respectively. 'Re-Generate Review Report' is now always
+  visible (previously shown only when `dirty`). A thin separator divides view-mode toggles
+  from action buttons. Frontend-only change:
+  `web/src/routes/home3/doc-review-report/[id]/+page.svelte`.
+* **2026/06/24, DR17 (correction activity log + Correction Report) implemented.** Every
+  reviewer correction action is now recorded in a new `kb.doc_review_activities` table:
+  **LLM Auto Fix**, **Edit Tool** save, finding **Delete**, and the three **Document
+  Structure** edits (modify / split / delete). A new leaf package
+  `server/api/docactivity` (`Log` + `List`, depends only on `database/sql` +
+  `loggerutil`) lets both the doc-reviews controller and the kbhandler doc-structure
+  handlers log without an import cycle; logging is best-effort (never breaks the user's
+  action). A new **Document Review Correction Report** (`GenerateCorrectionReport`,
+  `server/api/doc-reviews/correction_report.go`) renders those activities into a Typst
+  source and compiles it to PDF — mirroring `GenerateTypstReport` (output to
+  `$DOC_REVIEW_REPORTS` as `<stamp>-<reportID>-corrections.{typ,pdf}`), via
+  `POST /api/v1/doc-review/reports/<id>/correction-report` and a **Correction Report**
+  button on the report page. Migration
+  `project_migrations/20260624000001_create_doc_review_activities.sql`; template
+  `docs/doc-templates/template-correction-report.typ`
+  (`$DOC_REVIEW_CORRECTION_TEMPLATE_FILENAME`). See DR17 below.
+* **2026/06/24, `logical_flow` reviewer wired (P2).** First P2 (Structure & Organization)
+  reviewer and the first `StrategyDocument` reviewer. Unlike the P1 chunk reviewers, it
+  reasons across the whole document: out-of-order content, undefined prerequisites, abrupt
+  transitions/non-sequiturs, missing logical steps, circular reasoning, contradictory
+  ordering, and orphaned content — judged relative to the document type inferred from
+  `doc_context`. Document-level, one-shot, cheap model (`deepseek-v4-flash`); large
+  documents are split into page-aligned blocks of up to `DefaultInputBlockSize` (20) pages
+  via `buildPageBlocks` (ADR DR2) and reviewed concurrently. Findings default to `pass=P2`,
+  `aspect=logical_flow`, `finding_type=logical_flow`. Resolved from `[reviewers.logical_flow]`
+  via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if prompt/model unset. Code in
+  `server/api/doc-reviews/review-logical-flow.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-logical-flow.md`.
+* **2026/06/24, `heading_hierarchy` reviewer wired (P2).** Second P2 (Structure &
+  Organization) reviewer after `logical_flow`, and the second `StrategyDocument` reviewer.
+  Like `logical_flow` it reasons across the whole document rather than a single passage:
+  skipped heading levels, inconsistent/out-of-sequence numbering, level/style mismatches
+  between sibling headings, empty/orphaned sections, phrasing (non-parallel) inconsistency,
+  and misordered hierarchy — judged relative to the heading convention inferred from
+  `doc_context`. Document-level, one-shot, cheap model (`deepseek-v4-flash`); large documents
+  are split into page-aligned blocks of up to `DefaultInputBlockSize` (20) pages via
+  `buildPageBlocks` (ADR DR2) and reviewed concurrently, with the prompt instructing the model
+  to lower confidence at block boundaries (a parent/sibling heading may fall in an unseen
+  block). Findings default to `pass=P2`, `aspect=heading_hierarchy`,
+  `finding_type=heading_hierarchy`. Resolved from `[reviewers.heading_hierarchy]` via
+  `GetDocReviewConfig()`/`ResolveReviewer`; disabled if prompt/model unset. Code in
+  `server/api/doc-reviews/review-heading-hierarchy.go` (+ wiring in `review-document.go`);
+  prompt `prompts/prompt-review-heading-hierarchy.md`.
 
 ## Context
 
@@ -70,7 +195,7 @@ prioritization, but the groups are logical buckets, not execution monoliths:
 
 | Group | Description | Example reviewers | Execution |
 |-------|-------------|-------------------|-----------|
-| **P1 — Language & Style** | Surface-level writing quality | `grammar_spelling`, `tone_voice`, `formatting_consistency`, `readability`, `localization` | Per-chunk |
+| **P1 — Language & Style** | Surface-level writing quality | `grammar_spelling`, `tone_voice`, `formatting_consistency`, `readability`, `localization` | Document-level |
 | **P2 — Structure & Organization** | Document architecture | `logical_flow`, `heading_hierarchy`, `toc_accuracy`, `navigability`, `section_balance`, `modularity` | Document-level |
 | **P3 — Content Quality** | Depth and correctness of content | `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, `currency`, `examples`, `diagrams`, `testable_claims`, `evidence_rationale` | Per-chunk |
 | **P4 — Consistency** | Cross-document coherence | `internal_contradictions`, `terminology_consistency`, `cross_reference_correctness`, `formatting_consistency`, `requirement_traceability` | Document-level |
@@ -113,6 +238,9 @@ full entity roster, full metric roster, metadata, etc.) and makes one or more
 document-level LLM calls. Used for aspects that require cross-document reasoning
 (consistency, logical flow, confidentiality).
 
+If a document is too big, it will break up the document into multiple blocks. 
+Each block contains up to INPUT_BLOCK_SIZE (default: 20) pages.
+
 Each reviewer manages its own internal concurrency and context assembly. The framework
 only calls `ReviewDocument(ctx, recordID, cfg)` and collects the `[]ReviewFinding`.
 
@@ -149,6 +277,31 @@ Defaults by group:
 
 Per-document overrides allow the user to target specific reference standards for P5
 reviewers.
+
+**Implementation status (2026/06/23):** DR3 config loading is wired for Phase I.
+Configuration is **global** (loaded once at startup from `doc-review.local.toml`),
+not per-review-run. The file has two sections:
+
+- `[packages.P1..P6]` — group-level defaults (`enabled`, `model`, `max_tool_turns`,
+  `strategy`).
+- `[reviewers.<aspect>]` — per-aspect overrides (`enabled`, `group`, `model`,
+  `prompt`, `max_tool_turns`). Pointer fields distinguish "unset" from explicit zero.
+
+Resolution merges group defaults → per-aspect overrides via
+`DocReviewConfig.ResolveReviewer(aspect, group)`. `NewReviewProcessor` reads the
+config exclusively through `GetDocReviewConfig()` (singleton, `sync.Once`);
+if no model name or prompt is specified in the configuration, it is treated as
+an error and the reviewer is disabled.
+
+**Currently wired:** the five P1 reviewers `grammar_spelling`, `tone_voice`,
+`formatting_consistency`, `readability`, and `localization`, plus the first two P2
+(document-level) reviewers `logical_flow` and `heading_hierarchy`. All other per-aspect blocks
+are forward-looking config — their reviewers do not exist yet. **Out of scope:**
+per-review-run TOML (single-run overrides must come from the request's stored
+`model_overrides` JSONB, which is persisted but not yet applied at execution time —
+see DR11 gap). `reference_docs` is not supported. `max_tool_turns` is stored but
+the tool-use conversation loop (DR10b) is Phase II+. See
+`server/api/doc-processing/review-config.go`.
 
 ### DR4 — Reference documents live in SemOS
 
@@ -829,6 +982,195 @@ job-level approximation), matches the Active Pipelines UX, and needs no extra
 "is this job still shown?" bookkeeping — the `WHERE EXISTS (… status NOT IN
 ('success','failed'))` predicate is the single source of truth.
 
+### DR16 — Finding actions on the report page (Auto Fix, Edit Tool, Delete, Accept) + report regeneration
+
+The Document Review Report page (`/home3/doc-review-report/<report_id>`) was
+read-only: it rendered the frozen `report_json` skeleton (DR12a) and let the
+reviewer click a finding to focus the corresponding source lines in the
+Document-Structure panel. It offered no way to **act** on a finding — to apply a
+fix, dismiss it, or accept it as-is.
+
+**Decision: each finding on the report page gets four actions, plus a conditional
+"Regenerate PDF" control.** The report's finding cards are now rendered from the
+**live `kb.doc_review_findings` rows** (fetched via `GET /requests/<request_id>`)
+rather than the frozen `report_json`, so every card carries a stable finding `id`
+and current `review_status` to target. The executive summary, meta, and severity
+totals still come from `report_json`.
+
+| Action | Behavior | Mechanism |
+|--------|----------|-----------|
+| **LLM Auto Fix** | Corrects the offending source line(s) automatically. If the issue cannot be fixed, the user is prompted with the reason (no silent no-op). | LLM call → edits the line-file → marks finding `fixed`. |
+| **Edit Tool** | Opens a find/replace dialog over the offending line(s) for a manual, deterministic edit. | Dialog → `POST /findings/<id>/edit` writes the line-file → marks finding `fixed`. |
+| **Delete** | Removes the finding from the report. | `PATCH /findings/<id>` → `review_status = 'deleted'` (soft delete; hidden from the list and excluded from regeneration). |
+| **Accept** | Keep as-is — take no action. | `PATCH /findings/<id>` → `review_status = 'accepted'`. Does **not** change the document or the report set. |
+
+**Scope of "the fix": the extracted line-file, not the original PDF.** Auto Fix and
+Edit Tool both mutate the document's extracted **line-file** (the 7-field
+tab-separated record the right-panel line list and `report.go`'s `loadDocLines`
+read). The original uploaded/scanned source PDF is never rewritten — it cannot be
+regenerated from edited text. Edits replace only the content field (field 7) of
+the targeted line numbers in place; all other fields and untouched lines are
+preserved verbatim. The offending line numbers come from the finding's `location`
+(parsed by the existing `parseLocationRange`).
+
+**LLM Auto Fix engine.** The model is resolved from `AUTO_FIX_MODEL_NAME` (a
+`MODEL_DEF_FILE` ref), with `AUTO_FIX_CALLBACK` as an optional fallback ref, built
+through the existing `docprocessing.BuildReviewerLLMClient` path. The model is
+sent the offending line(s) plus the issue (title / description / suggestion /
+aspect / severity) and must return strict JSON
+`{ "fixable": bool, "reason": str, "fixes": [{ "line_no": int, "corrected": str }] }`.
+When `fixable` is false, no model is configured, the finding has no parseable line
+location, or the model proposes no change, the API returns a 200 with
+`fixable: false` and a message the GUI surfaces to the reviewer (the "prompt the
+user" path) — it is not an HTTP error.
+
+Since letting an LLM fix a problem is a lengthy operation, the browser should prompt
+the user and a kind of 'waiting wheel' is shown. When the LLM responds, it should 
+open a dialog that shows:
+- The model name
+- The time used in milliseconds
+- The finding's reasons
+- The offending lines
+- The response from the LLM
+- The 'Cancel', 'Retry', 'Save' buttons
+
+If `fixable: false` is false, show the reasons why it is not fixable (should come
+from the LLM response).)
+
+**Edit Tool dialog.** Shows the finding's **Suggestion** at the top, then each
+offending line (with its line number) in an editable, auto-sizing multi-line
+field (the textarea grows to fit the line's content on open and as the reviewer
+types; it stays manually resizable), plus a *Find* substring field and a *Replace*
+field. **Find** (enabled when the search field is non-empty) locates the next
+occurrence with wrap-around and selects it; **Replace** and **Remove** (enabled
+only when a match is found) rewrite/erase the matched span; **Cancel** discards;
+**Save** persists the edited line content to the line-file.
+
+**Suggestion split + in-dialog Accept (DR16a).** Reviewers frequently phrase a
+suggestion as an *instruction followed by a worked example*, e.g.
+`将长句拆分为两个或三个短句。例如：'<rewritten paragraph>'` (or an English/quoted
+variant). The dialog parses this shape — splitting off the **quoted proposed
+content** from the leading instruction — and renders the proposed content in a
+highlighted block with its own **Accept** button. Accept drops the proposed content
+into the (first) offending line's editable field; the reviewer then verifies/edits
+and clicks **Save** to persist (it does not auto-save). The split is purely
+client-side and heuristic: it scans for a matching quote pair (typographic CN/EN
+quotes, corner brackets `「」`/`『』`, or straight quotes) and takes the longest
+quoted span as the proposed content. When no quoted content is found, the full
+suggestion is shown verbatim with no Accept button. The reviewer is responsible
+for confirming the proposed text is correct and complete before saving.
+
+The report page itself groups findings into **two levels of collapsible sections**
+(all folded by default): an outer **package** (P1–P6) and, within it, one **reviewer
+(aspect)** sub-section. Each expanded reviewer's finding list scrolls locally (its
+own scrollbar, styled to match the Document-Structure LINES list).
+
+**Regenerate PDF.** Auto Fix, Edit Tool, and Delete mark the report **dirty** and
+reveal a "Regenerate PDF" button (Accept does not — it changes neither the document
+nor the finding set). Regeneration rebuilds the report from the current
+**non-deleted** findings and updates the **same** `kb.doc_review_reports` row in
+place (`report_json`, `report_markdown`, counts, executive summary) — the report
+id and URL stay stable — then re-runs the Typst report PDF (`GenerateTypstReport`,
+gated on `DOC_REVIEW_REPORTS`). Because `Build` re-reads the line-file for source
+context, the regenerated report reflects the corrected text. Scope note: the PDF
+regenerated is the **review-report PDF**, not a corrected-document PDF.
+
+**`review_status` lifecycle extended.** DR13's `pending | accepted | rejected |
+deferred` set gains `deleted` (soft delete) and `fixed` (auto-fixed or
+hand-edited). `UpdateFinding`'s allow-list is widened accordingly.
+
+**New endpoints (under `/api/v1/doc-review`):**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/findings/<id>/auto-fix` | Run the LLM auto-fix; edits the line-file. Returns `{fixable, message?, original?, corrected?}`. |
+| `GET` | `/findings/<id>/lines` | Current content of the finding's offending line(s) (drives the Edit Tool dialog). |
+| `POST` | `/findings/<id>/edit` | Save user-edited line content to the line-file. Returns `{changed}`. |
+| `POST` | `/reports/<id>/regenerate` | Rebuild report JSON/markdown + Typst PDF in place from current findings. |
+
+**Implementation note.** Because the report page now sources finding cards from the
+live request, it depends on the request being `completed` (always true for a
+generated report). The right-panel source PDF is image-based and is not updated by
+line-file edits; the line list reflects edits on reload.
+
+### DR17 — Correction activity log + Document Review Correction Report
+
+DR16 lets a reviewer *act* on a document (Auto Fix, Edit Tool, Delete) and DR15's
+Document-Structure panel lets them correct the parsed structure (modify / split /
+delete a line). But these corrections left no durable trail: there was no record of
+*what* was changed, *by whom*, *when*, or *from what to what*. The customer (document
+owner) receives a Review Report listing problems, but no companion artifact showing the
+**corrections applied** during review.
+
+**Decision: record every correction action in a new `kb.doc_review_activities` table,
+and generate a "Document Review Correction Report" (Typst → PDF) from it** — a sibling
+deliverable to the Review Report (DR12 / [8]), written and named the same way.
+
+**Logged actions.** Six `activity_type` values, captured at their source:
+
+| `activity_type`    | Trigger | Source |
+|--------------------|---------|--------|
+| `auto_fix`         | LLM Auto Fix applied to a finding's line(s) | `DocReviewController.AutoFixFinding` |
+| `edit_tool`        | Edit Tool save of a finding's line(s) | `DocReviewController.ApplyFindingEdit` |
+| `finding_delete`   | Delete button (`review_status='deleted'`) | `DocReviewController.UpdateFinding` |
+| `structure_modify` | Document Structure line edited (type/content/coords) | `kbhandler.UpdateDocStructureLine` |
+| `structure_split`  | Document Structure line split into multiple lines | `kbhandler.SplitDocStructureLine` |
+| `structure_delete` | Document Structure line deleted | `kbhandler.DeleteDocStructureLine` |
+
+Each row captures `input_record_id`, `review_run_id` (NULL for Document-Structure edits,
+which carry no run), the resolved `report_id`, the `finding_id` / page+line target, the
+`location`, the **before** (`old_content`) and **after** (`new_content`) text, a JSONB
+`detail` (finding title/aspect/severity, model, line type, etc.), the `actor`
+(authenticated user when available), and `create_time`.
+
+**Leaf package to avoid an import cycle.** Both the doc-reviews controller and the
+kbhandler doc-structure handlers must log. A new package `server/api/docactivity`
+(`Log`, `List`, and the activity-type constants) depends only on `database/sql` +
+`loggerutil`, so each caller imports it without `kbhandler → doc-reviews` (or the
+reverse) coupling. `docactivity.Log` is **best-effort**: on any error it logs a warning
+and returns — a logging failure never breaks the reviewer's correction action.
+
+**Correction Report generation.** `DocReviewController.GenerateCorrectionReport(reportID)`
+loads the report's `(input_record_id, review_run_id)`, fetches the activities via
+`docactivity.List`, renders a Typst source against the
+`document-correction-report` template, and compiles it to PDF. It mirrors
+`GenerateTypstReport` exactly:
+
+- **Output dir:** `$DOC_REVIEW_REPORTS` (no-op if unset — the same dir as the Review Report).
+- **Template:** `$DOC_REVIEW_CORRECTION_TEMPLATE_FILENAME`
+  (default `docs/doc-templates/template-correction-report.typ`).
+- **Language:** `$DOC_REVIEW_REPORT_LANGUAGE` (default `en`).
+- **File names:** `<yyyymmdd-hhmm>-<reportID>-corrections.{typ,pdf}` — parallels the Review
+  Report's `<stamp>-<reportID>-reports.{typ,pdf}`.
+
+The template (`#document-correction-report(...)`) renders a cover, basic information, an
+"Actions by Type" summary table, and one `correction-entry(...)` per action with
+before/after blocks, location, actor, time, and a context note.
+
+**New endpoint + UI.**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/v1/doc-review/reports/<id>/correction-report` | Build the Correction Report (Typst + PDF) from recorded activities. Returns `{status, pdf_path, pdf_file}`. |
+
+Frontend: `generateCorrectionReport(reportId)` in `docReviewService.ts`, triggered by a
+**Correction Report** button on the report page.
+
+### DR18 - Report and Corrections File Names
+**Report File Names**
+
+A document, identified by record_id `kb.inputs.id`, may be reviewed multiple times. A new record in `kb.doc_review_requests` 
+is created for each doc review request. If the review is successful, it will generate
+a 'Document Review Report' in both '.typ' and '.pdf'. 
+
+To find all the document review report files for a given `record_id`:
+Find all the records in `kb.doc_review_requests` with 
+`kb.doc_review_requests.input_record_id` = `record_id`.
+Each record maps to one '.pdf' file.
+
+**Report Corrections File Names**
+For each '-reports.pdf' file, it may have a '-corrections.pdf' file.
+
 ## Data Model
 
 ### `kb.doc_review_requests`
@@ -930,7 +1272,7 @@ CREATE TABLE IF NOT EXISTS kb.doc_review_findings (
     confidence      DOUBLE PRECISION,          -- 0.0–1.0
     metadata        JSONB,                     -- pass-specific extra data
     reviewed_by     TEXT,                      -- human reviewer who accepted/rejected this finding
-    review_status   TEXT NOT NULL DEFAULT 'pending',  -- pending, accepted, rejected, deferred
+    review_status   TEXT NOT NULL DEFAULT 'pending',  -- pending, accepted, rejected, deferred, deleted, fixed (deleted/fixed: DR16)
     create_time     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
@@ -938,6 +1280,37 @@ CREATE INDEX IF NOT EXISTS idx_doc_review_findings_record ON kb.doc_review_findi
 CREATE INDEX IF NOT EXISTS idx_doc_review_findings_pass ON kb.doc_review_findings (input_record_id, pass);
 CREATE INDEX IF NOT EXISTS idx_doc_review_findings_aspect ON kb.doc_review_findings (input_record_id, aspect);
 CREATE INDEX IF NOT EXISTS idx_doc_review_findings_severity ON kb.doc_review_findings (input_record_id, severity);
+```
+
+### `kb.doc_review_activities` (DR17)
+
+One row per reviewer correction action (Auto Fix, Edit Tool, finding Delete, and the
+three Document-Structure edits). Source for the Document Review Correction Report.
+`review_run_id` is NULL for Document-Structure edits (they carry no run); nullable
+columns are left NULL when they do not apply to the action.
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.doc_review_activities (
+    id              BIGSERIAL    PRIMARY KEY,
+    activity_type   TEXT         NOT NULL,  -- auto_fix | edit_tool | finding_delete | structure_modify | structure_split | structure_delete
+    input_record_id BIGINT       NOT NULL,  -- the document under review (kb.inputs.id)
+    review_run_id   TEXT,                   -- review run; NULL for run-agnostic Document-Structure edits
+    report_id       BIGINT,                 -- latest kb.doc_review_reports.id for the run, when resolvable
+    finding_id      BIGINT,                 -- finding targeted (finding-based activities)
+    page_number     INT,                    -- Document-Structure target
+    line_number     INT,                    -- Document-Structure target
+    location        TEXT,                   -- finding line range (e.g. "42", "53-56")
+    old_content     TEXT,                   -- before text
+    new_content     TEXT,                   -- after text
+    detail          JSONB,                  -- extras: title, aspect, severity, model, line_type, ...
+    actor           TEXT,                   -- authenticated user name, when available
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_review_activities_record ON kb.doc_review_activities (input_record_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_activities_run    ON kb.doc_review_activities (review_run_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_activities_report ON kb.doc_review_activities (report_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_activities_type   ON kb.doc_review_activities (activity_type);
 ```
 
 ### Review configuration storage
@@ -1082,12 +1455,63 @@ Other P6 reviewers (`version_history`, `review_status`, `ownership`, `references
 `related_documents`, `sensitive_data`, `pii`, `data_retention`, `license_ip`) follow
 the same pattern.
 
+### DR19 — Report page action bar: consolidated action buttons in the show-mode bar
+
+DR16 added **Regenerate PDF** to the `title-row` header and DR17 added **Correction
+Report** there too. With two operational buttons sharing the header alongside the report
+title, the header had become a mixed-concern row: a label and two context-sensitive
+actions sitting side-by-side with no visual grouping. **Regenerate PDF** was also
+conditionally hidden (only shown when `dirty`), making its availability unpredictable to
+the reviewer.
+
+**Decision: relocate both action buttons to the `show-mode-bar` row and make them
+permanently visible.**
+
+| Before | After |
+|--------|-------|
+| `[Report Title] [Regenerate PDF?] [Correction Report]` in `title-row` | `title-row` holds the report title only |
+| "Regenerate PDF" visible only when at least one finding was Auto Fixed / Edited / Deleted (`dirty`) | "Re-Generate Review Report" always visible |
+| "Correction Report" always visible in header | "Generate Change Report" in action bar |
+
+**Layout of the `show-mode-bar` after this change:**
+
+```
+[ Show Active ] [ Show All ] │ [ Generate Change Report ] [ Re-Generate Review Report ]
+```
+
+A thin vertical separator (`show-mode-sep`, 1 px wide) divides the view-mode toggle
+group from the action group, preserving their logical separation while keeping them on
+the same toolbar row.
+
+**Renamed buttons:**
+
+| Old label | New label | Functionality |
+|-----------|-----------|---------------|
+| Correction Report | Generate Change Report | Builds the Document Review Correction Report (Typst → PDF) from `kb.doc_review_activities` via `POST /reports/<id>/correction-report` (DR17). |
+| Regenerate PDF | Re-Generate Review Report | Rebuilds the review report JSON / Markdown / Typst PDF from the current non-deleted findings via `POST /reports/<id>/regenerate` (DR16). |
+
+**Why always-visible for "Re-Generate Review Report".** The `dirty` flag only tracked
+in-session mutations (Auto Fix, Edit Tool, Delete in the current browser session). A
+reviewer opening an existing report that was mutated in a previous session had no
+indication the report might be stale, and the button did not appear. Keeping the button
+always visible makes regeneration an explicit reviewer choice at any time, at no extra
+server cost when nothing has changed (the regeneration is idempotent).
+
+**Visual differentiation.** Action buttons carry the accent fill style (`.action-btn` —
+solid accent background, white text, bold weight) while the view-mode toggles remain
+ghost buttons. This makes the two functional categories immediately distinguishable at
+a glance.
+
+**Frontend-only change.** No backend endpoints, data model, or business logic were
+altered. The `dirty` state variable is retained in the frontend (it continues to be set
+by mutation callbacks) but no longer gates button visibility.
+
 ## Implementation Plan
 
 Development is staged to deliver a working framework early, then add reviewers
 incrementally.
 
-### Phase I — Framework + 1–2 simple reviewers ✅ (framework + grammar_spelling done)
+### Phase I — Framework + 1–2 simple reviewers ✅ (framework + grammar_spelling + DR3 config done)
 
 1. ✅ **Database migration:** `kb.doc_review_findings` table + indexes.
 2. ✅ **Reviewer interface + framework:** `Reviewer` interface, `ReviewerConfig`,
@@ -1098,6 +1522,16 @@ incrementally.
 5. ☐ **Second reviewer:** `confidentiality` (P6, one-shot + rule-based PII grep).
 6. ☐ **End-to-end test:** Process a known document through the full workflow (parse →
    extract artifacts → review → collect findings).
+7. ✅ **DR3 per-aspect configuration (2026/06/23):** `doc-review.local.toml` with
+   `[packages.P1..P6]` group defaults and `[reviewers.<aspect>]` blocks for all ~40
+   aspects. Config loaded at startup via `GetDocReviewConfig()` (walks up from CWD,
+   `sync.Once` cached). `ResolveReviewer(aspect, group)` merges group defaults → per-
+   aspect overrides. `NewReviewProcessor` reads config exclusively from the TOML file; if no model
+   name or prompt is specified in its configuration, `NewReviewProcessor` treats
+   it as an error and disables the reviewer.
+   Code in `server/api/doc-processing/review-config.go`. Note: per-review-run TOML
+   and `reference_docs` are out of scope; request-level `model_overrides` JSONB is
+   persisted but not yet applied at execution time (DR11 gap).
 
 ### Phase II — 1–2 moderate reviewers
 
@@ -1252,6 +1686,9 @@ for text-only reviewers.
   cheap LLM call per review (executive summary). The GUI adds no API cost beyond existing
   HTTP endpoints.
 
+## Implementation Files
+All the code files related to doc reviewers should be in `ChenWeb/server/api/doc-reviews`.
+
 ## Documentation Impact
 
 - New spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
@@ -1259,7 +1696,29 @@ for text-only reviewers.
 - Updated: `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md` (add to pipeline table)
 - Updated: [1] with implementation references
 - Updated: `KnowledgeStore/doc-repo/specs/202606/2026061101-spec-skill-review-document.md` — superseded by this ADR
-- **Stale:** none (new capability)
+- New: `server/api/doc-reviews/review-config.go` — DR3 config loading + merging (2026/06/23; relocated from `doc-processing`)
+- New: `doc-review.local.toml` — per-aspect reviewer configuration for all ~40 aspects
+- New: `server/api/doc-reviews/review-formatting-consistency.go` — `formatting_consistency` reviewer (P1, 2026/06/23)
+- New: `prompts/prompt-review-formatting-consistency.md` — `formatting_consistency` reviewer prompt
+- New: `server/api/doc-processing/review_exports.go` — exported shim of doc-processing internals for the relocated reviewers (2026/06/23)
+- New: `server/api/doc-reviews/review_framework_aliases.go` — binds shim to local names in the `docreviews` package (2026/06/23)
+- Moved: all `server/api/doc-processing/review-*.go` → `server/api/doc-reviews/` (package `docprocessing` → `docreviews`, 2026/06/23)
+- New: `server/api/doc-reviews/auto_fix.go` — DR16 line-file editor, LLM Auto Fix (`AUTO_FIX_MODEL_NAME`/`AUTO_FIX_CALLBACK`), Edit Tool save, and report regeneration (2026/06/24)
+- New: `web/src/lib/components/home3/edit-tool-dialog.svelte` — DR16 Edit Tool find/replace dialog, with suggestion display, auto-sizing multi-line offending-line fields, and the DR16a suggestion-split **Accept** button (2026/06/24)
+- Updated: `server/api/doc-reviews/handler.go`, `server/api/routes.go` — DR16 endpoints (`/findings/<id>/auto-fix`, `/findings/<id>/lines`, `/findings/<id>/edit`, `/reports/<id>/regenerate`)
+- Updated: `server/api/doc-reviews/controller.go` — `UpdateFinding` allow-list extended with `deleted`+`fixed` (DR16)
+- Updated: `web/src/routes/home3/doc-review-report/[id]/+page.svelte`, `web/src/lib/services/docReviewService.ts` — DR16 finding actions, Regenerate PDF, and collapsible package → reviewer grouping with per-reviewer local scrollbar
+- New: `project_migrations/20260624000001_create_doc_review_activities.sql` — `kb.doc_review_activities` table + indexes (DR17, 2026/06/24)
+- New: `server/api/docactivity/activity.go` — DR17 leaf package: activity-type constants, `Log` (best-effort), `List` (2026/06/24)
+- New: `server/api/doc-reviews/correction_report.go` — DR17 `GenerateCorrectionReport` (activities → Typst → PDF) (2026/06/24)
+- New: `docs/doc-templates/template-correction-report.typ` — DR17 Correction Report Typst template (`#document-correction-report`) (2026/06/24)
+- New: `docs/doc-review-correction-report.md` — DR17 feature doc (activity log + Correction Report) (2026/06/24)
+- Updated: `server/api/doc-reviews/auto_fix.go`, `controller.go` — DR17 activity logging in `AutoFixFinding`, `ApplyFindingEdit`, and `UpdateFinding` (delete) (2026/06/24)
+- Updated: `server/api/kbhandler/doc_structure_handler.go` — DR17 activity logging in `UpdateDocStructureLine` / `SplitDocStructureLine` / `DeleteDocStructureLine` (2026/06/24)
+- Updated: `server/api/doc-reviews/handler.go`, `server/api/routes.go` — DR17 `POST /reports/<id>/correction-report` endpoint (2026/06/24)
+- Updated: `mise.local.toml` — `DOC_REVIEW_CORRECTION_TEMPLATE_FILENAME` (DR17)
+- Updated: `web/src/routes/home3/doc-review-report/[id]/+page.svelte` — DR19: relocated 'Generate Change Report' and 'Re-Generate Review Report' buttons from `title-row` to `show-mode-bar`; always-visible; accent-fill `.action-btn` style; visual separator between toggle group and action group (2026/06/24)
+- **Stale:** none (new capability; in-tree references updated)
 
 ## References
 [1] `KnowledgeStore/doc-repo/specs/202606/2026061102-spec-document-review-checklist.md` — Document Review Checklist
