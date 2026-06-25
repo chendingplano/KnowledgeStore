@@ -78,6 +78,14 @@ Three tiers:
 - **Search dialog:** clicking **Search** opens a filter dialog styled after the Knowledge document search dialog (`kb-input-search-dialog.svelte`) and mirrors its interaction model: the dialog's **Search** button runs `listRequests(filter)` and renders the matches in a checkbox table (click to toggle, double-click to pick one, header checkbox selects all); **Select (n)** returns the checked requests to the parent, which then shows just that selection. A "Show all" chip restores the full, unfiltered list. Each row's **View** opens that request in `doc-review-results-view.svelte`.
 - **Implementation:** `DocReviewController.ListRequests` + `RequestListFilter`/`RequestListItem` (models.go); `ListRequests` handler; route `GET /doc-review/requests` (registered before `/:id`); `web/src/lib/services/docReviewService.ts` (`listRequests`); `web/src/lib/components/home3/doc-review-requests-list.svelte`, `doc-review-search-dialog.svelte`; wired into `document-review-view.svelte`.
 
+### DR17 — DeepSeek Prompt Cache Strategy
+- **Status:** Design recorded; implementation pending. All doc reviewers are configured on `deepseek-v4-flash`. DeepSeek context caching is automatic, but it is prefix-based: cache hits require a later request to fully match a persisted prefix unit. DeepSeek reports `usage.prompt_cache_hit_tokens` and `usage.prompt_cache_miss_tokens`.
+- **Current risk:** the shared LLM helper sends `system = reviewer-specific prompt` and `user = document/window JSON`. This means 40+ reviewers using the same input still start with 40+ different prefixes, so the large document input is not maximally reusable.
+- **Required request shape for doc-review calls:** use a small common system message, put the canonical document/window/block JSON first in the user message, then append reviewer-specific task instructions after a delimiter such as `</DOCUMENT_INPUT>`.
+- **Scheduling rule:** prefer grouping work by shared input unit (`block/window -> all selected reviewers`) rather than by reviewer (`reviewer -> all blocks/windows`) so one reviewer warms the prefix and sibling reviewers run while the cache is fresh.
+- **Measurement:** extend LLM usage capture/storage to record `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens`, then report hit rate by model, record id, input unit hash, and strategy.
+- **References:** ADR 2026061801 DR8a; design 2026062105 §4.5; DeepSeek docs at `https://api-docs.deepseek.com/guides/kv_cache` and `https://api-docs.deepseek.com/api/create-chat-completion`.
+
 ## Data Model
 
 ### `kb.doc_review_requests`

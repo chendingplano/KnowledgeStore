@@ -226,6 +226,17 @@
   `[reviewers.completeness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
   prompt/model unset. Code in `server/api/doc-reviews/review-completeness.go` (+ wiring in
   `review-document.go`); prompt `prompts/prompt-review-completeness.md`.
+* **2026/06/25, `conciseness` reviewer wired (P3).** Fourth P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, and `clarity`. `StrategyChunk`, one-shot, cheap model
+  (`deepseek-v4-flash`), 200-line windows (wide enough to catch repeated caveats and restated
+  content across a passage). Detects redundant phrases ("in order to", "due to the fact that"),
+  tautologies ("end result", "past history"), padding openers ("It is important to note that"),
+  excessive hedging where the document type demands directness, avoidable nominalizations
+  ("make a decision" → "decide"), and content repetition — judged relative to the document
+  type inferred from `doc_context`. Findings default to `pass=P3`, `aspect=conciseness`,
+  `finding_type=verbosity`, `severity=low`. Enabled in `doc-review.local.toml`
+  (`[reviewers.conciseness]`). Code in `server/api/doc-reviews/review-conciseness.go`
+  (+ wiring in `review-document.go`); prompt `prompts/prompt-review-conciseness.md`.
 * **2026/06/25, `correctness` reviewer wired (P3).** Second P3 (Content Quality) reviewer
   after `completeness`. `StrategyChunk` (per-chunk, like `completeness` and the P1 reviewers),
   one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wider context so a value or
@@ -242,6 +253,13 @@
   `[reviewers.correctness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
   prompt/model unset. Code in `server/api/doc-reviews/review-correctness.go` (+ wiring in
   `review-document.go`); prompt `prompts/prompt-review-correctness.md`.
+* **2026/06/25, DeepSeek prompt cache strategy recorded.** All configured reviewers now use
+  `deepseek-v4-flash`, and DeepSeek context caching is automatic but prefix-based. The
+  generic OpenAI-compatible helper currently sends `system = reviewer prompt` and
+  `user = document/window JSON`, which fragments the prefix across 40+ reviewers. Added
+  DR8a: doc-review LLM calls should put a canonical, byte-identical document/window/block
+  input before reviewer-specific instructions, schedule reviewers by shared input unit, and
+  capture DeepSeek `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` for measurement.
 
 ## Context
 
@@ -376,8 +394,8 @@ an error and the reviewer is disabled.
 **Currently wired:** the five P1 reviewers `grammar_spelling`, `tone_voice`,
 `formatting_consistency`, `readability`, and `localization`; the five P2
 (document-level) reviewers `logical_flow`, `heading_hierarchy`, `navigability`,
-`section_balance`, and `modularity`; and the first two P3 (content-quality, per-chunk)
-reviewers `completeness` and `correctness`. All other
+`section_balance`, and `modularity`; and the P3 (content-quality, per-chunk)
+reviewers `completeness`, `correctness`, and `conciseness`. All other
 per-aspect blocks are forward-looking config — their reviewers do not exist yet. **Out of scope:**
 per-review-run TOML (single-run overrides must come from the request's stored
 `model_overrides` JSONB, which is persisted but not yet applied at execution time —
@@ -489,6 +507,59 @@ re-run.
 - Aspect batching within passes (e.g., combine low-priority P6 aspects into one sub-call).
 - Caching: if the document text hasn't changed, skip text-only passes (P1) on re-run.
 - Token budgeting: limit reference-standard context to the most relevant sections.
+
+### DR8a — DeepSeek prefix-cache-aware prompt layout
+
+All doc reviewers are configured to use `deepseek-v4-flash`. DeepSeek's API context
+caching is automatic, but it is a **prefix cache**: a later request can hit cache only
+for a beginning segment that fully matches a prefix unit already persisted by DeepSeek.
+The response usage object exposes `prompt_cache_hit_tokens` and
+`prompt_cache_miss_tokens` for verification.
+
+The current generic LLM helper layout is not sufficient for cross-reviewer cache reuse:
+
+```text
+system: <reviewer-specific prompt>
+user:   <document/window/block JSON>
+```
+
+With that layout, each reviewer starts with a different prefix, so DeepSeek cannot reuse
+the large shared document/window input across the 40+ aspect reviewers as effectively as
+it should. For document-review calls, the request should be shaped as:
+
+```text
+system: You are a document review engine. Return strict JSON only.
+
+user:
+<DOCUMENT_INPUT>
+{canonical doc_context + lines JSON}
+</DOCUMENT_INPUT>
+
+<REVIEW_TASK>
+Aspect: correctness
+Reviewer rubric, task-specific instructions, output schema, examples, and tool rules.
+</REVIEW_TASK>
+```
+
+Operational rules:
+
+1. Canonicalize `doc_context` + `lines` JSON and keep it byte-identical for every reviewer
+   that reviews the same input unit.
+2. Keep all reviewer-specific content after `</DOCUMENT_INPUT>`.
+3. Reuse block boundaries across reviewers where feasible: shared line windows for
+   `StrategyChunk`, shared page blocks for `StrategyDocument`.
+4. Schedule by shared input unit (`block -> all selected reviewers`) rather than by reviewer
+   (`reviewer -> all blocks`) so the cache has just been warmed when the sibling reviewers
+   run. DeepSeek notes cache construction takes seconds and unused cache is cleared after
+   hours to days.
+5. Extend LLM usage capture to persist `prompt_cache_hit_tokens` and
+   `prompt_cache_miss_tokens`, then report hit rate by `(model, record_id, input_unit_hash,
+   strategy)` before adding more cache-specific complexity.
+
+This does not make the API stateful; the document input must still be sent on every call.
+It only gives DeepSeek a stable prefix to reuse and discount. Primary references:
+DeepSeek Context Caching (`https://api-docs.deepseek.com/guides/kv_cache`) and Chat
+Completion usage fields (`https://api-docs.deepseek.com/api/create-chat-completion`).
 
 ### DR9 — Human-in-the-loop workflow
 
@@ -1764,7 +1835,8 @@ for text-only reviewers.
 - **Cost:** Per-document cost scales with (enabled reviewers × document length × model
   choice). Phase I–II costs are low (1–4 reviewers). Phase V with all 40 reviewers
   enabled would be substantial — mitigation via DR8 Phase 2 (model downgrades, caching,
-  token budgeting) and user-selectable aspect filtering. The report generator adds one
+  token budgeting), DR8a DeepSeek prefix-cache-aware prompt layout, and user-selectable
+  aspect filtering. The report generator adds one
   cheap LLM call per review (executive summary). The GUI adds no API cost beyond existing
   HTTP endpoints.
 
@@ -1783,6 +1855,7 @@ All the code files related to doc reviewers should be in `ChenWeb/server/api/doc
 - New: `server/api/doc-reviews/review-formatting-consistency.go` — `formatting_consistency` reviewer (P1, 2026/06/23)
 - New: `prompts/prompt-review-formatting-consistency.md` — `formatting_consistency` reviewer prompt
 - New: `server/api/doc-processing/review_exports.go` — exported shim of doc-processing internals for the relocated reviewers (2026/06/23)
+- Updated: `KnowledgeStore/doc-repo/design/202606/2026062105-design-doc-review-gui.md` — §4.5 DeepSeek prompt cache strategy
 - New: `server/api/doc-reviews/review_framework_aliases.go` — binds shim to local names in the `docreviews` package (2026/06/23)
 - Moved: all `server/api/doc-processing/review-*.go` → `server/api/doc-reviews/` (package `docprocessing` → `docreviews`, 2026/06/23)
 - New: `server/api/doc-reviews/auto_fix.go` — DR16 line-file editor, LLM Auto Fix (`AUTO_FIX_MODEL_NAME`/`AUTO_FIX_CALLBACK`), Edit Tool save, and report regeneration (2026/06/24)

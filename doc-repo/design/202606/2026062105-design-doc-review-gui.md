@@ -6,6 +6,15 @@
 **ADR Reference:** ADR 2026061801 (DR13, DR15)
 
 ## Revisions
+- 2026-06-25b — **DeepSeek prompt cache strategy for doc reviewers.** All reviewers
+  are configured on `deepseek-v4-flash`, but the current OpenAI-compatible request
+  shape (`system = reviewer prompt`, `user = document/window JSON`) prevents the
+  40+ reviewers from sharing the large document prefix. Added §4.5: front-load a
+  canonical, byte-identical document/window/block input before reviewer-specific
+  instructions; group execution by shared input unit; and capture
+  `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` from DeepSeek usage.
+  DeepSeek context caching is automatic and prefix-based, so this is a message layout
+  and scheduling concern rather than an API flag.
 - 2026-06-23a — **Interactive two-panel report viewer.** The report's "View HTML"
   (a standalone, server-rendered page) was replaced by an in-app, two-panel
   **Document Review Report** route (`/home3/doc-review-report/[id]`). The left panel
@@ -297,6 +306,78 @@ monitor forever:
 - Crash/stale-run safety — a sweeper (or a `created older than N hours` guard in the
   active query) can fail out aspects whose run is no longer live, so a process that
   dies mid-run cannot pin a job in the monitor permanently.
+
+### 4.5 DeepSeek Prompt Cache Strategy
+
+All doc reviewers are configured to use `deepseek-v4-flash`. DeepSeek's API context
+cache is enabled automatically for all users, but it is a **prefix cache**: later
+requests receive cache hits only when their beginning fully matches a prefix unit
+that DeepSeek has already persisted. The API reports this with
+`usage.prompt_cache_hit_tokens` and `usage.prompt_cache_miss_tokens`.
+
+That means the current generic LLM helper layout is cache-hostile for cross-reviewer
+runs:
+
+```text
+system: <reviewer-specific prompt>
+user:   <document/window/block JSON>
+```
+
+Because every aspect starts with a different system prompt, the shared document input
+is not the request prefix. Even if 40+ reviewers use the exact same document/window,
+DeepSeek sees 40 different prefixes before it reaches the reusable input.
+
+For doc-review calls, assemble messages so the shared input is first and identical:
+
+```text
+system: You are a document review engine. Return strict JSON only.
+
+user:
+<DOCUMENT_INPUT>
+{canonical doc_context + lines JSON}
+</DOCUMENT_INPUT>
+
+<REVIEW_TASK>
+Aspect: grammar_spelling
+Reviewer instructions: ...
+Output schema: ...
+</REVIEW_TASK>
+```
+
+Implementation requirements:
+
+1. **Canonicalize the shared input.** Use deterministic JSON serialization for
+   `doc_context` + `lines`; do not include timestamps, request ids, reviewer names,
+   or other per-call values before the reviewer task.
+2. **Make block boundaries uniform.** Reviewers that operate on the same strategy
+   should reuse the same window/page-block boundaries where feasible. P1/P3 chunk
+   reviewers should share line windows; P2/P4/P6 document-level reviewers should share
+   page blocks.
+3. **Schedule by shared input unit.** Prefer `block 1 -> all selected reviewers`,
+   then `block 2 -> all selected reviewers`, instead of `reviewer A -> all blocks`,
+   because DeepSeek cache construction takes seconds and unused cache is cleared after
+   hours to days.
+4. **Keep reviewer-specific content after the document.** Aspect name, rubric,
+   output schema refinements, examples, and tool-use instructions belong after
+   `</DOCUMENT_INPUT>` so they do not fragment the reusable prefix.
+5. **Instrument the cache.** Extend LLM usage parsing/storage to capture
+   `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` for DeepSeek responses.
+   Track hit rate by `(model, record_id, input_unit_hash, strategy)` so reviewer
+   scheduling changes are measurable.
+6. **Warm only when useful.** A separate warm-up request is normally unnecessary:
+   the first reviewer for a block can create the persisted prefix, and subsequent
+   reviewers should hit it. If strict latency predictability is needed, a cheap
+   warm-up call may be added, but it should be validated against actual hit/miss
+   metrics.
+
+This optimization does **not** make the API stateful and does not remove the need to
+send the document input on every request. It only lets DeepSeek bill/process the
+repeated prefix as cached input when the prefix match succeeds.
+
+Primary references:
+- DeepSeek Context Caching: `https://api-docs.deepseek.com/guides/kv_cache`
+- DeepSeek Chat Completion usage fields:
+  `https://api-docs.deepseek.com/api/create-chat-completion`
 
 ---
 
