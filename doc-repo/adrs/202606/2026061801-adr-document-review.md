@@ -226,6 +226,17 @@
   `[reviewers.completeness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
   prompt/model unset. Code in `server/api/doc-reviews/review-completeness.go` (+ wiring in
   `review-document.go`); prompt `prompts/prompt-review-completeness.md`.
+* **2026/06/25, `relevance` reviewer wired (P3).** Fifth P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, `clarity`, and `conciseness`. `StrategyChunk`, one-shot,
+  cheap model (`deepseek-v4-flash`), 200-line windows (wide enough to spot an off-topic subsection
+  across a passage while remaining tractable for one-shot processing). Detects off-topic sections,
+  tangential digressions, wrong-document content reproduced in full, scope creep beyond the
+  document's declared boundary, and orphaned boilerplate — judged relative to the document type
+  and stated purpose inferred from `doc_context`. Findings default to `pass=P3`,
+  `aspect=relevance`, `finding_type=irrelevance`, `severity=low`. Enabled in
+  `doc-review.local.toml` (`[reviewers.relevance]`). Code in
+  `server/api/doc-reviews/review-relevance.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-relevance.md`.
 * **2026/06/25, `conciseness` reviewer wired (P3).** Fourth P3 (Content Quality) reviewer
   after `completeness`, `correctness`, and `clarity`. `StrategyChunk`, one-shot, cheap model
   (`deepseek-v4-flash`), 200-line windows (wide enough to catch repeated caveats and restated
@@ -253,6 +264,18 @@
   `[reviewers.correctness]` via `GetDocReviewConfig()`/`ResolveReviewer`; disabled if
   prompt/model unset. Code in `server/api/doc-reviews/review-correctness.go` (+ wiring in
   `review-document.go`); prompt `prompts/prompt-review-correctness.md`.
+* **2026/06/25, `currency` reviewer wired (P3).** Sixth P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, `clarity`, `conciseness`, and `relevance`.
+  `StrategyChunk`, one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wide
+  enough to catch inconsistent version or date references across a passage). Detects
+  superseded standards cited as current, deprecated APIs/libraries, obsolete product
+  versions, expired dates presented as future obligations, replaced technologies
+  (e.g., TLS 1.0, SHA-1), and stale regulatory requirements — judged relative to the
+  document type and domain inferred from `doc_context`. Findings default to `pass=P3`,
+  `aspect=currency`, `finding_type=outdated`, `severity=medium`. Enabled in
+  `doc-review.local.toml` (`[reviewers.currency]`). Code in
+  `server/api/doc-reviews/review-currency.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-currency.md`.
 * **2026/06/25, DeepSeek prompt cache strategy recorded.** All configured reviewers now use
   `deepseek-v4-flash`, and DeepSeek context caching is automatic but prefix-based. The
   generic OpenAI-compatible helper currently sends `system = reviewer prompt` and
@@ -394,8 +417,8 @@ an error and the reviewer is disabled.
 **Currently wired:** the five P1 reviewers `grammar_spelling`, `tone_voice`,
 `formatting_consistency`, `readability`, and `localization`; the five P2
 (document-level) reviewers `logical_flow`, `heading_hierarchy`, `navigability`,
-`section_balance`, and `modularity`; and the P3 (content-quality, per-chunk)
-reviewers `completeness`, `correctness`, and `conciseness`. All other
+`section_balance`, and `modularity`; and six P3 (content-quality, per-chunk)
+reviewers `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, and `currency`. All other
 per-aspect blocks are forward-looking config — their reviewers do not exist yet. **Out of scope:**
 per-review-run TOML (single-run overrides must come from the request's stored
 `model_overrides` JSONB, which is persisted but not yet applied at execution time —
@@ -1873,6 +1896,15 @@ All the code files related to doc reviewers should be in `ChenWeb/server/api/doc
 - Updated: `server/api/doc-reviews/handler.go`, `server/api/routes.go` — DR17 `POST /reports/<id>/correction-report` endpoint (2026/06/24)
 - Updated: `mise.local.toml` — `DOC_REVIEW_CORRECTION_TEMPLATE_FILENAME` (DR17)
 - Updated: `web/src/routes/home3/doc-review-report/[id]/+page.svelte` — DR19: relocated 'Generate Change Report' and 'Re-Generate Review Report' buttons from `title-row` to `show-mode-bar`; always-visible; accent-fill `.action-btn` style; visual separator between toggle group and action group (2026/06/24)
+- New: `server/api/doc-reviews/review-relevance.go` — `relevance` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
+- New: `prompts/prompt-review-relevance.md` — `relevance` reviewer prompt (2026/06/25)
+- Updated: `server/api/doc-reviews/review-document.go` — `RelevanceClient`/`RelevanceModelName`/`RelevancePromptRef`/`RelevancePromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
+- Updated: `doc-review.local.toml` — `[reviewers.relevance]` enabled (2026/06/25)
+- New: `server/api/doc-reviews/review-currency.go` — `currency` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
+- New: `server/api/doc-reviews/review-currency_test.go` — `currency` reviewer test (2026/06/25)
+- New: `prompts/prompt-review-currency.md` — `currency` reviewer prompt (2026/06/25)
+- Updated: `server/api/doc-reviews/review-document.go` — `CurrencyClient`/`CurrencyModelName`/`CurrencyPromptRef`/`CurrencyPromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
+- Updated: `doc-review.local.toml` — `[reviewers.currency]` enabled (2026/06/25)
 - **Stale:** none (new capability; in-tree references updated)
 
 ## References
