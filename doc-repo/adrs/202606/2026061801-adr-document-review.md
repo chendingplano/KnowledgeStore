@@ -276,6 +276,63 @@
   `doc-review.local.toml` (`[reviewers.currency]`). Code in
   `server/api/doc-reviews/review-currency.go` (+ wiring in `review-document.go`); prompt
   `prompts/prompt-review-currency.md`.
+* **2026/06/25, `examples` reviewer wired (P3).** Seventh P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, and `currency`.
+  `StrategyChunk`, one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wide
+  enough to judge whether a concept or procedure within the passage is supported by an
+  example). Detects missing examples where the document type and audience would expect them,
+  insufficient or placeholder examples, examples that do not match the surrounding text,
+  examples containing errors, incomplete examples (missing imports/context), outdated
+  examples (deprecated API/syntax), and repetitive examples that obscure differences
+  between concepts — judged relative to the document type and audience inferred from
+  `doc_context`. Findings default to `pass=P3`, `aspect=examples`,
+  `finding_type=insufficient_examples`, `severity=medium`. Enabled in
+  `doc-review.local.toml` (`[reviewers.examples]`). Code in
+  `server/api/doc-reviews/review-examples.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-examples.md`.
+* **2026/06/25, `testable_claims` reviewer wired (P3).** Eighth P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, `currency`, and `examples`.
+  `StrategyChunk`, one-shot, cheap model (`deepseek-v4-flash`), 200-line windows (wide enough to judge
+  whether a requirement or claim within the passage has a measurable acceptance criterion). Detects vague
+  qualitative requirements, missing acceptance criteria, unverifiable compliance claims, ambiguous pass/fail
+  conditions, circular claims, missing measurement method references, and relative assertions without a
+  defined baseline — judged relative to the document type and rigor inferred from `doc_context`. Findings
+  default to `pass=P3`, `aspect=testable_claims`, `finding_type=untestable_claim`, `severity=medium`.
+  Enabled in `doc-review.local.toml` (`[reviewers.testable_claims]`). Code in
+  `server/api/doc-reviews/review-testable-claims.go` (+ wiring in `review-document.go`); prompt
+  `prompts/prompt-review-testable-claims.md`.
+* **2026/06/25, `evidence_rationale` reviewer wired (P3).** Ninth P3 (Content Quality) reviewer
+  after `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, `currency`,
+  `examples`, and `testable_claims`. `StrategyChunk`, one-shot, cheap model
+  (`deepseek-v4-flash`), 200-line windows (wide enough to judge whether a design decision
+  or recommendation within the passage is supported by evidence or reasoned justification).
+  Detects unsupported design decisions, unjustified recommendations, missing trade-off
+  analysis, assertions without a cited basis, risk acceptance without rationale, missing
+  references to authoritative sources, and unsubstantiated performance or quality claims —
+  judged relative to the document type and audience inferred from `doc_context`. Findings
+  default to `pass=P3`, `aspect=evidence_rationale`, `finding_type=missing_evidence`,
+  `severity=high`. Enabled in `doc-review.local.toml` (`[reviewers.evidence_rationale]`).
+  Code in `server/api/doc-reviews/review-evidence-rationale.go` (+ wiring in
+  `review-document.go`); prompt `prompts/prompt-review-evidence-rationale.md`.
+	* **2026/06/25, Phase II tool-use for P3 implemented (DR10/DR10a/DR10b/DR10c).** Added a
+	  `ReviewTool` registry of the 9 document-intrinsic core tools (record-scoped, backed by
+	  `kb.entities` / `kb.metrics` / `kb.provisions` / `kb.summaries` / `kb.relations`),
+	  a bounded `runToolUseReview` conversation loop with turn/token budgets and DeepSeek
+	  prompt-cache usage capture, a `BuildReviewerToolClient` for the tool-capable shared
+	  `llm.Client.Complete` path, and config plumbing of `max_tool_turns`, `max_tool_tokens`
+	  (config-overridable per reviewer/group with a code default when unset) and `tools`
+	  from `doc-review.local.toml` into the runtime `ReviewerConfig`. Reviewers branch on
+	  `max_tool_turns`: 0 → existing one-shot path (unchanged), >0 → tool-use loop with the
+	  record-scoped tool registry. `evidence_rationale` wired as the proving-ground reviewer.
+	  Code: `server/api/doc-reviews/review-tools.go` (registry + 9 tools + read methods),
+	  `review-tool-loop.go` (`runToolUseReview` + budget/stop/finalize),
+	  `review_framework_aliases.go` (LLM chat type aliases + `BuildReviewerToolClient` re-export),
+	  `server/api/doc-processing/review_exports.go` (`BuildReviewerToolClient`),
+	  `review-config.go` (`MaxToolTokens`/`Tools` fields + merge), `review-document.go`
+	  (`resolveReviewerBudget`, `resolveReviewerToolClient`, `EvidenceRationaleTool*` fields,
+	  config plumbing in `buildReviewers`). Tests:
+	  `review-tools_test.go`, `review-tool-loop_test.go`,
+	  `review_tool_client_test.go`, `review-evidence-rationale_test.go`.
 * **2026/06/25, DeepSeek prompt cache strategy recorded.** All configured reviewers now use
   `deepseek-v4-flash`, and DeepSeek context caching is automatic but prefix-based. The
   generic OpenAI-compatible helper currently sends `system = reviewer prompt` and
@@ -283,6 +340,11 @@
   DR8a: doc-review LLM calls should put a canonical, byte-identical document/window/block
   input before reviewer-specific instructions, schedule reviewers by shared input unit, and
   capture DeepSeek `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` for measurement.
+* **2026/06/25, DR8a implemented across current reviewers.** One-shot reviewer calls now use
+  `newDocReviewLLMJSONInput`, which sets the document-first prompt layout. The tool-use review
+  loop uses a stable task-free system prompt and keeps reviewer instructions inside
+  `<REVIEW_TASK>` after `<DOCUMENT_INPUT>`. `review_cache_scheduler.go` builds prompt-cache
+  tasks for every current reviewer type and orders them by identical serialized input unit.
 
 ## Context
 
@@ -417,8 +479,9 @@ an error and the reviewer is disabled.
 **Currently wired:** the five P1 reviewers `grammar_spelling`, `tone_voice`,
 `formatting_consistency`, `readability`, and `localization`; the five P2
 (document-level) reviewers `logical_flow`, `heading_hierarchy`, `navigability`,
-`section_balance`, and `modularity`; and six P3 (content-quality, per-chunk)
-reviewers `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, and `currency`. All other
+`section_balance`, and `modularity`; and nine P3 (content-quality, per-chunk)
+reviewers `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`,
+`currency`, `examples`, `diagrams`, and `testable_claims`. All other
 per-aspect blocks are forward-looking config — their reviewers do not exist yet. **Out of scope:**
 per-review-run TOML (single-run overrides must come from the request's stored
 `model_overrides` JSONB, which is persisted but not yet applied at execution time —
@@ -539,7 +602,7 @@ for a beginning segment that fully matches a prefix unit already persisted by De
 The response usage object exposes `prompt_cache_hit_tokens` and
 `prompt_cache_miss_tokens` for verification.
 
-The current generic LLM helper layout is not sufficient for cross-reviewer cache reuse:
+The generic task-first LLM helper layout is not sufficient for cross-reviewer cache reuse:
 
 ```text
 system: <reviewer-specific prompt>
@@ -548,7 +611,7 @@ user:   <document/window/block JSON>
 
 With that layout, each reviewer starts with a different prefix, so DeepSeek cannot reuse
 the large shared document/window input across the 40+ aspect reviewers as effectively as
-it should. For document-review calls, the request should be shaped as:
+it should. For document-review calls, the implemented one-shot request shape is:
 
 ```text
 system: You are a document review engine. Return strict JSON only.
@@ -564,6 +627,22 @@ Reviewer rubric, task-specific instructions, output schema, examples, and tool r
 </REVIEW_TASK>
 ```
 
+For tool-use reviewers, the same invariant applies. The managed tool loop uses a stable,
+task-free system prompt and puts the document plus reviewer instructions in the user message:
+
+```text
+system: You are a document review engine. Return strict JSON findings only unless you need to call an available tool.
+
+user:
+<DOCUMENT_INPUT>
+{canonical doc_context + lines JSON}
+</DOCUMENT_INPUT>
+
+<REVIEW_TASK>
+Reviewer rubric, tool-use instructions, and output schema.
+</REVIEW_TASK>
+```
+
 Operational rules:
 
 1. Canonicalize `doc_context` + `lines` JSON and keep it byte-identical for every reviewer
@@ -573,8 +652,10 @@ Operational rules:
    `StrategyChunk`, shared page blocks for `StrategyDocument`.
 4. Schedule by shared input unit (`block -> all selected reviewers`) rather than by reviewer
    (`reviewer -> all blocks`) so the cache has just been warmed when the sibling reviewers
-   run. DeepSeek notes cache construction takes seconds and unused cache is cleared after
-   hours to days.
+   run. This is implemented in `server/api/doc-reviews/review_cache_scheduler.go`; if a new
+   reviewer type is added, it must be added to `buildPromptCacheReviewTasks` or it will fall
+   back to legacy per-reviewer execution. DeepSeek notes cache construction takes seconds and
+   unused cache is cleared after hours to days.
 5. Extend LLM usage capture to persist `prompt_cache_hit_tokens` and
    `prompt_cache_miss_tokens`, then report hit rate by `(model, record_id, input_unit_hash,
    strategy)` before adding more cache-specific complexity.
@@ -1896,6 +1977,11 @@ All the code files related to doc reviewers should be in `ChenWeb/server/api/doc
 - Updated: `server/api/doc-reviews/handler.go`, `server/api/routes.go` — DR17 `POST /reports/<id>/correction-report` endpoint (2026/06/24)
 - Updated: `mise.local.toml` — `DOC_REVIEW_CORRECTION_TEMPLATE_FILENAME` (DR17)
 - Updated: `web/src/routes/home3/doc-review-report/[id]/+page.svelte` — DR19: relocated 'Generate Change Report' and 'Re-Generate Review Report' buttons from `title-row` to `show-mode-bar`; always-visible; accent-fill `.action-btn` style; visual separator between toggle group and action group (2026/06/24)
+- New: `server/api/doc-reviews/review-examples.go` — `examples` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
+- New: `server/api/doc-reviews/review-examples_test.go` — `examples` reviewer test (2026/06/25)
+- New: `prompts/prompt-review-examples.md` — `examples` reviewer prompt (2026/06/25)
+- Updated: `server/api/doc-reviews/review-document.go` — `ExamplesClient`/`ExamplesModelName`/`ExamplesPromptRef`/`ExamplesPromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
+- Updated: `doc-review.local.toml` — `[reviewers.examples]` enabled (2026/06/25)
 - New: `server/api/doc-reviews/review-relevance.go` — `relevance` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
 - New: `prompts/prompt-review-relevance.md` — `relevance` reviewer prompt (2026/06/25)
 - Updated: `server/api/doc-reviews/review-document.go` — `RelevanceClient`/`RelevanceModelName`/`RelevancePromptRef`/`RelevancePromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
@@ -1905,6 +1991,26 @@ All the code files related to doc reviewers should be in `ChenWeb/server/api/doc
 - New: `prompts/prompt-review-currency.md` — `currency` reviewer prompt (2026/06/25)
 - Updated: `server/api/doc-reviews/review-document.go` — `CurrencyClient`/`CurrencyModelName`/`CurrencyPromptRef`/`CurrencyPromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
 - Updated: `doc-review.local.toml` — `[reviewers.currency]` enabled (2026/06/25)
+- New: `server/api/doc-reviews/review-testable-claims.go` — `testable_claims` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
+- New: `server/api/doc-reviews/review-testable-claims_test.go` — `testable_claims` reviewer test (2026/06/25)
+- New: `prompts/prompt-review-testable-claims.md` — `testable_claims` reviewer prompt (2026/06/25)
+- Updated: `server/api/doc-reviews/review-document.go` — `TestableClaimsClient`/`TestableClaimsModelName`/`TestableClaimsPromptRef`/`TestableClaimsPromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
+- Updated: `doc-review.local.toml` — `[reviewers.testable_claims]` enabled (2026/06/25)
+- New: `server/api/doc-reviews/review-evidence-rationale.go` — `evidence_rationale` reviewer (P3, StrategyChunk, one-shot, 2026/06/25)
+- New: `server/api/doc-reviews/review-evidence-rationale_test.go` — `evidence_rationale` reviewer test (2026/06/25)
+- New: `prompts/prompt-review-evidence-rationale.md` — `evidence_rationale` reviewer prompt (2026/06/25)
+- Updated: `server/api/doc-reviews/review-document.go` — `EvidenceRationaleClient`/`EvidenceRationaleModelName`/`EvidenceRationalePromptRef`/`EvidenceRationalePromptText` fields; resolution in `NewReviewProcessor`; wiring in `buildReviewers` (2026/06/25)
+- Updated: `doc-review.local.toml` — `[reviewers.evidence_rationale]` enabled (2026/06/25)
+- New: `server/api/doc-reviews/review-tools.go` — `ReviewTool` registry + 9 document-intrinsic core tools + record-scoped read methods (2026/06/25, Phase II)
+- New: `server/api/doc-reviews/review-tool-loop.go` — `runToolUseReview` managed conversation loop with budget/stop finalize + DeepSeek cache-usage capture (2026/06/25, Phase II)
+- New: `server/api/doc-reviews/review-tools_test.go` — registry/tool/`selectTools` tests (2026/06/25)
+- New: `server/api/doc-reviews/review-tool-loop_test.go` — loop tests with `fakeToolClient` (2026/06/25)
+- New: `server/api/doc-processing/review_tool_client_test.go` — `BuildReviewerToolClient` tests (2026/06/25)
+- Updated: `server/api/doc-processing/review_exports.go` — `BuildReviewerToolClient` (2026/06/25, Phase II)
+- Updated: `server/api/doc-reviews/review_framework_aliases.go` — LLM chat type aliases + `BuildReviewerToolClient` re-export (2026/06/25, Phase II)
+- Updated: `server/api/doc-reviews/review-config.go` — `MaxToolTokens`/`Tools` fields + merge (2026/06/25, Phase II)
+- Updated: `server/api/doc-reviews/review-document.go` — `EvidenceRationaleClient`/`EvidenceRationaleModelName`/`EvidenceRationalePromptRef`/`EvidenceRationalePromptText` + `EvidenceRationaleTool*` fields; `resolveReviewerBudget`, `resolveReviewerToolClient`; config plumbing in `buildReviewers`; `MaxToolTokens` on `ReviewerConfig` (2026/06/25)
+- Updated: `server/api/doc-reviews/review-evidence-rationale.go` — `toolClient`/`toolRegistry` fields; config-driven one-shot/tool-use branch in `processWindow` (2026/06/25, Phase II)
 - **Stale:** none (new capability; in-tree references updated)
 
 ## References
