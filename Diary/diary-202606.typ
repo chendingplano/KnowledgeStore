@@ -246,3 +246,144 @@ This is a Go library that does embedding.
 
 #a_010
 
+= 2026/06/26 - Anthropic Knowledge Work Plugin
+#let a_011 = link(
+  "https://github.com/anthropics/knowledge-work-plugins/tree/main"
+)[#text(fill: blue)[Anthropic Knowledge Work Plugin]]
+
+#a_011 \
+Source: WeChat
+
+Anthropic open-sources 11 plugins:
+- productivity
+- sales
+- customer-support
+- product-management
+- marketing
+- legal
+- finance
+- data
+- enterprise-search
+- bio-research
+- cowork-plugin-management
+
+Each plugin has a number of skills. Most use MCP servers to interact
+with the environment.
+
+= 2026/06/26 - Haystack
+#let a_012 = link(
+  "https://github.com/chendingplano/haystack"
+)[#text(fill: blue)[Haystack]]
+
+#a_012 \
+Source: WeChat
+
+I forked this open-source.
+
+[Haystack GitHub repository](https://github.com/deepset-ai/haystack?utm_source=chatgpt.com) 
+is one of the most mature open-source frameworks for building production-grade AI applications 
+around large language models. Originally focused on semantic search and question answering, 
+Haystack has evolved into a general AI orchestration framework for constructing Retrieval-Augmented 
+Generation (RAG) systems, AI agents, multimodal applications, and other compound AI workflows. 
+Rather than being tied to a particular LLM or vector database, it adopts a highly modular 
+architecture that allows developers to mix and match models, retrievers, document stores, 
+embedding models, and external tools from many providers. ([Haystack Documentation][1])
+
+Note that this is exactly what I aim at:
+- Not just a question/answering
+- Not just an RAG, or an agentic RAG
+- A general AI orchestration framework
+- (Agentic) RAG 
+- AI Agents (not yet)
+- Multimodal applications
+- Pipelines
+- Multiple models
+- Hybrid search
+- Modular
+- Retrievers (missing)
+- Doc Processors (many, pluggable)
+- External tools from many providers through MCP (not yet)
+- ...
+
+The core abstraction in Haystack is the Pipeline. Instead of writing a large block of 
+application logic, developers assemble applications from reusable components such as 
+- document converters, 
+- text splitters, 
+- embedders, 
+- retrievers, 
+- rerankers, 
+- prompt builders, 
+- generators, 
+- evaluators, 
+- routers, 
+- memory modules, 
+- and tools. 
+
+Pipelines are represented as directed graphs rather than simple sequential chains, 
+allowing branching, parallel execution, loops for self-correction, and reusable 
+"SuperComponents." This graph-based orchestration makes complex workflows—such as 
+agentic reasoning, multi-stage retrieval, or iterative validation—much easier to 
+build, debug, and maintain than traditional hand-written orchestration code. 
+([Haystack Documentation][2])
+
+One of Haystack's strongest features is its openness and extensive integration 
+ecosystem. It supports major model providers such as OpenAI, Anthropic, Google, 
+Hugging Face, Mistral, and Cohere, while integrating with vector databases and 
+search engines including Pinecone, Weaviate, Elasticsearch, OpenSearch, Qdrant, 
+Chroma, and many others. 
+
+Note that I am not sure whether we should support these many vector databases.
+Keep the system simple and treat vector databases as plugins. Users can develop
+their own vector database plugins.
+
+The same is true for search engines. We will define an API. Anyone can
+develop its own search engine plugin.
+
+Because every stage of retrieval and generation is explicit, developers retain 
+fine-grained control over context engineering, prompt construction, routing, 
+evaluation, and memory, avoiding vendor lock-in and making 
+it straightforward to swap components as better models or infrastructure become 
+available. The project also provides tutorials, cookbooks, demos, and a growing 
+ecosystem of community-maintained integrations. ([Haystack][3])
+
+From the perspective of SemOS project, Haystack should be viewed as an AI workflow 
+orchestration framework, not as a knowledge base or document management system. 
+SemOS would continue to own the knowledge representation—metrics, scene blocks, 
+causal models, categories, semantic projections, compliance objects, and PostgreSQL 
+indexes—while Haystack could orchestrate the retrieval and reasoning pipelines 
+that operate on those assets. For example, a user query could trigger retrieval 
+from PostgreSQL BM25 and vector indexes, invoke rerankers, consult SemOS knowledge 
+objects, call LLMs for reasoning, perform validation loops, and finally generate a 
+grounded response. In other words, Haystack complements systems like SemOS rather 
+than replacing them. If your goal is to build sophisticated, maintainable AI 
+workflows, Haystack is an excellent fit; if your goal is to build a persistent 
+semantic operating system, Haystack is only one layer of the overall architecture. 
+([Haystack Documentation][1])
+
+[1]: https://docs.haystack.deepset.ai/docs/intro?utm_source=chatgpt.com "Haystack Documentation: Introduction to Haystack"
+[2]: https://docs.haystack.deepset.ai/docs/pipelines?utm_source=chatgpt.com "Pipelines | Haystack Documentation"
+[3]: https://haystack.deepset.ai/?utm_source=chatgpt.com "Haystack | Haystack"
+
+= 2026/06/26 - SQL Joiner
+#let a_013 = link(
+  "https://github.com/webofmarius/SQLJoiner"
+)[#text(fill: blue)[SQL Joiner]]
+
+#a_013 \
+Source: WeChat
+
+Features:
+- Visual canvas — drag tables from the sidebar onto the canvas, then draw join lines between columns
+- Join types — INNER, LEFT, RIGHT, FULL OUTER, CROSS
+- SELECT builder — pick columns visually or switch to raw SQL mode; supports column aliases, DISTINCT, custom expressions, and alpha sort
+- WHERE / GROUP BY / HAVING / ORDER BY — visual or raw SQL mode for each clause
+- Subqueries — add a subquery as a named table on the canvas
+- Import SQL — paste an existing query to reverse-engineer it onto the canvas
+- Contexts — save and restore canvas states (tables, joins, conditions)
+- Notes — attach freeform notes to a context
+- Connection profiles — store multiple MySQL connection profiles; switch between them from the top bar
+- Query cancellation — cancel a running query mid-execution
+- Results grid — paginated results with copy-to-clipboard support
+- Canvas search — find tables, aliases, joins, or island labels
+
+
