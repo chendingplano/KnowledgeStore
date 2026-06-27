@@ -2,7 +2,7 @@
 
 Date: 2026-06-27
 
-Status: Partially Implemented (Phases 1–2 landed; Phase 3 planned)
+Status: Partially Implemented (Phases 1–2 + 2.3 landed; Phase 3 planned)
 
 Extends: 2026062501-adr-deepseek-cache (DeepSeek Prompt Cache for Document Reviewers)
 
@@ -54,16 +54,33 @@ Apply the same cache principles to the doc processors, delivered in phases.
   `<DOCUMENT_INPUT>` / `<TASK>`) so one envelope serves both reviewers and processors. This
   causes a one-time prompt-cache reset for the document reviewers, then a stable prefix again.
 
+### Phase 2.3 — Canonical chunk InputText (landed)
+
+Each chunk-based processor now builds `InputText` via the single helper
+`canonicalChunkInputText(chunk.Lines, docCtx)` = `wrapLinesWithDocContext(markedLinesToJSON,
+docCtx)` (`input_lines.go`), with all schema/label/index text moved to the prompt (`<TASK>`).
+Since every chunk processor loads the same `.chunks` artifact and record, the same chunk now
+yields a byte-identical `InputText` across processors, so DeepSeek can reuse the prefix.
+
+Converged: `extract_semantic_projections` (pass 1 + pass 2 — pass 2 reuses pass 1's chunk
+prefix), `extract_entity_relation` (entities + freeform relations), `extract_inventory_items`,
+`extract_provisions` chunk mode. Removed the divergent per-processor serializers
+(`buildChunkRelationInputJSON`, inline schema builders) at these sites.
+
+**Structural finding (key):** the input *unit* differs by processor. `extract_metrics`
+re-buckets chunks into `Block`s (`chunksToBlocks` → `blockLinesToJSON`) and `extract_provisions`
+blocks mode uses `Block`s, so they cannot share a prefix with the chunk processors until their
+unit is unified — a separate, extraction-affecting change, intentionally deferred. Also,
+`create_artifact_category` was switched to task-first (its prompt template is the stable
+prefix, not the per-call key).
+
 ### Phase 3 — Cross-processor cache-locality scheduler (planned)
 
-To realize cross-processor cache hits, the *same* chunk must be sent by all chunk-consuming
-processors back-to-back. Because the `Processor` interface is opaque (`HandleEvent`), this
-requires:
+With Phase 2.3 the chunk processors share a byte-identical prefix, but they still fan out
+concurrently, so identical prefixes are not guaranteed to be adjacent in time (DeepSeek's cache
+is time-bounded). Phase 3 forces adjacency. Because the `Processor` interface is opaque
+(`HandleEvent`), this requires:
 
-- **Phase 2.3 prerequisite**: each chunk-consuming processor must put the canonical,
-  byte-identical chunk JSON first in `InputText` (task/schema text moves to the prompt /
-  `<TASK>` section). Several processors currently embed task text ahead of the chunk inside
-  `InputText`, which defeats prefix sharing.
 - An opt-in `ChunkCacheParticipant` interface exposing per-chunk Pass-1 tasks plus a
   `finalize` step, a shared scheduler ordering tasks by `(chunkIndex, inputKey, procOrder)`
   (porting the generic core of `doc-reviews/review_cache_scheduler.go`), and controller
