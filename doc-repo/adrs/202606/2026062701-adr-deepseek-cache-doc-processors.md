@@ -2,7 +2,7 @@
 
 Date: 2026-06-27
 
-Status: Partially Implemented (Phases 1–2 + 2.3 landed; Phase 3 planned)
+Status: Implemented (Phases 1–3 landed)
 
 Extends: 2026062501-adr-deepseek-cache (DeepSeek Prompt Cache for Document Reviewers)
 
@@ -74,19 +74,22 @@ unit is unified — a separate, extraction-affecting change, intentionally defer
 `create_artifact_category` was switched to task-first (its prompt template is the stable
 prefix, not the per-call key).
 
-### Phase 3 — Cross-processor cache-locality scheduler (planned)
+### Phase 3 — InputText sequencer for cache-locality adjacency (landed)
 
-With Phase 2.3 the chunk processors share a byte-identical prefix, but they still fan out
-concurrently, so identical prefixes are not guaranteed to be adjacent in time (DeepSeek's cache
-is time-bounded). Phase 3 forces adjacency. Because the `Processor` interface is opaque
-(`HandleEvent`), this requires:
+With Phase 2.3 the chunk processors share a byte-identical prefix, but they fan out
+concurrently from Phase B, so identical prefixes are not guaranteed to be temporally adjacent.
+Phase 3 forces adjacency with a low-cost approach that requires no per-processor refactoring:
 
-- An opt-in `ChunkCacheParticipant` interface exposing per-chunk Pass-1 tasks plus a
-  `finalize` step, a shared scheduler ordering tasks by `(chunkIndex, inputKey, procOrder)`
-  (porting the generic core of `doc-reviews/review_cache_scheduler.go`), and controller
-  wiring in Phase B behind env flags `RUN_DOC_PROCESSOR_CACHE_LOCALITY` (default true) and
-  `DOC_PROCESS_LLM_CACHE_MAX_TASKS`. The per-record status lock and `CheckAndHandleStop`
-  semantics must be preserved.
+A shared `inputTextSequencer` (`shared/go/api/llm/openai_sequencer.go`, patterned on
+`llmCallController`) serialises LLM calls that share the same `InputText` key (i.e. the same
+canonical chunk). When `DocumentFirst=true`, right before the HTTP call in
+`extractTextWithFormat`, the call acquires a per-InputText binary semaphore and releases it
+after the response. Calls with different InputText values proceed concurrently; calls with
+the same value queue, so the same chunk prefix arrives at DeepSeek back-to-back → cache hit.
+
+Controlled by env `LLM_INPUT_TEXT_SEQUENCER` (default `"true"`; set to `"false"` to disable).
+Zero per-processor refactoring — the sequencer is transparent to each processor's multi-pass
+logic, status writes, stop handling, and indexing.
 
 ## Consequences
 

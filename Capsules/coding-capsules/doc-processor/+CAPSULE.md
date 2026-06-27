@@ -146,6 +146,8 @@ All doc-processor LLM calls go through `newLLMJSONInput` (`ChenWeb/server/api/do
 
 > **Not converged:** `extract_provisions` **blocks mode** uses `Block`s with a different serialization, so its LLM input unit differs from chunk mode. `create_artifact_category` is intentionally **task-first** (its prompt template, not the per-call key, is the stable prefix).
 
+**InputText sequencer (Phase 3).** Even with canonical prefixes, Phase B fans out one goroutine per processor and each launches its per-chunk goroutines concurrently — identical chunk prefixes from different processors may not be temporally adjacent. An `inputTextSequencer` (`shared/go/api/llm/openai_sequencer.go`) serialises the shared client's HTTP calls by `InputText` key: when `DocumentFirst` is true, the call acquires a per-InputText binary semaphore before the HTTP request and releases after. Calls with the same canonical InputText (same chunk) queue — so the same prefix arrives at DeepSeek back-to-back, guaranteeing cache hits. Controlled by env `LLM_INPUT_TEXT_SEQUENCER` (default `true`).
+
 `kb.doc_proc_logs` records the provider prompt-cache counters per LLM call in two columns,
 `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` (nullable; NULL for non-LLM
 entries). They are populated from the LLM client's `LastJSONUsage()` via
