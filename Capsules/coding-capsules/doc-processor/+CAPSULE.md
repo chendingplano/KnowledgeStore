@@ -136,6 +136,19 @@ Three shared conversion functions in `ChenWeb/server/api/doc-processing/input_li
 
 **Do not** convert lines to tab-separated strings (via `.String()`, `formatMarkedChunkLine`, or `buildMarkedChunkInputText`) and then marshal the string slice. Call the appropriate function above instead.
 
+## 6.2. LLM Prompt Layout & DeepSeek Cache Telemetry
+
+All doc-processor LLM calls go through `newLLMJSONInput` (`ChenWeb/server/api/doc-processing/llm_capture_input.go`), which sets `JSONExtractionInput.DocumentFirst = true`. The shared client (`shared/go/api/llm/openai_client.go::buildMessages`) then emits a **document-first layout**: a constant system message plus the repeated document/chunk text inside `<DOCUMENT_INPUT>…</DOCUMENT_INPUT>` as the stable, cacheable prefix, followed by the per-call task instructions inside `<TASK>…</TASK>`. This maximizes DeepSeek prompt-cache reuse — see ADR 2026062501 (`KnowledgeStore/doc-repo/adrs/202606/2026062501-adr-deepseek-cache.md`) and the doc-processor extension ADR 2026062701.
+
+> For cross-processor cache hits to land, the serialized chunk/block text placed in `InputText` must be **byte-identical** across processors (ADR principle 3). Keep task/schema text out of `InputText` (put it in the prompt, i.e. the `<TASK>` section) and serialize the shared chunk via the canonical helpers in §6.1.
+
+`kb.doc_proc_logs` records the provider prompt-cache counters per LLM call in two columns,
+`prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` (nullable; NULL for non-LLM
+entries). They are populated from the LLM client's `LastJSONUsage()` via
+`extractorCacheTokens` (`cache_log.go`) at each `llm_call` log site, mirroring the
+`llm_usage_event` cache columns. Use them to validate cache effectiveness
+(migration `project_migrations/20260627000001_add_doc_proc_logs_cache_tokens.sql`).
+
 ## 7. Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
