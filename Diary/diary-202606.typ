@@ -386,4 +386,38 @@ Features:
 - Results grid — paginated results with copy-to-clipboard support
 - Canvas search — find tables, aliases, joins, or island labels
 
+= 2026/06/28 - WayFinder
+#let a_014 = link(
+  "https://github.com/chendingplano/wayfinder-router"
+)[#text(fill: blue)[WayFinder]]
+
+#a_014 \
+Source: Hacker News
+
+This is a Python-based open-source project that routes user queries purely based on
+text analysis. No LLM calls.
+
+Cloned and installed.
+
+= 2026/06/27 - Faster 
+#let a_015 = link(
+  "https://medium.com/@s_nikolaev/faster-knn-search-in-manticore-2-pass-hnsw-batched-distances-and-avx-512-b85604647aab"
+)[#text(fill: blue)[Faster KNN search: 2-Pass HNSW]]
+
+#a_015 \
+Source: Hacker News
+
+This is the C++ implementation of the HNSW library: hnswlib. 
+
+We may need it.
+
+= 2026/06/27 - A C++ Implementation of a Fast Hash Map
+#let a_016 = link(
+  "https://github.com/Tessil/hopscotch-map"
+)[#text(fill: blue)[C++ Implementation of a Faster Hashmap]]
+
+#a_016 \
+Source: Hacker News
+
+In case we need it.
 
