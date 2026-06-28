@@ -378,12 +378,12 @@ prioritization, but the groups are logical buckets, not execution monoliths:
 
 | Group | Description | Example reviewers | Execution |
 |-------|-------------|-------------------|-----------|
-| **P1 — Language & Style** | Surface-level writing quality | `grammar_spelling`, `tone_voice`, `formatting_consistency`, `readability`, `localization` | Document-level |
-| **P2 — Structure & Organization** | Document architecture | `logical_flow`, `heading_hierarchy`, `toc_accuracy`, `navigability`, `section_balance`, `modularity` | Document-level |
-| **P3 — Content Quality** | Depth and correctness of content | `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, `currency`, `examples`, `diagrams`, `testable_claims`, `evidence_rationale` | Per-chunk |
-| **P4 — Consistency** | Cross-document coherence | `internal_contradictions`, `terminology_consistency`, `cross_reference_correctness`, `formatting_consistency`, `requirement_traceability` | Document-level |
-| **P5 — Technical & Compliance** | Standards, regulations, technical depth | `technical_accuracy`, `assumptions`, `prerequisites`, `standards_compliance`, `legal_compliance`, `regulatory_compliance`, `internal_policy`, `security`, `performance`, `error_handling`, `limitations` | Per-chunk or document-level |
-| **P6 — Meta & Process** | Document housekeeping | `version_history`, `review_status`, `ownership`, `references`, `related_documents`, `confidentiality`, `sensitive_data`, `pii`, `data_retention`, `license_ip` | Document-level |
+| **P1 — Language & Style** | Surface-level writing quality | `grammar_spelling`, `tone_voice`, `formatting_consistency`, `readability`, `localization` | per-chunk |
+| **P2 — Structure & Organization** | Document architecture | `logical_flow`, `heading_hierarchy`, `navigability`, `section_balance`, `modularity` | per-block |
+| **P3 — Content Quality** | Depth and correctness of content | `completeness`, `correctness`, `clarity`, `conciseness`, `relevance`, `currency`, `examples`, `diagrams`, `testable_claims`, `evidence_rationale` | per-chunk |
+| **P4 — Consistency** | Cross-document coherence | `internal_contradictions`, `terminology_consistency`, `cross_reference_correctness`, `formatting_consistency`, `requirement_traceability` | per-block |
+| **P5 — Technical & Compliance** | Standards, regulations, technical depth | `technical_accuracy`, `assumptions`, `prerequisites`, `standards_compliance`, `legal_compliance`, `regulatory_compliance`, `internal_policy`, `security`, `performance`, `error_handling`, `limitations` | per-chunk |
+| **P6 — Meta & Process** | Document housekeeping | `version_history`, `review_status`, `ownership`, `references`, `related_documents`, `confidentiality`, `sensitive_data`, `pii`, `data_retention`, `license_ip` | per-block |
 
 The group determines **default** model and tool selection; each reviewer can override.
 
@@ -1600,10 +1600,10 @@ follow the same pattern with different prompts.
 - Strategy: `StrategyDocument`
 - Execution: one-shot
 - Model: strong (Sonnet / Opus)
-- Context: full heading tree + summary tree + ToC + doc metadata
+- Context per block: full heading tree + summary tree + doc metadata
 - Output: findings about nesting errors, missing sections, ToC inaccuracies
 
-Other P2 reviewers (`logical_flow`, `toc_accuracy`, `navigability`, `section_balance`,
+Other P2 reviewers (`logical_flow`, `navigability`, `section_balance`,
 `modularity`) follow the same pattern with the same or subset context.
 
 ### P3 — Content Quality (StrategyChunk, tool-use)

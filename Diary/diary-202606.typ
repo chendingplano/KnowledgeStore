@@ -421,3 +421,13 @@ Source: Hacker News
 
 In case we need it.
 
+= 2026/06/30 - Autodata: An agentic data scientist to create high quality synthetic data
+#let a_017 = link(
+  "https://arxiv.org/pdf/2606.25996"
+)[#text(fill: blue)[Autodata]]
+
+#a_017 \
+Source: Hacker News
+
+This is a academic paper from Meta. We need a data generator. This can be
+a good reference.
