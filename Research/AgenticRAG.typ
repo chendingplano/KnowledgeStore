@@ -518,6 +518,7 @@ score of its entity.
 - In SemOS, there are 'entities', 'inventory items', 'metrics' that
   can be used as the 'niddles'.
 - We may want to consider 'artifact_categories' to help find the niddles
+- Let niddles vote for chunks
 
 [1]: https://arxiv.org/pdf/2603.29875 "UnWeaving the knots of GraphRAG – turns out VectorRAG is almost enough"
 

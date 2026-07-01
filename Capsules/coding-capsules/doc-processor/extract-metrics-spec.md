@@ -95,6 +95,11 @@ Pass 2 uses:
   - `EXTRACT_METRICS_MODEL_NAME`
 - prompt env priority:
   - `ENRICH_METRICS_PROMPT`
+- semantic search env:
+  - `SEARCH_SEMANTIC_ENABLED`
+  - `METRIC_CONNECT_MAX_LINKS` (default: 10)
+- index env:
+  - `ARTIFACT_WEB_DIR`
 
 Pass 2 output:
 
@@ -183,11 +188,58 @@ Indexing runs after the final metric rows are saved to `kb.metrics`. It is idemp
 re-runs for pre-existing metrics (e.g. when extraction was skipped because metrics already
 exist). It has five outputs:
 
-1. the metric row in `kb.search_artifacts`
-2. deterministic line-overlap links in `kb.metrics.connected_artifacts`
-3. category membership edges in `kb.artifact_connections`
-4. `metrics.txt` entries under matching category paths in `ARTIFACT_WEB_DIR`
-5. semantic similarity links in `kb.artifact_connections`
+| Relation | Storage |
+|----------|---------|
+| None | the metric row in `kb.search_artifacts` |
+| deterministic line-overlap relation | stored in `kb.metrics.connected_artifacts` |
+| relate artifact category to metric | stored in `kb.artifact_connections` |
+| relate category path to metric | stored in `metrics.txt` under the matching category paths in `ARTIFACT_WEB_DIR` |
+| relate metric to line-overlapping artifacts (entities, inventory_items, provisions, topics, semantic_projections) | stored in `kb.artifact_connections` |
+
+Note: semantic metric↔metric similarity is **not** an indexing output — it is computed live
+at read time (see [Semantic Similarity (Computed On-The-Fly)](#semantic-similarity-computed-on-the-fly)),
+not materialized as `kb.artifact_connections` edges.
+
+#### Line-Overlap Artifact Edges
+
+These edges make intra-document, line-overlapping artifacts explicitly traversable in
+`kb.artifact_connections` (they were previously kept only in
+`kb.metrics.connected_artifacts`). They are built deterministically at index time — no LLM
+or hybrid search is involved here. Cross-document neighbor discovery happens later, at read
+time, in [Metric Discovery for Document Review](#metric-discovery-for-document-review).
+
+For each metric `M` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap
+   `M.source_line_spans`, grouped by type `T ∈ {inventory_item, entity, provision, topic,
+   semantic_projection}` → the anchors.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'metric'`, `target_id = M.metric_id`, `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"extract_metrics","anchor_type":T}`
+
+Because both endpoints share lines, these edges are always intra-document
+(`source_record_id = target_record_id = record_id`).
+
+**Edge direction and bidirectional reads.** `kb.artifact_connections` is one graph in which
+different edge families store the metric on different sides: line-overlap edges put the
+artifact on the source side and the metric on the target side, while `belong_to` category
+edges put the metric on the source side. Every read that looks up an
+artifact's connections must therefore match it on **either** side
+(`source_id = A OR target_id = A`); do not assume the metric is always source or always
+target. Each symmetric edge (`#shared_artifact`) is stored exactly **once** in its canonical
+direction (artifact → metric) — never insert the mirror row. Asymmetric relations
+(`belong_to`) keep their natural direction; bidirectional matching is only a lookup
+convenience and does not change a relation's meaning.
+
+**Idempotency.** These edges are rebuilt by the document reprocess sweep, which deletes every
+`kb.artifact_connections` row with `source_record_id = record_id OR target_record_id =
+record_id` before re-indexing, then re-adds edges as if the document had never been
+processed. This single sweep supersedes any per-relation replace rule.
 
 #### Search Artifact Row
 
@@ -225,7 +277,7 @@ Rules:
 - `chunks` must include all overlapping chunk IDs and must never be empty.
 - `semantic_projects` must include all overlapping semantic projection IDs and must never be empty.
 - `topics`, `scenes`, `provisions`, `entities`, and `inv_items` may be empty arrays.
-- These deterministic line-overlap links are stored only in `kb.metrics.connected_artifacts`; do not add them to `kb.artifact_connections`.
+- The `connected_artifacts` JSON is the per-metric overlap set for quick lookup; the same line-overlap facts are also written as traversable edges in `kb.artifact_connections` (see [Line-Overlap Artifact Edges](#line-overlap-artifact-edges)).
 
 #### Metric and Artifact Categories
 
@@ -267,55 +319,49 @@ Rules:
 - Save metric IDs in `metrics.txt` under the matching category path.
 - Each `metrics.txt` entry uses `kb.metrics.metric_id`.
 
-#### Connect Artifacts
+#### Semantic Similarity (Computed On-The-Fly)
 
-Create semantic similarity links from each metric to related artifacts in `kb.search_artifacts`.
+Semantic metric↔artifact similarity is **not materialized** as `kb.artifact_connections`
+edges. Every artifact already lives in `kb.search_artifacts` and is discoverable by hybrid
+search; a stored `semantically_related` snapshot would only duplicate that computation and go
+stale as the corpus grows (and would need directional inbound/outbound bookkeeping to stay
+complete). Instead, any consumer that needs "similar artifacts" runs the hybrid search
+**live** at read time.
 
-The hybrid search mechanics are defined in [7] (lexical + semantic RRF fusion); this section only specifies the metric-connection acceptance policy on top of it.
+Consequences for indexing:
 
-**Query and candidate retrieval:**
+- The metric indexing step writes **no** `hybrid_search` / `semantically_related` edges.
+- It still hydrates each metric's `search_document` and embedding into `kb.search_artifacts`
+  so the read-time hybrid search (and the `/api/v1/kb/metrics/search` path) have the data
+  they need.
 
-- Use `kb.metrics.search_document` as the query text.
-- Reuse the implemented hybrid search over `kb.search_artifacts` (same CTEs as the `/api/v1/kb/metrics/search` read path):
-  - lexical list: PostgreSQL `ts_rank_cd` full-text search (the always-on lexical path; an optional ParadeDB BM25 backend is selectable via `SEARCH_LEXICAL_BACKEND` but not required here)
-  - semantic list: `pgvector` cosine distance (`embedding <=> query_embedding`), gated by `SEARCH_SEMANTIC_ENABLED` / `kbsearch.SemanticSearchEnabled()`
-  - fuse the two lists with Reciprocal Rank Fusion (RRF), `rrf_k = 60`, candidate limit `200` per list (the same `rrfK` / `hybridCandidateLimit` constants the search handler uses)
-- If `SemanticSearchEnabled()` is false or the query cannot be embedded, fall back to lexical-only ranking; the acceptance rules below then use only the lexical channel.
-- Exclude the metric's own row (`artifact_type = 'metric' AND artifact_id = kb.metrics.metric_id`) from results.
+**Hybrid acceptance model** — shared by every on-the-fly caller (the metrics document
+reviewer's direct metric↔metric branch, and `neighbors(X)` in
+[Metric Discovery for Document Review](#metric-discovery-for-document-review)). Mechanics are
+defined in [7]; the implementation is `docprocessing.FindSimilarArtifactsOnTheFly`.
 
-**Per-candidate signals** — the connection step uses a purpose-built query that reuses the same lexical/semantic CTEs but additionally selects the component scores (the search handler's read path returns only the fused score):
+- **Query:** the source artifact's `kb.search_artifacts.search_document`, embedded live when
+  semantic search is enabled.
+- **Candidate set:** `kb.search_artifacts`, excluding the query artifact's own row;
+  optionally restricted to a single `artifact_type` (the reviewer's direct branch and
+  `neighbors(X)` both pass their own type).
+- **Fusion:** lexical `ts_rank_cd` + `pgvector` cosine, fused with RRF (`rrf_k = 60`,
+  200 candidates/list). Falls back to lexical-only when semantic search is disabled or the
+  query cannot be embedded.
+- **Per-candidate signals:** `rrf_score`, `cosine_sim = 1 - (embedding <=> query_embedding)`
+  (null when either embedding is missing), `lexical_score` (null when not in the lexical list).
+- **Acceptance (OR across channels):** `cosine_sim >= min_cosine` OR
+  `lexical_score >= artifact_search.min_rank`.
+- **Rank and cap:** order by `rrf_score DESC`, tie-break `artifact_id ASC`; keep at most
+  `max_links`.
+- **Scope:** the whole `kb.search_artifacts` registry (cross-document discovery is the point);
+  not restricted to the query artifact's own `input_record_id`.
+- **Thresholds:** the metrics reviewer's direct branch reuses `METRIC_CONNECT_MIN_COSINE`
+  (default `0.75`) and `METRIC_CONNECT_MAX_LINKS` (default `10`); `neighbors(X)` uses
+  `METRIC_NEIGHBOR_MIN_COSINE` / `METRIC_NEIGHBOR_MAX_LINKS` (same defaults). Both share
+  `artifact_search.min_rank`.
 
-- `rrf_score` — fused RRF score (used for ranking and `confidence`)
-- `cosine_sim` = `1 - (embedding <=> query_embedding)`; null when either embedding is missing
-- `lexical_score` — `ts_rank_cd` score; null when the candidate is not in the lexical list
-
-**Acceptance threshold** — accept a candidate iff it clears at least one channel:
-
-- **Semantic channel:** `cosine_sim >= METRIC_CONNECT_MIN_COSINE` (default `0.75`), OR
-- **Lexical channel:** `lexical_score >= artifact_search.min_rank` (the shared artifact-search minimum rank)
-
-This OR rule matches the hybrid philosophy already in the search path: a semantically similar artifact can be accepted even when it shares no query terms, and a strong lexical match can be accepted even without an embedding.
-
-**Ranking and cap:**
-
-- Order accepted candidates by `rrf_score DESC`, tie-break `artifact_id ASC`.
-- Keep at most `METRIC_CONNECT_MAX_LINKS` (default `10`).
-
-**Edge construction** — for each accepted candidate, upsert one row to `kb.artifact_connections`:
-
-- `source_type = 'metric'`, `source_id = kb.metrics.metric_id`, `source_record_id = kb.metrics.input_record_id`
-- `target_type` / `target_id` / `target_record_id` from the matched `kb.search_artifacts` row
-- `relation_name = 'semantically_related'`
-- `relation_method = 'hybrid_search'`
-- `confidence = rrf_score`
-- `provenance = {"rrf_score", "rrf_k": 60, "cosine_sim", "lexical_score"}`
-- `extra_info = {"min_cosine", "min_rank", "max_links", "lexical_backend", "semantic_enabled"}` (the thresholds actually applied)
-
-**Scope and idempotency:**
-
-- Candidates span the whole `kb.search_artifacts` registry (cross-document discovery is the purpose of the global registry); they are not restricted to the metric's own `input_record_id`.
-- Reprocessing must replace a document's metric semantic edges idempotently. Because these edges can target other documents, the replace scope must be keyed on the source side only: delete existing rows where `source_type = 'metric'` AND `source_record_id = <record_id>` AND `relation_method = 'hybrid_search'` AND `relation_name = 'semantically_related'`, then insert the freshly accepted edges. (The line-overlap replace path is intra-document; this source-scoped replace is the cross-document variant.)
-- These thresholds and limits are configurable via env vars (`METRIC_CONNECT_MIN_COSINE`, `METRIC_CONNECT_MAX_LINKS`) and the shared `artifact_search.min_rank` config; defaults are `0.75`, `10`, and the configured `min_rank` respectively.
+Because nothing is persisted, there is no edge idempotency to manage for semantic similarity.
 
 ### Thinking Behavior
 
@@ -376,7 +422,9 @@ Indexing is **not** part of this Phase B handler. After the whole pipeline finis
 indexing step, which: upserts `kb.search_artifacts`, populates
 `kb.metrics.connected_artifacts`, upserts `category_name` membership edges to
 `kb.artifact_connections`, writes category-path `metrics.txt` entries, and upserts
-semantic links to `kb.artifact_connections`. See the [Indexing](#indexing) section.
+line-overlap artifact edges to `kb.artifact_connections`. Semantic metric↔metric similarity
+is no longer materialized here — it is computed live at review time. See the
+[Indexing](#indexing) section.
 
 **Progress Update (per block):**
 - When beginning extraction, set `progress` to `"0%"` in `kb.inputs.status`.
@@ -606,6 +654,84 @@ This API persists reviewed final metric rows returned by the preview flow.
 - run the same post-save metrics indexing workflow used by the document processor
 - leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
 - return the number of inserted metrics
+
+## Metric Discovery for Document Review
+
+This is a **read-time** procedure: it is not part of indexing and persists nothing. Its
+purpose is to surface metrics from the corpus that a document under review should plausibly
+cover — both the ones it explicitly mentions and the ones it may have missed — by walking
+from the document's metrics out to same-type "close" artifacts elsewhere in the corpus and
+back to the metrics attached to them.
+
+Neighbor closeness is always computed **on the fly** so a freshly added document is picked up
+immediately; neighbor sets are never cached across runs.
+
+**Implementation status.** The P5 metrics reviewer currently implements cross-document
+discovery as three branches: (A) direct metric↔metric similarity computed live via
+`docprocessing.FindSimilarArtifactsOnTheFly`, (B) metrics sharing a category key, and
+(C) entity→metric edges. The full anchor → `neighbors(X)` → metrics expansion below and the
+mentioned/missed **metric matrix** are the planned extension (matrix deferred to a separate
+session); they build on the same on-the-fly hybrid search that Branch A already uses.
+
+For each metric `M` extracted from the document under review:
+
+1. Find every artifact in the same document whose line spans overlap `M.source_line_spans`,
+   grouped by type `T ∈ {inventory_item, entity, provision, topic, semantic_projection}` →
+   the anchors.
+2. For each anchor `X` of type `T`:
+   - Compute `neighbors(X)` (see below), excluding `X` itself.
+   - For each neighbor `N` (also of type `T`):
+     - Find every metric `Y` connected to `N` in `kb.artifact_connections`, matching `N` on
+       **either** side (connections are bidirectional):
+       ```text
+       (source_type = T AND source_id = N.artifact_id AND target_type = 'metric')
+       OR
+       (target_type = T AND target_id = N.artifact_id AND source_type = 'metric')
+       ```
+       `Y` is the metric-side endpoint of each matched row. (Restrict to
+       `relation_name = '#shared_artifact'` if only metrics that directly line-overlap `N`
+       are wanted; leave it open to also include semantically-related metrics.)
+     - Add each `Y` to the metric matrix (see the Metric Matrix note).
+3. Return the matrix.
+
+### neighbors(X)
+
+`neighbors(X)` returns same-type artifacts across the whole corpus that are "close" to the
+anchor `X`. It reuses the shared hybrid acceptance model in
+[Semantic Similarity (Computed On-The-Fly)](#semantic-similarity-computed-on-the-fly)
+(`docprocessing.FindSimilarArtifactsOnTheFly`), re-parameterized for artifact-to-artifact
+search:
+
+- **Query:** `X.search_document` and its embedding (from `kb.search_artifacts`).
+- **Candidate set:** `kb.search_artifacts` filtered to `artifact_type = T` (same type as the
+  anchor), **global** scope (all `input_record_id`), excluding `X` itself.
+- **Hybrid search:** reuse the [7] CTEs — `ts_rank_cd` lexical + `pgvector` cosine, fused with
+  RRF (`rrf_k = 60`, 200 candidates per list). If semantic search is disabled or `X` has no
+  embedding, fall back to lexical-only.
+- **Per-candidate signals:** `rrf_score`, `cosine_sim = 1 - (embedding <=> query_embedding)`,
+  `lexical_score`.
+- **Acceptance (OR across channels):**
+  - semantic: `cosine_sim >= METRIC_NEIGHBOR_MIN_COSINE` (default `0.75`), OR
+  - lexical: `lexical_score >= artifact_search.min_rank`.
+- **Rank and cap:** order by `rrf_score DESC`, tie-break `artifact_id ASC`; keep at most
+  `METRIC_NEIGHBOR_MAX_LINKS` (default `10`).
+
+Precondition: every artifact type must have a populated `search_document` (and, for the
+semantic channel, an embedding) in `kb.search_artifacts`; a type with a null embedding
+degrades to lexical-only rather than returning nothing.
+
+Within a single review invocation, `neighbors(X)` may be memoized by `X.artifact_id` so an
+anchor shared by multiple metrics is searched once; this cache must never persist across
+invocations (the corpus moves between runs).
+
+### Metric Matrix
+
+The metric matrix distinguishes metrics the document **mentions** from metrics it may have
+**missed**, keyed so that "close enough" metrics collapse into one entry whose value is the
+deduplicated list of contributing metrics. The matrix structure and its metric↔metric
+closeness key are specified separately (deferred to the matrix session); this procedure only
+supplies candidate metrics `Y` tagged with their `input_record_id` so the matrix step can
+classify mentioned vs. missed and dedup within each entry.
 
 ## Implementations
 Refer to [3], [4], [5] and [6].
