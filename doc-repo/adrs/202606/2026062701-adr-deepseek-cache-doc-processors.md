@@ -2,14 +2,18 @@
 
 Date: 2026-06-27
 
-Status: **Phase 4 complete; Phase 5 in progress (two-phase per-chunk batching;
-parallel document launch)**
+Status: **Implemented (2026-07-02) — unified three-phase task scheduler across
+the six configured chunk processors; algorithm now matches the doc-reviewers'
+`review_cache_scheduler.go`.** See the "Implemented algorithm (2026-07-02)"
+section below; earlier Phase 4/5 descriptions are retained for history but were
+superseded. Design spec: `ChenWeb/docs/superpowers/specs/2026-07-01-deepseek-cache-processor-unification-design.md`;
+implementation plan: `ChenWeb/docs/superpowers/plans/2026-07-01-deepseek-cache-processor-unification.md`.
 
 Extends: [2026062501-adr-deepseek-cache](2026062501-adr-deepseek-cache.md) (DeepSeek Prompt Cache for Document Reviewers)
 
 ## Context
 
-ADR 2026062501 optimized the **document reviewers** for DeepSeek prompt caching
+ADR 2026062501 (refer to [1]) optimized the **document reviewers** for DeepSeek prompt caching
 (document-first prompt layout, cache-locality scheduling, and cache-token telemetry in
 `llm_usage_event`). The **doc processors** (the doc-processing pipeline in
 `ChenWeb/server/api/doc-processing/`) were not covered, even though they are all configured
@@ -177,9 +181,12 @@ type ChunkBatchProcessor interface {
 }
 ```
 
-**Gateway:** `runPhaseBProcessors()` in `control.go` checks whether ALL Phase B processors
-implement `ChunkBatchProcessor`. If yes, it uses the coordinator; if any processor doesn't,
-it falls back to the legacy `runProcessorsTwoPhase` (concurrent goroutine mode).
+**Gateway (superseded — see "Implemented algorithm" below):** the original
+`runPhaseBProcessors()` used an all-or-nothing gate: it used the coordinator only if
+*every* Phase B processor implemented `ChunkBatchProcessor`, else the whole batch fell
+back to legacy concurrent mode. Because three configured processors did not implement
+the interface, the coordinator never activated in practice. This gate was **removed**
+on 2026-07-02 in favour of per-unit fallback (below).
 
 **Env var:**
 
@@ -237,20 +244,75 @@ caller context has a short deadline.
 
 ---
 
+## Implemented algorithm (2026-07-02)
+
+This is the authoritative description; it supersedes the Phase 4/5 pseudo-code above,
+which is retained only for history.
+
+> **Files:**
+> - `ChenWeb/server/api/doc-processing/chunk_batch.go` — `maxDocProcessorTasks()`, `multiPassProcessors`, `orderBatchProcessorsSeedFirst()`.
+> - `ChenWeb/server/api/doc-processing/chunk_batch_coordinator.go` — `scheduleChunkBatch()` (three-phase schedule), `partitionBatchProcessors()`, `runProcessorsPhaseBOnly()`, `runPhaseBProcessors()`.
+
+The doc-processing coordinator now uses the **same three-phase, task-based schedule as
+the doc reviewers** (`ChenWeb/server/api/doc-reviews/review_cache_scheduler.go`,
+`runReviewTasksForPromptCache`):
+
+```
+Phase 1 (seed, CONCURRENT):  fire the seed processor's chunk tasks (ProcessChunk 0..N-1)
+                             as goroutines; do NOT wait.
+Phase 2 (stagger):           wait LLM_CALL_STAGGER once (skipped if only one batch
+                             processor); the seed keeps running during the wait.
+Phase 3 (remainder, CONCURRENT): fire all (processor × chunk) tasks for processors[1..M],
+                             bounded by a MAX_DOC_PROCESSOR_TASKS semaphore.
+[join all goroutines] → FinalizeChunkBatch on every batch processor (save/index).
+```
+
+Key differences from the earlier (never-activated) Phase 4/5 code:
+
+- **Seed is concurrent, not sequential.** Phase 1 fires all of the seed processor's chunks
+  at once (chunks have distinct prefixes, so serializing them bought nothing).
+- **Seed selection:** `orderBatchProcessorsSeedFirst` guarantees a **single-pass** processor
+  seeds the cache (a 2-pass processor as seed would plant the prefix with two calls).
+  `multiPassProcessors = {extract_metrics, extract_semantic_projections}`.
+- **Per-unit fallback replaces the all-or-nothing gate.** `partitionBatchProcessors` splits
+  Phase B into batch-capable and unsupported; the coordinator batches the former while the
+  unsupported ones run legacy-concurrent **alongside** via `runProcessorsPhaseBOnly` (mirrors
+  the reviewers' `unsupported` + `runReviewersLegacy` split). A non-chunk processor no longer
+  disables the optimization for everyone. (When ≤1 batch-capable processor is present,
+  everything runs legacy — batching yields no cross-processor benefit.)
+- **Phase 3 concurrency is bounded** by `MAX_DOC_PROCESSOR_TASKS` (new).
+
+**Env vars:**
+
+| Var | Default | Effect |
+|---|---|---|
+| `LLM_CALL_STAGGER` | `1` | Seconds between Phase 1 (concurrent cache seed) and Phase 3 (concurrent remainder). Skipped when only one batch processor. |
+| `MAX_DOC_PROCESSOR_TASKS` | `10` | Caps concurrent LLM calls in Phase 3 (mirrors the reviewers' `MAX_DOC_REVIEWER_TASKS`). |
+
 ## ChunkBatchProcessor implementation status
+
+Configured pipeline (`config.toml` `required_processors`) as of 2026-07-02:
+`extract_metrics, extract_provisions, extract_semantic_projections, extract_entity,
+extract_relation, extract_inventory_items` — all six now implement `ChunkBatchProcessor`.
 
 | Processor | Status | Notes |
 |---|---|---|
-| `extract_provisions` | ✅ Done | `ProcessChunk` = LLM call + normalise; `FinalizeBatch` = save, index tree, write artifact, reindex search |
-| `extract_entity_relation` | ✅ Done | `ProcessChunk` = Phase 1 entity extraction; `FinalizeBatch` = consolidate + Phase 2 relation windows + save all |
-| `extract_inventory_items` | ✅ Done | `ProcessChunk` = LLM call; `FinalizeBatch` = save |
-| `extract_metrics` | ❌ Pending | Has local `pass1Result`/`pass2Result` types inside `extractMetricsFromChunksWithLLM` that need to be moved to package level before the batch methods can reference them. Also has PostProcessIndex (Phase C). |
-| `extract_semantic_projections` | ❌ Pending | 2-pass architecture (candidates + enrich). Both passes share the same chunk prefix. The batch path needs to call both passes within `ProcessChunk` for each chunk index. |
-| `extract_products` | ❌ Pending | Not yet assessed for chunk-based batching. |
+| `extract_provisions` | ✅ Done | `ProcessChunk` = LLM call + normalise; `FinalizeChunkBatch` = save, index tree, write artifact, reindex search |
+| `extract_inventory_items` | ✅ Done | `ProcessChunk` = LLM call; `FinalizeChunkBatch` = save |
+| `extract_entity` | ✅ Done | Entity-only. Registered `EntityProcessor` embeds `*EntityRelationProcessor`; `ProcessChunk` = entity extraction, `FinalizeChunkBatch` = consolidate + save entities (delegates to renamed core `initEntityBatch`/`processEntityChunk`/`finalizeEntityBatch`) |
+| `extract_relation` | ✅ Done | Relation-only. Registered `RelationProcessor`; `ProcessChunk` = free-form relations per chunk, `FinalizeChunkBatch` = save relations; endpoint linking stays in Phase C |
+| `extract_metrics` | ✅ Done | 2-pass. `pass1Result` promoted to package-level `metricsPass1Result`; `ProcessChunk` = Pass-1 candidates, `FinalizeChunkBatch` = Pass-2 `enrichMetricCandidates` (shared with the legacy path) + save. Indexing stays in Phase C `PostProcessIndex` |
+| `extract_semantic_projections` | ✅ Done | 2-pass. `ProcessChunk` runs Pass-1 then Pass-2 for the chunk in one call (via shared `projectChunk`); `FinalizeChunkBatch` saves + writes artifact + indexes |
+| `extract_products` | ⛔ Out of scope | Intentionally unused; not registered |
+| `generate_topics` | ⏭ Deferred | Currently a semantic-chunking/segmentation step, not a shared-`.chunks` consumer; reworking it to be chunk-based is a follow-up spec. Runs via per-unit legacy fallback until then |
+| `generate_scene_blocks` | ⏭ Deferred | Chunk-based (2-pass candidates→group) but not yet converted; follow-up. Runs via per-unit legacy fallback until then |
 
-Until all processors implement `ChunkBatchProcessor`, the `runPhaseBProcessors` gateway falls
-back to legacy concurrent mode for the entire Phase B batch. Implementing the remaining
-processors activates the coordinator.
+**Correction to prior "Known issues":** the registered processors are the *split*
+`EntityProcessor` ("extract_entity") and `RelationProcessor` ("extract_relation"), **not**
+the combined `extract_entity_relation` (which is not registered). The combined core's batch
+methods were renamed out of the `ChunkBatchProcessor` method set so the two wrappers no longer
+inherit one shared implementation — this fixed a latent double-extraction/double-save bug that
+would have activated once the coordinator turned on.
 
 ---
 
@@ -434,3 +496,5 @@ is stable, replace it with the two-phase diagram.
   pair of processor calls (default 1s).
 - The `LLM_INPUT_TEXT_SEQUENCER` env var is now unused (the old sequencer is gone).
 
+# References
+[1] KnowledgeStore/doc-repo/adrs/202606/2026062501-adr-deepseek-cache.md
