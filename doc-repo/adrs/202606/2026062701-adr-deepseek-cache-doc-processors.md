@@ -2,11 +2,11 @@
 
 Date: 2026-06-27
 
-Status: **Implemented (2026-07-02) — unified three-phase task scheduler across
-the six configured chunk processors; algorithm now matches the doc-reviewers'
-`review_cache_scheduler.go`.** See the "Implemented algorithm (2026-07-02)"
-section below; earlier Phase 4/5 descriptions are retained for history but were
-superseded. Design spec: `ChenWeb/docs/superpowers/specs/2026-07-01-deepseek-cache-processor-unification-design.md`;
+Status: **Implemented (2026-07-02) — three-phase task scheduler for all chunk processors;
+`generate_scene_blocks`, `generate_topics`, and `generate_summaries` added as batch processors
+(second batch, 2026-07-02).** See the "Implemented algorithm (2026-07-02)" section below;
+earlier Phase 4/5 descriptions are retained for history but were superseded. Design spec:
+`ChenWeb/docs/superpowers/specs/2026-07-01-deepseek-cache-processor-unification-design.md`;
 implementation plan: `ChenWeb/docs/superpowers/plans/2026-07-01-deepseek-cache-processor-unification.md`.
 
 Extends: [2026062501-adr-deepseek-cache](2026062501-adr-deepseek-cache.md) (DeepSeek Prompt Cache for Document Reviewers)
@@ -293,7 +293,9 @@ Key differences from the earlier (never-activated) Phase 4/5 code:
 
 Configured pipeline (`config.toml` `required_processors`) as of 2026-07-02:
 `extract_metrics, extract_provisions, extract_semantic_projections, extract_entity,
-extract_relation, extract_inventory_items` — all six now implement `ChunkBatchProcessor`.
+extract_relation, extract_inventory_items` — all six implement `ChunkBatchProcessor`.
+Additionally, `generate_summaries`, `generate_topics`, and `generate_scene_blocks` were
+added as batch processors in the second implementation batch (2026-07-02).
 
 | Processor | Status | Notes |
 |---|---|---|
@@ -304,8 +306,9 @@ extract_relation, extract_inventory_items` — all six now implement `ChunkBatch
 | `extract_metrics` | ✅ Done | 2-pass. `pass1Result` promoted to package-level `metricsPass1Result`; `ProcessChunk` = Pass-1 candidates, `FinalizeChunkBatch` = Pass-2 `enrichMetricCandidates` (shared with the legacy path) + save. Indexing stays in Phase C `PostProcessIndex` |
 | `extract_semantic_projections` | ✅ Done | 2-pass. `ProcessChunk` runs Pass-1 then Pass-2 for the chunk in one call (via shared `projectChunk`); `FinalizeChunkBatch` saves + writes artifact + indexes |
 | `extract_products` | ⛔ Out of scope | Intentionally unused; not registered |
-| `generate_topics` | ⏭ Deferred | Currently a semantic-chunking/segmentation step, not a shared-`.chunks` consumer; reworking it to be chunk-based is a follow-up spec. Runs via per-unit legacy fallback until then |
-| `generate_scene_blocks` | ⏭ Deferred | Chunk-based (2-pass candidates→group) but not yet converted; follow-up. Runs via per-unit legacy fallback until then |
+| `generate_summaries` | ✅ Done (2026-07-02) | `ProcessChunk` calls new `GenerateLeafSummaryForChunk` on service via `summaryChunkBatcher` interface (accepts pre-built canonical `inputText`); `FinalizeChunkBatch` calls `FinalizeSummaries` which builds the summary tree from leaves, writes artifacts, and indexes. New `summaryChunkBatcher` interface in `chunking.go`; `generateSummaryWithInputText` + `GenerateLeafSummaryForChunk` + `FinalizeSummaries` added to `fix-size-chunking.go` |
+| `generate_topics` | ✅ Done (2026-07-02) | `ProcessChunk` calls new `ExtractTopicsForChunk` on service via `topicsChunkBatcher` interface (accepts canonical `inputText`); `FinalizeChunkBatch` calls `FinalizeTopics` (dedupes, writes artifacts, indexes). New `topicsChunkBatcher` interface in `chunking.go`; `ExtractTopicsForChunk` + `FinalizeTopics` added to `fix-size-chunking.go` |
+| `generate_scene_blocks` | ✅ Done (2026-07-02) | `ProcessChunk` = Pass-1 candidate extraction per chunk via `extractScenePayloadWithFallback` (chunk text in DOCUMENT_INPUT, schema+chunkIndex in TASK via `buildSceneCandidateBatchTask`); `FinalizeChunkBatch` = `mergeSceneCandidateMentions` → group → concurrent Pass-2 enrichment → dedup → upsert + artifact + index |
 
 **Correction to prior "Known issues":** the registered processors are the *split*
 `EntityProcessor` ("extract_entity") and `RelationProcessor` ("extract_relation"), **not**
@@ -343,67 +346,29 @@ From a side-by-side comparison of Phase 2 (no sequencer, old prompt format) vs P
 
 ## Remaining work (hand-off notes)
 
-### Phase 4 — Still pending ChunkBatchProcessor implementations
-
-### 1. Implement `ChunkBatchProcessor` on `extract_metrics`
-
-File: `ChenWeb/server/api/doc-processing/extract-metrics.go`
-
-**Challenge:** `pass1Result` and `pass2Result` types are defined locally inside
-`extractMetricsFromChunksWithLLM` (lines 690 and 813). The batch methods need to accumulate
-per-chunk results and pass them to the enrichment pass, but cannot reference these local types.
-
-**Approach:**
-- Move `pass1Result` and `pass2Result` to package-level types (or define equivalent batch
-  accumulator types).
-- `ProcessChunk` runs Pass 1 (candidate extraction) for one chunk.
-- `FinalizeBatch` runs Pass 2 (enrichment) on accumulated candidates, then saves.
-- Note: metrics indexing runs in Phase C via `PostProcessIndex` — `FinalizeBatch` only needs
-  to save to `kb.metrics` and write the `.metrics` artifact file.
-
-### 2. Implement `ChunkBatchProcessor` on `extract_semantic_projections`
-
-File: `ChenWeb/server/api/doc-processing/extract-semantic-projections.go`
-
-**Challenge:** 2-pass architecture (candidates + enrich). Both passes use
-`canonicalChunkInputText` (shared prefix). Pass 2 processes candidates from Pass 1.
-
-**Approach:**
-- `ProcessChunk` runs Pass 1 (candidate extraction) and immediately runs Pass 2 (enrich)
-  on the same chunk's candidates — both within a single `ProcessChunk` call. The user noted:
-  "for doc processors with two phases, we cross our fingers for the caches not being evicted"
-  between the two calls within the same chunk-processor pairing.
-- `FinalizeBatch` saves all accumulated projection results.
-
-### 3. Implement `ChunkBatchProcessor` on `extract_products`
+### 1. Implement `ChunkBatchProcessor` on `extract_products`
 
 File: `ChenWeb/server/api/doc-processing/extract-products.go`
 
 **Challenge:** Needs assessment — may not be chunk-based (no `canonicalChunkInputText` usage).
+Intentionally out of scope for now; processor is not registered.
 
-### 4. Adding more processors to the batch
+### 2. Adding more processors to the batch
 
 When adding a new processor that works on chunks, have it implement `ChunkBatchProcessor`.
-The coordinator will pick it up automatically.
+The coordinator picks it up automatically via type assertion in `partitionBatchProcessors`.
 
-### Phase 5 — Algorithm change related
-
-### 5. Consider removing the `RunDocProcessorConcurrentFromEnv` env var
+### 3. Consider removing the `RunDocProcessorConcurrentFromEnv` env var
 
 The per-chunk batching coordinator replaces the two-phase concurrent goroutine approach.
 The `RUN_DOC_PROCESSOR_CONCURRENT` env var and the sequential fallback
 (`runProcessorsSequential`) can eventually be removed once the migration is complete.
 
-### 6. Verify Phase 5.3 concurrency does not overwhelm rate limits
+### 4. Verify Phase 3 concurrency does not overwhelm rate limits
 
-Phase 5.3 launches `(M-1) × N` concurrent LLM calls (remaining processors × chunks).
-Monitor the LLM client's rate limiter and add a semaphore within Phase 5.3 if
-necessary to cap concurrent calls.
-
-### 7. Update the ADR execution-order diagram
-
-The pseudo-code at the top of this ADR shows the Phase 4 algorithm. Once Phase 5
-is stable, replace it with the two-phase diagram.
+Phase 3 launches `(M-1) × N` concurrent LLM calls (remaining processors × chunks).
+Monitor the LLM client's rate limiter. The `MAX_DOC_PROCESSOR_TASKS` semaphore caps
+this; tune the default (10) if needed.
 
 ---
 
@@ -460,8 +425,11 @@ is stable, replace it with the two-phase diagram.
 | ChenWeb | `server/api/doc-processing/extract-products.go` | 1 | Cache log |
 | ChenWeb | `server/api/doc-processing/extract-doc-metadata.go` | 1 | Cache log |
 | ChenWeb | `server/api/doc-processing/doc-structure-analyzer.go` | 1 | Cache log |
-| ChenWeb | `server/api/doc-processing/fix-size-chunking.go` | 1 | Cache log + `callExtractor` |
-| ChenWeb | `server/api/doc-processing/generate-scene-blocks-processor.go` | 1 | Cache log |
+| ChenWeb | `server/api/doc-processing/chunking.go` | 4 (2nd batch) | New: `topicsChunkBatcher` / `summaryChunkBatcher` interfaces |
+| ChenWeb | `server/api/doc-processing/fix-size-chunking.go` | 1, 4 (2nd batch) | Cache log + `callExtractor`; new `generateSummaryWithInputText`, `GenerateLeafSummaryForChunk`, `FinalizeSummaries`, `ExtractTopicsForChunk`, `FinalizeTopics` |
+| ChenWeb | `server/api/doc-processing/generate-scene-blocks-processor.go` | 1, 4 (2nd batch) | Cache log; `ChunkBatchProcessor` implemented (`buildSceneCandidateBatchTask` helper) |
+| ChenWeb | `server/api/doc-processing/generate-topics-processor.go` | 4 (2nd batch) | `ChunkBatchProcessor` implemented via `topicsChunkBatcher` |
+| ChenWeb | `server/api/doc-processing/generate-summaries-processor.go` | 4 (2nd batch) | `ChunkBatchProcessor` implemented via `summaryChunkBatcher` |
 | ChenWeb | `server/api/doc-processing/generate_summary_logging_test.go` | 1 | Updated sqlmock expectations |
 | ChenWeb | `server/api/doc-processing/semantic-chunking_test.go` | 1 | Updated sqlmock expectations |
 | ChenWeb | `server/api/doc-processing/*_test.go` | 1, 2.3 | Updated test call sites |
@@ -487,10 +455,11 @@ is stable, replace it with the two-phase diagram.
 - Phase 5 also launches document pipelines concurrently via goroutines, limited by
   `MaxDocProcessPipelines` (default 10), replacing the previous sequential loop in
   `HandleStartDocProcessingEvent`.
-- The coordinator is not yet fully active: it only kicks in when ALL Phase B processors
-  implement `ChunkBatchProcessor`. Three processors are now implemented
-  (provisions, entity_relation, inventory_items); three remain (metrics,
-  semantic_projections, products).
+- All six required chunk processors (`extract_provisions`, `extract_inventory_items`,
+  `extract_entity`, `extract_relation`, `extract_metrics`, `extract_semantic_projections`)
+  now implement `ChunkBatchProcessor`; the three-phase coordinator is fully active for the
+  configured Phase B pipeline. `generate_summaries`, `generate_topics`, and
+  `generate_scene_blocks` also implement the interface and participate in the same schedule.
 - `LLM_CALL_STAGGER` controls the single delay between Phase 5.1 (cache seed) and
   Phase 5.3 (concurrent remainder) — formerly it controlled the delay between every
   pair of processor calls (default 1s).
