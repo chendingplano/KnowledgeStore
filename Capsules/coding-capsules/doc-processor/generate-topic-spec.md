@@ -120,6 +120,47 @@ Topics in 'topics.txt' are sorted by record IDs.
     * If it is the last category in `category_path`, upsert the topic to the 'topic.txt' file.
       If the file does not exist yet, create it.
 
+### Line-Overlap Artifact Edges
+
+In Phase C (`GenerateTopicsProcessor.PostProcessIndex`), after the topic rows are rebuilt in
+`kb.search_artifacts` (`ReindexTopicSearchForRecord`) and the category-path files are written
+(`IndexTopicsForRecord`), indexing materializes intra-document, line-overlapping artifacts as
+traversable edges in `kb.artifact_connections`. They are built deterministically (no LLM or
+hybrid search). Reviewers start from a topic and reach the entities/metrics/etc. that share its
+lines (a read matches either endpoint).
+
+For each topic `TP` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap `TP`'s, grouped by
+   type `T ∈ {entity, metric, provision, inventory_item, semantic_projection}` (the self
+   family, `topic`, is excluded). Overlap is computed by self-joining `kb.search_artifacts` on
+   the GiST-indexed `line_range && line_range` operator, so both endpoints use their canonical
+   `artifact_id`s.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'topic'`, `target_id` = the topic's canonical registry `artifact_id` (the
+     `<record>_tpc_<seq>` form in `kb.search_artifacts`, which differs from
+     `kb.topics.topic_id`, e.g. `100_1`), `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"generate_topics","anchor_type":T}`
+
+The overlapping anchor is the **source** and the topic is the **target**; because both share
+lines, these edges are always intra-document (`source_record_id = target_record_id =
+record_id`).
+
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'topic'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
+
+The chunk→topic `has-topic` line-overlap edges (chunk endpoints) are written earlier, in
+Phase B, by the chunking processor; they are separate from these artifact↔artifact edges.
+`connected_artifacts` for a topic is computed on demand by
+`kb.connected_artifacts(record_id, 'topic', source_row_id)` and is not materialized.
 
 ## Update `kb.inputs.status`
 Persist operation status using canonical name:
@@ -172,7 +213,13 @@ When a user stop request is detected at the boundary of an LLM call (i.e. `isCtx
 
 - The shared hybrid-search behavior is configured by `ChenWeb/config.toml` `[artifact_search]`.
 - Topic-specific lexical emphasis is configured by `ChenWeb/config.toml` `[topics_search_weights]`.
-- After topics are persisted, the implementation rebuilds that record's topic rows in `kb.search_artifacts`, writes the line-overlap `has-topic` edges, and runs the hybrid artifact-connection step using `kb.topics.search_document` against `kb.search_artifacts`.
+- After topics are persisted (Phase B), the implementation rebuilds that record's topic rows in
+  `kb.search_artifacts` and writes the chunk→topic line-overlap `has-topic` edges.
+- In Phase C (`GenerateTopicsProcessor.PostProcessIndex`) indexing writes the category-path
+  files and the `#shared_artifact` line-overlap artifact edges (see [Line-Overlap Artifact
+  Edges](#line-overlap-artifact-edges)). Semantic topic↔topic similarity is **not** materialized
+  — it is computed live at read time via `FindSimilarArtifactsOnTheFly` (there is no index-time
+  hybrid artifact-connection step).
 
 ## Implementations
 Refer to [1]

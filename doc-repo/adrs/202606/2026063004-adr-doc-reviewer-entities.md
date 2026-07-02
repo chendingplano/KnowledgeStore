@@ -19,6 +19,15 @@
   document indexed later. Branch A now unions outbound (E=source) and inbound (E=target)
   edges via `LoadConnectionsByTarget`, resolving the opposite endpoint as the match and
   excluding any endpoint with `record_id = record_id`.
+* 2026/07/01, Branch A migrated to **on-the-fly** (supersedes the precomputed-edge
+  decision in DR1 and the 2026/06/30 correctness fix): semantic entity↔entity similarity
+  is no longer materialized as `hybrid_search` / `semantically_related` edges. Branch A
+  calls `docprocessing.FindSimilarArtifactsOnTheFly` (same lexical + pgvector RRF
+  acceptance policy) per doc entity at review time. Live search is always fresh and
+  direction-free, so the A1/A2 inbound/outbound union and `LoadConnectionsByTarget` are no
+  longer used by this reviewer. (Note: no entity artifact-indexing step ever wrote these
+  edges, so the precomputed Branch A was in practice empty; on-the-fly makes it functional.
+  The metric reviewer, ADR 2026063002, made the same change.)
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics, entities,
@@ -73,27 +82,17 @@ issues one LLM call per entity that has at least one match. Pseudocode:
 ```text
 matches := map[entity] -> []matchingEntity   # keyed by the doc's own entity
 
-# Branch A: entity <-> semantically related entities (precomputed hybrid_search edges).
-# These edges are DIRECTIONAL: artifact-indexing writes them from the indexed document's
-# entities (source) outward to corpus matches (target) and never the reverse, so an entity
-# belonging to a document indexed AFTER this one exists only as an INBOUND edge (E on the
-# target side). BOTH directions must be read.
+# Branch A: entity <-> semantically related entities, computed LIVE (no materialized edges).
+# A single hybrid search per doc entity finds close entities across the whole corpus
+# regardless of when the other document was indexed, so there is no direction to union.
 for each entity E extracted from the document-under-review (kb.entities WHERE input_record_id = record_id):
-   # A1 -- outbound: E is the source, the matching entity is the target
-   outEdges := load kb.artifact_connections WHERE
-              source_type='entity' AND source_record_id=record_id AND source_id=E.entity_id
-              AND relation_method='hybrid_search' AND relation_name='semantically_related'
-              AND target_type='entity' AND target_record_id <> record_id
-   resolve each outEdge.target (target_record_id, entity_id) -> a kb.entities row
+   hits := FindSimilarArtifactsOnTheFly(
+              selfType='entity', selfID=E.entity_id,
+              candidateType='entity', maxLinks=ENTITY_REVIEW_MAX_MATCHES)
+   resolve each hit (record_id, entity_id) -> a kb.entities row
 
-   # A2 -- inbound: E is the target, the matching entity is the source
-   inEdges := load kb.artifact_connections WHERE
-              target_type='entity' AND target_record_id=record_id AND target_id=E.entity_id
-              AND relation_method='hybrid_search' AND relation_name='semantically_related'
-              AND source_type='entity' AND source_record_id <> record_id
-   resolve each inEdge.source (source_record_id, entity_id) -> a kb.entities row
-
-   append resolved entities to matches[E]   (deduped by the matching entity's (record_id, entity_id))
+   append resolved entities to matches[E]   (deduped by the matching entity's (record_id, entity_id);
+                                             same-document hits excluded)
 
 # Branch B: entity -> same-named entities in other documents (corpus-wide name scan)
 names := union of every doc entity's normalized name keys (lower(entity), lower(entity_en), aliases)

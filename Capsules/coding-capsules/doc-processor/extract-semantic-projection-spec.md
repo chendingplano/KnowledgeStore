@@ -193,11 +193,53 @@ where:
 
 ## Index Semantic Projections
 
+Indexing runs in the pipeline's **Phase C (post-process)** —
+`SemanticProjectionsProcessor.PostProcessIndex` — after every doc processor for the record has
+finished (it reads other processors' artifacts and their `kb.search_artifacts` rows).
+`connected_artifacts` for a semantic projection is **computed on demand** by
+`kb.connected_artifacts(record_id, 'semantic_projection', source_row_id)`; it is not
+materialized. Semantic projections carry no `artifact_categories` keys, so there are no
+`belong_to` category-membership edges (unlike metrics / inventory items / entities).
+
 ### Index Semantic by Category Paths
 Refer to [1].
 
 ### Full-Text Search Index
 Make sure semantic projections can be full-text searched, similar to [2] and [3].
+
+### Line-Overlap Artifact Edges
+
+In Phase C, after the semantic-projection rows are rebuilt in `kb.search_artifacts`
+(`ReindexSemanticProjectionSearchForRecord`), indexing materializes intra-document,
+line-overlapping artifacts as traversable edges in `kb.artifact_connections`, built
+deterministically (no LLM or hybrid search). Reviewers start from a semantic projection and
+reach the entities/metrics/etc. that share its lines (a read matches either endpoint).
+
+For each semantic projection `SP` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap `SP`'s, grouped by
+   type `T ∈ {entity, metric, provision, inventory_item, topic}` (the self family,
+   `semantic_projection`, is excluded). Overlap is computed by self-joining
+   `kb.search_artifacts` on the GiST-indexed `line_range && line_range` operator, so both
+   endpoints use their canonical `artifact_id`s.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'semantic_projection'`, `target_id = SP.artifact_id`, `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"extract_semantic_projections","anchor_type":T}`
+
+The overlapping anchor is the **source** and the semantic projection is the **target**;
+because both share lines, these edges are always intra-document (`source_record_id =
+target_record_id = record_id`).
+
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'semantic_projection'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
 
 ## References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md \

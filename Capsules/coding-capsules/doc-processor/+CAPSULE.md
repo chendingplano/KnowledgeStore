@@ -170,10 +170,9 @@ Currently, it has the following doc processors:
 |8 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
 |9 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
 |10 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
-|11 | extract_structured_knowledge | configurable | Yes | after 3 | Extract structured knowledge. Refer to [12] |
-|12 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
-|13 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
-|14 | review_document | configurable | Yes | after 3 | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
+|11 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
+|12 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
+|13 | review_document | configurable | Yes | after 3 | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -183,11 +182,11 @@ For instance, 'after 1' means it uses the Blocking Processor's output as its inp
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_products`, `extract_semantic_projections`, `extract_structured_knowledge`, `extract_entity_relation`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Example:
 
 ```toml
 [doc-processing]
-required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_products", "extract_semantic_projections", "extract_structured_knowledge", "extract_entity_relation", "extract_inventory_items"]
+required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_semantic_projections", "extract_entity_relation", "extract_inventory_items"]
 ```
 
 If `required_processors` is absent or empty, no configurable processors run by default.
@@ -537,22 +536,7 @@ Status JSON:
 }
 ```
 
-### 9.9 Extract Structured Knowledge
-When: When the extract structured knowledge ([12]) processor finishes.
-
-Status JSON:
-```json
-{
-  "record_id": "ddd",
-  "file_type": "pdf | doc | docx | ppt | pptx | ...",
-  "operation": "extract_structured_knowledges",
-  "proc_status": "success | failed",
-  "start_time": "yyyymmdd hh:mm:ss",
-  "ms_used": ddd
-}
-```
-
-### 9.10 Extract Entity & Relation
+### 9.9 Extract Entity & Relation
 When: When the extract entity-relation ([13]) processor finishes.
 
 Status JSON:
@@ -569,7 +553,7 @@ Status JSON:
 }
 ```
 
-### 9.11 Extract Inventory Items
+### 9.10 Extract Inventory Items
 When: When the extract inventory items ([15]) processor finishes.
 
 Status JSON:
@@ -766,11 +750,7 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 
 [9] Generate Scene Blocks: KnowledgeStore/Capsules/coding-capsules/doc-processor/generate-scene-blocks.md
 
-[10] Extract Product Relations: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-spec.md
-
 [11] Extract Semantic Projections: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-semantic-projection-spec.md
-
-[12] Extract Structured Knowledge: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-structured-knowledge-spec.md
 
 [13] Extract Entity & Relation: KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-entity-relation-spec.md
 

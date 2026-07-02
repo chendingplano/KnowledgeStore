@@ -202,20 +202,63 @@ Shared lexical / hybrid-search behavior is configured by `ChenWeb/config.toml`
 `[entities_search_weights]`, and relation-specific lexical emphasis is configured by
 `[relations_search_weights]`.
 
-## Hybrid Artifact Connections
+## Index Entities
 
-After a successful processor run, the implementation also runs the hybrid
-artifact-connection step for both entities and relations:
+Entity indexing runs in the pipeline's **Phase C (post-process)** —
+`EntityRelationProcessor.PostProcessIndex` — after every doc processor for the record has
+finished (it reads other processors' artifacts and their `kb.search_artifacts` rows, which may
+not exist yet in Phase B). It produces:
 
-- entities use `kb.entities.search_document` to search `kb.search_artifacts`
-- relations use `kb.relations.search_document` to search `kb.search_artifacts`
+| Output | Storage |
+|--------|---------|
+| the entity row in the search registry | `kb.search_artifacts` (via `ReindexEntitySearchForRecord`) |
+| relate entity to its artifact categories | `kb.artifact_connections` (`belong_to` / `category_name`; entities carry `kb.entities.categories` keys, resolved via `kb.artifact_categories`) |
+| relate category path to entity | `entities.txt` under the matching category paths in `ARTIFACT_WEB_DIR` (`IndexEntitiesForRecord`) |
+| entity name graph (same-name links) | `kb.artifact_connections` (`IndexEntityNamesForRecord`) |
+| relate entity to line-overlapping artifacts (metrics, provisions, inventory_items, topics, semantic_projections) | `kb.artifact_connections` (§ below) |
 
-Both reuse the shared acceptance policy described in
-`KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md`:
-`artifact_search.min_rank` for the lexical channel, `ARTIFACT_CONNECT_MIN_COSINE`
-for the semantic channel, RRF fusion for ranking, and source-scoped idempotent
-replacement of `relation_method='hybrid_search'` /
-`relation_name='semantically_related'` edges.
+Notes:
+
+- `connected_artifacts` for an entity is **computed on demand** by
+  `kb.connected_artifacts(record_id, 'entity', source_row_id)`; it is not materialized as a
+  column or written by indexing.
+- Semantic entity↔entity similarity is **not** materialized as `hybrid_search` /
+  `semantically_related` edges — it is computed live at read time by the entity document
+  reviewer (`FindSimilarArtifactsOnTheFly`). Relations likewise have no materialized hybrid
+  edges; the relation graph is materialized separately (see "Canonical Relation Store").
+
+### Line-Overlap Artifact Edges
+
+These edges make intra-document, line-overlapping artifacts explicitly traversable in
+`kb.artifact_connections`, built deterministically at index time (no LLM or hybrid search).
+Reviewers start from an entity and reach the metrics/provisions/etc. that share its lines (a
+read matches either endpoint).
+
+For each entity `E` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap `E`'s, grouped by
+   type `T ∈ {metric, provision, inventory_item, topic, semantic_projection}` (the self
+   family, `entity`, is excluded). Overlap is computed by self-joining `kb.search_artifacts`
+   on the GiST-indexed `line_range && line_range` operator, so both endpoints use their
+   canonical `artifact_id`s.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'entity'`, `target_id = E.entity_id`, `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"extract_entity_relation","anchor_type":T}`
+
+The overlapping anchor is the **source** and the entity is the **target**; because both share
+lines, these edges are always intra-document (`source_record_id = target_record_id =
+record_id`).
+
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'entity'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
 
 ## Canonical Relation Store (ADR 2026061401)
 

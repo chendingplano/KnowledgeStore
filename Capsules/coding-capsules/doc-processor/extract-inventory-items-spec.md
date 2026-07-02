@@ -1,4 +1,4 @@
-# Extract Inventory Items Processor — Spec
+# 1. Extract Inventory Items Processor — Spec
 
 A configurable doc processor that uses an LLM to extract **inventory-relevant item records** from chunked document input, then normalizes and validates them into `kb.inventory_items`.
 
@@ -11,7 +11,7 @@ It is also intentionally distinct from:
 
 This processor emits **item objects**: parts, equipment, materials, systems, consumables, software assets, and other inventory-like things that can be purchased, stored, installed, maintained, inspected, replaced, or matched.
 
-## Inputs
+## 1.1 Inputs
 
 - `record_id`: the value of `kb.inputs.id`
 - chunks loaded from `ARTIFACT_DIR/<group_id>/<record_id>/<filename_root>_<parser_name>.chunks`
@@ -19,7 +19,7 @@ This processor emits **item objects**: parts, equipment, materials, systems, con
 
 Like `extract_entity_relation`, this processor uses chunked input rather than block output.
 
-## Environment Variables
+## 1.2 Environment Variables
 
 | Name | Required | Purpose |
 |---|---|---|
@@ -35,11 +35,11 @@ Like `extract_entity_relation`, this processor uses chunked input rather than bl
 
 If the primary model config fails to load, the processor records a `failed` status entry and returns. The rest of the pipeline continues.
 
-## Concurrency
+## 1.3 Concurrency
 
 Chunks may be processed concurrently, capped by `EXTRACT_INTENTORY_ITEMS_MAX_TASKS`. The default is `1` (sequential). Individual chunk LLM failures are logged and skipped; they do not fail the run. Only a user-requested pipeline stop cancels remaining chunk work.
 
-## Single-Pass Per Chunk
+## 1.4 Single-Pass Per Chunk
 
 For each chunk, this processor makes **one LLM call** using `prompt-extract-inventory-items-v1.md`.
 
@@ -73,7 +73,7 @@ The LLM call returns strict JSON:
 
 Overlap lines (`flag = "o"`) are context only. The prompt instructs the model not to emit an item whose evidence depends only on overlap lines.
 
-## Go-Side Normalization
+## 1.5 Go-Side Normalization
 
 The LLM output is only the first pass. The Go processor performs deterministic normalization before persistence:
 
@@ -88,21 +88,21 @@ The LLM output is only the first pass. The Go processor performs deterministic n
 
 This is an important design point: the LLM proposes candidate item attributes, but the system-owned normalization and validation logic lives in Go.
 
-## Category Ontology — Two Layers
+## 1.6 Category Ontology — Two Layers
 
 The category system has two distinct layers that must not be confused.
 
-### Layer 1 — Ontology (schema): `kb.artifact_categories`
+### 1.6.1 Layer 1 — Ontology (schema): `kb.artifact_categories`
 
 **Defines the controlled vocabulary of item types.** Each row represents a category like `pump`, `bearing`, etc. This table grows only when genuinely new item categories are encountered in the corpus, not with every extracted item.
 
 The schema is now DB-backed (not file-only). `kb.artifact_categories` is the live registry, with `kb.artifact_categories.category_type` = 'inventory_item'.
 
-### Layer 2 — Instances: `kb.inventory_items`
+### 1.6.2 Layer 2 — Instances: `kb.inventory_items`
 
 **The extracted items themselves.** 理疗仪, 检查床, 血压计 are rows here. This table grows with every document and can hold hundreds of thousands to millions of rows. Instances are never added back to the ontology layer. The instance carries the `item_categories` key, not a full schema copy.
 
-## Automatic Category Admission (Post-Pass)
+## 1.7 Automatic Category Admission (Post-Pass)
 
 After each document's items are saved, the processor runs a **post-pass curation step** in Phase C (refer to [1] for Phase C) to admit novel `item_categories` values into `kb.artifact_categories`. This step is best-effort — a failure does not fail the document.
 
@@ -117,13 +117,13 @@ For more information about creating new artifact categories, refer to [5].
 
 The curation pass is batched per document and builds an intra-document snapshot for convergence: a category minted early in a document is matchable by later surface forms in the same pass.
 
-## Semantic Clustering
+## 1.8 Semantic Clustering
 
 After extraction, deduplication, persistence, and search reindex (step 15 in [Workflow](#workflow)), every newly extracted inventory item runs through a **semantic clustering** step that determines whether it refers to the *same physical inventory item* as items already in `kb.inventory_items`. When it does, the duplicate is absorbed into the existing canonical node. This is the same identity-resolution pattern applied to entities in ADR 2026061701, adapted for inventory items.
 
 **Design:** see `doc-2026062001` ([Semantic Clustering — Design Spec](../../../../KnowledgeStore/doc-repo/specs/202606/2026062001-spec-semantic-clustering.md)) for the full algorithm description. Only the type-specific differences are documented here.
 
-### Algorithm (inventory-item-specific)
+### 1.8.1 Algorithm (inventory-item-specific)
 
 ```
 for each newly extracted inventory item I in record R:
@@ -175,7 +175,7 @@ for each newly extracted inventory item I in record R:
           - set survivor.reconcile_status = 'clustered'
 ```
 
-### Identity signature
+### 1.8.2 Identity signature
 
 The identity signature for inventory items is the set of attributes that defines *what the item is*, independent of the source document:
 
@@ -188,17 +188,17 @@ The identity signature for inventory items is the set of attributes that defines
 
 The identity signature is intentionally narrower than the full row: `normalized_specs`, `raw_specs`, `source_line_spans`, and `evidence_quote` are excluded because they vary by document context and are not intrinsic to the item.
 
-### Coarse filter differences from entities
+### 1.8.3 Coarse filter differences from entities
 
 Unlike entity clustering (`sameEntityType`), inventory items have no `entity_type` field. The coarse filter relies on **category overlap** (`hasCommonCategory`) as the primary gate. This means items assigned to unrelated categories (e.g. `pump` vs `bearing`) are never clustered regardless of name or maker similarity.
 
 When both sides have empty categories, the category gate is skipped (the candidate passes) so that the LLM adjudicator can decide based on other attributes.
 
-### Survivor election
+### 1.8.4 Survivor election
 
 Deterministic, handled in Go (not the LLM): lexicographically smaller `inventory_item_id` wins. This is simpler than entity survivor election because all inventory items carry the same `extracted` provenance — there is no provisional/minted equivalent to distinguish.
 
-### Graceful degradation
+### 1.8.5 Graceful degradation
 
 Same as entity clustering:
 
@@ -207,7 +207,7 @@ Same as entity clustering:
 - **LLM adjudication error**: primary model + optional fallback (`SEMCLUSTER_INVITEM_ADJ_FALLBACK`) are tried. If both fail, all pending items are marked as cluster heads — no false merges.
 - **Search degraded** (`SEARCH_SEMANTIC_ENABLED = false`): hybrid search falls back to lexical-only (BM25). Candidate recall is lower but the algorithm runs correctly.
 
-### Schema impact
+### 1.8.6 Schema impact
 
 - `kb.inventory_items.canonical_item_id` — the cluster head (defaults to self)
 - `kb.inventory_items.reconcile_status` — `'pending'` (initial) → `'clustered'` (head) or `'merged'` (absorbed)
@@ -216,7 +216,7 @@ Same as entity clustering:
 
 Migration: `20260620000002_add_kb_inventory_item_reconciliation.sql`.
 
-## Category Review
+## 1.9 Category Review
 
 A `pending_review` category has been observed in the corpus but has not yet been curated by a human. Its schema body (`required_attrs`, `specs`, `plausible_ranges`) is empty.
 
@@ -231,7 +231,7 @@ Review workflow:
 
 **Review does not require a reprocess** to take effect on existing items for `category_status`. However, spec normalization and required-attr validation are only run at extraction time, so early instances may have gaps that a forced reprocess would correct.
 
-## Output Row Shape
+## 1.10 Output Row Shape
 
 Each extracted item is normalized into a row with these main fields:
 
@@ -266,7 +266,7 @@ Each extracted item is normalized into a row with these main fields:
 | `search_vector` | tsvector | maintained by trigger — `to_tsvector('simple', search_document)` |
 | `ext_info` | jsonb | includes language, schema version, `chunk_seq_no`, and `mention_count` (how many raw extractions collapsed into this survivor during dedup) |
 
-### Search Document Composition
+### 1.10.1 Search Document Composition
 
 `search_document` is built by `kb.inventory_item_search_document()` (a DB trigger function) as a single space-separated string from these fields, in order:
 
@@ -291,7 +291,7 @@ Each extracted item is normalized into a row with these main fields:
 
 The trigger fires `BEFORE INSERT OR UPDATE` on any of those columns. `search_document` is also written by the Go side as a fallback before the first DB insert (concatenating the scalar text fields only); the trigger overwrites it with the full version including JSONB content.
 
-## Validation Flags
+## 1.11 Validation Flags
 
 The current Go normalization layer can emit:
 
@@ -303,7 +303,7 @@ The current Go normalization layer can emit:
 
 The processor does not reject rows because of these flags. It persists them and exposes them to search / API consumers.
 
-### `category_status` (read path, not a stored flag)
+### 1.11.1 `category_status` (read path, not a stored flag)
 
 At read time (search registry build, API response), each item exposes a `category_status` derived by joining `kb.inventory_categories`:
 
@@ -313,7 +313,152 @@ At read time (search registry build, API response), each item exposes a `categor
 
 This field is **not stored on the item row**. It reflects the registry's current state at read time, so approving a category immediately surfaces as `approved` on all existing instances with no row rewrite.
 
-## Tables
+## 1.12 Index Inventory Items
+Inventory item indexing runs after every doc processor for the record has finished.
+This is required because inventory item indexing reads other processors' artifacts
+(semantic projections, topics, scene blocks, metrics, entities, provisions, and
+their `kb.search_artifacts` rows), which may not exist yet while the inventory item processor is
+still running. See the doc-processor capsule's "Post Process" section.
+
+Indexing establishes the following outputs (implemented in `IndexInventoryItemsForRecord`,
+run from `InventoryItemsProcessor.PostProcessIndex`):
+
+| Output | Storage |
+|--------|---------|
+| the inventory item row in the search registry | `kb.search_artifacts` (via `ReindexInventoryItemSearchForRecord`) |
+| relate inventory item to its artifact categories | `kb.artifact_connections` (`belong_to` / `category_name`; §1.12.5) |
+| relate category path to inventory item | `inventory_items.txt` under the matching category paths in `ARTIFACT_WEB_DIR` (§1.12.4) |
+| relate inventory item to line-overlapping artifacts (entities, provisions, metrics, topics, semantic_projections) | `kb.artifact_connections` (§1.12.1) |
+
+Notes:
+
+- The chunk→inventory_item `has-inventory-items` line-overlap edges are written earlier, in
+  Phase B, by the extractor (`WriteLineOverlapConnectionsFromRegistry`); they are not repeated here.
+- `connected_artifacts` for an inventory item is **computed on demand** by
+  `kb.connected_artifacts(record_id, 'inventory_item', source_row_id)`; it is **not**
+  materialized as a column or written by indexing (see §1.12.3).
+- Semantic item↔item similarity is **not** materialized — it is computed live at read time by
+  the inventory-item document reviewer (`FindSimilarArtifactsOnTheFly`).
+
+### 1.12.1 Line-Overlap Artifact Edges
+
+These edges make intra-document, line-overlapping artifacts explicitly traversable in
+`kb.artifact_connections`. They are built deterministically at index time — no LLM or hybrid
+search is involved. They exist so the document reviewers can start from an inventory item and
+reach the entities/metrics/etc. that share its lines (and vice versa, since a read matches
+either endpoint).
+
+For each inventory item `I` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap `I`'s, grouped by
+   type `T ∈ {entity, metric, provision, topic, semantic_projection}` → the anchors (the
+   self family, `inventory_item`, is excluded). Overlap is computed by self-joining
+   `kb.search_artifacts` on the GiST-indexed `line_range && line_range` operator, so both
+   endpoints are read from the registry and use their canonical `artifact_id`s.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'inventory_item'`, `target_id = I.inventory_item_id`, `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"extract_inventory_items","anchor_type":T}`
+
+The overlapping anchor is the **source** and the inventory item is the **target**; because
+both share lines, these edges are always intra-document (`source_record_id =
+target_record_id = record_id`).
+
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'inventory_item'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
+
+### 1.12.2 Search Artifact Row
+
+Each inventory item is registered in `kb.search_artifacts` (already implemented by
+`ReindexInventoryItemSearchForRecord`).
+
+Rules:
+
+- `artifact_type` is `inventory_item`
+- `artifact_id` is `kb.inventory_items.inventory_item_id`
+- `input_record_id` is `kb.inventory_items.input_record_id`
+- `source_line_spans` is copied from `kb.inventory_items.source_line_spans`
+- search text is the de-duplicated inventory item text used to populate the row's `search_document`
+
+### 1.12.3 Connected Artifacts (on demand)
+
+`connected_artifacts` for an inventory item is **not** stored. The per-family
+`connected_artifacts` columns were removed and replaced by the
+`kb.connected_artifacts(record_id, 'inventory_item', source_row_id)` SQL function, which
+returns the overlap set at read time:
+
+```json
+{
+  "chunks": ["chunk_id"],
+  "semantic_projects": ["proj_id"],
+  "topics": ["topic_id"],
+  "scenes": ["scene_id"],
+  "metrics": ["metric_id"],
+  "entities": ["entity_id"],
+  "provisions": ["prov_id"]
+}
+```
+
+- An artifact is connected when it shares at least one line with the inventory item.
+- The function sources overlaps from `kb.chunk_ranges` and the registry `line_range` columns.
+- The same overlap facts are also materialized as traversable edges by §1.12.1; indexing does
+  **not** populate any `connected_artifacts` column.
+
+### 1.12.4 Index Inventory Items by Category Paths
+
+Use `kb.inventory_items.source_line_spans` to find semantic projection category paths:
+
+```text
+kb.inventory_items.input_record_id = kb.semantic_projections.input_record_id
+AND kb.inventory_items.source_line_spans overlaps kb.semantic_projections.line_spans
+```
+
+Return `kb.semantic_projections.category_paths_en`.
+
+Rules:
+
+- For each returned category path, index the inventory item the same way semantic projections are indexed.
+- Save inventory item IDs in `inventory_items.txt` under the matching category path.
+- Each `inventory_items.txt` entry uses `kb.inventory_items.inventory_item_id`.
+- Inventory items with no matching category path are logged (the config sets
+  `WarnOnMissingCategoryPaths`), not treated as a hard error.
+
+### 1.12.5 Inventory Items and Artifact Categories
+
+Connect each inventory item to its artifact categories.
+
+Rules:
+
+- `kb.inventory_items.item_categories` must not be null or empty. If it is null or empty, report an indexing error for that inventory item.
+- For each category key in `kb.inventory_items.item_categories`, resolve the category via the **Identify Artifact Categories** procedure in [11], passing `(category_key, category_type = "inventory_item")`. That procedure normalizes the key, matches an existing category (exact/alias, then hybrid semantic), and creates one via the LLM on a true miss — do not insert categories directly here.
+- For each resolved category, upsert one row in `kb.artifact_connections`.
+- The category membership edge connects:
+  - `source_type = 'inventory_item'`
+  - `source_id = kb.inventory_items.inventory_item_id`
+  - `target_type = kb.artifact_categories.category_type`
+  - `target_id = kb.artifact_categories.category_key`
+  - `relation_name = 'belong_to'`
+  - `relation_method = 'category_name'`
+  - `source_record_id = kb.inventory_items.input_record_id`
+  - `target_record_id = kb.inventory_items.input_record_id`
+  - `extra_info` containing at least `{"source":"extract_inventory_items","category_key":<category_key>,"category_id":<category_id>}`
+
+  > `target_record_id` is deliberately the **source document's** `kb.inputs.id`, not the
+  > category's id: artifact categories are corpus-global and have no owning document, and
+  > `record_id` columns hold `kb.inputs.id` values (used by the per-document reprocess sweep).
+  > The category's own surrogate id is carried in `extra_info.category_id`, and its identity
+  > is `(target_type, target_id) = (category_type, category_key)`. This matches
+  > `artifact-connections.md` ([5]) and the metric/inventory implementation
+  > (`buildArtifactCategoryConnections`).
+
+## 1.13 Tables
 
 Primary table:
 
@@ -323,7 +468,7 @@ Duplicate audit table:
 
 - `kb.inventory_item_duplicates` — rows discarded by dedup, each with a `duplicate_of` pointer to its survivor. Mirrors the `kb.inventory_items` columns plus `duplicate_of`; has no `search_document` / `search_vector` (duplicates are never searched). Created in migration `20260601000001_create_kb_inventory_item_duplicates.sql`.
 
-## Artifact File
+## 1.14 Artifact File
 
 For each processed record, write:
 
@@ -333,9 +478,9 @@ ARTIFACT_DIR/<group_id>/<record_id>/<filename_root>_<parser_name>.inventory_item
 
 File format: pretty-printed JSON array of the normalized item rows.
 
-## APIs
+## 1.15 APIs
 
-### List items for a record
+### 1.15.1 List items for a record
 
 ```text
 GET /api/v1/kb/inventory-items?input_record_id=N
@@ -343,7 +488,7 @@ GET /api/v1/kb/inventory-items?input_record_id=N
 
 Returns the persisted inventory item rows for a single `kb.inputs` record.
 
-### Search inventory items
+### 1.15.2 Search inventory items
 
 ```text
 GET /api/v1/kb/inventory-items/search?q=...
@@ -361,7 +506,7 @@ Supported filters:
 
 Search uses the shared registry search path and returns `artifact_type = "inventory_item"`.
 
-#### Full-text search semantics
+#### 1.15.2.1 Full-text search semantics
 
 The query string is passed to `websearch_to_tsquery('simple', q)` by default (phrase-friendly mode), or `plainto_tsquery('simple', q)` otherwise. Both functions treat a multi-word query as **AND** — every token must be present in `search_vector` for an item to match. `websearch_to_tsquery` additionally supports `-word` for exclusion and `"..."` for phrase matching.
 
@@ -369,7 +514,7 @@ For queries that contain CJK characters the match condition is widened: the tsve
 
 Matching results are ranked by `ts_rank_cd`. For CJK queries, additional score bonuses are added for substring hits in `primary_label` (+1.25), `secondary_label` (+0.50), `snippet_basis` (+0.40), and `search_document` (+0.20).
 
-### List pending categories for review
+### 1.15.3 List pending categories for review
 
 ```text
 GET /api/v1/kb/inventory-categories?status=pending_review&limit=N
@@ -377,7 +522,7 @@ GET /api/v1/kb/inventory-categories?status=pending_review&limit=N
 
 Returns pending categories ordered by `seen_count` descending.
 
-### Update a category (approve / reject / merge)
+### 1.15.4 Update a category (approve / reject / merge)
 
 ```text
 PATCH /api/v1/kb/inventory-categories/:key
@@ -397,7 +542,7 @@ Body:
 
 All body fields are optional — only supplied fields are updated.
 
-## Workflow
+## 1.16 Workflow
 
 1. Receive a JetStream `kb.line-file-generated` event.
 2. Skip if `ShouldSkipLineFileGeneratedEvent(evt)` returns true.
@@ -423,7 +568,7 @@ All body fields are optional — only supplied fields are updated.
 17. Persist the `extract_inventory_items` status entry on the record.
 18. Write doc-proc logs for chunk calls and run summary.
 
-## Deduplication
+## 1.17 Deduplication
 
 The same physical item commonly appears in multiple chunks because chunks overlap or because a document lists the same item in different sections. After all chunk extractions are accumulated, `dedupeInventoryItemRows()` collapses duplicates before any persistence.
 
@@ -452,7 +597,7 @@ The same physical item commonly appears in multiple chunks because chunks overla
    - `ext_info.mention_count` records how many raw extractions collapsed into the survivor.
    - Scalar fields (`confidence`, `evidence_quote`, specs, names) remain those of the survivor row; they are **not** merged.
 
-### Duplicate retention (no silent loss)
+### 1.17.1 Duplicate retention (no silent loss)
 
 Discarded duplicates are **not** dropped. Every non-survivor row is persisted to a dedicated audit table, `kb.inventory_item_duplicates`, with:
 
@@ -477,7 +622,7 @@ WHERE s.input_record_id = $1
 ORDER BY s.inventory_item_id;
 ```
 
-## Embedding
+## 1.18 Embedding
 
 Embedding is **optional**, used only during the **post-pass category curation** step — not during item extraction or deduplication.
 
@@ -487,7 +632,7 @@ Embedding is **optional**, used only during the **post-pass category curation** 
 
 **Configuration:** set `EMBEDDING_MODEL_NAME` (falls back to `INVENTORY_CATEGORY_EMBEDDING_MODEL_NAME` if absent). If neither is set, the embedder is `nil` and the curator degrades gracefully to string-only matching (exact key + display-name/alias tiers only). Category curation failures — including embedding failures — are logged as warnings and never fail the document.
 
-## Failure Semantics
+## 1.19 Failure Semantics
 
 Processor-level failure occurs when the run cannot proceed meaningfully, for example:
 
@@ -508,14 +653,14 @@ An individual chunk LLM failure does **not** necessarily fail the whole processo
 
 Category curation failure (post-pass) is also non-fatal: it is logged as a warning but does not fail the document.
 
-## Idempotence and Force Reprocessing
+## 1.20 Idempotence and Force Reprocessing
 
 - If `force = false` and rows already exist for the record, the processor skips work and records success.
 - If `force = true`, prior `kb.inventory_items` **and** `kb.inventory_item_duplicates` rows are deleted and the record is fully reprocessed.
 
 This mirrors the idempotent pattern used by other ChenWeb doc processors.
 
-## Relationship to Other Object Types
+## 1.21 Relationship to Other Object Types
 
 This processor should be understood as producing **Inventory Item Objects**.
 
@@ -528,7 +673,7 @@ It is related to, but distinct from:
 
 A provision may mention an inventory item, but the provision is the rule and the inventory item is the thing.
 
-## References
+## 1.22 References
 
 - [1]: [Processor Capsule](+CAPSULE.md)
 - [2]: [Extract Entity & Relation Processor — Spec](extract-entity-relation-spec.md)
@@ -540,3 +685,4 @@ A provision may mention an inventory item, but the provision is the rule and the
 - [8]: `project_migrations/20260620000002_add_kb_inventory_item_reconciliation.sql` — migration for `canonical_item_id`, `reconcile_status`, and `kb.inventory_item_merges`
 - [9]: `inventory_item_semantic_clustering.go` — `semClusterInventoryItems`, `InventoryItemClusterStore.ApplyMerge`, `InventoryItemClusterStore.MarkClustered`
 - [10]: `inventory_item_indexing.go` — `InventoryItemsProcessor.PostProcessIndex` wiring
+- [11]: KnowledgeStore/Capsules/coding-capsules/categories/category-mgmt-spec.md

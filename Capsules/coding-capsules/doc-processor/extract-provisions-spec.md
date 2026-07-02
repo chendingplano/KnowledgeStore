@@ -1,4 +1,4 @@
-# Extract Provisions Processor
+# 1. Extract Provisions Processor
 
 This is a Doc Processor ('spec-doc-processor.md'). This processor extracts normative provisions
 (or 'provisions' for short) from standards, regulatory documents, or similar documents.
@@ -6,14 +6,14 @@ This is a Doc Processor ('spec-doc-processor.md'). This processor extracts norma
 A provision includes requirements, obligations, prohibitions, permissions, and
 recommendations.
 
-# Input
+# 2. Input
 
 - record_id: the value of kb.inputs.id, identifies the record to process
 - `EXTRACT_PROVISIONS_INPUT` (default `"chunks"`): controls the unit fed to the LLM.
   - `"chunks"` (default): use chunks produced by the Chunking Processor. Each chunk's lines are converted with `markedLinesToJSON`.
   - `"blocks"`: use blocks produced by the Blocking Processor (refer to `spec-blocking.md`). Each block's lines are converted with `blockLinesToJSON`.
 
-# Workflow
+# 3. Workflow
 - At the start of processing, upsert the following entry to `kb.inputs.status`:
 ```json
 {
@@ -91,12 +91,132 @@ single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
 
-## Index Provisions
-Refer to 'KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md'
+## 3.1 Index Provisions
+Provision indexing runs after every doc processor for the record has finished.
+This is required because provision indexing reads other processors' artifacts
+(semantic projections, topics, scene blocks, metrics, entities, inventory items, and
+their `kb.search_artifacts` rows), which may not exist yet while the provision processor is
+still running. See the doc-processor capsule's "Post Process" section.
 
-## Output
+Indexing establishes the following outputs (implemented in
+`ProvisionsProcessor.PostProcessIndex`):
 
-### Output Record
+| Output | Storage |
+|--------|---------|
+| the provision row in the search registry | `kb.search_artifacts` (via `ReindexProvisionSearchForRecord`) |
+| relate provision to line-overlapping artifacts (entities, metrics, inventory_items, topics, semantic_projections) | `kb.artifact_connections` (§3.1.1) |
+| relate category path to provision | `provisions.txt` under the matching category paths in `ARTIFACT_WEB_DIR` (§3.1.4) |
+
+Notes:
+
+- The chunk→provision `has-provision` line-overlap edges are written earlier, in Phase B, by
+  the extractor (`WriteLineOverlapConnectionsFromRegistry`); they are not repeated here.
+- `connected_artifacts` for a provision is **computed on demand** by the
+  `kb.connected_artifacts(record_id, 'provision', source_row_id)` SQL function; it is **not**
+  materialized as a column or written by indexing (see §3.1.3).
+- Semantic provision↔provision similarity is **not** materialized — it is computed live at
+  read time by the provisions document reviewer (`FindSimilarArtifactsOnTheFly`).
+
+### 3.1.1 Line-Overlap Artifact Edges
+
+These edges make intra-document, line-overlapping artifacts explicitly traversable in
+`kb.artifact_connections`. They are built deterministically at index time — no LLM or hybrid
+search is involved. They exist so the document reviewers can start from a provision and reach
+the metrics/entities/etc. that share its lines (and vice versa, since a read matches either
+endpoint).
+
+For each provision `P` in the record being indexed:
+
+1. Find every artifact in the **same document** whose line spans overlap `P`'s, grouped by
+   type `T ∈ {inventory_item, entity, metric, topic, semantic_projection}` → the anchors.
+   Overlap is computed by self-joining `kb.search_artifacts` on the GiST-indexed
+   `line_range && line_range` operator, so both endpoints are read from the registry and use
+   their canonical `artifact_id`s.
+2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
+   `kb.artifact_connections`:
+   - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
+   - `target_type = 'provision'`, `target_id = P.prov_id`, `target_record_id = record_id`
+   - `relation_name = '#shared_artifact'`
+   - `relation_method = 'line-overlapped-artifact'`
+   - `confidence = 1.0` (deterministic overlap)
+   - `extra_info` containing at least `{"source":"extract_provisions","anchor_type":T}`
+
+The overlapping anchor is the **source** and the provision is the **target**; because both
+share lines, these edges are always intra-document (`source_record_id = target_record_id =
+record_id`).
+
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'provision'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
+
+> Cross-family note: when these edges are later added for the other families (metrics,
+> entities, …), an overlap between two of them (e.g. a provision and a metric) will be written
+> once by each family's run, in opposite directions. That is tolerated — reviewers match
+> either endpoint — but a canonical single-direction rule may be introduced when the other
+> families are done.
+
+### 3.1.2 Search Artifact Row
+
+Each provision is registered in `kb.search_artifacts` (already implemented by
+`ReindexProvisionSearchForRecord`).
+
+Rules:
+
+- `artifact_type` is `provision`
+- `artifact_id` is `kb.provisions.prov_id`
+- `input_record_id` is `kb.provisions.input_record_id`
+- `source_line_spans` is copied from `kb.provisions.source_line_spans`
+- search text is the de-duplicated provision text used to populate the row's `search_document`
+
+### 3.1.3 Connected Artifacts (on demand)
+
+`connected_artifacts` for a provision is **not** stored. The per-family
+`connected_artifacts` columns were removed and replaced by the
+`kb.connected_artifacts(record_id, 'provision', source_row_id)` SQL function, which returns
+the overlap set at read time:
+
+```json
+{
+  "chunks": ["chunk_id"],
+  "semantic_projects": ["proj_id"],
+  "topics": ["topic_id"],
+  "scenes": ["scene_id"],
+  "metrics": ["metric_id"],
+  "entities": ["entity_id"],
+  "inv_items": ["inv_item_id"]
+}
+```
+
+- An artifact is connected when it shares at least one line with the provision.
+- The function sources overlaps from `kb.chunk_ranges` and the registry `line_range` columns.
+- The same overlap facts are also materialized as traversable edges by §3.1.1; indexing does
+  **not** populate any `connected_artifacts` column.
+
+### 3.1.4 Index Provisions by Category Paths
+
+(Already implemented by `IndexProvisionsForRecord`.) Use `kb.provisions.source_line_spans` to
+find semantic projection category paths:
+
+```text
+kb.provisions.input_record_id = kb.semantic_projections.input_record_id
+AND kb.provisions.source_line_spans overlaps kb.semantic_projections.line_spans
+```
+
+Return `kb.semantic_projections.category_paths_en`.
+
+Rules:
+
+- For each returned category path, index the provision the same way semantic projections are indexed.
+- Save provision IDs in `provisions.txt` under the matching category path.
+- Each `provisions.txt` entry uses `kb.provisions.prov_id`.
+- Provisions with no matching category path are logged (the config sets
+  `WarnOnMissingCategoryPaths`), not treated as a hard error.
+
+## 3.2 Output
+
+### 3.2.1 Output Record
 
 For each extracted provision, generate a unique Provision ID (`prov_id`) using the format `<record_id>_prv_<sequence_number>`, where the sequence number starts at 1 within the input record. The `prov_id` is relative to the input record, so uniqueness is:
 
@@ -133,7 +253,7 @@ Normalize each extracted provision to:
 - `notes`: notes
 - `error_msg`: error message, if any
 
-### Output Storage
+### 3.2.2 Output Storage
 - Upsert all provisions to 'kb.provisions'
 - Save all provisions in 
 `ARTIFACT_DIR + /<group_id>/<record_id>/<filename_root>_<parser_name>.provisions`
@@ -171,11 +291,17 @@ where:
 ]
 ```
 
-## Implementations
-### Search And Artifact Connections
+## 3.3 Implementations
+### 3.3.1 Search And Artifact Connections
 
 - The shared hybrid-search behavior is configured by `ChenWeb/config.toml` `[artifact_search]`.
 - Provision-specific lexical emphasis is configured by `ChenWeb/config.toml` `[provisions_search_weights]`.
-- After a successful run, the implementation rebuilds the provision rows in `kb.search_artifacts`, writes the line-overlap `has-provision` connections, and runs the hybrid artifact-connection step using `kb.provisions.search_document` against `kb.search_artifacts`.
+- In Phase B the extractor rebuilds the provision rows in `kb.search_artifacts` and writes the
+  chunk→provision line-overlap `has-provision` connections.
+- In Phase C (`ProvisionsProcessor.PostProcessIndex`) indexing rebuilds the registry rows,
+  writes the `#shared_artifact` line-overlap artifact edges (§3.1.1), and writes category-path
+  `provisions.txt` entries. Semantic provision↔provision similarity is **not** materialized —
+  it is computed live at read time by the reviewer via `FindSimilarArtifactsOnTheFly` (there is
+  no index-time hybrid artifact-connection step).
 
 Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-impl.md

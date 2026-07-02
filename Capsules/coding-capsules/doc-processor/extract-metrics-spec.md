@@ -2,18 +2,18 @@ A metric is a quantitative, measurable item used to evaluate, compare, monitor, 
 
 This processor uses a multi-pass extraction strategy.
 
-## Input
+## 1. Input
 
 - `record_id`: the value of `kb.inputs.id`
 - `chunks`: see the chunking spec
 - file name
 
-## Implementation
+## 2. Implementation
 
 - The code is in `ChenWeb/`
 - It may use functions/modules in `shared/`
 
-## Multi-Pass
+## 3. Multi-Pass
 
 Single-pass design asks one LLM call to do all of the following at once:
 
@@ -32,7 +32,7 @@ This caused:
 - malformed or partial JSON outputs
 - weak deterministic cleanup
 
-### Multi-Pass Pipeline
+### 3.1 Multi-Pass Pipeline
 
 To solve the single-pass problem, we will use multi-pass pipeline, which
 breaks the processing into multiple passes:
@@ -42,7 +42,7 @@ breaks the processing into multiple passes:
 3. Pass 2: enrich candidates into final metric rows, batched by chunk (see `METRIC_ENRICH_GROUP_SIZE`)
 4. Deterministic Step B: final metric dedup before persistence
 
-### Pass 1: Metric Candidates
+### 3.2 Pass 1: Metric Candidates
 
 Pass 1 uses:
 
@@ -149,7 +149,7 @@ Important notes:
 - `metric_categories` must contain one or more category keys suitable for lookup in `kb.artifact_categories`
 - category paths are not generated or stored by the enrichment pass
 
-### Deterministic Step B: Final Metric Dedup
+### 3.3 Deterministic Step B: Final Metric Dedup
 
 `dedupeFinalMetricRows` deduplicates the enriched metric rows before persistence.
 
@@ -175,7 +175,7 @@ Important notes:
 
 **Output order**: first-seen order (insertion order of the first occurrence of each key).
 
-### Indexing
+### 3.4 Indexing
 
 Metrics indexing runs in the pipeline's **Phase C (post-process)** — after every doc
 processor for the record has finished — not inside the metrics processor's Phase B
@@ -200,19 +200,21 @@ Note: semantic metric↔metric similarity is **not** an indexing output — it i
 at read time (see [Semantic Similarity (Computed On-The-Fly)](#semantic-similarity-computed-on-the-fly)),
 not materialized as `kb.artifact_connections` edges.
 
-#### Line-Overlap Artifact Edges
+#### 3.4.1 Line-Overlap Artifact Edges
 
 These edges make intra-document, line-overlapping artifacts explicitly traversable in
-`kb.artifact_connections` (they were previously kept only in
-`kb.metrics.connected_artifacts`). They are built deterministically at index time — no LLM
-or hybrid search is involved here. Cross-document neighbor discovery happens later, at read
-time, in [Metric Discovery for Document Review](#metric-discovery-for-document-review).
+`kb.artifact_connections`. They are built deterministically at index time — no LLM or hybrid
+search is involved here. (`connected_artifacts` itself is computed on demand by
+`kb.connected_artifacts(record_id, 'metric', source_row_id)`, not materialized.) Cross-document
+neighbor discovery happens later, at read time, in
+[Metric Discovery for Document Review](#metric-discovery-for-document-review).
 
 For each metric `M` in the record being indexed:
 
-1. Find every artifact in the **same document** whose line spans overlap
-   `M.source_line_spans`, grouped by type `T ∈ {inventory_item, entity, provision, topic,
-   semantic_projection}` → the anchors.
+1. Find every artifact in the **same document** whose line spans overlap `M`'s, grouped by
+   type `T ∈ {inventory_item, entity, provision, topic, semantic_projection}` → the anchors.
+   Overlap is computed by self-joining `kb.search_artifacts` on the GiST-indexed
+   `line_range && line_range` operator, so both endpoints use their canonical `artifact_id`s.
 2. For each overlapping artifact (anchor) `X` of type `T`, upsert one edge to
    `kb.artifact_connections`:
    - `source_type = T`, `source_id = X.artifact_id`, `source_record_id = record_id`
@@ -236,12 +238,13 @@ direction (artifact → metric) — never insert the mirror row. Asymmetric rela
 (`belong_to`) keep their natural direction; bidirectional matching is only a lookup
 convenience and does not change a relation's meaning.
 
-**Idempotency.** These edges are rebuilt by the document reprocess sweep, which deletes every
-`kb.artifact_connections` row with `source_record_id = record_id OR target_record_id =
-record_id` before re-indexing, then re-adds edges as if the document had never been
-processed. This single sweep supersedes any per-relation replace rule.
+**Idempotency.** Rebuilt each run by `ReplaceSharedArtifactEdges`, which deletes the record's
+existing edges scoped to `target_type = 'metric'` (plus
+`relation_method = 'line-overlapped-artifact'`, `relation_name = '#shared_artifact'`), then
+inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
+never clobber each other's edges.
 
-#### Search Artifact Row
+#### 3.4.2 Search Artifact Row
 
 Add each persisted metric to `kb.search_artifacts` using the metric's `search_document`.
 
@@ -253,7 +256,7 @@ Rules:
 - `source_line_spans` is copied from `kb.metrics.source_line_spans`
 - search text is the same de-duplicated metric text used to populate `kb.metrics.search_document`
 
-#### Connected Artifacts JSON
+#### 3.4.3 Connected Artifacts JSON
 
 Populate `kb.metrics.connected_artifacts` as a JSON object by comparing `kb.metrics.source_line_spans` with artifacts from the same `input_record_id`.
 
@@ -279,7 +282,7 @@ Rules:
 - `topics`, `scenes`, `provisions`, `entities`, and `inv_items` may be empty arrays.
 - The `connected_artifacts` JSON is the per-metric overlap set for quick lookup; the same line-overlap facts are also written as traversable edges in `kb.artifact_connections` (see [Line-Overlap Artifact Edges](#line-overlap-artifact-edges)).
 
-#### Metric and Artifact Categories
+#### 3.4.4 Metric and Artifact Categories
 
 Connect each metric to its artifact categories.
 
@@ -301,7 +304,7 @@ Rules:
   - `extra_info` containing at least `{"source":"extract_metrics","category_key":<category_key>,"category_id":<category_id>}`
 - Do not use `kb.inventory_categories` for metric categories.
 
-#### Index Metrics by Category Paths
+#### 3.4.5 Index Metrics by Category Paths
 
 Use `kb.metrics.source_line_spans` to find semantic projection category paths:
 
@@ -319,7 +322,7 @@ Rules:
 - Save metric IDs in `metrics.txt` under the matching category path.
 - Each `metrics.txt` entry uses `kb.metrics.metric_id`.
 
-#### Semantic Similarity (Computed On-The-Fly)
+#### 3.4.6 Semantic Similarity (Computed On-The-Fly)
 
 Semantic metric↔artifact similarity is **not materialized** as `kb.artifact_connections`
 edges. Every artifact already lives in `kb.search_artifacts` and is discoverable by hybrid
@@ -363,7 +366,7 @@ defined in [7]; the implementation is `docprocessing.FindSimilarArtifactsOnTheFl
 
 Because nothing is persisted, there is no edge idempotency to manage for semantic similarity.
 
-### Thinking Behavior
+### 3.5 Thinking Behavior
 
 Metrics extraction must force thinking off for all passes:
 
@@ -380,7 +383,7 @@ This avoids provider errors such as:
 
 - `Unknown parameter: 'thinking'`
 
-### Logging
+### 3.6 Logging
 
 The processor should log:
 
@@ -395,7 +398,7 @@ The processor should log:
 
 The shared LLM client should also log the raw HTTP response body before decoding.
 
-### Metric ID
+### 3.7 Metric ID
 
 Metrics are identified by:
 
@@ -405,7 +408,7 @@ Metrics are identified by:
 
 where `seqno` starts at `1`.
 
-## Workflow
+## 3. Workflow
 
 - For each chunk, run Pass 1 to extract metric candidates.
 - Retry candidate extraction with `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK` when the primary candidate model fails.
@@ -476,9 +479,9 @@ Success status entry:
 }
 ```
 
-## Output Storage
+## 5. Output Storage
 
-### Save to Table `kb.metrics`
+### 5.1 Save to Table `kb.metrics`
 
 Construct a row for each final metric and insert it.
 
@@ -498,7 +501,7 @@ Rules:
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
 - save additional information to `ext_info`
 
-### Category Table Migration
+### 5.2 Category Table Migration
 
 Metric categories are managed by `kb.artifact_categories`.
 
@@ -508,7 +511,7 @@ Rules:
 - Remove the retired `kb.inventory_categories` table.
 - Do not create, read, or write `kb.inventory_categories` in the metric extraction or indexing workflow.
 
-### Save to File
+### 5.3 Save to File
 
 Write all final metrics to:
 
@@ -522,17 +525,7 @@ where:
 - `<filename_root>` is derived from `kb.inputs.staging_filename`
 - `<parser_name>` is `kb.inputs.parser_name`
 
-## Index Metrics
-
-Run the indexing workflow defined in the earlier [Indexing](#indexing) section.
-
-### Index Metrics by Category Paths
-Refer to [1] and the [Index Metrics by Category Paths](#index-metrics-by-category-paths) rules above.
-
-### Full-Text Search Index
-Refer to [2], [3], and the [Search Artifact Row](#search-artifact-row) rules above.
-
-## Extract Metric API
+## 6. Extract Metric API
 
 The preview API is still using the older single-pass flow.
 
@@ -541,13 +534,13 @@ Inputs:
 - `record_id`
 - `lines`: `["ddd", "ddd-ddd", ...]`
 
-### Compose Input
+### 6.1 Compose Input
 
 - treat selected lines as normal lines `n`
 - treat the five lines immediately before and after as overlap lines `o`
 - convert the raw lines into standard chunk format
 
-### Handler Workflow
+### 6.2 Handler Workflow
 
 - read the record by `record_id`
 - compose the block input
@@ -558,7 +551,7 @@ Inputs:
 - do not save them to `kb.metrics`
 - properly handle all errors
 
-### Extract Metric API Response
+### 6.3 Extract Metric API Response
 
 ```json
 {
@@ -597,11 +590,11 @@ Inputs:
 }
 ```
 
-## Save Extracted Metrics API
+## 7. Save Extracted Metrics API
 
 This API persists reviewed final metric rows returned by the preview flow.
 
-### Request
+### 7.1 Request
 
 ```json
 {
@@ -640,7 +633,7 @@ This API persists reviewed final metric rows returned by the preview flow.
 }
 ```
 
-### Save Handler Workflow
+### 7.2 Save Handler Workflow
 
 - read `record_id` and `metrics`
 - validate `record_id > 0`
@@ -655,7 +648,7 @@ This API persists reviewed final metric rows returned by the preview flow.
 - leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
 - return the number of inserted metrics
 
-## Metric Discovery for Document Review
+## 8. Metric Discovery for Document Review
 
 This is a **read-time** procedure: it is not part of indexing and persists nothing. Its
 purpose is to surface metrics from the corpus that a document under review should plausibly
@@ -694,7 +687,7 @@ For each metric `M` extracted from the document under review:
      - Add each `Y` to the metric matrix (see the Metric Matrix note).
 3. Return the matrix.
 
-### neighbors(X)
+### 8.1 neighbors(X)
 
 `neighbors(X)` returns same-type artifacts across the whole corpus that are "close" to the
 anchor `X`. It reuses the shared hybrid acceptance model in
@@ -724,7 +717,7 @@ Within a single review invocation, `neighbors(X)` may be memoized by `X.artifact
 anchor shared by multiple metrics is searched once; this cache must never persist across
 invocations (the corpus moves between runs).
 
-### Metric Matrix
+### 8.2 Metric Matrix
 
 The metric matrix distinguishes metrics the document **mentions** from metrics it may have
 **missed**, keyed so that "close enough" metrics collapse into one entry whose value is the
@@ -733,10 +726,10 @@ closeness key are specified separately (deferred to the matrix session); this pr
 supplies candidate metrics `Y` tagged with their `input_record_id` so the matrix step can
 classify mentioned vs. missed and dedup within each entry.
 
-## Implementations
+## 9. Implementations
 Refer to [3], [4], [5] and [6].
 
-## References
+## 10. References
 [1] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md\
 [2] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-design.md \
 [3] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-impl.md \

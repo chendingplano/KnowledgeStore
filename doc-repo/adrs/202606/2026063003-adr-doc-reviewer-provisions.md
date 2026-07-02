@@ -17,6 +17,15 @@
   document indexed later. Branch A now unions outbound (P=source) and inbound (P=target)
   edges via `LoadConnectionsByTarget`, resolving the opposite endpoint as the match and
   excluding any endpoint with `record_id = record_id`.
+* 2026/07/01, Branch A migrated to **on-the-fly** (supersedes the precomputed-edge
+  decision in DR1 and the 2026/06/30 correctness fix): semantic provision↔provision
+  similarity is no longer materialized as `hybrid_search` / `semantically_related` edges.
+  Branch A calls `docprocessing.FindSimilarArtifactsOnTheFly` (same lexical + pgvector RRF
+  acceptance policy) per doc provision at review time. Live search is always fresh and
+  direction-free, so the A1/A2 inbound/outbound union and `LoadConnectionsByTarget` are no
+  longer used by this reviewer. (Note: no provision artifact-indexing step ever wrote these
+  edges, so the precomputed Branch A was in practice empty; on-the-fly makes it functional.
+  The metric reviewer, ADR 2026063002, made the same change.)
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics, entities,
@@ -62,27 +71,17 @@ one LLM call per provision that has at least one match. Pseudocode:
 ```text
 matches := map[provision] -> []matchingProvision   # keyed by the doc's own provision
 
-# Branch A: provision <-> semantically related provisions (precomputed hybrid_search edges).
-# These edges are DIRECTIONAL: artifact-indexing writes them from the indexed document's
-# provisions (source) outward to corpus matches (target) and never the reverse, so a
-# provision belonging to a document indexed AFTER this one exists only as an INBOUND edge
-# (P on the target side). BOTH directions must be read.
+# Branch A: provision <-> semantically related provisions, computed LIVE (no materialized edges).
+# A single hybrid search per doc provision finds close provisions across the whole corpus
+# regardless of when the other document was indexed, so there is no direction to union.
 for each provision P extracted from the document-under-review (kb.provisions WHERE input_record_id = record_id):
-   # A1 -- outbound: P is the source, the matching provision is the target
-   outEdges := load kb.artifact_connections WHERE
-              source_type='provision' AND source_record_id=record_id AND source_id=P.prov_id
-              AND relation_method='hybrid_search' AND relation_name='semantically_related'
-              AND target_type='provision' AND target_record_id <> record_id
-   resolve each outEdge.target (target_record_id, prov_id) -> a kb.provisions row
+   hits := FindSimilarArtifactsOnTheFly(
+              selfType='provision', selfID=P.prov_id,
+              candidateType='provision', maxLinks=PROVISION_REVIEW_MAX_MATCHES)
+   resolve each hit (record_id, prov_id) -> a kb.provisions row
 
-   # A2 -- inbound: P is the target, the matching provision is the source
-   inEdges := load kb.artifact_connections WHERE
-              target_type='provision' AND target_record_id=record_id AND target_id=P.prov_id
-              AND relation_method='hybrid_search' AND relation_name='semantically_related'
-              AND source_type='provision' AND source_record_id <> record_id
-   resolve each inEdge.source (source_record_id, prov_id) -> a kb.provisions row
-
-   append resolved provisions to matches[P]   (deduped by the matching provision's (record_id, prov_id))
+   append resolved provisions to matches[P]   (deduped by the matching provision's (record_id, prov_id);
+                                               same-document hits excluded)
 
 # Branch B: entity -> provisions related to that entity
 for each entity->provision edge for the document
