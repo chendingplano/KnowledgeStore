@@ -35,6 +35,10 @@
   `related_artifact_id`/`related_record_id` cross-references), window-first input
   layout (canonical scheduler window as cacheable prefix), window-grouped
   seed/stagger execution, and tool-use with `get_artifact_context`.
+* 2026/07/03, ADR 2026070201 AR6 (Stage 5) implemented: object-anchored
+  missing-metric detection runs as a separate sibling aspect
+  (`metrics_completeness`) using the `belong_to` edges in
+  `kb.artifact_connections` to build per-object metric rosters.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,

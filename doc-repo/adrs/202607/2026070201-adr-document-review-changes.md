@@ -1,7 +1,7 @@
 # ADR 20260702 — Document Review: Artifact Reviewer Context, Prompt-Cache Layout, and Missing-Metric Detection
 
 **Date:** 2026-07-02 \
-**Status:** Accepted — Stages 1-4 implemented 2026/07/03; Stages 5-6 open \
+**Status:** Accepted — Stages 1-5 implemented 2026/07/03; Stage 6 open \
 **Component:** ChenWeb — `server/api/doc-reviews`, `prompts`, `doc-review.local.toml` \
 **Authors:** Chen Ding \
 **Tags:** doc review, artifact reviewers, prompt cache, DeepSeek, metrics, provisions, inventory items, missing requirements
@@ -31,6 +31,16 @@
   (heuristic standard/regulation/peer classification) and `match_rank` instead of
   raw RRF confidence. Stage 5 (AR6 `metrics_completeness`) and Stage 6 (AR7 A/B)
   remain open.
+* 2026/07/03, **Stage 5 (AR6) implemented** — object-anchored missing-metric
+  detection (`review-metrics-completeness.go`): builds per-object rosters from
+  `kb.artifact_objects` (metric_id → object_id) and `kb.artifact_connections`
+  (`source_type='metric'`, `target_id=<object_id>`, `relation_method='object_id'`);
+  one LLM call per object with the doc's attached metrics vs. peer documents'
+  metrics for the same (and comparable) objects; tool-use with `search_metrics`
+  for the mandatory absence-verification step (AR6 §4), `get_artifact_context`
+  for screened candidates; `prompt-review-metrics-missing-v1.md`; wired into
+  `doc-review.local.toml` as `metrics_completeness` (P5, tool-use enabled,
+  max_tool_turns=4). Stage 6 (AR7 object-anchored batching A/B) remains open.
 
 ---
 
@@ -292,6 +302,12 @@ The canonical object is therefore the anchor, and the union of artifacts
 comparable objects is the expectation roster.
 
 Refer to [8], [9] and [10] for how these indexes are built.
+
+Below is the algorithm to retrieve artifacts through object:
+- For a given metric/provision/inventory_item:
+  - Retrieve its artifact id: <artifact_id>
+  - Retrieve <object_id> = `kb.artifact_objects.object_id` by `kb.artifact_objects.artifact_id` = <artifact_id>
+  - Retrieve all metrics/provisions/inventory_items <artifact_ids> from `kb.artifact_connections` where `kb.artifact_connections.source_type` = T AND `kb.artifact_connections.target_id` = <object_id> 
 
 Decisions taken now:
 
