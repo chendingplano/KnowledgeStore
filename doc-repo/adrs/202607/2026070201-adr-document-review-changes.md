@@ -303,11 +303,52 @@ comparable objects is the expectation roster.
 
 Refer to [8], [9] and [10] for how these indexes are built.
 
-Below is the algorithm to retrieve artifacts through object:
-- For a given metric/provision/inventory_item:
-  - Retrieve its artifact id: <artifact_id>
-  - Retrieve <object_id> = `kb.artifact_objects.object_id` by `kb.artifact_objects.artifact_id` = <artifact_id>
-  - Retrieve all metrics/provisions/inventory_items <artifact_ids> from `kb.artifact_connections` where `kb.artifact_connections.source_type` = T AND `kb.artifact_connections.target_id` = <object_id> 
+Below is the detection algorithm. It retrieves what other documents attach to the
+same object (the expectation roster) and isolates the subset absent from the
+document under review — these are the "possible missing" candidates that the LLM
+judges.
+
+For a given metric in the document under review:
+
+1. **Resolve the object.** Query `kb.artifact_objects` with
+   `artifact_type = 'metric' AND artifact_id = <metric_id> AND source_record_id = <doc-record-id>`.
+   A metric may link to multiple objects; each produces its own review unit.
+
+2. **Build the peer-metric roster (Set A).** Query `kb.artifact_connections` with
+   `source_type = 'metric' AND target_id = <object_id> AND relation_method = 'object_id' AND relation_name = 'belong_to'`,
+   then unroll the `extra_info.artifact_ids` JSONB array to obtain individual
+   peer metric IDs. Resolve those IDs against `kb.metrics` to get full metric
+   rows with their source document metadata (title, doc_no, filename). Also
+   resolve comparable objects — `kb.object_nodes` rows sharing the same
+   `object_type` and overlapping `normalized_names` — to widen the roster.
+
+3. **Build the document's metric set for this object (Set B).** Group the
+   document's own metrics by the `object_id` resolved in step 1. These are the
+   metrics the document already attaches to this object.
+
+4. **Candidate detection.** Any metric in Set A that has no plausible counterpart
+   in Set B is a *possible missing metric*. "Possible" because extraction and
+   object-linking both have recall gaps — the metric may exist in the document
+   under a different name, under a different object, or without the edge. The
+   LLM receives both rosters plus the document's source window and judges
+   actual missingness (AR6 §3); it must call `search_metrics` before emitting
+   `missing_metric` (AR6 §4).
+
+**Why a separate reviewer.** This pass runs as a sibling aspect
+(`metrics_completeness`) rather than inside the `metrics` conflict reviewer
+because:
+
+- The unit of work is different: the conflict reviewer is metric-centric (one
+  call per metric with its peer matches), while completeness is object-centric
+  (one call per object with its full metric roster). Doing both in one call
+  would either fragment the object view or lose per-metric conflict detail.
+- The prompt task is different: conflict asks "do these values disagree?"
+  while completeness asks "what should this object have that the document
+  doesn't?" A combined prompt produces hedged output on both.
+- The tool guard is different: the conflict reviewer uses
+  `get_artifact_context` to screen-then-verify candidate matches; the
+  completeness reviewer must use `search_metrics` to verify absence
+  (AR6 §4). Forcing both patterns into one reviewer starves both tool budgets.
 
 Decisions taken now:
 
