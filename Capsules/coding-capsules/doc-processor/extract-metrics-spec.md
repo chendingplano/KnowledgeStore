@@ -175,6 +175,9 @@ Important notes:
 
 **Output order**: first-seen order (insertion order of the first occurrence of each key).
 
+#### 3.3.1 Metric IDs
+Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` is a sequence number, starting from 1.
+
 ### 3.4 Indexing
 
 Metrics indexing runs in the pipeline's **Phase C (post-process)** — after every doc
@@ -195,6 +198,7 @@ exist). It has five outputs:
 | relate artifact category to metric | stored in `kb.artifact_connections` |
 | relate category path to metric | stored in `metrics.txt` under the matching category paths in `ARTIFACT_WEB_DIR` |
 | relate metric to line-overlapping artifacts (entities, inventory_items, provisions, topics, semantic_projections) | stored in `kb.artifact_connections` |
+| relate artifact objects to object nodes | stored in `kb.artifact_connections` |
 
 Note: semantic metric↔metric similarity is **not** an indexing output — it is computed live
 at read time (see [Semantic Similarity (Computed On-The-Fly)](#semantic-similarity-computed-on-the-fly)),
@@ -365,6 +369,20 @@ defined in [7]; the implementation is `docprocessing.FindSimilarArtifactsOnTheFl
   `artifact_search.min_rank`.
 
 Because nothing is persisted, there is no edge idempotency to manage for semantic similarity.
+
+### 3.4.7 Indexing Metrics to Objects
+Metrics mention artifact objects through `kb.metrics.metric_id` = `kb.artifact_objects.artifact_id`.
+Artifact objects connect to object nodes through `kb.artifact_objects.object_id` = 
+`kb.object_nodes.object_id`. 
+
+For each metric, add a record to `kb.artifact_connections`:
+  - `source_type = 'artifact_object'`
+  - `source_id = kb.artifact_object.object_id`
+  - `target_type = 'object_node'`
+  - `target_id = kb.object_nodes.object_id`
+  - `relation_name = 'belong_to'`
+  - `relation_method = 'object_id'`
+  - `source_record_id = kb.artifact_objects.source_record_id`
 
 ### 3.5 Thinking Behavior
 

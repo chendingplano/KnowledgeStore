@@ -177,3 +177,6 @@ not by the LLM client's internal rate limiter.
 2. `go test ./server/api/doc-processing/` — no regressions
 3. Manual: schedule 10 documents via dev mode, observe concurrent execution
 4. Manual: check `LLM_CALL_STAGGER=0` vs `LLM_CALL_STAGGER=5` cache hit rates
+
+## Change-20260703
+Refer to 2026070301-adr.
