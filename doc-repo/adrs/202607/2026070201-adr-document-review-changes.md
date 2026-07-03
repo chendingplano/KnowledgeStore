@@ -1,7 +1,7 @@
 # ADR 20260702 — Document Review: Artifact Reviewer Context, Prompt-Cache Layout, and Missing-Metric Detection
 
 **Date:** 2026-07-02 \
-**Status:** Proposal \
+**Status:** Accepted — Stages 1-4 implemented 2026/07/03; Stages 5-6 open \
 **Component:** ChenWeb — `server/api/doc-reviews`, `prompts`, `doc-review.local.toml` \
 **Authors:** Chen Ding \
 **Tags:** doc review, artifact reviewers, prompt cache, DeepSeek, metrics, provisions, inventory items, missing requirements
@@ -19,6 +19,18 @@
   indexing ([8]–[10]: `belong_to` edges in `kb.artifact_connections`, one-to-many
   artifact → object mentions) and unblocked its implementation (Stage 5 now depends
   on Stage 4, not on pending object data).
+* 2026/07/03, **Stages 1-4 implemented** in ChenWeb `server/api/doc-reviews`:
+  AR1 TOML/`buildReviewers` precedence notes; AR2 window-first layout
+  (`review-artifact-window.go`: canonical `buildChunkInputs` windows, span-start
+  mapping, `context_truncated` flag); AR3 window-grouped seed → stagger → remainder
+  execution (`runArtifactUnitsWindowGrouped`); AR4 cross-record
+  `get_artifact_context` tool + tool-use enabled for the three artifact reviewers
+  (max_tool_turns=4, max_tool_tokens=24000); AR5 prompt v2 files and
+  `related_artifact_id`/`related_record_id` in the findings schema (persisted in
+  the findings metadata JSONB). Matched payloads now carry `source_doc_authority`
+  (heuristic standard/regulation/peer classification) and `match_rank` instead of
+  raw RRF confidence. Stage 5 (AR6 `metrics_completeness`) and Stage 6 (AR7 A/B)
+  remain open.
 
 ---
 

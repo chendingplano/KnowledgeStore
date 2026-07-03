@@ -26,6 +26,11 @@
   longer used by this reviewer. (Note: no provision artifact-indexing step ever wrote these
   edges, so the precomputed Branch A was in practice empty; on-the-fly makes it functional.
   The metric reviewer, ADR 2026063002, made the same change.)
+* 2026/07/03, ADR 2026070201 (AR2/AR3/AR5) implemented for this reviewer: prompt v2
+  (`prompt-review-provisions-v2.md`), window-first input layout, window-grouped
+  seed/stagger execution, `source_doc_authority` + `match_rank` in the matched
+  payload, structured `related_artifact_id`/`related_record_id` in findings, and
+  tool-use with `get_artifact_context`.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics, entities,

@@ -353,6 +353,12 @@
   generator (`typst_report.go`) groups findings by aspect within each package and emits the
   Typst headings at the appropriate levels. Packages appear in the order defined by
   `doc-review.local.toml` (P5 → P4 → P3 → P2 → P1 → P6). See also DR12b.
+* 2026/07/03, ADR 2026070201 refines DR8a's document-first layout for the artifact
+  reviewers (metrics, provisions, inventory_items): their calls are now window-first,
+  sending the canonical `buildChunkInputs` scheduler window as the cacheable prefix,
+  and are executed window-grouped with the seed → stagger → remainder pattern.
+  Artifact reviewers also gain tool-use (DR10b) with the cross-record
+  `get_artifact_context` tool.
 
 ## Context
 

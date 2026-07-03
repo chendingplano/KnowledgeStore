@@ -29,6 +29,12 @@
   reviewer. Rationale: any artifact is already discoverable by hybrid search over
   `kb.search_artifacts`; a stored snapshot only duplicates that computation and goes stale
   as the corpus grows.
+* 2026/07/03, ADR 2026070201 (AR2/AR3/AR5) implemented for this reviewer: prompt v2
+  (`prompt-review-metrics-v2.md` — recall stance, broadened checks, source authority,
+  rank instead of raw RRF confidence, insufficient-information outlet, structured
+  `related_artifact_id`/`related_record_id` cross-references), window-first input
+  layout (canonical scheduler window as cacheable prefix), window-grouped
+  seed/stagger execution, and tool-use with `get_artifact_context`.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,

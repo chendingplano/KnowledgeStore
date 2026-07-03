@@ -7,6 +7,9 @@
 
 ## Change Logs
 * 2026/07/01, ADR Created
+* 2026/07/03, Recorded the review-side dependency from ADR 2026070201 AR6: the
+  object-anchored missing-metric pass cites `kb.artifact_objects` evidence fields
+  (line spans, confidence; §DR2), so those fields must stay populated.
 
 ## Context
 This is about the artifacts (refer to [1]) and their hybrid search.
