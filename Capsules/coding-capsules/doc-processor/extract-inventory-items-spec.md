@@ -329,6 +329,7 @@ run from `InventoryItemsProcessor.PostProcessIndex`):
 | relate inventory item to its artifact categories | `kb.artifact_connections` (`belong_to` / `category_name`; §1.12.5) |
 | relate category path to inventory item | `inventory_items.txt` under the matching category paths in `ARTIFACT_WEB_DIR` (§1.12.4) |
 | relate inventory item to line-overlapping artifacts (entities, provisions, metrics, topics, semantic_projections) | `kb.artifact_connections` (§1.12.1) |
+| relate artifact object to object node | `kb.artifact_connections`
 
 Notes:
 
@@ -457,6 +458,16 @@ Rules:
   > is `(target_type, target_id) = (category_type, category_key)`. This matches
   > `artifact-connections.md` ([5]) and the metric/inventory implementation
   > (`buildArtifactCategoryConnections`).
+
+### 1.12.6 Index Inventory Items to Object Nodes
+For each inventory item, add a record to `kb.artifact_connections`:
+  - `source_type = 'inventory_item'`
+  - `source_id = kb.artifact_object.object_id`
+  - `target_type = 'object_node'`
+  - `target_id = kb.object_nodes.object_id`
+  - `relation_name = 'belong_to'`
+  - `relation_method = 'object_id'`
+  - `source_record_id = kb.artifact_objects.source_record_id`
 
 ## 1.13 Tables
 

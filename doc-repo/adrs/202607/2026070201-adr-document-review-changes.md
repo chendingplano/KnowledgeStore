@@ -13,6 +13,12 @@
 * 2026/07/02, ADR created from the investigation of review request #27 (record 387)
   and the follow-on design discussion on artifact reviewer context, DeepSeek
   prompt-cache layout, prompt quality, and object-anchored missing-metric detection.
+* 2026/07/03, resolved the two open questions (AR2: multi-window spans map to the
+  window containing the span start; AR3: no per-window group cap — concurrency is
+  bounded by the run-level semaphore). Rewrote AR6 to match the implemented object
+  indexing ([8]–[10]: `belong_to` edges in `kb.artifact_connections`, one-to-many
+  artifact → object mentions) and unblocked its implementation (Stage 5 now depends
+  on Stage 4, not on pending object data).
 
 ---
 
@@ -168,6 +174,20 @@ Secondary benefit: with the source passage visible, the reviewer can also flag
 extraction errors (extracted value disagrees with the passage) — findings that
 protect every downstream consumer of the artifact.
 
+Multi-window spans (decided): an artifact whose line spans cross window
+boundaries is always mapped to the window containing its span start — the same
+rule as above, applied uniformly. Windows are non-overlapping fixed slices, so
+no alternative single window is a better fit, and any concatenated or ad-hoc
+slice is a new, uncacheable prefix. Two mitigations for the truncated tail
+context:
+
+1. The unique tail of the payload carries `context_truncated: true` plus the
+   artifact's full line span, so the model knows the window ends mid-artifact
+   and does not misreport the truncation as an extraction error.
+2. The AR4 tool `get_artifact_context` may be called on the artifact under
+   review itself to retrieve the truncated remainder (within the same tool
+   budget).
+
 ### AR3 — Chunk-grouped scheduling for artifact review units
 
 Artifact review units are grouped and ordered by their source window, and
@@ -176,6 +196,16 @@ the prompt-cache scheduler uses: one unit per window fires first to plant (or
 confirm) the prefix, the window's sibling units follow. Since metrics and
 inventory items cluster heavily in spec tables and rosters, the grouping factor
 is expected to be high.
+
+Group size (decided): no per-window cap. The cache is keyed by prefix, not by
+group — 50 artifacts in one window share the same cached prefix whether they
+run as one group or five, so splitting a window's units into multiple groups
+buys nothing: each sub-group would either waste its own seed + stagger wait on
+an already-warm prefix, or complicate the scheduler with seedless groups.
+Sibling bursts are already bounded by the run-level semaphore
+(`maxDocReviewerTasks` / `MaxConcurrent`) plus `LLM_CALL_STAGGER`. If cost
+control for pathological documents is ever needed, the right knob is a
+per-aspect unit budget (a separate config item), not a group-size cap.
 
 ### AR4 — Matched-artifact context on demand via a cross-record tool
 
@@ -187,7 +217,8 @@ dilutes attention). Instead:
   `get_artifact_context(record_id, artifact_id)` → the ±10–20 lines around the
   artifact's `line_spans` in its source document. Unlike the record-scoped core
   tools, this tool is cross-record; it serves metrics, provisions, entities, and
-  inventory items alike.
+  inventory items alike. It may also be called on the artifact under review
+  itself, e.g. to retrieve context truncated at a window boundary (AR2).
 - Enable the tool-use path (DR10b) for the artifact reviewers with a modest
   budget: `max_tool_turns = 3–5`, bounded `max_tool_tokens`. The investigation
   here is shallow — verify or dismiss specific screened candidates — not
@@ -232,15 +263,23 @@ Produce `prompt-review-metrics-v2.md`, `prompt-review-provisions-v2.md`,
 The `entities` reviewer and its prompt are **out of scope** for this ADR
 (separate discussion planned).
 
-### AR6 — Object-anchored missing-metric detection (design now, implement when object data lands)
+### AR6 — Object-anchored missing-metric detection
 
 Detecting absence requires an expectation model. The object-centric design
-(ADR 2026070101: `kb.artifact_objects` → `kb.object_nodes`) supplies exactly
-that: the canonical object is the anchor, and the union of metrics that peer
-documents attach to comparable objects is the expectation roster. "Documents
-describing this kind of object consistently specify a pressure rating; this one
-doesn't" is a precise, defensible finding — DR6a made concrete at the
-granularity where it works.
+(ADR 2026070101) provides it: each extraction processor writes object mentions
+to `kb.artifact_objects` (one artifact → one or more object mentions),
+reconciliation links mentions to canonical `kb.object_nodes` via
+`artifact_objects.object_id`, and at index time each processor adds `belong_to`
+edges to `kb.artifact_connections` (artifact family → object node, contributing
+artifact IDs in `extra_info`). Given an object node, all related metrics,
+provisions, and inventory items across documents are reachable through these
+edges.
+
+The canonical object is therefore the anchor, and the union of artifacts
+(`metrics`, `provisions`, `inventory_items`) that peer documents attach to
+comparable objects is the expectation roster.
+
+Refer to [8], [9] and [10] for how these indexes are built.
 
 Decisions taken now:
 
@@ -273,7 +312,9 @@ Decisions taken now:
    provisions) and inventory items (item → expected `normalized_specs`) once
    metrics proves it out.
 
-Implementation is **deferred** until the ADR 2026070101 tables are populated.
+The object tables, reconciliation, and `belong_to` indexing are implemented for
+metrics, provisions, and inventory items ([8], [9], [10]); this pass is now
+unblocked and proceeds as Stage 5.
 
 ### AR7 — Batching: one artifact per call in Phase 1; object-anchored batching later
 
@@ -299,7 +340,7 @@ against per-artifact calls before switching.
 | 2 | AR2 window mapping + AR3 chunk-grouped seed/stagger scheduling | Stage 1 |
 | 3 | AR5 prompt v2 files + findings-schema `related_artifact_id`/`related_record_id` | Stage 1 |
 | 4 | AR4 `get_artifact_context` tool + enable tool-use for artifact reviewers | Stage 3 |
-| 5 | AR6 missing-metric pass (`metrics_completeness`) | ADR 2026070101 data |
+| 5 | AR6 missing-metric pass (`metrics_completeness`) | Stage 4 (tool-use for absence verification) |
 | 6 | AR7 object-anchored batching evaluation (A/B) | Stage 5 |
 
 Stages 1–2 are the immediate cost fix; Stage 2's window inclusion is the largest
@@ -379,4 +420,7 @@ quality lift per token. Cache effectiveness is verified with the
 [4] ADR 2026063003 — Cross-Document Provision Consistency Reviewer \
 [5] ADR 2026063005 — Cross-Document Inventory-Item Consistency Reviewer \
 [6] ADR 2026070101 — Object Centric Design \
-[7] DeepSeek Context Caching — https://api-docs.deepseek.com/guides/kv_cache
+[7] DeepSeek Context Caching — https://api-docs.deepseek.com/guides/kv_cache \
+[8] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md \
+[9] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-spec.md \
+[10] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md

@@ -214,6 +214,20 @@ Rules:
 - Provisions with no matching category path are logged (the config sets
   `WarnOnMissingCategoryPaths`), not treated as a hard error.
 
+### 3.1.5 Indexing Provisions to Objects
+Provisions mention artifact objects through `kb.provisions.prov_id` = `kb.artifact_objects.artifact_id`.
+Artifact objects connect to object nodes through `kb.artifact_objects.object_id` = 
+`kb.object_nodes.object_id`. 
+
+For each provision, add a record to `kb.artifact_connections`:
+  - `source_type = 'provision'`
+  - `source_id = kb.artifact_object.object_id`
+  - `target_type = 'object_node'`
+  - `target_id = kb.object_nodes.object_id`
+  - `relation_name = 'belong_to'`
+  - `relation_method = 'object_id'`
+  - `source_record_id = kb.artifact_objects.source_record_id`
+
 ## 3.2 Output
 
 ### 3.2.1 Output Record

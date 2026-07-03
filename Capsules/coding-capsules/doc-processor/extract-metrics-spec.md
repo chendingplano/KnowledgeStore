@@ -376,7 +376,7 @@ Artifact objects connect to object nodes through `kb.artifact_objects.object_id`
 `kb.object_nodes.object_id`. 
 
 For each metric, add a record to `kb.artifact_connections`:
-  - `source_type = 'artifact_object'`
+  - `source_type = 'metric'`
   - `source_id = kb.artifact_object.object_id`
   - `target_type = 'object_node'`
   - `target_id = kb.object_nodes.object_id`
