@@ -359,6 +359,10 @@
   and are executed window-grouped with the seed → stagger → remainder pattern.
   Artifact reviewers also gain tool-use (DR10b) with the cross-record
   `get_artifact_context` tool.
+* 2026/07/04, DR20 proposed: reviewer execution logging should use a new
+  `kb.doc_review_logs` table rather than `kb.doc_review_activities`. The new log is
+  for reviewer-side audit rows such as the metric under review, matched metrics
+  considered, findings emitted, and no-finding/error outcomes.
 
 ## Context
 
@@ -1446,6 +1450,13 @@ before/after blocks, location, actor, time, and a context note.
 Frontend: `generateCorrectionReport(reportId)` in `docReviewService.ts`, triggered by a
 **Correction Report** button on the report page.
 
+**Boundary of DR17.** `kb.doc_review_activities` is intentionally scoped to
+**post-review human correction actions**. It is not the right place to log the
+reviewer engine's own investigative work such as which metric/provision/entity was
+examined, which cross-document matches were considered, whether the reviewer found
+no issue, or which findings came out of one review unit. That telemetry needs a
+separate run-scoped reviewer log so we do not overload the correction-action model.
+
 ### DR18 - Report and Corrections File Names
 **Report File Names**
 
@@ -1602,6 +1613,45 @@ CREATE INDEX IF NOT EXISTS idx_doc_review_activities_run    ON kb.doc_review_act
 CREATE INDEX IF NOT EXISTS idx_doc_review_activities_report ON kb.doc_review_activities (report_id);
 CREATE INDEX IF NOT EXISTS idx_doc_review_activities_type   ON kb.doc_review_activities (activity_type);
 ```
+
+### `kb.doc_review_logs` (DR20, proposed)
+
+One row per reviewer execution unit. This is the audit trail for the reviewer engine
+itself, not for user corrections. Example: for the metrics reviewer, one row per
+"metric under review" with the matched metrics inspected and the findings emitted.
+
+```sql
+CREATE TABLE IF NOT EXISTS kb.doc_review_logs (
+    id              BIGSERIAL    PRIMARY KEY,
+    input_record_id BIGINT       NOT NULL,  -- the document under review (kb.inputs.id)
+    review_run_id   TEXT         NOT NULL,  -- current review run
+    pass            TEXT         NOT NULL,  -- "P1".."P6"
+    aspect          TEXT         NOT NULL,  -- e.g. "metrics", "completeness"
+    unit_type       TEXT         NOT NULL,  -- metric | provision | entity | chunk | document | ...
+    unit_key        TEXT         NOT NULL,  -- stable reviewer-facing key, e.g. metric artifact_id / metric_id
+    unit_location   JSONB,                  -- source line/page location for the unit under review
+    matched_units   JSONB,                  -- comparison set considered (e.g. matched metrics)
+    findings        JSONB,                  -- findings emitted for this unit; [] when none
+    outcome         TEXT         NOT NULL,  -- findings_emitted | no_issue | skipped | error
+    detail          JSONB,                  -- reviewer-specific extras: match rationale, model, prompt, timing, error text, ...
+    create_time     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (review_run_id, aspect, unit_type, unit_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_review_logs_record  ON kb.doc_review_logs (input_record_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_logs_run     ON kb.doc_review_logs (review_run_id);
+CREATE INDEX IF NOT EXISTS idx_doc_review_logs_aspect  ON kb.doc_review_logs (input_record_id, aspect);
+CREATE INDEX IF NOT EXISTS idx_doc_review_logs_outcome ON kb.doc_review_logs (review_run_id, outcome);
+```
+
+**Metric reviewer mapping**
+
+- `unit_type = 'metric'`
+- `unit_key = kb.metrics.artifact_id` (fallback `metric_id`)
+- `unit_location = {"line_spans":[...]}`
+- `matched_units = [{metric, source_record_id, source_filename, match_via, confidence}, ...]`
+- `findings = []ReviewFinding` for just that metric's comparison step
+- `detail` may include caps/filters applied (`max_matches`, dedup decisions, skipped reason)
 
 ### Review configuration storage
 
@@ -1796,6 +1846,47 @@ a glance.
 altered. The `dirty` state variable is retained in the frontend (it continues to be set
 by mutation callbacks) but no longer gates button visibility.
 
+### DR20 — Reviewer execution log for per-unit auditability
+
+Complex reviewers do more than emit a final set of findings. They inspect review
+units such as metrics, provisions, entities, chunks, or whole-document hypotheses;
+gather candidate matches; decide whether a discrepancy is real; and often conclude
+with **no finding**. Today that reasoning is largely ephemeral. For the metric
+reviewer in particular, we need durable records of:
+
+- the metric under review
+- the matched metrics considered
+- the findings emitted, if any
+- whether the unit ended in `no_issue`, `skipped`, or `error`
+
+`kb.doc_review_findings` is too narrow because it stores only positive outputs, and
+`kb.doc_review_activities` is the wrong semantic bucket because it stores human
+correction actions after the review. Therefore the reviewer pipeline needs a
+separate execution log.
+
+**Decision: introduce `kb.doc_review_logs` as a run-scoped reviewer audit table.**
+One row records one reviewer's examination of one review unit. The table is generic
+enough for future reviewers, but directly supports the metric-review case.
+
+**Core semantics**
+
+- One row per `(review_run_id, aspect, unit_type, unit_key)` review attempt.
+- `unit_type` identifies what was reviewed: `metric`, `provision`, `entity`,
+  `chunk`, `document`, etc.
+- `unit_key` is the stable identifier within that unit type, e.g. a metric's
+  `artifact_id` or `metric_id`.
+- `matched_units` stores the comparison set considered by the reviewer, such as
+  all matched metrics for a metric review.
+- `findings` stores the emitted findings for that unit; empty array means the unit
+  was reviewed and produced no finding.
+- `outcome` distinguishes `findings_emitted`, `no_issue`, `skipped`, and `error`.
+
+**Why a generic log instead of a metric-only table?** The metric reviewer is the
+first clear need, but the same audit pattern applies to completeness,
+correctness, and compliance investigations. A generic table avoids repeating the
+same run/aspect/outcome plumbing in separate per-reviewer tables while still
+allowing reviewer-specific payloads inside JSONB.
+
 ## Implementation Plan
 
 Development is staged to deliver a working framework early, then add reviewers
@@ -1917,6 +2008,10 @@ for text-only reviewers.
   typed results.
 - **Conversation loop:** simulated LLM responses with tool calls → Go executes correct
   tool → results fed back → loop terminates with findings.
+- **Reviewer execution log:** a metric review attempt persists one
+  `kb.doc_review_logs` row containing the metric under review, the matched metrics,
+  and the emitted findings, or an explicit `no_issue` / `skipped` / `error`
+  outcome when no findings are written.
 - **Budget enforcement:** when `MaxToolTurns` is exhausted, force-produce prompt is
   appended and findings are returned. When `MaxToolTokens` is exceeded, outstanding tool
   calls are rejected with a budget-exhausted message.
