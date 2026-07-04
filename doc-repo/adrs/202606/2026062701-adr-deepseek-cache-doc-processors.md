@@ -244,6 +244,10 @@ caller context has a short deadline.
 
 ---
 
+### Cache Prompt, then Cache Chunks
+
+Refer to [2] for a finer tuning for doc processors.
+
 ## Implemented algorithm (2026-07-02)
 
 This is the authoritative description; it supersedes the Phase 4/5 pseudo-code above,
@@ -467,3 +471,5 @@ this; tune the default (10) if needed.
 
 # References
 [1] KnowledgeStore/doc-repo/adrs/202606/2026062501-adr-deepseek-cache.md
+
+[2] KnowledgeStore/doc-repo/adrs/202607/2026070301-adr-llm-cache-optimize.md
