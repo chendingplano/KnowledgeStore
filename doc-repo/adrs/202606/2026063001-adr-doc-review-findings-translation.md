@@ -15,6 +15,9 @@
 * 2026/07/05, Clarified that reviewer output may declare its source `language`. When present,
   that value is used to store the original finding prose under `metadata.<language>`; when
   absent, it defaults to `en`.
+* 2026/07/05, Clarified that `DOC_REVIEW_REPORT_LANGUAGE` accepts either a single JSON string
+  such as `"en"` or a JSON array such as `["en", "zh"]`; the same parsed language list drives
+  report variants and auto pre-translation targets.
 
 ---
 
@@ -141,6 +144,17 @@ Translations are populated on demand, not eagerly:
   2. The cached prose fields do not contain target-language characters for any
      non-empty field (Fix 10, using AND-with-skip-empty logic from Fix 13).
 
+When `DOC_REVIEW_TRANSLATION = "auto"`, save-time pre-translation uses the language
+list parsed from `DOC_REVIEW_REPORT_LANGUAGE`. The variable accepts both forms:
+
+```bash
+DOC_REVIEW_REPORT_LANGUAGE="en"
+DOC_REVIEW_REPORT_LANGUAGE='["en", "zh"]'
+```
+
+If the variable is absent, empty, or yields no valid language codes, the pipeline
+falls back to `["en"]`.
+
 ### TR6 — Self-translation for findings already in the target language
 
 If a finding's prose fields are already written in the target language (detected by
@@ -181,7 +195,8 @@ When saving a finding:
 
 Example: `prompt-review-provisions-v3.md` instructs the reviewer to emit Chinese
 `title`, `description`, and `suggestion`, plus `"language": "zh"`. If
-`DOC_REVIEW_REPORT_LANGUAGE = ["en"]`, this means the Chinese finding is normalized
+`DOC_REVIEW_REPORT_LANGUAGE = "en"` or `DOC_REVIEW_REPORT_LANGUAGE = ["en"]`,
+this means the Chinese finding is normalized
 to English for canonical row columns and the original Chinese prose is stored in:
 
 ```json
