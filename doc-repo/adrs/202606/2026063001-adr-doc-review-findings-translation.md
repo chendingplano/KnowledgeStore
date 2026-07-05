@@ -12,6 +12,9 @@
 
 * 2026/06/30, ADR Created. Documents the finding translation design and resolves the `i18n`
   wrapper question raised during bug investigation `2026062601-bug-translate-findings`.
+* 2026/07/05, Clarified that reviewer output may declare its source `language`. When present,
+  that value is used to store the original finding prose under `metadata.<language>`; when
+  absent, it defaults to `en`.
 
 ---
 
@@ -161,14 +164,61 @@ to the translator with `language: "zh"` caused Chinese→English output.
   (Fix 15).
 - Results are collected in an order-preserving buffered channel.
 
-### TR8 — Prompt files
+### TR8 — Reviewer-declared source language
 
-Two prompt files govern translation behavior:
+Reviewer prompts MAY include a `language` field on each finding. This field is the
+language of the prose emitted by the reviewer for `title`, `description`, and
+`suggestion`, not the report display language.
+
+When saving a finding:
+
+1. If `language` is present, the pipeline treats it as the finding's source language.
+2. If `language` is missing, empty, or invalid, the source language defaults to `en`.
+3. The raw reviewer prose is stored under the matching top-level language key in
+   `kb.doc_review_findings.metadata` when the language is not English.
+4. Canonical storage remains English: the row columns `title`, `description`, and
+   `suggestion` store canonical English content after normalization.
+
+Example: `prompt-review-provisions-v3.md` instructs the reviewer to emit Chinese
+`title`, `description`, and `suggestion`, plus `"language": "zh"`. If
+`DOC_REVIEW_REPORT_LANGUAGE = ["en"]`, this means the Chinese finding is normalized
+to English for canonical row columns and the original Chinese prose is stored in:
+
+```json
+{
+  "schema_version": 1,
+  "source_language": "zh",
+  "canonical_language": "en",
+  "canonical_origin": "translated",
+  "en": {
+    "title": "Undefined acceptance criteria",
+    "description": "The requirement states a condition but does not define acceptance criteria.",
+    "suggestion": "Add measurable acceptance criteria.",
+    "provenance": "canonical"
+  },
+  "zh": {
+    "title": "未定义验收标准",
+    "description": "该要求陈述了条件，但没有定义验收标准。",
+    "suggestion": "补充可衡量的验收标准。",
+    "provenance": "original_extraction"
+  }
+}
+```
+
+This is intentionally independent of `DOC_REVIEW_REPORT_LANGUAGE`: report languages
+choose which cached translations are displayed or generated; the reviewer output
+`language` records the language the LLM actually used when authoring the finding.
+
+### TR9 — Prompt files
+
+The normalization/localization prompt files govern translation behavior:
 
 | File | Prompt name constant | Used for |
 |------|---------------------|---------|
-| `prompts/prompt-doc-review-finding-translation-v1.md` | `doc-review-finding-translation` | First translation attempt |
-| `prompts/prompt-doc-review-finding-translation-retry-v1.md` | `doc-review-finding-translation-retry` | Retry when first attempt returned untranslated content |
+| `prompts/prompt-doc-review-finding-normalize-v*.md` | configured by `REVIEW_FINDING_NORMALIZE_PROMPT` | Normalize reviewer output into canonical English and detect/source-preserve the original language |
+| `prompts/prompt-doc-review-finding-normalize-retry-v*.md` | configured by `REVIEW_FINDING_NORMALIZE_RETRY_PROMPT` | Retry when normalization output is not valid canonical English |
+| `prompts/prompt-doc-review-finding-localize-v*.md` | configured by `REVIEW_FINDING_LOCALIZE_PROMPT` | Translate canonical English into a requested display language |
+| `prompts/prompt-doc-review-finding-localize-retry-v*.md` | configured by `REVIEW_FINDING_LOCALIZE_RETRY_PROMPT` | Retry when localized output remains untranslated |
 
 Key prompt invariants (Fix 9):
 - The `language` field in the JSON input **is** the target language, not the source.
