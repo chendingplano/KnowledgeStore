@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-30 \
 **Status:** Accepted \
-**Component:** ChenWeb — `server/api/doc-reviews`, `server/api/doc-processing` (connection loader), `prompts` \
+**Component:** ChenWeb — `server/api/doc-reviews`, `server/api/doc-processing` (metric indexing, object graph), `prompts` \
 **Authors**: Chen Ding\
 **Tags**: Document Reviewer, Metric, Cross-Document Consistency
 
@@ -37,17 +37,21 @@
   seed/stagger execution, and tool-use with `get_artifact_context`.
 * 2026/07/03, ADR 2026070201 AR6 (Stage 5) implemented: object-anchored
   missing-metric detection runs as a separate sibling aspect
-  (`metrics_completeness`) using the `belong_to` edges in
-  `kb.artifact_connections` to build per-object metric rosters.
+  (`metrics_completeness`). It resolves a document metric to canonical objects through
+  `kb.artifact_objects` -> `kb.object_nodes`, then loads all metrics connected to those
+  object nodes through `kb.artifact_connections` `relation_method='object_id'` /
+  `relation_name='belong_to'` edges to build per-object metric rosters.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,
 entities, relations and other artifacts from the document via the doc processors
 (refer to [1]).
 
-This document reviewer assumes the document-under-review, identified by `record_id`
-(`kb.inputs.id`), has already been processed by all doc processors. The reviewer is
-configured as `reviewers.metrics` (group P5) in [2].
+These document reviewers assume the document-under-review, identified by `record_id`
+(`kb.inputs.id`), has already been processed by the relevant doc processors. The metric
+conflict reviewer is configured as `reviewers.metrics` (group P5) in [2]; the
+object-anchored missing-metric reviewer is configured as `reviewers.metrics_completeness`
+(also group P5).
 
 ### How this reviewer differs from every existing reviewer
 
@@ -56,20 +60,19 @@ All ~40 existing review aspects (e.g. `grammar_spelling`, `completeness`,
 splits the line file into `per-chunk` or `per-block` units and fans out one LLM call
 per unit ([3], `review_cache_scheduler.go`).
 
-The metric reviewer is fundamentally different. It does **not** read the document
-text. It consumes **already-extracted artifacts** — the document's `kb.metrics` rows
-and its entities — and cross-references each metric against *semantically related
-metrics in other documents*. It is therefore a **cross-document consistency** check,
-not a single-document text review.
+The metric reviewers are fundamentally different. They do **not** read the document text
+linearly. They consume **already-extracted artifacts** — the document's `kb.metrics`
+rows, entity/object graph edges, and object-node rosters — and cross-reference them
+against metrics in other documents. They are therefore **cross-document consistency and
+completeness** checks, not single-document text reviews.
 
 ### Resolving "hybrid search `kb.artifact_connections` by the metric" (DR1)
 
 `kb.artifact_connections` is a graph **edge** table ([4], `connections.go`), not a
-searchable index, so it cannot be "hybrid searched" directly. The codebase already
-runs hybrid search (RRF over ParadeDB BM25 + pgvector) **at index time**: when the
-`extract_metrics` doc processor finishes, its artifact-indexing step
-(`artifact_indexing.go`) computes, for every metric, its top semantically-related
-artifacts across the **entire corpus** and persists them as edges:
+searchable index, so it cannot be "hybrid searched" directly. Early versions of this ADR
+expected the `extract_metrics` artifact-indexing step to compute, for every metric, its
+top semantically-related artifacts across the **entire corpus** and persist them as
+edges:
 
 ```
 source_type = 'metric', source_record_id = <doc>, source_id = <metric artifact id>
@@ -80,8 +83,9 @@ target_record_id / target_id = the matched artifact (often a different document)
 confidence      = RRF score, provenance = {cosine_sim, lexical_score, ...}
 ```
 
-As of 2026/07/01 (see change log) the reviewer does **not** read precomputed edges for
-Branch A. Semantic metric↔metric similarity is computed **live** at review time via
+As of 2026/07/01 (see change log), that design is no longer current: the reviewer does
+**not** read precomputed edges for Branch A. Semantic metric↔metric similarity is
+computed **live** at review time via
 `docprocessing.FindSimilarArtifactsOnTheFly`, which runs the same lexical + pgvector RRF
 search and acceptance policy the indexing step used to persist, but returns matches
 instead of writing edges. A single search per doc metric finds every semantically related
@@ -95,15 +99,22 @@ edges from `kb.artifact_connections`, and a 2026/06/30 fix unioned outbound + in
 edges to handle their directionality. Both are superseded by the on-the-fly approach
 above.)
 
-The entity branch likewise reads precomputed edges: a metric reachable from one of
-the document's entities through `kb.artifact_connections` is a candidate match.
+The entity branch still reads precomputed graph edges: a metric reachable from one of
+the document's entities through `kb.artifact_connections` is a candidate match. Because
+the loader does not constrain `relation_method`, this includes entity->metric edges
+written by shared-line artifact indexing as well as any explicit entity-metric relation.
+
+The object-anchored missing-metric check is intentionally a separate reviewer aspect,
+`metrics_completeness`, rather than another match branch inside `metrics`. It answers a
+different question: not "does this metric conflict with matching metrics?", but "does
+this document omit metrics that peer documents consistently attach to the same object?".
 
 ## Decision
 ### DR1 — Reviewer logic
 
-The reviewer builds, for each metric extracted from the document-under-review, a list
-of **matching metrics** drawn from the precomputed artifact graph, then issues one LLM
-call per metric that has at least one match. Pseudocode:
+The `metrics` reviewer builds, for each metric extracted from the document-under-review,
+a list of **matching metrics** from three sources, then issues one LLM call per metric
+that has at least one match. Pseudocode:
 
 ```text
 matches := map[metric] -> []matchingMetric   // keyed by the doc's own metric
@@ -117,7 +128,7 @@ for each metric M extracted from the document-under-review (kb.metrics WHERE inp
               candidateType='metric', maxLinks=METRIC_REVIEW_MAX_MATCHES)
    resolve each hit -> a kb.metrics row (the matching metric)
 
-   append resolved matches to matches[M]   (deduped by the matching metric's (record_id, id);
+   append resolved matches to matches[M]   (deduped by matching metric_id;
                                             same-document hits excluded)
 
    # Branch B: metric -> metrics sharing a metric category
@@ -135,28 +146,6 @@ for each entity E extracted from the document-under-review:
       (default: add MT to every doc metric that shares a category with MT;
        if none shares a category, MT is recorded as an unattached entity-metric and skipped)
 
-# Branch D: entity-by-shared-lines -> metrics related to that entity
-for each metric:
-  find all the entities that share the same line(s) with the metric:
-      the remain part is the same as that of Branch C
-
-# Branch D: inventory-items -> metrics related to that entity
-for each inventory item extracted from the document-under-review:
-   edges := load kb.artifact_connections WHERE
-              source_type='inventory_item' AND source_record_id=record_id AND source_id=E.artifact_id
-              AND target_type='metric'
-   for each resolved target metric MT:
-      attach MT to the doc metric(s) it most plausibly corroborates
-      (default: add MT to every doc metric that shares a category with MT;
-       if none shares a category, MT is recorded as an unattached entity-metric and skipped)
-
-# Branch D: entity-by-shared-lines -> metrics related to that entity
-for each metric:
-  find all the entities that share the same line(s) with the metric:
-      the remain part is the same as that of Branch C
-
-# Branch E: inventory-
-
 # LLM comparison (parallel)
 for each metric M in matches where len(matches[M]) > 0:
    launch one LLM call (configured model + prompt) with:
@@ -165,36 +154,86 @@ for each metric M in matches where len(matches[M]) > 0:
    parse findings; tag Pass="P5", Aspect="metrics"
 ```
 
-LLM calls run in parallel via the shared reviewer concurrency helper
-(`runReviewerConcurrent`, bounded by `REVIEW_MAX_TASKS`); stop requests are honored at
-each call boundary (refer to [3] and the doc-processor stop contract).
+LLM calls run through the artifact-review window-grouped executor (bounded by
+`REVIEW_MAX_TASKS`); stop requests are honored at each call boundary (refer to [3] and
+the doc-processor stop contract).
 
 Dedup/cap rules:
-- A matching metric is identified by the matching metric's own `(record_id, id)` — the
-  `target` endpoint for outbound edges, the `source` endpoint for inbound edges; duplicates
-  across branches **and across both edge directions** are collapsed.
-- A metric's own record is never a match: the matching endpoint's `record_id = record_id`
-  is excluded (`target_record_id <> record_id` for outbound, `source_record_id <> record_id`
-  for inbound) so the reviewer is strictly cross-document; same-document near-duplicates are
-  handled by the metric deduplication pipeline, not this reviewer.
+- A matching metric is identified by its `metric_id`; duplicates across live hybrid search,
+  category siblings, and entity-connected metrics are collapsed.
+- A metric's own record is never a match: matches with `record_id = record_id` are excluded
+  so the reviewer is strictly cross-document; same-document near-duplicates are handled by
+  the metric deduplication pipeline, not this reviewer.
 - `matches[M]` is capped at `MaxMatchesPerMetric` (default 20), highest-confidence first.
 
-### DR2 — Prompt
-Create `ChenWeb/prompts/prompt-review-metrics-v1.md` and reference it from
-`reviewers.metrics.prompt` in [2]. The prompt instructs the model to compare one
-"metric under review" against a set of matching metrics drawn from other documents and
-to emit findings only for genuine cross-document discrepancies (conflicting values,
-units, thresholds, or definitions for what is plausibly the same quantity), not mere
-restatements. Output conforms to the standard review-finding JSON contract (see
-Data Formats).
+### DR1b — Object-anchored missing-metric logic
+
+The `metrics_completeness` reviewer runs as a sibling P5 aspect. It builds one review
+unit per canonical object that the document's metrics attach to, then asks whether the
+document appears to be missing metrics that peer documents attach to the same or clearly
+comparable object. Pseudocode:
+
+```text
+docMetrics := kb.metrics WHERE input_record_id = record_id
+
+# Resolve each doc metric to canonical object nodes.
+objectLinks := kb.artifact_objects ao
+   LEFT JOIN kb.object_nodes onode ON onode.object_id = ao.object_id
+   WHERE ao.source_record_id = record_id
+     AND ao.artifact_type = 'metric'
+     AND ao.artifact_id IN docMetrics.metric_id
+     AND ao.object_id IS NOT NULL
+
+group docMetrics by objectLinks.object_id
+
+for each object node O:
+   peerEdges := kb.artifact_connections WHERE
+      relation_method = 'object_id'
+      AND relation_name = 'belong_to'
+      AND source_type = 'metric'
+      AND target_type = 'object_node'
+      AND target_id = O.object_id
+
+   comparableObjects := kb.object_nodes WHERE
+      object_type = O.object_type
+      AND object_id <> O.object_id
+      AND normalized_names overlap O.normalized_names
+      AND reconcile_status <> 'rejected'
+
+   also load peerEdges for comparableObjects
+   resolve peerEdges.extra_info.artifact_ids -> kb.metrics rows
+   group resolved peer metrics by source document
+
+   if at least one peer document has metrics:
+      launch one LLM call with:
+         - the object node metadata
+         - doc metrics attached to this object
+         - peer documents and their metrics for the same/comparable object
+      parse findings; tag Pass="P5", Aspect="metrics_completeness"
+```
+
+This branch depends on metric extraction persisting objects with
+`MetricsProcessor.persistMetricObjects`, object reconciliation creating or matching
+`kb.object_nodes`, and metric indexing writing object edges with
+`indexArtifactObjectConnections`.
+
+### DR2 — Prompts
+The original prompt was `ChenWeb/prompts/prompt-review-metrics-v1.md`; current
+configuration uses `prompt-review-metrics-v2.md` for the `metrics` aspect and
+`prompt-review-metrics-missing-v1.md` for `metrics_completeness`. The metric conflict
+prompt instructs the model to compare one "metric under review" against matching metrics
+from other documents and emit findings only for genuine cross-document discrepancies
+(conflicting values, units, thresholds, or definitions for what is plausibly the same
+quantity), not mere restatements. The missing-metric prompt asks whether the document
+omits expected metrics for an object compared with peer-document rosters. Both prompts
+emit the standard review-finding JSON contract (see Data Formats).
 
 ### Alternative Decisions
 - **Live hybrid search at review time** (call the metric search path per metric):
-  rejected — duplicates work already done at index time, is non-deterministic w.r.t.
-  index state, and is markedly more expensive. The precomputed-edge approach can be
-  upgraded to a live fallback later without changing the finding contract.
+  originally rejected, then accepted on 2026/07/01 after precomputed
+  `hybrid_search` edges proved stale and directional. This is now Branch A.
 - **Pure structural graph walk only** (no use of `hybrid_search` edges): rejected — the
-  `hybrid_search` edges *are* the semantic match signal; ignoring them would reduce the
+  live hybrid-search result is the semantic match signal; ignoring it would reduce the
   reviewer to category/entity co-membership and miss cross-document value conflicts that
   are textually dissimilar.
 - **New `ReviewStrategy` enum value + scheduler branch**: rejected as unnecessary. A
@@ -203,11 +242,15 @@ Data Formats).
   that path with `Input = "artifact"`.
 
 ### Database Migrations
-**None.** The reviewer reads existing tables (`kb.metrics`, `kb.artifact_connections`,
-entities) and writes findings to the existing `kb.doc_review_findings` (run-scoped via
-`run_id`, per ADR 2026062804 [5]). No new table, column, or `kb.search_artifacts`
-partition is required (reviewers persist findings; they do not create searchable
-artifacts).
+**None for the reviewer.** The implemented reviewers read existing tables:
+`kb.metrics`, `kb.search_artifacts`, `kb.artifact_connections`, entities,
+`kb.artifact_objects`, and `kb.object_nodes`; they write findings to the existing
+`kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No new
+reviewer-owned table, column, or `kb.search_artifacts` partition is required.
+
+The object path assumes the doc-processing pipeline has already created and populated
+`kb.artifact_objects` and `kb.object_nodes`, and that metric indexing has written
+`object_id` / `belong_to` edges into `kb.artifact_connections`.
 
 ### Data Formats
 
@@ -237,7 +280,8 @@ artifacts).
   "source_record_id": 2002,
   "source_filename": "GB_50316_pipe_design.pdf",
   "match_via": "hybrid_search | metric_category | entity",
-  "confidence": 0.0123
+  "match_rank": 1,
+  "source_doc_authority": "standard"
 }
 ```
 
@@ -262,6 +306,34 @@ The reviewer sets `Pass="P5"` and `Aspect="metrics"` on every finding (defaultin
 `source_line_spans` when the model leaves them empty), mirroring
 `grammarSpellingReviewer`.
 
+**Object metric roster (`metrics_completeness`)** — fields passed to the LLM for one
+object:
+
+```json
+{
+  "object": {
+    "object_id": "obj_1001_abcd1234",
+    "object_name": "pipe system",
+    "object_type": "system",
+    "description": "..."
+  },
+  "doc_metrics": [{ "...": "metricView" }],
+  "peer_docs": [{
+    "source_record_id": 2002,
+    "source_filename": "GB_50316_pipe_design.pdf",
+    "source_doc_authority": "standard",
+    "metrics": [{ "...": "metricView" }]
+  }],
+  "total_peer_docs": 3,
+  "total_peer_metrics": 12,
+  "artifact_line_spans": ["120:124"]
+}
+```
+
+`metrics_completeness` sets `Pass="P5"` and `Aspect="metrics_completeness"` on every
+finding, defaulting `finding_type="missing_metric"` and `severity="medium"` when the
+model leaves them empty.
+
 ### Environment Variables
 - `REVIEW_MAX_TASKS` (existing) — bounds reviewer-internal parallelism; reused for the
   per-metric LLM fan-out.
@@ -269,8 +341,11 @@ The reviewer sets `Pass="P5"` and `Aspect="metrics"` on every finding (defaultin
   per doc metric.
 - `METRIC_REVIEW_MAX_METRICS` (new, optional, default `0` = no cap) — cap on the number
   of doc metrics reviewed (safety valve for very metric-heavy documents).
+- `METRIC_COMPLETENESS_REVIEW_MAX_OBJECTS` (new, optional, default `0` = no cap) — cap
+  on object rosters reviewed by `metrics_completeness`.
 - No new model/prompt env vars: model and prompt come from `reviewers.metrics` in [2]
-  via the existing `resolveReviewerRuntime` path.
+  and `reviewers.metrics_completeness` in [2] via the existing
+  `resolveReviewerRuntime` path.
 
 ## Implementation
 
@@ -278,31 +353,33 @@ The reviewer sets `Pass="P5"` and `Aspect="metrics"` on every finding (defaultin
 
 | File | Change |
 |---|---|
-| `ChenWeb/server/api/doc-reviews/review-metrics.go` | **New.** `metricsReviewer` implementing `Reviewer` (`Name()="metrics"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's metrics + entities, builds the match map via the connection loader + category/entity branches, resolves target metrics, and fans out one LLM call per matched doc metric with `runReviewerConcurrent`. Stop-aware. |
-| `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolve `metrics`/P5 runtime (`resolveReviewerRuntime`) and store client/model/prompt fields on `ReviewProcessor`. In `buildReviewers`, append the `metricsReviewer` runner with `cfg.Input="artifact"` so the scheduler routes it to `runReviewersLegacy` → `ReviewDocument`. |
-| `ChenWeb/server/api/doc-processing/connections_store.go` | `LoadConnectionsBySource(ctx, sourceRecordID, sourceType, relationMethod, targetType)` (outbound; already present) **plus a new** `LoadConnectionsByTarget(ctx, targetRecordID, targetType, relationMethod, sourceType)` mirror (inbound) returning `[]Connection`. Branch A reads both so it captures edges written by documents indexed after the document-under-review. Exported for use by `doc-reviews`. |
-| `ChenWeb/server/api/doc-reviews/review-metrics.go` (metric resolution) | Helper to resolve an edge endpoint back to a `kb.metrics` row — the `target` endpoint for outbound edges, the `source` endpoint for inbound edges: parse the trailing sequence from the artifact id (`BuildArtifactID` format `<rec>_m_<seq>`) and match `kb.metrics WHERE input_record_id = <endpoint record_id> AND (metric_id LIKE '%\_'||seq OR id::text = seq)`. Batch by record to avoid N+1. |
-| `ChenWeb/doc-review.local.toml` | Change `reviewers.metrics.input` from `"per-chunk"` to `"artifact"`; set `max_tool_turns = 0` (the reviewer is not tool-using). Model stays `deepseek-v4-pro`, prompt `prompt-review-metrics-v1.md`. |
-| `ChenWeb/prompts/prompt-review-metrics-v1.md` | **New** prompt (DR2). |
-| `ChenWeb/server/api/doc-reviews/review-metrics_test.go` | **New** tests (see Tests). |
+| `ChenWeb/server/api/doc-reviews/review-metrics.go` | `metricsReviewer` implements `Reviewer` (`Name()="metrics"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's metrics, builds matches from live `FindSimilarArtifactsOnTheFly`, category siblings, and entity->metric connections, hydrates source context, and fans out one LLM call per matched doc metric with window-grouped artifact execution. Tool-use is enabled when configured. |
+| `ChenWeb/server/api/doc-reviews/review-metrics-completeness.go` | `metricsCompletenessReviewer` implements the object-anchored missing-metric pass. It resolves doc metric -> `kb.artifact_objects` -> `kb.object_nodes`, loads exact and comparable object metric rosters via `kb.artifact_connections` `object_id`/`belong_to` edges, and fans out one LLM call per object. |
+| `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolves both `metrics` and `metrics_completeness` P5 runtime/budget/tool config. In `buildReviewers`, appends both artifact reviewers with `cfg.Input="artifact"` so the scheduler routes them to `runReviewersLegacy` -> `ReviewDocument`. |
+| `ChenWeb/server/api/doc-processing/extract-metrics.go` | Persists metric object annotations through `MetricsProcessor.persistMetricObjects`, synthesizing a measured object from metric subject fields when the LLM did not return explicit `objects`. |
+| `ChenWeb/server/api/doc-processing/artifact_objects.go`, `object_nodes.go` | Normalize artifact objects, reconcile them to existing/new object nodes, and store `kb.artifact_objects` rows with object ids, roles, names, aliases, normalized names, source spans, and reconciliation metadata. |
+| `ChenWeb/server/api/doc-processing/metric_indexing.go`, `artifact_object_connection_indexing.go` | Metric indexing writes category edges, shared-line artifact edges, and object-node `belong_to` edges. It no longer writes semantic metric<->metric `hybrid_search` edges; live search uses hydrated `kb.search_artifacts`. |
+| `ChenWeb/doc-review.local.toml` | `reviewers.metrics` uses `input="artifact"`, `prompt-review-metrics-v2.md`, tool-use with `get_artifact_context`; `reviewers.metrics_completeness` uses `prompt-review-metrics-missing-v1.md`, tool-use with `search_metrics` and `get_artifact_context`. |
+| `ChenWeb/prompts/prompt-review-metrics-v2.md` | Metric conflict prompt (DR2, superseding v1). |
+| `ChenWeb/prompts/prompt-review-metrics-missing-v1.md` | Object-anchored missing-metric prompt for `metrics_completeness`. |
+| `ChenWeb/server/api/doc-reviews/review-metrics_test.go`, `review-metrics-completeness_test.go`; `ChenWeb/server/api/doc-processing/*object*_test.go`, `metric_indexing_test.go` | Tests covering match assembly, completeness rosters, object persistence/reconciliation, object-edge indexing, and live hybrid search. |
 
-The metric reviewer reuses the existing entity store (`ReviewProcessor.EntityStore`,
-`EntityRelationSQLStore.LoadEntitiesForRecord`) for branch C and the shared
-`newDocReviewLLMJSONInput` + `LLMJSONExtractor` for LLM calls, so cache telemetry and
-finding normalization are identical to other reviewers.
+The metric reviewers reuse the shared `newDocReviewLLMJSONInput`, `LLMJSONExtractor`,
+tool-use loop, artifact-window layout, review logs, and finding normalization used by
+the other artifact reviewers.
 
 ## Operational Behaviors
 
 - **No metrics / no matches:** if the document has no `kb.metrics` rows, or no metric
-  has any cross-document match, the reviewer returns zero findings (logged, not an
-  error). This is the common case for documents that are the sole source of their
-  metrics.
-- **Dependency:** the reviewer is meaningful only after `extract_metrics` and (for
-  branch C) `extract_entity_relation` have run and the artifact-indexing step has
-  written `hybrid_search` edges. If those edges are absent (indexing not yet run),
-  branches A/C contribute nothing and only category co-membership (branch B) applies.
-- **Parallelism & stop:** per-metric LLM calls run concurrently under `REVIEW_MAX_TASKS`;
-  a user stop request cancels remaining calls at the next boundary (`ErrPipelineStopped`).
+  has any cross-document match, `metrics` returns zero findings (logged, not an error).
+  If no object has peer metrics, `metrics_completeness` likewise returns zero findings.
+- **Dependency:** `metrics` is meaningful after `extract_metrics` has populated
+  `kb.metrics` and `kb.search_artifacts`; branch C additionally benefits from
+  entity-related artifact connections. `metrics_completeness` additionally requires
+  metric object persistence/reconciliation and object `belong_to` indexing.
+- **Parallelism & stop:** per-metric and per-object LLM calls run under
+  `REVIEW_MAX_TASKS`; a user stop request cancels remaining calls at the next boundary
+  (`ErrPipelineStopped`).
 - **Idempotency:** findings are written under the current `run_id`; a re-run deletes the
   run's prior findings first (existing `PostProcessIndex` behavior, [5]).
 
@@ -311,27 +388,25 @@ finding normalization are identical to other reviewers.
 **Positive**
 - Adds genuine cross-document consistency checking — conflicting values/units/thresholds
   for the same quantity across the corpus — which no text-based reviewer can detect.
-- Reuses precomputed `hybrid_search` edges: no extra search cost at review time, fully
-  consistent with the artifact graph.
+- Live hybrid search avoids stale/directional semantic edges while still using the shared
+  `kb.search_artifacts` lexical/vector index.
+- Object-anchored completeness catches omissions that conflict checking cannot see:
+  missing metrics for the same canonical object when peer documents consistently include
+  them.
 - Integrates through the existing `runReviewersLegacy`/`ReviewDocument` path with no
   scheduler or schema changes.
 
 **Negative / cost**
-- Match quality is bounded by the freshness and quality of the precomputed
-  `hybrid_search` edges; a stale index yields stale matches.
-- Per-metric LLM fan-out can be large for metric-heavy documents; bounded by
-  `METRIC_REVIEW_MAX_METRICS` and `MaxMatchesPerMetric`.
-- The artifact-id → `kb.metrics` reverse resolution depends on the `BuildArtifactID`
-  sequence convention; covered by a unit test so a format change is caught.
+- Per-metric live search adds read-time search cost; bounded by `METRIC_REVIEW_MAX_METRICS`
+  and `MaxMatchesPerMetric`.
+- Per-object completeness fan-out can be large for object-heavy documents; bounded by
+  `METRIC_COMPLETENESS_REVIEW_MAX_OBJECTS`.
+- Object-anchored recall is bounded by object extraction/reconciliation quality. Metrics
+  without a reconciled `object_id` cannot contribute to completeness rosters.
 
 ## Tests
-- `ReviewDocument` with a doc metric that has one **outbound** `hybrid_search` edge to a
-  cross-document metric → one LLM call, finding tagged `P5`/`metrics`.
-- Branch A inbound direction: a doc metric that has no outbound edge but is the `target`
-  of a `hybrid_search` edge from a later-indexed document's metric is still matched
-  (resolved from the edge `source` endpoint).
-- Branch A dedup across directions: a cross-document metric linked to the doc metric by
-  both an outbound and an inbound `hybrid_search` edge appears as a single match.
+- `ReviewDocument` with a doc metric that has one live hybrid-search hit to a
+  cross-document metric -> one LLM call, finding tagged `P5`/`metrics`.
 - Metric with no matches (no edges, no category siblings, no entity metrics) → no LLM
   call, no findings.
 - Branch B: two metrics sharing a `metric_categories` key in different documents are
@@ -340,28 +415,35 @@ finding normalization are identical to other reviewers.
   category-sharing doc metric.
 - Dedup: a target reachable via both `hybrid_search` and entity branches appears once.
 - Cap: `MaxMatchesPerMetric` truncates to the highest-confidence matches.
-- Artifact-id → metric resolution helper: `1001_m_7` resolves to the right
-  `kb.metrics` row; unresolvable ids are skipped without error.
-- `LoadConnectionsBySource` returns only edges matching the source/method/target filter;
-  `LoadConnectionsByTarget` returns only edges matching the target/method/source filter.
+- Live search uses stored query embeddings from `kb.search_artifacts`.
+- Metric object persistence writes `kb.artifact_objects` rows and reconciles them to
+  `kb.object_nodes`.
+- Object-edge indexing writes `object_id` / `belong_to` rows whose `extra_info` carries
+  the metric artifact ids attached to the object.
+- `metrics_completeness` builds rosters from `kb.artifact_objects` ->
+  `kb.object_nodes` -> `kb.artifact_connections` -> `kb.metrics`, excludes the document
+  under review from peer docs, and includes comparable object nodes with overlapping
+  normalized names.
 - Stop request mid-fan-out returns `ErrPipelineStopped`.
 
 ## Documentation Impact
 - `doc-processor/+CAPSULE.md` [1]: the `review_document` row already covers the review
   pipeline; no pipeline-table change (metrics is a review *aspect*, not a doc processor).
-- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md` is the
-  behavior record. A standalone document-review spec (referenced as [6]) does not yet
-  exist; when it is written it should note that `metrics` is the first artifact-based
-  (cross-document) reviewer and uses `Input="artifact"` (direct `ReviewDocument` path).
-- Intentionally left undocumented: the exact RRF weighting of `hybrid_search` edges
-  (owned by `artifact_indexing.go` / the metric-indexing spec), and live-search fallback
-  (not built).
+- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md` is a
+  historical behavior record. Current behavior is split between
+  `prompt-review-metrics-v2.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
+  (`metrics_completeness`). A standalone document-review spec (referenced as [6]) does
+  not yet exist; when it is written it should note that these are artifact-based
+  cross-document reviewers and use `Input="artifact"` (direct `ReviewDocument` path).
+- Intentionally left undocumented: the exact RRF weighting of live hybrid search
+  (owned by `metric_indexing.go` / the metric-indexing spec), and any future object
+  reconciliation embedding policy beyond the current lexical-name path.
 
 ## References
 - [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
 - [2] `ChenWeb/doc-review.local.toml`
 - [3] `KnowledgeStore/doc-repo/adrs/202606/2026062804-adr-doc-review-run.md` (run model) and `ChenWeb/server/api/doc-reviews/review_cache_scheduler.go` (dispatch)
-- [4] `ChenWeb/server/api/doc-processing/connections.go`, `connections_store.go`, `artifact_indexing.go` (artifact graph + hybrid_search edges)
+- [4] `ChenWeb/server/api/doc-processing/connections.go`, `connections_store.go`, `metric_indexing.go`, `artifact_object_connection_indexing.go` (artifact graph, live-search hydration, object edges)
 - [5] ADR 2026062804 — `kb.doc_review_runs` run model (run-scoped findings)
 - [6] `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
 - [7] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md`
