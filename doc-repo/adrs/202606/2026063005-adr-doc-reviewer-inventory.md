@@ -33,9 +33,13 @@
 * 2026/07/05, synced with implemented object-centric design (ADR 2026070101):
   inventory-item extraction persists a `self` artifact object for each item, reconciles
   artifact objects to `kb.object_nodes`, and inventory indexing writes `object_id` /
-  `belong_to` graph edges. This reviewer still matches inventory items by live hybrid
-  search, category siblings, and entity edges; the shared object graph is part of the
-  implemented artifact context and search surface.
+  `belong_to` graph edges.
+* 2026/07/05, clarified the reviewer goal to match ADR 2026063002: for each
+  inventory-item-under-review, retrieve relevant cross-document inventory items from the
+  database, then ask the LLM to review the item with that context. Object-anchored
+  retrieval is a match branch. The old document-level entity branch is removed because it
+  retrieves items related to entities in the document-under-review, not necessarily items
+  relevant to the inventory-item-under-review.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,
@@ -67,7 +71,7 @@ object-node membership edges.
 
 Like `metrics` (and `provisions`/`entities`), this reviewer does **not** read the
 document text. It consumes already-extracted `kb.inventory_items` rows and the
-artifact graph (`kb.artifact_connections`) plus live search over `kb.search_artifacts`.
+artifact object graph plus live search over `kb.search_artifacts`.
 It is therefore a
 **cross-document consistency** check, not a single-document text review.
 
@@ -86,8 +90,10 @@ reviewer's revised DR1 ([1]).
 
 The reviewer builds, for each inventory item extracted from the document-under-review, a
 list of **matching inventory items** from live semantic search, category siblings, and
-materialized entity graph edges, then issues one LLM call per item that has at least one
-match. Pseudocode (mirrors the metric reviewer's three branches):
+object-anchored graph retrieval, then issues one LLM call per item that has at least one
+match. The high-level flow is: given an inventory-item-under-review, find relevant
+inventory items already in the database, then ask the LLM to review the item with the
+document context and matching items. Pseudocode:
 
 ```text
 matches := map[item] -> []matchingItem   // keyed by the doc's own inventory item
@@ -105,19 +111,34 @@ for each item I extracted from the document-under-review
    append resolved matches to matches[I]   (deduped by matching inventory_item_id;
                                             same-document hits excluded)
 
-# Branch B: item -> items sharing an item category (corpus-wide)
-for each category key C in I.item_categories:
-   sibling items := kb.inventory_items WHERE item_categories @> C AND input_record_id <> record_id
-   append sibling items to matches[I]   (deduped, capped)
+   # Branch B: item -> items sharing an item category (corpus-wide)
+   for each category key C in I.item_categories:
+      sibling items := kb.inventory_items WHERE item_categories @> C AND input_record_id <> record_id
+      append sibling items to matches[I]   (deduped, capped)
 
-# Branch C: entity -> items related to that entity
-for each entity E extracted from the document-under-review:
-   edges := load kb.artifact_connections WHERE
-              source_type='entity' AND source_record_id=record_id AND source_id=E.artifact_id
-              AND target_type='inventory_item'
-   for each resolved target item IT:
-      attach IT to every doc item that shares an item_category with IT
-      (if none shares a category, IT is skipped)
+   # Branch C: object-anchored items for the inventory-item-under-review
+   objectLinks := kb.artifact_objects ao
+      JOIN kb.object_nodes onode ON onode.object_id = ao.object_id
+      WHERE ao.source_record_id = record_id
+        AND ao.artifact_type = 'inventory_item'
+        AND ao.artifact_id = I.inventory_item_id
+        AND ao.object_id IS NOT NULL
+
+   for each object node O linked to I:
+      peerObjectIDs := O.object_id plus comparable object nodes
+                       (same object_type, overlapping normalized_names,
+                        reconcile_status <> 'rejected')
+
+      peerEdges := kb.artifact_connections WHERE
+         relation_method = 'object_id'
+         AND relation_name = 'belong_to'
+         AND source_type = 'inventory_item'
+         AND target_type = 'object_node'
+         AND target_id IN peerObjectIDs
+
+      resolve peerEdges.extra_info.artifact_ids -> kb.inventory_items rows
+      append resolved items to matches[I]   (deduped by inventory_item_id;
+                                             same-document hits excluded)
 
 # LLM comparison (parallel)
 for each item I in matches where len(matches[I]) > 0:
@@ -155,6 +176,11 @@ conforms to the standard review-finding JSON contract (see Data Formats).
 - **Category co-membership only (drop hybrid_search edges)**: rejected — the
   live hybrid-search result is the semantic match signal and catches cross-document conflicts
   between items that are textually dissimilar but describe the same product.
+- **Document-level entity branch:** removed from the reviewer design. It used
+  entity->inventory_item edges for all entities extracted from the document-under-review,
+  then attached targets by item-category overlap. That is a weak
+  inventory-item-under-review relevance signal compared with live hybrid search,
+  category siblings, and object-anchored retrieval.
 - **New `ReviewStrategy` enum value + scheduler branch**: rejected as unnecessary. A
   reviewer whose `Input` is neither `per-chunk` nor `per-block` is already routed to
   `runReviewersLegacy`, which calls `ReviewDocument`. The inventory reviewer uses that
@@ -162,8 +188,9 @@ conforms to the standard review-finding JSON contract (see Data Formats).
 
 ### Database Migrations
 **None for the reviewer.** The reviewer reads existing tables (`kb.inventory_items`,
-`kb.search_artifacts`, `kb.artifact_connections`, entities) and writes findings to the
-existing `kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No
+`kb.search_artifacts`, `kb.artifact_objects`, `kb.object_nodes`, and object-id
+`kb.artifact_connections` edges) and writes findings to the existing
+`kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No
 reviewer-owned table, column, or `kb.search_artifacts` partition is required.
 
 Inventory object extraction/reconciliation tables and object-id connection partitions
@@ -196,7 +223,7 @@ the "inventory_item_under_review":
   "item": { ... same fields as above ... },
   "source_record_id": 2002,
   "source_filename": "GB_12237_valves.pdf",
-  "match_via": "hybrid_search | item_category | entity",
+  "match_via": "hybrid_search | item_category | object_anchor",
   "match_rank": 1,
   "source_doc_authority": "standard"
 }
@@ -238,7 +265,7 @@ The reviewer sets `Pass="P5"` and `Aspect="inventory_items"` on every finding (d
 
 | File | Change |
 |---|---|
-| `ChenWeb/server/api/doc-reviews/review-inventory-items.go` | `inventoryItemsReviewer` implementing `Reviewer` (`Name()="inventory_items"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's inventory items, builds matches from live `FindSimilarArtifactsOnTheFly`, category siblings, and entity->inventory_item edges, hydrates source context, and runs window-grouped artifact review units. Tool-use is enabled when configured. |
+| `ChenWeb/server/api/doc-reviews/review-inventory-items.go` | `inventoryItemsReviewer` implementing `Reviewer` (`Name()="inventory_items"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's inventory items, builds matches from live `FindSimilarArtifactsOnTheFly`, category siblings, and object-anchored item rosters, hydrates source context, and runs window-grouped artifact review units. Tool-use is enabled when configured. |
 | `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolve `inventory_items`/P5 runtime, budget, and tool config. In `buildReviewers`, append the `inventoryItemsReviewer` runner with `cfg.Input="artifact"`. |
 | `ChenWeb/server/api/doc-reviews/aspects.go` | Register the `inventory_items` aspect (P5, Label "Inventory Item Consistency", DefaultModel `deepseek-v4-pro`). |
 | `ChenWeb/server/api/doc-processing/extract-inventory-items.go`, `inventory_item_indexing.go` | Persist/reconcile inventory item artifact objects, reindex inventory items in `kb.search_artifacts`, and index object-node/category/shared-line graph edges. Semantic item<->item edges are not consumed from materialized `hybrid_search` edges. |
@@ -246,19 +273,21 @@ The reviewer sets `Pass="P5"` and `Aspect="inventory_items"` on every finding (d
 | `ChenWeb/prompts/prompt-review-inventory-items-v2.md` | Current prompt (v2 supersedes v1). |
 | `ChenWeb/server/api/doc-reviews/review-inventory-items_test.go` | **New** tests (see Tests). |
 
-No new connection loader is required: Branch A uses live search, and Branch C reuses the
-generic `LoadConnectionsBySource` for entity->inventory_item graph edges. The reviewer
-reuses artifact-window layout, `newDocReviewLLMJSONInput`, `normalizeFindingsJSON`,
-tool-use review plumbing, and `parseJSONStringArray`, so cache telemetry and finding
-normalization are identical to other artifact reviewers.
+Branch A uses live search. Branch C uses the implemented object graph:
+`kb.artifact_objects` -> `kb.object_nodes` -> object-id `kb.artifact_connections` edges
+whose `extra_info.artifact_ids` resolve back to `kb.inventory_items`. The reviewer reuses
+artifact-window layout, `newDocReviewLLMJSONInput`, `normalizeFindingsJSON`, tool-use
+review plumbing, and `parseJSONStringArray`, so cache telemetry and finding normalization
+are identical to other artifact reviewers.
 
 ## Operational Behaviors
 
 - **No items / no matches:** if the document has no `kb.inventory_items` rows, or no item
   has any cross-document match, the reviewer returns zero findings (logged, not an error).
-- **Dependency:** meaningful only after `extract_inventory_items` (and for branch C
-  `extract_entity_relation`) has populated `kb.inventory_items`, `kb.search_artifacts`,
-  item categories, entity graph edges, and the ADR 2026070101 object graph.
+- **Dependency:** meaningful only after `extract_inventory_items` has populated
+  `kb.inventory_items`, `kb.search_artifacts`, item categories, and the ADR 2026070101
+  object graph: artifact-object persistence, object-node reconciliation, and object
+  `belong_to` indexing.
 - **Parallelism & stop:** per-item LLM calls run concurrently under `MaxConcurrent`; a user
   stop request cancels remaining calls at the next boundary (`ErrPipelineStopped`).
 - **Idempotency:** findings are written under the current `run_id`; a re-run deletes the
@@ -272,6 +301,9 @@ normalization are identical to other artifact reviewers.
   the corpus — which no text-based reviewer can detect.
 - Live hybrid search avoids stale/directional semantic edges while reusing the shared
   lexical/vector search registry and generic graph loaders.
+- Object-anchored matching retrieves items tied to the same canonical object as the
+  inventory-item-under-review, improving relevance over document-level entity
+  co-occurrence.
 - Integrates through the existing `runReviewersLegacy`/`ReviewDocument` path with no
   scheduler or schema changes; fourth member of the artifact-based P5 reviewer family
   (`metrics`, `provisions`, `entities`, `inventory_items`).
@@ -281,13 +313,19 @@ normalization are identical to other artifact reviewers.
   and `MaxMatchesPerItem`.
 - Per-item LLM fan-out can be large for inventory-heavy documents; bounded by the same
   caps.
+- Object-anchored recall depends on inventory object extraction and reconciliation
+  quality. Items without a reconciled `object_id` rely on live hybrid search and category
+  siblings only.
 
 ## Tests
 - `assembleInventoryMatches`: branch coverage (hybrid_search A, category-sibling B,
-  entity C), dedup of a target reached via two branches, same-document exclusion, and cap
-  to highest-confidence matches.
+  object-anchor C), dedup of a target reached via two branches, same-document exclusion,
+  and cap to highest-confidence matches.
 - Branch A: a live hybrid-search hit to a cross-document item is matched; same-document
   hits are excluded and duplicates collapse to one match.
+- Branch C: an object-anchored item in another document is attached to the
+  inventory-item-under-review through `kb.artifact_objects` -> `kb.object_nodes` ->
+  `kb.artifact_connections`.
 - `reviewItem`: payload contains `inventory_item_under_review` + `matching_items`; findings
   are tagged `P5`/`inventory_items` with `finding_type`/`severity`/`location` defaults;
   prompt ref and document-first flag are propagated.
