@@ -18,7 +18,8 @@ Report finding rendering:
 Cross-document metric evidence:
 - Metric consistency findings must identify the matched metric record in prose by `kb.metrics.metric_id`, for example `diaryMac.docx (refer to 415-mtc-2) specifies 48小时 ...`.
 - The finding description must not rely on the filename alone when referencing a conflicting peer metric. It should include the matched metric ID, the referenced value/unit, and enough location context to let a reader find the source.
-- When the metric reviewer prompt is supplied with `source_context`, append the referenced matching metric context to the analysis: include the matched metric's `source_line_spans`, the referenced line(s), and the provided +/- 10 surrounding source lines as `line_number: content`.
+- The finding description must not inline-dump `source_context` lines. The prompt should return `related_artifact_id` and `related_record_id`; the report renderer uses those IDs to fetch the matched metric's `source_line_spans`.
+- Render referenced matched metric lines as a separate source-style block, using the same visual treatment as "Related Source Lines": context lines before, highlighted referenced line(s), and context lines after. For metrics, include the matched metric's line span and the available +/- 10 surrounding source lines as `line_number: content`.
 
 # References
 [1] ChenWeb/docs/doc-templates/template-document-report.typ
