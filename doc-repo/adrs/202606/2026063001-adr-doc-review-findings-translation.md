@@ -18,6 +18,9 @@
 * 2026/07/05, Clarified that `DOC_REVIEW_REPORT_LANGUAGE` accepts either a single JSON string
   such as `"en"` or a JSON array such as `["en", "zh"]`; the same parsed language list drives
   report variants and auto pre-translation targets.
+* 2026/07/05, Clarified that `DOC_REVIEW_TRANSLATION = "on-demand"` performs no save-time
+  LLM normalization or localization; reviewer-authored prose is stored as-is with its declared
+  source language.
 
 ---
 
@@ -155,6 +158,11 @@ DOC_REVIEW_REPORT_LANGUAGE='["en", "zh"]'
 If the variable is absent, empty, or yields no valid language codes, the pipeline
 falls back to `["en"]`.
 
+When `DOC_REVIEW_TRANSLATION = "on-demand"`, save-time translation is fully disabled:
+the pipeline does not call the normalization prompt and does not call the localization
+prompt. The row columns store the reviewer-authored prose as-is, and `metadata` records
+the declared source language as both `source_language` and `canonical_language`.
+
 ### TR6 — Self-translation for findings already in the target language
 
 If a finding's prose fields are already written in the target language (detected by
@@ -189,14 +197,16 @@ When saving a finding:
 1. If `language` is present, the pipeline treats it as the finding's source language.
 2. If `language` is missing, empty, or invalid, the source language defaults to `en`.
 3. The raw reviewer prose is stored under the matching top-level language key in
-   `kb.doc_review_findings.metadata` when the language is not English.
-4. Canonical storage remains English: the row columns `title`, `description`, and
-   `suggestion` store canonical English content after normalization.
+   `kb.doc_review_findings.metadata`.
+4. In `auto` mode, canonical storage is English: the row columns `title`,
+   `description`, and `suggestion` store canonical English content after normalization.
+5. In `on-demand` mode, canonical storage is the reviewer-authored source language:
+   the row columns store the raw reviewer prose and no save-time LLM call is made.
 
 Example: `prompt-review-provisions-v3.md` instructs the reviewer to emit Chinese
 `title`, `description`, and `suggestion`, plus `"language": "zh"`. If
-`DOC_REVIEW_REPORT_LANGUAGE = "en"` or `DOC_REVIEW_REPORT_LANGUAGE = ["en"]`,
-this means the Chinese finding is normalized
+`DOC_REVIEW_TRANSLATION = "auto"` and `DOC_REVIEW_REPORT_LANGUAGE = "en"` or
+`DOC_REVIEW_REPORT_LANGUAGE = ["en"]`, this means the Chinese finding is normalized
 to English for canonical row columns and the original Chinese prose is stored in:
 
 ```json
@@ -216,6 +226,25 @@ to English for canonical row columns and the original Chinese prose is stored in
     "description": "该要求陈述了条件，但没有定义验收标准。",
     "suggestion": "补充可衡量的验收标准。",
     "provenance": "original_extraction"
+  }
+}
+```
+
+If the same reviewer output is saved with `DOC_REVIEW_TRANSLATION = "on-demand"`,
+no normalization call is made and the stored metadata is:
+
+```json
+{
+  "schema_version": 1,
+  "source_language": "zh",
+  "source_language_confidence": 1,
+  "canonical_language": "zh",
+  "canonical_origin": "original",
+  "zh": {
+    "title": "未定义验收标准",
+    "description": "该要求陈述了条件，但没有定义验收标准。",
+    "suggestion": "补充可衡量的验收标准。",
+    "provenance": "canonical"
   }
 }
 ```
