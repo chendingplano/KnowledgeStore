@@ -1,4 +1,4 @@
-# Overview
+# 1. Overview
 - Document review requests are stored in `kb.doc_review_requests`
 - Document review findings are stored in `kb.doc_review_findings`
 - Document review reports are stored in `kb.doc_review_reports`
@@ -21,7 +21,7 @@ Cross-document metric evidence:
 - The finding description must not inline-dump `source_context` lines. The prompt should return `related_artifact_id` and `related_record_id`; the report renderer uses those IDs to fetch the matched metric's `source_line_spans`.
 - Render referenced matched metric lines as a separate source-style block, using the same visual treatment as "Related Source Lines": context lines before, highlighted referenced line(s), and context lines after. For metrics, include the matched metric's line span and the available +/- 10 surrounding source lines as `line_number: content`.
 
-## Artifact-based review LLM message contract
+## 1.1 Artifact-based review LLM message contract
 
 The artifact consistency reviewers configured in `ChenWeb/doc-review.local.toml`
 under `[reviewers.metrics]`, `[reviewers.provisions]`, and
@@ -63,7 +63,7 @@ When tool use is enabled, the same user message is wrapped as:
 When no source window is available, the task is still sent, but without the
 `<DOCUMENT_INPUT>` block.
 
-### Metrics reviewer
+### 1.1.1 Metrics reviewer
 
 `[reviewers.metrics]` uses `prompt-review-metrics-v2.md`,
 `max_tool_turns = 4`, and `tools = ["get_artifact_context"]`.
@@ -134,7 +134,7 @@ actual lines covered by `source_line_spans`, and 10 lines after
 reviewer keeps the resolved metric fields and omits usable context rather than
 failing the whole review.
 
-### Provisions reviewer
+### 1.1.2 Provisions reviewer
 
 `[reviewers.provisions]` uses `prompt-review-provisions-v2.md`,
 `max_tool_turns = 4`, and `tools = ["get_artifact_context"]`.
@@ -165,23 +165,32 @@ The provision payload shape is:
         "provision_type": "requirement",
         "provision": "A pressure relief valve rated for 2.5 MPa shall be installed.",
         "provision_subject": "relief valve",
-        "category_paths": ["safety/pressure"]
+        "category_paths": ["safety/pressure"],
+        "source_line_spans": ["188-190"]
       },
       "source_record_id": 2002,
       "source_filename": "GB_50316_pipe_design.pdf",
       "source_doc_authority": "standard",
       "match_via": "hybrid_search",
-      "match_rank": 1
+      "match_rank": 1,
+      "source_context": [
+        {"line_number": 178, "content": "..."},
+        {"line_number": 188, "content": "matched provision source line"}
+      ]
     }
   ]
 }
 ```
 
-The provision payload does not pre-attach matched source lines. The LLM must use
+`source_context` is pre-attached for matched provisions. It is composed from the
+matched provision's source document as 10 lines before `source_line_spans[0]`,
+all actual lines covered by `source_line_spans`, and 10 lines after
+`source_line_spans[0]`. The LLM should call
 `get_artifact_context(record_id, artifact_id)` with `source_record_id` and
-`prov_id` when it needs to verify scope, conditions, or exact normative wording.
+`prov_id` only when the included context is missing or insufficient to verify
+scope, conditions, or exact normative wording.
 
-### Inventory items reviewer
+### 1.1.3 Inventory items reviewer
 
 `[reviewers.inventory_items]` uses `prompt-review-inventory-items-v2.md`,
 `max_tool_turns = 4`, and `tools = ["get_artifact_context"]`.
@@ -220,24 +229,32 @@ The inventory-item payload shape is:
         "part_number": "PN-50-316",
         "item_categories": ["valve"],
         "standards": ["GB/T 12237"],
-        "normalized_specs": [{"name": "nominal_diameter", "value": "65", "unit": "mm"}]
+        "normalized_specs": [{"name": "nominal_diameter", "value": "65", "unit": "mm"}],
+        "source_line_spans": ["330-332"]
       },
       "source_record_id": 2002,
       "source_filename": "GB_12237_valves.pdf",
       "source_doc_authority": "standard",
       "match_via": "hybrid_search",
-      "match_rank": 1
+      "match_rank": 1,
+      "source_context": [
+        {"line_number": 320, "content": "..."},
+        {"line_number": 330, "content": "matched item source line"}
+      ]
     }
   ]
 }
 ```
 
-The inventory-item payload does not pre-attach matched source lines. The LLM must
-use `get_artifact_context(record_id, artifact_id)` with `source_record_id` and
-`inventory_item_id` when it needs to verify variants, configurations, or exact
-spec table values.
+`source_context` is pre-attached for matched inventory items. It is composed
+from the matched item's source document as 10 lines before
+`source_line_spans[0]`, all actual lines covered by `source_line_spans`, and 10
+lines after `source_line_spans[0]`. The LLM should call
+`get_artifact_context(record_id, artifact_id)` with `source_record_id` and
+`inventory_item_id` only when the included context is missing or insufficient to
+verify variants, configurations, or exact spec table values.
 
-### `get_artifact_context` tool return contract
+### 1.1.4 `get_artifact_context` tool return contract
 
 `get_artifact_context` is the cross-record, read-only source-line tool available
 to `[reviewers.metrics]`, `[reviewers.provisions]`, and
@@ -294,7 +311,7 @@ When the artifact ID is unknown for the requested record, the tool returns:
 }
 ```
 
-# References
+# 2. References
 [1] ChenWeb/docs/doc-templates/template-document-report.typ
 
 [2] 2026062202-adr-document-report-template.md
