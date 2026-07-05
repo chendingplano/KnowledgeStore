@@ -8,11 +8,11 @@
 
 ## Change Logs
 * 2026/06/30, ADR Created
-* 2026/06/30, Fleshed out after codebase review: resolved the DR1 "hybrid search"
-  mechanism (read precomputed `hybrid_search` edges, do **not** re-run live search),
-  added Data Formats, Migrations (none), Environment Variables, Code Changes,
-  Operational Behaviors, Consequences, Tests, and Documentation Impact. Status
-  moved Proposal → Accepted.
+* 2026/06/30, Fleshed out after codebase review: resolved the initial DR1
+  "hybrid search" mechanism as precomputed `hybrid_search` edges (historical;
+  superseded on 2026/07/01), added Data Formats, Migrations (none), Environment
+  Variables, Code Changes, Operational Behaviors, Consequences, Tests, and
+  Documentation Impact. Status moved Proposal -> Accepted.
 * 2026/06/30, Branch A correctness fix: `hybrid_search` edges are directional (written
   source→target at index time, never refreshed retroactively), so the doc metric is on
   the `target` side of any edge created by a document indexed later. Branch A now unions
@@ -41,6 +41,10 @@
   `kb.artifact_objects` -> `kb.object_nodes`, then loads all metrics connected to those
   object nodes through `kb.artifact_connections` `relation_method='object_id'` /
   `relation_name='belong_to'` edges to build per-object metric rosters.
+* 2026/07/05, synced with implemented object-centric design (ADR 2026070101):
+  metrics, provisions, and inventory-item extraction now all produce and reconcile
+  shared `kb.artifact_objects` / `kb.object_nodes` records; this ADR consumes that
+  implemented object-reconciliation contract.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,
@@ -52,6 +56,11 @@ These document reviewers assume the document-under-review, identified by `record
 conflict reviewer is configured as `reviewers.metrics` (group P5) in [2]; the
 object-anchored missing-metric reviewer is configured as `reviewers.metrics_completeness`
 (also group P5).
+
+The object graph consumed by `metrics_completeness` is an implemented dependency. ADR
+2026070101 [8] defines the shared contract: metrics [7], provisions [9], and inventory
+items [10] extract artifact objects, reconcile them to canonical `kb.object_nodes`, and
+index `object_id` / `belong_to` graph edges.
 
 ### How this reviewer differs from every existing reviewer
 
@@ -99,7 +108,7 @@ edges from `kb.artifact_connections`, and a 2026/06/30 fix unioned outbound + in
 edges to handle their directionality. Both are superseded by the on-the-fly approach
 above.)
 
-The entity branch still reads precomputed graph edges: a metric reachable from one of
+The entity branch still reads materialized graph edges: a metric reachable from one of
 the document's entities through `kb.artifact_connections` is a candidate match. Because
 the loader does not constrain `relation_method`, this includes entity->metric edges
 written by shared-line artifact indexing as well as any explicit entity-metric relation.
@@ -212,10 +221,11 @@ for each object node O:
       parse findings; tag Pass="P5", Aspect="metrics_completeness"
 ```
 
-This branch depends on metric extraction persisting objects with
-`MetricsProcessor.persistMetricObjects`, object reconciliation creating or matching
-`kb.object_nodes`, and metric indexing writing object edges with
-`indexArtifactObjectConnections`.
+This branch depends on the implemented ADR 2026070101 object contract: metric extraction
+persists metric objects with `MetricsProcessor.persistMetricObjects`, object
+reconciliation creates or matches `kb.object_nodes`, and metric indexing writes object
+edges with `indexArtifactObjectConnections`. Provision and inventory-item processors use
+the same shared object model, so peer object nodes are not processor-specific silos.
 
 ### DR2 — Prompts
 The original prompt was `ChenWeb/prompts/prompt-review-metrics-v1.md`; current
@@ -248,9 +258,10 @@ emit the standard review-finding JSON contract (see Data Formats).
 `kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No new
 reviewer-owned table, column, or `kb.search_artifacts` partition is required.
 
-The object path assumes the doc-processing pipeline has already created and populated
-`kb.artifact_objects` and `kb.object_nodes`, and that metric indexing has written
-`object_id` / `belong_to` edges into `kb.artifact_connections`.
+The object path consumes the implemented doc-processing object contract: artifact
+processors populate `kb.artifact_objects` and `kb.object_nodes`, and indexing writes
+`object_id` / `belong_to` edges into `kb.artifact_connections`. The relevant migrations
+are owned by ADR 2026070101, not by this reviewer ADR.
 
 ### Data Formats
 
@@ -357,8 +368,10 @@ model leaves them empty.
 | `ChenWeb/server/api/doc-reviews/review-metrics-completeness.go` | `metricsCompletenessReviewer` implements the object-anchored missing-metric pass. It resolves doc metric -> `kb.artifact_objects` -> `kb.object_nodes`, loads exact and comparable object metric rosters via `kb.artifact_connections` `object_id`/`belong_to` edges, and fans out one LLM call per object. |
 | `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolves both `metrics` and `metrics_completeness` P5 runtime/budget/tool config. In `buildReviewers`, appends both artifact reviewers with `cfg.Input="artifact"` so the scheduler routes them to `runReviewersLegacy` -> `ReviewDocument`. |
 | `ChenWeb/server/api/doc-processing/extract-metrics.go` | Persists metric object annotations through `MetricsProcessor.persistMetricObjects`, synthesizing a measured object from metric subject fields when the LLM did not return explicit `objects`. |
-| `ChenWeb/server/api/doc-processing/artifact_objects.go`, `object_nodes.go` | Normalize artifact objects, reconcile them to existing/new object nodes, and store `kb.artifact_objects` rows with object ids, roles, names, aliases, normalized names, source spans, and reconciliation metadata. |
+| `ChenWeb/server/api/doc-processing/artifact_objects.go`, `object_nodes.go`, `object_reconciliation.go` | Normalize artifact objects, reconcile them to existing/new object nodes, and store `kb.artifact_objects` rows with object ids, roles, names, aliases, normalized names, source spans, and reconciliation metadata. |
 | `ChenWeb/server/api/doc-processing/metric_indexing.go`, `artifact_object_connection_indexing.go` | Metric indexing writes category edges, shared-line artifact edges, and object-node `belong_to` edges. It no longer writes semantic metric<->metric `hybrid_search` edges; live search uses hydrated `kb.search_artifacts`. |
+| `ChenWeb/server/api/doc-processing/extract-provisions.go`, `extract-inventory-items.go` | Provisions and inventory items also persist/reconcile artifact objects under the shared ADR 2026070101 contract, keeping object-node identity reusable across artifact families. |
+| `ChenWeb/project_migrations/20260702000002_create_kb_artifact_objects.sql`, `20260702000003_create_kb_object_nodes.sql`, `20260703000001_add_source_record_id_to_kb_artifact_objects.sql`, `20260703000002_add_object_id_connection_partition.sql` | Implement the shared object tables and object-id connection partition consumed by `metrics_completeness`. |
 | `ChenWeb/doc-review.local.toml` | `reviewers.metrics` uses `input="artifact"`, `prompt-review-metrics-v2.md`, tool-use with `get_artifact_context`; `reviewers.metrics_completeness` uses `prompt-review-metrics-missing-v1.md`, tool-use with `search_metrics` and `get_artifact_context`. |
 | `ChenWeb/prompts/prompt-review-metrics-v2.md` | Metric conflict prompt (DR2, superseding v1). |
 | `ChenWeb/prompts/prompt-review-metrics-missing-v1.md` | Object-anchored missing-metric prompt for `metrics_completeness`. |
@@ -375,8 +388,10 @@ the other artifact reviewers.
   If no object has peer metrics, `metrics_completeness` likewise returns zero findings.
 - **Dependency:** `metrics` is meaningful after `extract_metrics` has populated
   `kb.metrics` and `kb.search_artifacts`; branch C additionally benefits from
-  entity-related artifact connections. `metrics_completeness` additionally requires
-  metric object persistence/reconciliation and object `belong_to` indexing.
+  entity-related artifact connections. `metrics_completeness` additionally requires the
+  implemented ADR 2026070101 object pipeline: metric/provision/inventory object
+  extraction, artifact-object persistence, object-node reconciliation, and object
+  `belong_to` indexing.
 - **Parallelism & stop:** per-metric and per-object LLM calls run under
   `REVIEW_MAX_TASKS`; a user stop request cancels remaining calls at the next boundary
   (`ErrPipelineStopped`).
@@ -401,8 +416,10 @@ the other artifact reviewers.
   and `MaxMatchesPerMetric`.
 - Per-object completeness fan-out can be large for object-heavy documents; bounded by
   `METRIC_COMPLETENESS_REVIEW_MAX_OBJECTS`.
-- Object-anchored recall is bounded by object extraction/reconciliation quality. Metrics
-  without a reconciled `object_id` cannot contribute to completeness rosters.
+- Object-anchored recall is bounded by the implemented object extraction/reconciliation
+  quality. Metrics without a reconciled `object_id` cannot contribute to completeness
+  rosters; duplicate object nodes can reduce recall until reconciliation links or merges
+  them.
 
 ## Tests
 - `ReviewDocument` with a doc metric that has one live hybrid-search hit to a
@@ -432,12 +449,13 @@ the other artifact reviewers.
 - This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md` is a
   historical behavior record. Current behavior is split between
   `prompt-review-metrics-v2.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
-  (`metrics_completeness`). A standalone document-review spec (referenced as [6]) does
-  not yet exist; when it is written it should note that these are artifact-based
-  cross-document reviewers and use `Input="artifact"` (direct `ReviewDocument` path).
-- Intentionally left undocumented: the exact RRF weighting of live hybrid search
-  (owned by `metric_indexing.go` / the metric-indexing spec), and any future object
-  reconciliation embedding policy beyond the current lexical-name path.
+  (`metrics_completeness`). The document-review spec [6] should describe these as
+  artifact-based cross-document reviewers that use `Input="artifact"` (direct
+  `ReviewDocument` path).
+- Intentionally left undocumented here: the exact RRF weighting of live hybrid search
+  (owned by `metric_indexing.go` / the metric-indexing spec). Object extraction,
+  reconciliation, and embedding/lexical matching policy are documented by ADR
+  2026070101 and the processor specs referenced below.
 
 ## References
 - [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
@@ -447,3 +465,6 @@ the other artifact reviewers.
 - [5] ADR 2026062804 — `kb.doc_review_runs` run model (run-scoped findings)
 - [6] `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
 - [7] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md`
+- [8] `KnowledgeStore/doc-repo/adrs/202607/2026070101-adr-object-centric-design.md`
+- [9] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-spec.md`
+- [10] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md`
