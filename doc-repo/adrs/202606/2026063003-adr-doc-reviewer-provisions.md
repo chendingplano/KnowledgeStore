@@ -31,6 +31,12 @@
   seed/stagger execution, `source_doc_authority` + `match_rank` in the matched
   payload, structured `related_artifact_id`/`related_record_id` in findings, and
   tool-use with `get_artifact_context`.
+* 2026/07/05, synced with implemented object-centric design (ADR 2026070101): provision
+  extraction persists and reconciles artifact objects through the shared
+  `kb.artifact_objects` / `kb.object_nodes` contract, and provision indexing writes
+  `object_id` / `belong_to` graph edges. This reviewer does not use object rosters as a
+  match branch; its matched provision context and artifact graph coexist with the
+  implemented object model.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics, entities,
@@ -47,7 +53,7 @@ This reviewer is the provisions analogue of the metric reviewer [4] and shares i
 architecture: it is an **artifact-based, cross-document consistency** reviewer, not a
 text reviewer. It does not read the document body; it loads the document's extracted
 **provisions** and compares each against semantically-related provisions in *other*
-documents, discovered through the precomputed `kb.artifact_connections` edges. It uses
+documents, discovered through live hybrid search over `kb.search_artifacts`. It uses
 `Input="artifact"`, so the prompt-cache scheduler routes it to `runReviewersLegacy`
 which calls `ReviewDocument` directly (no scheduler/strategy changes).
 
@@ -57,21 +63,22 @@ which calls `ReviewDocument` directly (no scheduler/strategy changes).
   (format `"<record>_prv_<n>"`, globally unique, like `metric_id`). Connection
   `source_id`/`target_id` for provision endpoints equal `prov_id`.
 - The artifact type discriminator is `"provision"` (`searchArtifactProvision`).
-- The provision-indexing step (`indexArtifactsByOverlapAndConnect` →
-  `connectArtifactsBySearch`, `search_artifact_indexing.go`) writes the same
-  `hybrid_search` / `semantically_related` edges per provision that metrics get.
+- Provision indexing hydrates provision rows into `kb.search_artifacts`, writes
+  shared-line/category/object graph edges, and writes object-node `belong_to` edges
+  through ADR 2026070101. Semantic provision<->provision similarity is not consumed from
+  materialized `hybrid_search` edges by this reviewer; Branch A computes it live.
 - Provisions carry **`category_paths`** (JSONB array), not `metric_categories`. The
   entity-branch "shares a category" test uses `category_paths`.
 - **Two branches only.** Unlike the metric reviewer there is **no corpus-wide
-  category-sibling branch** (metric Branch B). Provisions match via (A) precomputed
-  semantic edges and (B) shared-entity edges. (Rationale under Alternative Decisions.)
+  category-sibling branch** (metric Branch B). Provisions match via (A) live hybrid
+  search and (B) shared-entity edges. (Rationale under Alternative Decisions.)
 
 ## Decision
 ### DR1 — Reviewer logic
 
 The reviewer builds, for each provision extracted from the document-under-review, a
-list of **matching provisions** drawn from the precomputed artifact graph, then issues
-one LLM call per provision that has at least one match. Pseudocode:
+list of **matching provisions** from live semantic search plus materialized entity graph
+edges, then issues one LLM call per provision. Pseudocode:
 
 ```text
 matches := map[provision] -> []matchingProvision   # keyed by the doc's own provision
@@ -85,7 +92,7 @@ for each provision P extracted from the document-under-review (kb.provisions WHE
               candidateType='provision', maxLinks=PROVISION_REVIEW_MAX_MATCHES)
    resolve each hit (record_id, prov_id) -> a kb.provisions row
 
-   append resolved provisions to matches[P]   (deduped by the matching provision's (record_id, prov_id);
+   append resolved provisions to matches[P]   (deduped by matching prov_id;
                                                same-document hits excluded)
 
 # Branch B: entity -> provisions related to that entity
@@ -104,35 +111,38 @@ for each provision P in matches where len(matches[P]) > 0:
 ```
 
 Dedup/cap rules (identical to the metric reviewer):
-- A matching provision is identified by `(target_record_id, target_id)`; duplicates
-  across branches are collapsed.
-- Same-document targets (`target_record_id = record_id`) are excluded — the reviewer is
-  strictly cross-document.
+- A matching provision is identified by its `prov_id`; duplicates across branches are
+  collapsed.
+- Same-document matches (`record_id = record_id`) are excluded — the reviewer is strictly
+  cross-document.
 - `matches[P]` is capped at `MaxMatchesPerProvision` (default 20), highest-confidence
   first.
 
-LLM calls run in parallel via `runReviewerConcurrent` (bounded by `REVIEW_MAX_TASKS`);
-stop requests are honored at each call boundary (refer to [3] and the doc-processor stop
-contract).
+LLM calls run through the artifact-review window-grouped executor (bounded by
+`REVIEW_MAX_TASKS`); stop requests are honored at each call boundary (refer to [3] and
+the doc-processor stop contract). When `max_tool_turns > 0`, the reviewer uses the
+tool-use loop with configured read-only tools.
 
 ### Alternative Decisions
 - **Add a corpus-wide category-sibling branch (as in the metric reviewer):** deferred.
   Provision `category_paths` are hierarchical path strings (e.g. `"safety/electrical"`),
   not flat category keys, so a `?|` overlap match is noisier for provisions than for
-  metric category keys. Semantic edges (Branch A) already capture cross-document
+  metric category keys. Live semantic search (Branch A) already captures cross-document
   provision similarity well. Can be added later if recall proves insufficient.
-- **Live hybrid search at review time:** rejected for the same reasons as the metric
-  reviewer — duplicates index-time work, non-deterministic, more expensive.
-- **Tool-use (agentic) reviewer (`max_tool_turns > 0`):** not adopted. The reviewer
-  pre-fetches matches and compares in one shot via `ExtractJSON`; it does not use the
-  tool-use loop, so `max_tool_turns` is left at `0` (it would otherwise be dead config).
-  Revisit only if the model needs to pull additional context (full provision text of
-  matches, related provisions) to judge conflicts.
+- **Live hybrid search at review time:** originally rejected by analogy to the first
+  metric ADR, then accepted on 2026/07/01. This is now Branch A.
+- **Tool-use (agentic) reviewer (`max_tool_turns > 0`):** originally not adopted, then
+  implemented by ADR 2026070201 AR4/AR5. Current configuration uses
+  `max_tool_turns = 4` and `get_artifact_context`.
 
 ### Database Migrations
-**None.** Reads `kb.provisions`, `kb.artifact_connections`, and entity→provision edges;
-writes findings to the existing `kb.doc_review_findings` (run-scoped via `run_id`, [5]).
-No new table, column, or `kb.search_artifacts` partition.
+**None for the reviewer.** Reads `kb.provisions`, `kb.search_artifacts`,
+`kb.artifact_connections`, and entity->provision edges; writes findings to the existing
+`kb.doc_review_findings` (run-scoped via `run_id`, [5]). No reviewer-owned table,
+column, or `kb.search_artifacts` partition.
+
+Provision object extraction/reconciliation tables and object-id connection partitions
+are owned by ADR 2026070101, not by this reviewer ADR.
 
 ### Data Formats
 
@@ -157,7 +167,8 @@ No new table, column, or `kb.search_artifacts` partition.
   "source_record_id": 2002,
   "source_filename": "GB_50316_pipe_design.pdf",
   "match_via": "hybrid_search | entity",
-  "confidence": 0.0123
+  "match_rank": 1,
+  "source_doc_authority": "standard"
 }
 ```
 
@@ -179,23 +190,24 @@ leaves them empty.
 
 | File | Change |
 |---|---|
-| `ChenWeb/server/api/doc-reviews/review-provisions.go` | **New.** `provisionsReviewer` implementing `Reviewer` (`Name()="provisions"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's provisions, builds matches via the shared connection loader (Branch A hybrid_search + Branch B entity→provision), resolves target provisions, and fans out one LLM call per matched provision with `runReviewerConcurrent`. Stop-aware. Mirrors `review-metrics.go`. |
-| `ChenWeb/server/api/doc-reviews/review-document.go` | Resolve `provisions`/P5 runtime in `NewReviewProcessor`; store client/model/prompt fields; append the `provisionsReviewer` runner in `buildReviewers` with `cfg.Input="artifact"`. |
-| `ChenWeb/server/api/doc-processing/connections_store.go` | Reuses `LoadConnectionsBySource` (outbound) **and** `LoadConnectionsByTarget` (inbound), both added by ADR 2026063002 — no change needed here. |
-| `ChenWeb/doc-review.local.toml` | `reviewers.provisions`: `input="artifact"`, `prompt="prompt-review-provisions-v1.md"`, `max_tool_turns=0`. |
-| `ChenWeb/prompts/prompt-review-provisions-v1.md` | **New** prompt. |
+| `ChenWeb/server/api/doc-reviews/review-provisions.go` | `provisionsReviewer` implementing `Reviewer` (`Name()="provisions"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads provisions, builds matches from live `FindSimilarArtifactsOnTheFly` plus entity->provision edges, hydrates source context, and runs window-grouped artifact review units. Tool-use is enabled when configured. |
+| `ChenWeb/server/api/doc-reviews/review-document.go` | Resolves `provisions`/P5 runtime, budget, and tool config; appends the `provisionsReviewer` runner with `cfg.Input="artifact"`. |
+| `ChenWeb/server/api/doc-processing/search_artifact_indexing.go`, `extract-provisions.go` | Reindex provisions in `kb.search_artifacts`, persist/reconcile provision objects, and index provision object-node edges under the shared object contract. |
+| `ChenWeb/doc-review.local.toml` | `reviewers.provisions`: `input="artifact"`, `model="deepseek-v4-flash"`, `prompt="prompt-review-provisions-v2.md"`, `max_tool_turns=4`, `tools=["get_artifact_context"]`. |
+| `ChenWeb/prompts/prompt-review-provisions-v2.md` | Current prompt (v2 supersedes v1). |
 | `ChenWeb/server/api/doc-reviews/review-provisions_test.go` | **New** tests (assembly branches/dedup/exclusion/cap; reviewProvision payload + tagging). |
 
-Target resolution maps an edge `(target_record_id, target_id=prov_id)` to a
-`kb.provisions` row. Because `prov_id` is globally unique (`"<record>_prv_<n>"`),
-resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric reviewer.
+Target resolution maps live-search hit ids and entity edge target ids to `kb.provisions`
+rows. Because `prov_id` is globally unique (`"<record>_prv_<n>"`), resolution batches by
+`prov_id` (`WHERE prov_id = ANY($1)`), like the metric reviewer.
 
 ## Operational Behaviors
 - **No provisions / no matches:** returns zero findings (logged, not an error).
 - **Dependency:** meaningful after `extract_provisions` (+ for branch B,
-  `extract_entity_relation`) and the provision-indexing step have written
-  `hybrid_search` / entity→provision edges. Absent those edges, the reviewer finds
-  nothing.
+  `extract_entity_relation`) has populated `kb.provisions`, `kb.search_artifacts`, and
+  entity/provision graph edges. ADR 2026070101 provision object extraction is
+  implemented and available for artifact context; this reviewer does not use object
+  rosters as a match branch.
 - **Parallelism & stop / idempotency:** identical to the metric reviewer and all
   reviewers — concurrent per-provision calls under `REVIEW_MAX_TASKS`, stop at the next
   boundary, findings written under the current `run_id` (prior run findings deleted by
@@ -206,22 +218,20 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
 - Cross-document provision consistency: conflicting/contradictory requirements,
   prohibitions, or obligations across the corpus that no single-document reviewer can
   see.
-- Reuses precomputed edges and the existing reviewer plumbing (loader, legacy path,
-  finding store); no schema or scheduler change.
+- Live hybrid search avoids stale/directional semantic edges while reusing the shared
+  lexical/vector search registry and existing reviewer plumbing.
 
 **Negative / cost**
-- Match quality bounded by the freshness/quality of the provision `hybrid_search` edges.
+- Per-provision live search adds read-time search cost; bounded by
+  `PROVISION_REVIEW_MAX_PROVISIONS` and `MaxMatchesPerProvision`.
 - Per-provision LLM fan-out bounded by `PROVISION_REVIEW_MAX_PROVISIONS` and
   `MaxMatchesPerProvision`.
 - No category-sibling recall path (deferred); some related provisions that lack a
-  semantic edge will not be compared.
+  live semantic-search hit will not be compared.
 
 ## Tests
-- Branch A (outbound): a doc provision with an outbound `hybrid_search` edge to a
-  cross-document provision → one LLM call, finding tagged `P5`/`provisions`.
-- Branch A (inbound): a doc provision that is the `target` of a `hybrid_search` edge from
-  a later-indexed document's provision is matched (resolved from the edge `source`);
-  duplicates across both directions collapse to one match.
+- Branch A: a doc provision with a live hybrid-search hit to a cross-document provision
+  -> one LLM call, finding tagged `P5`/`provisions`.
 - Branch B: an entity→provision edge whose target shares a `category_paths` key with a
   doc provision is attached to that provision.
 - Dedup: a target reached via both branches appears once.
@@ -234,10 +244,12 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
 ## Documentation Impact
 - `doc-processor/+CAPSULE.md` [1]: no pipeline-table change (provisions review is an
   aspect, not a doc processor).
-- This ADR + `prompt-review-provisions-v1.md` are the design/behavior records. Shares
-  the connection-loader and reviewer-integration design with ADR 2026063002 [4].
-- Intentionally left undocumented: provision `hybrid_search` edge weighting (owned by
-  `artifact_indexing.go`); the deferred category-sibling branch; live-search fallback.
+- This ADR + `prompt-review-provisions-v2.md` are the current design/behavior records.
+  Shares the live-search and reviewer-integration design with ADR 2026063002 [4].
+- Intentionally left undocumented here: exact live-search RRF weighting (owned by
+  `search_artifact_indexing.go` / extract-provisions spec); the deferred
+  category-sibling branch. Object extraction/reconciliation policy is documented by ADR
+  2026070101 [7].
 
 ## References
 - [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
@@ -246,3 +258,4 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
 - [4] ADR 2026063002 — Metric Document Reviewer (shared architecture, connection loader)
 - [5] ADR 2026062804 — `kb.doc_review_runs` run model (run-scoped findings)
 - [6] Extract Provisions Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-spec.md`
+- [7] `KnowledgeStore/doc-repo/adrs/202607/2026070101-adr-object-centric-design.md`

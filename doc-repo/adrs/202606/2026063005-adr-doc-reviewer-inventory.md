@@ -30,6 +30,12 @@
   seed/stagger execution, `source_doc_authority` + `match_rank` in the matched
   payload, structured `related_artifact_id`/`related_record_id` in findings, and
   tool-use with `get_artifact_context`.
+* 2026/07/05, synced with implemented object-centric design (ADR 2026070101):
+  inventory-item extraction persists a `self` artifact object for each item, reconciles
+  artifact objects to `kb.object_nodes`, and inventory indexing writes `object_id` /
+  `belong_to` graph edges. This reviewer still matches inventory items by live hybrid
+  search, category siblings, and entity edges; the shared object graph is part of the
+  implemented artifact context and search surface.
 
 ## Context
 When a document is added to the knowledge base, the system extracts metrics,
@@ -53,12 +59,16 @@ goal is to detect cross-document inconsistencies such as:
 The reviewer is configured as `reviewers.inventory_items` (group P5) in [2] and assumes
 the document-under-review, identified by `record_id` (`kb.inputs.id`), has already been
 processed by the `extract_inventory_items` doc processor and its artifact-indexing step.
+ADR 2026070101 [7] is implemented for inventory items: each item emits shared
+`kb.artifact_objects` rows, reconciles them to canonical `kb.object_nodes`, and indexes
+object-node membership edges.
 
 ### How this reviewer works (same shape as the metric reviewer)
 
 Like `metrics` (and `provisions`/`entities`), this reviewer does **not** read the
 document text. It consumes already-extracted `kb.inventory_items` rows and the
-precomputed artifact graph (`kb.artifact_connections`). It is therefore a
+artifact graph (`kb.artifact_connections`) plus live search over `kb.search_artifacts`.
+It is therefore a
 **cross-document consistency** check, not a single-document text review.
 
 The `extract_inventory_items` artifact-indexing step (`inventory_item_indexing.go`,
@@ -75,9 +85,9 @@ reviewer's revised DR1 ([1]).
 ### DR1 — Reviewer logic
 
 The reviewer builds, for each inventory item extracted from the document-under-review, a
-list of **matching inventory items** drawn from the precomputed artifact graph, then
-issues one LLM call per item that has at least one match. Pseudocode (mirrors the metric
-reviewer's three branches):
+list of **matching inventory items** from live semantic search, category siblings, and
+materialized entity graph edges, then issues one LLM call per item that has at least one
+match. Pseudocode (mirrors the metric reviewer's three branches):
 
 ```text
 matches := map[item] -> []matchingItem   // keyed by the doc's own inventory item
@@ -92,7 +102,7 @@ for each item I extracted from the document-under-review
               candidateType='inventory_item', maxLinks=INVENTORY_REVIEW_MAX_MATCHES)
    resolve each hit -> a kb.inventory_items row (the matching item)
 
-   append resolved matches to matches[I]   (deduped by the matching item's (record_id, inventory_item_id);
+   append resolved matches to matches[I]   (deduped by matching inventory_item_id;
                                             same-document hits excluded)
 
 # Branch B: item -> items sharing an item category (corpus-wide)
@@ -117,9 +127,10 @@ for each item I in matches where len(matches[I]) > 0:
    parse findings; tag Pass="P5", Aspect="inventory_items"
 ```
 
-LLM calls run in parallel via the shared reviewer concurrency helper
-(`runReviewerConcurrent`, bounded by `MaxConcurrent` / `REVIEW_MAX_TASKS`); stop requests
-are honored at each call boundary (`ErrPipelineStopped`).
+LLM calls run through the artifact-review window-grouped executor (bounded by
+`MaxConcurrent` / `REVIEW_MAX_TASKS`); stop requests are honored at each call boundary
+(`ErrPipelineStopped`). When `max_tool_turns > 0`, the reviewer uses the tool-use loop
+with configured read-only tools.
 
 Dedup/cap rules (identical to the metric reviewer):
 - A matching item is identified by its `inventory_item_id`; duplicates across branches are
@@ -130,21 +141,19 @@ Dedup/cap rules (identical to the metric reviewer):
 - `matches[I]` is capped at `MaxMatchesPerItem` (default 20), highest-confidence first.
 
 ### DR2 — Prompt
-Create `ChenWeb/prompts/prompt-review-inventory-items-v1.md` and reference it from
-`reviewers.inventory_items.prompt` in [2]. The prompt instructs the model to compare one
-"inventory item under review" against a set of matching items from other documents and to
-emit findings only for genuine cross-document discrepancies (conflicting
+The original prompt was `ChenWeb/prompts/prompt-review-inventory-items-v1.md`; current
+configuration uses `prompt-review-inventory-items-v2.md`. The prompt instructs the model
+to compare one "inventory item under review" against a set of matching items from other
+documents and to emit findings only for genuine cross-document discrepancies (conflicting
 manufacturer/brand, model/part numbers, normalized specifications, or applicable
 standards for what is plausibly the same catalog item), not mere restatements. Output
 conforms to the standard review-finding JSON contract (see Data Formats).
 
 ### Alternative Decisions
-- **Live hybrid search at review time**: rejected for the same reasons as in [1] —
-  duplicates index-time work, is non-deterministic w.r.t. index state, and is markedly
-  more expensive. Precomputed edges can be upgraded to a live fallback later without
-  changing the finding contract.
+- **Live hybrid search at review time**: originally rejected for the same reasons as in
+  [1], then accepted on 2026/07/01. This is now Branch A.
 - **Category co-membership only (drop hybrid_search edges)**: rejected — the
-  `hybrid_search` edges are the semantic match signal and catch cross-document conflicts
+  live hybrid-search result is the semantic match signal and catches cross-document conflicts
   between items that are textually dissimilar but describe the same product.
 - **New `ReviewStrategy` enum value + scheduler branch**: rejected as unnecessary. A
   reviewer whose `Input` is neither `per-chunk` nor `per-block` is already routed to
@@ -152,10 +161,13 @@ conforms to the standard review-finding JSON contract (see Data Formats).
   path with `Input = "artifact"`, exactly like `metrics`, `provisions`, and `entities`.
 
 ### Database Migrations
-**None.** The reviewer reads existing tables (`kb.inventory_items`,
-`kb.artifact_connections`, entities) and writes findings to the existing
-`kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No new table,
-column, or `kb.search_artifacts` partition is required.
+**None for the reviewer.** The reviewer reads existing tables (`kb.inventory_items`,
+`kb.search_artifacts`, `kb.artifact_connections`, entities) and writes findings to the
+existing `kb.doc_review_findings` (run-scoped via `run_id`, per ADR 2026062804 [5]). No
+reviewer-owned table, column, or `kb.search_artifacts` partition is required.
+
+Inventory object extraction/reconciliation tables and object-id connection partitions
+are owned by ADR 2026070101, not by this reviewer ADR.
 
 ### Data Formats
 
@@ -185,7 +197,8 @@ the "inventory_item_under_review":
   "source_record_id": 2002,
   "source_filename": "GB_12237_valves.pdf",
   "match_via": "hybrid_search | item_category | entity",
-  "confidence": 0.0123
+  "match_rank": 1,
+  "source_doc_authority": "standard"
 }
 ```
 
@@ -225,28 +238,27 @@ The reviewer sets `Pass="P5"` and `Aspect="inventory_items"` on every finding (d
 
 | File | Change |
 |---|---|
-| `ChenWeb/server/api/doc-reviews/review-inventory-items.go` | **New.** `inventoryItemsReviewer` implementing `Reviewer` (`Name()="inventory_items"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's inventory items + entities, builds the match map via `LoadConnectionsBySource` + category/entity branches, resolves target items, and fans out one LLM call per matched doc item with `runReviewerConcurrent`. Stop-aware. Pure assembly in `assembleInventoryMatches`. |
-| `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolve `inventory_items`/P5 runtime (`resolveReviewerRuntime`) and store client/model/prompt fields on `ReviewProcessor`. In `buildReviewers`, append the `inventoryItemsReviewer` runner with `cfg.Input="artifact"`. |
+| `ChenWeb/server/api/doc-reviews/review-inventory-items.go` | `inventoryItemsReviewer` implementing `Reviewer` (`Name()="inventory_items"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads the doc's inventory items, builds matches from live `FindSimilarArtifactsOnTheFly`, category siblings, and entity->inventory_item edges, hydrates source context, and runs window-grouped artifact review units. Tool-use is enabled when configured. |
+| `ChenWeb/server/api/doc-reviews/review-document.go` | In `NewReviewProcessor`, resolve `inventory_items`/P5 runtime, budget, and tool config. In `buildReviewers`, append the `inventoryItemsReviewer` runner with `cfg.Input="artifact"`. |
 | `ChenWeb/server/api/doc-reviews/aspects.go` | Register the `inventory_items` aspect (P5, Label "Inventory Item Consistency", DefaultModel `deepseek-v4-pro`). |
-| `ChenWeb/doc-review.local.toml` | Add `[reviewers.inventory_items]` block: `enabled/checked = true`, `group = "P5"`, `input = "artifact"`, `model = "deepseek-v4-pro"`, `prompt = "prompt-review-inventory-items-v1.md"`. |
-| `ChenWeb/prompts/prompt-review-inventory-items-v1.md` | **New** prompt (DR2). |
+| `ChenWeb/server/api/doc-processing/extract-inventory-items.go`, `inventory_item_indexing.go` | Persist/reconcile inventory item artifact objects, reindex inventory items in `kb.search_artifacts`, and index object-node/category/shared-line graph edges. Semantic item<->item edges are not consumed from materialized `hybrid_search` edges. |
+| `ChenWeb/doc-review.local.toml` | `[reviewers.inventory_items]`: `input="artifact"`, `prompt="prompt-review-inventory-items-v2.md"`, tool-use with `get_artifact_context`. |
+| `ChenWeb/prompts/prompt-review-inventory-items-v2.md` | Current prompt (v2 supersedes v1). |
 | `ChenWeb/server/api/doc-reviews/review-inventory-items_test.go` | **New** tests (see Tests). |
 
-No new connection loader is required: the generic `LoadConnectionsBySource` (outbound)
-and `LoadConnectionsByTarget` (inbound) added for the metric reviewer ([1]) are reused
-with `sourceType`/`targetType = "inventory_item"` — Branch A reads both directions. The
-reviewer reuses `newDocReviewLLMJSONInput`, `normalizeFindingsJSON`, and
-`parseJSONStringArray`, so cache telemetry and finding normalization are identical to
-other reviewers.
+No new connection loader is required: Branch A uses live search, and Branch C reuses the
+generic `LoadConnectionsBySource` for entity->inventory_item graph edges. The reviewer
+reuses artifact-window layout, `newDocReviewLLMJSONInput`, `normalizeFindingsJSON`,
+tool-use review plumbing, and `parseJSONStringArray`, so cache telemetry and finding
+normalization are identical to other artifact reviewers.
 
 ## Operational Behaviors
 
 - **No items / no matches:** if the document has no `kb.inventory_items` rows, or no item
   has any cross-document match, the reviewer returns zero findings (logged, not an error).
 - **Dependency:** meaningful only after `extract_inventory_items` (and for branch C
-  `extract_entity_relation`) have run and the artifact-indexing step has written
-  `hybrid_search` edges. If those edges are absent, branches A/C contribute nothing and
-  only category co-membership (branch B) applies.
+  `extract_entity_relation`) has populated `kb.inventory_items`, `kb.search_artifacts`,
+  item categories, entity graph edges, and the ADR 2026070101 object graph.
 - **Parallelism & stop:** per-item LLM calls run concurrently under `MaxConcurrent`; a user
   stop request cancels remaining calls at the next boundary (`ErrPipelineStopped`).
 - **Idempotency:** findings are written under the current `run_id`; a re-run deletes the
@@ -258,42 +270,43 @@ other reviewers.
 - Adds cross-document consistency checking for catalog data — conflicting
   manufacturer/brand, model/part numbers, specs, or standards for the same product across
   the corpus — which no text-based reviewer can detect.
-- Reuses precomputed `hybrid_search` edges and the generic connection loader: no extra
-  search cost and no new query plumbing at review time.
+- Live hybrid search avoids stale/directional semantic edges while reusing the shared
+  lexical/vector search registry and generic graph loaders.
 - Integrates through the existing `runReviewersLegacy`/`ReviewDocument` path with no
   scheduler or schema changes; fourth member of the artifact-based P5 reviewer family
   (`metrics`, `provisions`, `entities`, `inventory_items`).
 
 **Negative / cost**
-- Match quality is bounded by the freshness/quality of the precomputed `hybrid_search`
-  edges; a stale index yields stale matches.
-- Per-item LLM fan-out can be large for inventory-heavy documents; bounded by
-  `INVENTORY_REVIEW_MAX_ITEMS` and `MaxMatchesPerItem`.
+- Per-item live search adds read-time search cost; bounded by `INVENTORY_REVIEW_MAX_ITEMS`
+  and `MaxMatchesPerItem`.
+- Per-item LLM fan-out can be large for inventory-heavy documents; bounded by the same
+  caps.
 
 ## Tests
 - `assembleInventoryMatches`: branch coverage (hybrid_search A, category-sibling B,
   entity C), dedup of a target reached via two branches, same-document exclusion, and cap
   to highest-confidence matches.
-- Branch A (inbound): an item that is the `target` of a `hybrid_search` edge from a
-  later-indexed document's item is matched (resolved from the edge `source`); duplicates
-  across both directions collapse to one match.
+- Branch A: a live hybrid-search hit to a cross-document item is matched; same-document
+  hits are excluded and duplicates collapse to one match.
 - `reviewItem`: payload contains `inventory_item_under_review` + `matching_items`; findings
   are tagged `P5`/`inventory_items` with `finding_type`/`severity`/`location` defaults;
   prompt ref and document-first flag are propagated.
 - Item with no matches → no LLM call, no findings.
 
 ## Documentation Impact
-- This ADR is the design record for the reviewer; `prompt-review-inventory-items-v1.md` is
-  the behavior record.
+- This ADR is the design record for the reviewer; `prompt-review-inventory-items-v2.md`
+  is the current behavior record (`v1` is historical).
 - `aspects.go` gains a new P5 row; `doc-review.local.toml` gains a new reviewer block.
-- Intentionally left undocumented: the RRF weighting of `hybrid_search` edges (owned by
-  `artifact_indexing.go` / `inventory_item_indexing.go`), and live-search fallback (not
-  built) — same boundaries as ADR 2026063002.
+- Intentionally left undocumented here: exact live-search RRF weighting (owned by
+  `inventory_item_indexing.go` / extract-inventory-items spec). Object
+  extraction/reconciliation policy is documented by ADR 2026070101 [7].
 
 ## References
 - [1] `KnowledgeStore/doc-repo/adrs/202606/2026063002-adr-doc-reviewer-metric.md` (metric reviewer — the template for this design)
 - [2] `ChenWeb/doc-review.local.toml`
 - [3] `KnowledgeStore/doc-repo/adrs/202606/2026062804-adr-doc-review-run.md` (run model) and `ChenWeb/server/api/doc-reviews/review_cache_scheduler.go` (dispatch)
-- [4] `ChenWeb/server/api/doc-processing/connections.go`, `connections_store.go`, `artifact_indexing.go`, `inventory_item_indexing.go` (artifact graph + hybrid_search edges)
+- [4] `ChenWeb/server/api/doc-processing/connections.go`, `connections_store.go`, `artifact_indexing.go`, `inventory_item_indexing.go` (artifact graph + live-search hydration)
 - [5] ADR 2026062804 — `kb.doc_review_runs` run model (run-scoped findings)
 - [6] `KnowledgeStore/doc-repo/adrs/202606/2026063003-adr-doc-reviewer-provisions.md`, `2026063004-adr-doc-reviewer-entities.md` (sibling artifact-based reviewers)
+- [7] `KnowledgeStore/doc-repo/adrs/202607/2026070101-adr-object-centric-design.md`
+- [8] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md`
