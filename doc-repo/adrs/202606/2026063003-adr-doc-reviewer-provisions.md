@@ -148,6 +148,11 @@ LLM calls run through the artifact-review window-grouped executor (bounded by
 the doc-processor stop contract). When `max_tool_turns > 0`, the reviewer uses the
 tool-use loop with configured read-only tools.
 
+All Branch A/B retrieval happens before the LLM call and before any tool-use loop. The
+LLM receives the provision-under-review plus the already-retrieved matching provisions in
+its input payload. Tools are only an optional follow-up mechanism for additional context;
+they are not responsible for discovering the object-anchored matches.
+
 ### Alternative Decisions
 - **Add a corpus-wide category-sibling branch (as in the metric reviewer):** deferred.
   Provision `category_paths` are hierarchical path strings (e.g. `"safety/electrical"`),

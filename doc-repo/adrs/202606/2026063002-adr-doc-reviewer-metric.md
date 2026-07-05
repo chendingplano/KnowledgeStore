@@ -200,6 +200,12 @@ LLM calls run through the artifact-review window-grouped executor (bounded by
 `REVIEW_MAX_TASKS`); stop requests are honored at each call boundary (refer to [3] and
 the doc-processor stop contract).
 
+All Branch A/B/C retrieval happens before the LLM call and before any tool-use loop. The
+LLM receives the metric-under-review plus the already-retrieved matching metrics in its
+input payload. If `max_tool_turns > 0`, tools are only an optional follow-up mechanism for
+additional context; they are not responsible for discovering the Branch C object-anchored
+matches.
+
 Dedup/cap rules:
 - A matching metric is identified by its `metric_id`; duplicates across live hybrid search,
   category siblings, and object-anchored metrics are collapsed.

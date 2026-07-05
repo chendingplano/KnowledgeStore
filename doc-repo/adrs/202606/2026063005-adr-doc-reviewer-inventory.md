@@ -153,6 +153,11 @@ LLM calls run through the artifact-review window-grouped executor (bounded by
 (`ErrPipelineStopped`). When `max_tool_turns > 0`, the reviewer uses the tool-use loop
 with configured read-only tools.
 
+All Branch A/B/C retrieval happens before the LLM call and before any tool-use loop. The
+LLM receives the inventory-item-under-review plus the already-retrieved matching items in
+its input payload. Tools are only an optional follow-up mechanism for additional context;
+they are not responsible for discovering the Branch C object-anchored matches.
+
 Dedup/cap rules (identical to the metric reviewer):
 - A matching item is identified by its `inventory_item_id`; duplicates across branches are
   collapsed.
