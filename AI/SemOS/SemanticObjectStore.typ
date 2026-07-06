@@ -793,6 +793,53 @@ This makes retrieval and reconstruction much better.
 
 #include "Section-Retrieval.typ"
 
+== Doc Processors
+=== Summaries
+(TBD)
+
+=== Semantic Projections
+(TBD)
+
+=== Topics
+(TBD)
+
+=== Metrics
+(TBD)
+
+=== Compliance Provisions
+(TBD)
+
+=== Entities and Relations
+(TBD)
+
+=== Inventory Items
+(TBD)
+
+=== Facts
+The workflow is:
+- Extract facts
+- Reconcile
+- Review (optional)
+- Establish the relations
+Refer to the figure below.
+
+#figure(
+   image("../Images/image_2026070601.png", width: 100%),
+   caption: [Source: #link(<memory-as-model>)[Memory as Model]],
+)
+
+The difficult part is to establish relations.
+
+First of all, what are the relations among facts, entities, and objects?
+Objects are the conomical entities. Entities are mentioned in documents.
+They are normalized, reconciled to objects.
+
+Facts should mention entities. This means that facts `<->` entities, 
+thus facts `<->` objects.
+
+Extracted relations are normalized and reconciled to Relation Nodes
+(similar to Object Nodes). This means facts `<->` objects `<->` relations
+
 == Implementation Plan
 
 *V1*
@@ -3001,8 +3048,23 @@ This reduces brittle path guessing.
 
 = References
 
-[1]: https://docs.letta.com/guides/core-concepts/memory/memory-blocks/?utm_source=chatgpt.com "Memory blocks (core memory)"
-[2]: https://supermemory.ai/docs/concepts/graph-memory?utm_source=chatgpt.com "How Graph Memory Works"
-[3]: https://docs.letta.com/guides/core-concepts/memory/archival-memory/?utm_source=chatgpt.com "Archival memory"
-[4]: https://mem0.ai/research?utm_source=chatgpt.com "AI Memory Research: 26% Accuracy Boost for LLMs"
+#bibliography("refs.bib")
 
+== Memory blocks (core memory) \
+https://docs.letta.com/guides/core-concepts/memory/memory-blocks/?utm_source=chatgpt.com
+
+== How Graph Memory Works \
+https://supermemory.ai/docs/concepts/graph-memory?utm_source=chatgpt.com
+
+== Archival memory \
+https://docs.letta.com/guides/core-concepts/memory/archival-memory/?utm_source=chatgpt.com
+
+== AI Memory Research: 26% Accuracy Boost for LLMs \
+https://mem0.ai/research?utm_source=chatgpt.com
+
+== Memory as Model <memory-as-model>
+#let r_001 = link(
+  "https://www.toutiao.com/article/7652950313275605567/?app=news_article&category_new=__all__&module_name=iOS_tt_others&req_id_new=20260706060343ACF4A6D25ADEFB3E20AF&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=ba0d9deb-78bd-11f1-b4ed-00163e5a2eb2&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1783289169&tt_from=weixin&upstream_biz=iOS_wechat&use_new_style=1&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
+)[#text(fill: blue)[Memory as Model]]
+
+[5] #r_001

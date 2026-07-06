@@ -470,7 +470,7 @@ Voting, Proportional Approval Voting, or Chamberlin–Courant. ([arXiv][6])
 
 The implementation uses a slightly more elaborate weighted score:
 
-$score(c) = votes(c) * (1 - bestRank(c) / K)$
+$"score"(c) = "votes"(c) * (1 - "bestRank"(c) / K)$
 
 where:
 

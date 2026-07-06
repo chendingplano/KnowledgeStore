@@ -8,7 +8,7 @@ Workflow on generating document review reports:
 - Language: if not specified, defaults to DOC_REVIEW_REPORT_LANGUAGE
 - Initiated when a document review request is finished.
 - Retrieve the report (JSON) from `kb.doc_review_reports`
-- Use the Typst template (refer to [1]) to create the report by the review report (JSON). The English and Chinese finding content is already generated and stored in `kb.doc_review_findings.metadata`, so use those localized values to create two reports, one in English and one in Chinese. Save them to DOC_REVIEW_REPORTS/`yyyymmdd-hhmm-` + `kb.doc_review_requests.id` + '-report-en.typ'/'-report-cn.typ'. The env var DOC_REVIEW_TEMPLATE_FILENAME defines the template file name.
+- Use the Typst template (refer to [1]) to create the report by the review report (JSON). The English and Chinese finding content is already generated and stored in `kb.doc_review_findings.metadata`, so use those localized values to create two reports, one in English and one in Chinese. Save them to DOC_REVIEW_REPORTS/`yyyymmdd-hhmm-` + `kb.doc_review_runs.id` + '-report-en.typ'/'-report-cn.typ'. The env var DOC_REVIEW_TEMPLATE_FILENAME defines the template file name.
 - Convert the Typst files to PDF, using the same file names but with '.pdf'
 
 Report finding rendering:

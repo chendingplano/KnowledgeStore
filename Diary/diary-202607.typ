@@ -91,3 +91,13 @@ Main features:
    image("Images/image_2026070201.png", width: 100%),
    caption: [Skill Platform (#a_002)],
 )
+
+= 2026/07/06 - Traefik
+#let a_003 = link(
+  "https://traefik.io/traefik"
+)[#text(fill: blue)[Traefik]]
+
+#a_003 \
+Source: Jimmy
+
+This is a replacement for Nginx.
