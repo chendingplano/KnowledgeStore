@@ -14,6 +14,7 @@ Workflow on generating document review reports:
 Report finding rendering:
 - Each finding card title must identify the persisted finding row, not only its ordinal position in the report. Render the title as `'Finding-' + kb.doc_review_findings.id`, for example `Finding-42`.
 - Legacy report JSON without a finding row ID may continue to render an ordinal fallback such as `Finding F-03`.
+- For the `metrics`, `provisions`, and `inventory_items` reviewers, findings are not rendered as a flat list — see 1.2 for per-artifact grouping and how each reviewer's comparison analyses are compiled into the same section as its findings.
 
 Cross-document metric evidence:
 - Metric consistency findings must identify the matched metric record in prose by `kb.metrics.metric_id`, for example `diaryMac.docx (refer to 415-mtc-2) specifies 48小时 ...`.
@@ -311,7 +312,52 @@ When the artifact ID is unknown for the requested record, the tool returns:
 }
 ```
 
+### 1.2 Per-artifact report sections (metrics, provisions, inventory items)
+
+The report renders `metrics`, `provisions`, and `inventory_items` findings as
+three separate parts of the report, one per reviewer — findings from
+different reviewers are never merged into a shared section. Within each
+reviewer's own part, the report groups by the artifact under review rather
+than rendering a flat, ordinally-numbered finding list:
+
+- `kb.doc_review_findings.artifact_id` (ADR 2026070603) identifies which
+  artifact-under-review a finding is about, for these three reviewers only.
+  Each reviewer's part of the report groups its findings by `artifact_id`, so
+  all findings about the same metric/provision/inventory item render together
+  as one section, titled by the artifact's own ID (`metric_id`, `prov_id`, or
+  `inventory_item_id`).
+- Each reviewer also persists a comparison-analysis record per matched
+  candidate, independent of whether a finding was raised on it — one row per
+  entry in `matching_metrics` / `matching_provisions` / `matching_items`.
+  Provisions' table (`kb.doc_review_provision_analyses`) was introduced by ADR
+  2026070602; the same mechanism extends to `kb.doc_review_metric_analyses`
+  and `kb.doc_review_inventory_item_analyses` for the metrics and
+  inventory-items reviewers, resolving that ADR's open question. All three
+  tables are keyed by `input_record_id` + `run_id` + the reviewer's own
+  artifact-ID column (`prov_id` / `metric_id` / `inventory_item_id`), matching
+  the key used to group findings above.
+- Within an artifact's section, the report loads that artifact's analyses
+  rows and finding rows using the same grouping key and renders them
+  together: analyses first (one line per matched candidate — related
+  artifact, relationship, summary), followed by that artifact's findings, if
+  any. An artifact's analysis and its findings are always compiled into the
+  same section — never split across different parts of the report.
+- The `entities` reviewer and the text-chunk reviewers (P1-P4) have no
+  `artifact_id` or analyses table; their findings continue to render in the
+  existing flat/ordinal sections, unaffected by this grouping.
+- The metrics and inventory-items analyses tables/migrations follow ADR
+  2026070602's `kb.doc_review_provision_analyses` schema shape (`id`,
+  `input_record_id`, `run_id`, own-artifact-ID column, `related_artifact_id`,
+  `related_record_id`, `relationship`, `summary`, `create_time`); their
+  migrations and reviewer/prompt changes (mirroring that ADR's DR1-DR3) are
+  tracked as follow-on implementation work, not part of this report-rendering
+  change.
+
 # 2. References
 [1] ChenWeb/docs/doc-templates/template-document-report.typ
 
 [2] 2026062202-adr-document-report-template.md
+
+[3] ADR 2026070602 — Provisions Reviewer: Mandatory Comparison Analyses (`KnowledgeStore/doc-repo/adrs/202607/2026070602-adr-doc-reviewer-provisions.md`)
+
+[4] ADR 2026070603 — `kb.doc_review_findings`: `artifact_id` Column for Per-Artifact Reviewers (`KnowledgeStore/doc-repo/adrs/202607/2026070603-adr-doc-review-findings-artifact-id.md`)
