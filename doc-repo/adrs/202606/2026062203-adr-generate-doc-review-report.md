@@ -350,8 +350,8 @@ than rendering a flat, ordinally-numbered finding list:
   `input_record_id`, `run_id`, own-artifact-ID column, `related_artifact_id`,
   `related_record_id`, `relationship`, `summary`, `create_time`); their
   migrations and reviewer/prompt changes (mirroring that ADR's DR1-DR3) are
-  tracked as follow-on implementation work, not part of this report-rendering
-  change.
+  defined in ADR 2026070604 (Status: Proposal as of this writing — not yet
+  implemented).
 
 # 2. References
 [1] ChenWeb/docs/doc-templates/template-document-report.typ
@@ -361,3 +361,5 @@ than rendering a flat, ordinally-numbered finding list:
 [3] ADR 2026070602 — Provisions Reviewer: Mandatory Comparison Analyses (`KnowledgeStore/doc-repo/adrs/202607/2026070602-adr-doc-reviewer-provisions.md`)
 
 [4] ADR 2026070603 — `kb.doc_review_findings`: `artifact_id` Column for Per-Artifact Reviewers (`KnowledgeStore/doc-repo/adrs/202607/2026070603-adr-doc-review-findings-artifact-id.md`)
+
+[5] ADR 2026070604 — Metrics and Inventory-Items Reviewers: Mandatory Comparison Analyses (`KnowledgeStore/doc-repo/adrs/202607/2026070604-adr-doc-reviewer-metrics-inventory-analyses.md`)

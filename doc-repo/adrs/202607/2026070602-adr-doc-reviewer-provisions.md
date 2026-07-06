@@ -268,12 +268,12 @@ None new.
 - This ADR is the design record for the `analyses` mechanism; ADR 2026063003 [4]
   remains the design record for the reviewer's core matching/comparison logic (Branch
   A/B retrieval, dedup, cap) and is unchanged by this ADR.
-- **Intentionally left undocumented / open:** no report or GUI surfaces
-  `kb.doc_review_provision_analyses` yet. If a future ADR adds a report section for
-  it, that ADR should also decide whether the same `analyses` mechanism should extend
-  to the metrics and inventory-items reviewers (ADR 2026063002, ADR 2026063005),
-  which share the provisions reviewer's artifact-comparison architecture and prompt
-  shape.
+- **Resolved by later ADRs:** ADR 2026062203 §1.2 added the report section for
+  `kb.doc_review_provision_analyses` (grouped per-artifact alongside findings), and
+  ADR 2026070604 extends this `analyses` mechanism to the metrics and
+  inventory-items reviewers (ADR 2026063002, ADR 2026063005), which share the
+  provisions reviewer's artifact-comparison architecture and prompt shape. ADR
+  2026070604 is a Proposal as of this writing — not yet implemented.
 
 ## References
 - [1] ADR 2026061801 — Document Review: LLM-Powered Multi-Aspect Review Pipeline
