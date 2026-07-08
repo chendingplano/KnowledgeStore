@@ -250,9 +250,12 @@ hypertension and systolic blood pressure are the same concept.
 
 The Resolve Ambiguous Objects page highlights the editable fields on each
 candidate node that visibly contributed overlap with the artifact object:
-canonical names, aliases, acronyms, and object type. This UI hint is derived
-from the same normalization rules above so that the page can answer "what
-matched?" directly, especially in cases where the only visible overlap is an
+canonical names, aliases, and acronyms. `object_type` is treated only as
+supporting context: it may be highlighted and listed alongside a real lexical
+overlap, but a candidate whose only agreement is `object_type` is shown as
+`Matches: none` and is not counted as a match. This UI hint is derived from
+the same normalization rules above so that the page can answer "what matched?"
+directly, especially in cases where the only visible lexical overlap is an
 acronym such as `SBP`.
 
 ### Alternative Decisions
