@@ -1,7 +1,7 @@
 # ADR 2026070701 - Object Reconciliation: Resolve and Alarm on Ambiguous Ties
 
 **Date:** 2026-07-07 \
-**Status:** Accepted — DR1-DR5 implemented and committed 2026/07/07; DR6 (manual resolution admin page) implemented and committed 2026/07/07; DR7 accepted 2026/07/08 and not yet implemented (migration for `ambiguous_resolved` not yet confirmed applied to any live database; backfill endpoint and admin page not yet run/used against the ~40 existing rows) \
+**Status:** Accepted — DR1-DR5 implemented and committed 2026/07/07; DR6 (manual resolution admin page) implemented and committed 2026/07/07; DR7 implemented and committed 2026/07/08 (migration for `ambiguous_resolved` not yet confirmed applied to any live database; backfill endpoint and admin page not yet run/used against the ~40 existing rows) \
 **Component:** ChenWeb — `server/api/doc-processing`, `server/api/kbhandler`, `server/api/routes.go`, `web/src/lib/components/home3` \
 **Authors**: Chen Ding \
 **Tags:** object reconciliation, kb.artifact_objects, kb.object_nodes, provisions, data quality, observability, admin UI \
@@ -517,31 +517,47 @@ discard-confirm modal, Help, the Save PATCH payload shape, and queue-drain
 (a resolved row disappearing from the left panel with the next row
 auto-selected).
 
-### 5.3 DR7 Required Code Changes
+### 5.3 DR7 Code Changes
 
-DR7 is accepted but not yet implemented. Implementation must add:
+- `ChenWeb/server/api/doc-processing/object_ambiguous_llm.go` (new) — DR7 LLM
+  decision DTOs, JSON parser, structured-output contract, env-based resolver
+  construction from `RESOLVE_AMBIGUOUS_OBJECT_MODEL_NAME`, min-confidence
+  loading from `RESOLVE_AMBIGUOUS_MIN_CONFIDENCE` (default `0.85`), decision
+  validation, confidence gating, provenance stamping, survivor mapping, and
+  artifact-object field completion.
+- `ChenWeb/server/api/doc-processing/object_ambiguous_llm_sql.go` (new) —
+  transactional object-node field updates, derived `normalized_names` /
+  `search_document` refresh, loser-to-survivor artifact-object repointing,
+  loser node `canonical_object_id` / `reconcile_status = 'merged'` updates,
+  `ext_info.merged_to` / `merge_time`, and `kb.object_audit_log` entries.
+- `ChenWeb/server/api/doc-processing/object_nodes.go` — keep the existing
+  `reconcileArtifactObjects` wrapper and add `reconcileArtifactObjectsWithLLM`
+  so ambiguous ties call DR7 when configured, while failed or low-confidence
+  attempts fall back to the existing `ambiguous` backlog.
+- `ChenWeb/server/api/doc-processing/extract-provisions.go`,
+  `extract-metrics.go`, `extract-inventory-items.go` — construct the optional
+  DR7 resolver from env and pass it through the shared reconciliation path for
+  provisions, metrics, and inventory items.
+- `ChenWeb/project_migrations/20260708000001_extend_object_audit_log_actions.sql`
+  (new) — extends `kb.object_audit_log.action` to allow the existing/new
+  `create_node` and `merge_nodes` audit actions.
 
-- LLM request/response DTOs for ambiguous artifact-object adjudication,
-  including strict output validation for the allowlisted field edits, proposed
-  same-object groups, selected object id, confidence, and rationale.
-- Env loading for `RESOLVE_AMBIGUOUS_OBJECT_MODEL_NAME` and
-  `RESOLVE_AMBIGUOUS_MIN_CONFIDENCE` (default `0.85`).
-- A transactional apply path that can update the allowlisted
-  `kb.artifact_objects` / `kb.object_nodes` fields, recompute derived
-  `normalized_names` / `search_document`, repoint loser object ids to the
-  survivor, mark losers `merged`, and write `kb.object_audit_log` entries.
-- Integration with the doc processors' ambiguous branch so high-confidence LLM
-  resolutions produce `ambiguous_resolved`, while failed or low-confidence
-  attempts leave the existing `ambiguous` backlog intact for DR5/DR6.
-
-Required DR7 verification:
+DR7 Verification:
 
 ```bash
 cd /Users/cding/Workspace/ChenWeb
-go test ./server/api/doc-processing -run 'TestResolveAmbiguous.*LLM|TestApplyAmbiguousObjectLLMResolution'
-go test ./server/api/kbhandler -run 'Test.*ObjectAudit|TestMergeObjectNodes'
+go test ./server/api/doc-processing -run 'TestApplyAmbiguousObjectLLMDecision|TestObjectNodeSQLStoreApplyAmbiguousObjectLLMNodeChanges|TestParseAmbiguousObjectLLMDecisionReadsExpectedShape|TestReconcileArtifactObjects(LogsWarnOnAmbiguousTie|UsesLLMForAmbiguousTie)'
+go test ./server/api/doc-processing -run 'TestReconcileArtifactObject|TestResolveAmbiguousArtifactObjects|TestPickTieBreakCandidate|TestArtifactObjectSQLStore|TestRankAmbiguousCandidates|TestObjectNode|TestFindCandidates|TestApplyAmbiguousObjectLLMDecision|TestParseAmbiguousObjectLLMDecision|TestObjectNodeSQLStoreApplyAmbiguousObjectLLMNodeChanges'
+go test ./server/api/kbhandler -run 'Test.*ObjectAudit|TestMergeObjectNodes|TestUpdateObjectNode|TestUpdateArtifactObject|TestCreateObjectNode|TestRebind'
 go vet ./server/api/doc-processing/... ./server/api/kbhandler/...
+go build ./...
 ```
+
+All targeted DR7/object-resolution tests pass. `go build ./...` and `go vet`
+on the affected backend packages are clean. Full-package
+`go test ./server/api/doc-processing` and `go test ./server/api/kbhandler`
+still show unrelated pre-existing failures in summary/search/category handler
+tests; the targeted DR7/object-resolution tests above are green.
 
 ## 6. Operational Behaviors
 
@@ -671,7 +687,7 @@ DR6, new/updated, all passing:
 - `resolve-ambiguous-objects-client.test.ts` (8 tests, `bun test`) — the
   frontend fetch wrappers and pure diff/navigation helpers.
 
-DR7 required, not yet implemented:
+DR7, new/updated and passing:
 
 - LLM response validation: reject unknown field edits, missing confidence,
   selected ids outside the candidate set, and malformed same-object groups.
