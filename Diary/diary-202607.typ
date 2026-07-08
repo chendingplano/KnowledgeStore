@@ -101,3 +101,44 @@ Main features:
 Source: Jimmy
 
 This is a replacement for Nginx.
+
+= 2026/07/07 - Use Cheap Model to Filter RAG 
+#let a_004 = link(
+  "https://www.kapa.ai/blog/how-we-prune-rag-context"
+)[#text(fill: blue)[How We Taught a Small LLM to Throw away 68% of RAG Context]]
+
+#a_004 \
+Source: Hacker News
+
+There are two types of rerankers: (1) the reranker that fuses entries from two or more ordered lists
+and (2) reranker that orders retrieved by LLMs. The former is pure reranker, while the latter
+is more about relevance.
+
+*Example*
+
+We have always struggled over whether to use vector search. Here is an example:
+- Question: Can I turn off audit log forwarding for just one project?"
+- RAG 1: Audit log forwarding is toggled in org settings
+- RAG 2: Projects cannot override org settings
+
+Most rerankers may throw away RAG 2. If vector search is not used, it
+won't be able to find it at all since it mentions none of the keywords.
+
+The real question is: how to find RAG 2.
+
+For agentic RAG, which I mean LLMs are the driver:
+- Tool use: Find chunks related to 'Audit log'
+- LLM analyze the chunks, trying to find out who controls the audit log.
+  If there are too many results by 'audit log', the LLM may add more
+  conditions: 'audit log', 'config/setting'.
+- If the retrieved contains RAG 2, the LLM analyzes it and should be
+  able to answer the question correctly.
+
+I believe the true question is:
+- Who should be in the driver seat: LLM or agent (or the apps we wrote)
+- The budget: if it is a quick-and-dirty question/answering system, users
+  care more about the latency than answer quality, a 1-3 turns may be
+  the max. If it is a problem solving system, or a system whose missions
+  are to solve user problems, regardless of the latency and the cost,
+  the harness will be more resiliant to retrieval quality. LLMs can explore
+  the knowledge base, possibly through multiple turns.

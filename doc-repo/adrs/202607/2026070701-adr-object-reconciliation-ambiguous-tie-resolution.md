@@ -16,6 +16,11 @@
 * 2026/07/08, DR7 added: use an LLM adjudicator for ambiguous artifact-object
   resolution, including bounded field completion/correction, object-node
   merge/repoint semantics, audit logging, and confidence-gated resolution.
+* 2026/07/08, DR7 hardened (see §3.7 "Prompt, confidence, execution, and
+  observability"): externalized the adjudicator prompt, required numeric
+  confidence on the resolution **and** each same-object group, added tolerant
+  confidence parsing, parallelized the LLM adjudication step, and added
+  per-object timing logs plus `kb.doc_proc_logs` outcome logging.
 
 ## 2. Context
 
@@ -251,6 +256,57 @@ Processing the LLM output:
   available for DR5 deterministic backfill or DR6 human review.
 - All applied updates to `kb.artifact_objects` and `kb.object_nodes`, including
   merge/repoint operations, are logged to `kb.object_audit_log`.
+
+#### Prompt, confidence, execution, and observability (2026/07/08)
+
+The following refine how DR7 is implemented; they do not change the adjudication
+contract above.
+
+**Prompt is externalized, never hard-coded.** The adjudicator prompt lives at
+`ChenWeb/prompts/prompt-resolve-ambiguous-object-v1.md` and is loaded via the
+shared `loadPromptByRef` resolver. The filename is overridable with
+`RESOLVE_AMBIGUOUS_OBJECT_PROMPT` (default `prompt-resolve-ambiguous-object-v1.md`);
+per ChenWeb convention only the default *ref* is a constant, the prompt *text* is
+never in the binary.
+
+**Confidence must be numeric, on every confidence field.** The structured-output
+schema requires `confidence` on the `resolution` object **and** on each
+`same_object_groups` entry. The original prompt asked for it only on the
+resolution, so models routinely omitted the per-group confidence and every retry
+failed schema validation ("retries exhausted"). The prompt now explicitly
+mandates a number in `[0, 1]` on all confidence fields and forbids qualitative
+words / percentages. As defense against models that ignore this, parsing is
+tolerant: qualitative labels (`very high`/`high`/`medium`/`low`/`very low`) map
+to representative scores, so a non-numeric confidence never silently collapses to
+`0` (which would otherwise trip the "missing confidence" guard).
+
+**Execution is three-phase, with parallel LLM adjudication.**
+`reconcileArtifactObjectsWithLLM` runs:
+
+1. **Sequential reconcile** — `ReconcileOne` creates a node on the no-match path,
+   so it stays ordered; running it in parallel would race two same-named objects
+   into duplicate `kb.object_nodes`.
+2. **Parallel LLM adjudication** — `ResolveAmbiguousObject` is pure (no DB writes)
+   and network-bound, and is the latency-dominant step, so ambiguous objects are
+   adjudicated concurrently, bounded by `RESOLVE_AMBIGUOUS_OBJECT_CONCURRENCY`
+   (default `5`). Per-object LLM failures are captured, not fatal — one bad object
+   does not abort the batch.
+3. **Sequential apply** — merge/repoint/field updates (§ above) stay ordered.
+
+This shared function is used by the provisions, metrics, and inventory-item
+processors, so all three inherit the parallelism and logging.
+
+**Observability.** Each adjudication logs its latency (`ms_used`) via the
+structured `JimoLogger`, so previously silent multi-second gaps are visible; the
+raw LLM response is now included in the `"LLM ambiguous object resolution failed"`
+warning. Every LLM outcome is also written to `kb.doc_proc_logs` with
+`entry_type = "reconcile_object"` — including the **resolved** and **unresolved**
+(below-threshold) cases, not just failures — carrying `ms_used`, `model_names`,
+and an `extra_info` payload of `{outcome, artifact_id, object_name,
+candidate_object_ids, resolved_object_id, resolution_confidence}`, where `outcome`
+is one of `resolved` / `unresolved` / `llm_failed` / `apply_failed`. This is
+operational telemetry and is distinct from the per-mutation `kb.object_audit_log`
+trail.
 
 ## 4. Matching Algorithm Reference
 
