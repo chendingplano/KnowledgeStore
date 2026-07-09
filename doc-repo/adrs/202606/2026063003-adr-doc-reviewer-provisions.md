@@ -6,7 +6,7 @@
 **Authors**: Chen Ding\
 **Tags**: Document Reviewer, Provisions, Cross-Document Consistency
 
-## Change Logs
+## 1. Change Logs
 * 2026/06/30, ADR Created (copied from ADR 2026063002 — metric reviewer)
 * 2026/06/30, Fleshed out and implemented. Corrected copy-paste artifacts from the
   metric ADR (provision vs metric naming), confirmed the provision data model
@@ -41,8 +41,15 @@
   a match branch. The old document-level entity branch is removed because it retrieves
   provisions related to entities in the document-under-review, not necessarily provisions
   relevant to the provision-under-review.
+* 2026/07/09, added the current **Provision Review Harness** description based on
+  `review-provisions.go`, `review-tool-loop.go`, `review-artifact-window.go`,
+  `doc-review.local.toml`, and `prompt-review-provisions-v4.md`.
+* 2026/07/09, implemented the analysis-persistence correction: provision `analyses`
+  are review results and are stored as first-class rows in
+  `kb.doc_review_findings`, not only in the reviewer-specific
+  `kb.doc_review_provision_analyses` side table.
 
-## Context
+## 2. Context
 When a document is added to the knowledge base, the system extracts metrics, entities,
 relations, provisions and other artifacts from the document via the doc processors
 (refer to [1]).
@@ -51,7 +58,7 @@ This document reviewer assumes the document-under-review, identified by `record_
 (`kb.inputs.id`), has already been processed by all doc processors. The reviewer is
 configured as `reviewers.provisions` (group P5) in [2].
 
-### Relationship to the metric reviewer (ADR 2026063002)
+### 2.1 Relationship to the metric reviewer (ADR 2026063002)
 
 This reviewer is the provisions analogue of the metric reviewer [4] and shares its
 architecture: it is an **artifact-based, cross-document consistency** reviewer, not a
@@ -61,7 +68,7 @@ documents, discovered through live hybrid search over `kb.search_artifacts`. It 
 `Input="artifact"`, so the prompt-cache scheduler routes it to `runReviewersLegacy`
 which calls `ReviewDocument` directly (no scheduler/strategy changes).
 
-### Provision-specific facts (differ from metrics)
+### 2.2 Provision-specific facts (differ from metrics)
 
 - Provisions live in `kb.provisions`; the artifact id column is **`prov_id`**
   (format `"<record>_prv_<n>"`, globally unique, like `metric_id`). Connection
@@ -78,8 +85,8 @@ which calls `ReviewDocument` directly (no scheduler/strategy changes).
   Branch B). Provisions match via (A) live hybrid search and (B) object-anchored retrieval.
   (Rationale under Alternative Decisions.)
 
-## Decision
-### DR1 — Reviewer logic
+## 3. Decision
+### 3.1 DR1 — Reviewer logic
 
 The reviewer builds, for each provision extracted from the document-under-review, a
 list of **matching provisions** from live semantic search plus object-anchored graph
@@ -153,7 +160,218 @@ LLM receives the provision-under-review plus the already-retrieved matching prov
 its input payload. Tools are only an optional follow-up mechanism for additional context;
 they are not responsible for discovering the object-anchored matches.
 
-### Alternative Decisions
+### 3.3 Tool Use
+`reviewers.provisions` already receives the provision under review, matched cross-document
+provisions, source_context for each match, authority hints, and the source window.
+The LLM’s only legitimate follow-up need is: “show me more source lines around this
+artifact so I can verify scope/conditions before raising or suppressing a conflict.”
+
+That is exactly what [get_artifact_context (line 528)](/Users/cding/Workspace/ChenWeb/server/api/doc-reviews/review-tools.go:528) does. It is also intentionally cross-record, unlike
+the core tools.
+
+We would not expose these by default:
+- search_provisions / get_provision: scoped only to the document under review, while the reviewer’s cross-document candidates are already retrieved deterministically before the LLM loop.
+- search_entities, get_entity, get_entity_relations: likely to pull the model into broad exploratory reasoning and create noisy provision findings.
+- search_metrics, get_metric: useful for metrics reviewers, but not for provision consistency unless we design an explicit mixed provision/metric reviewer.
+- get_chunk_summary: too abstract for conflict verification.
+- get_chunk_lines: tempting, but mostly redundant because the reviewer already gets a ~200-line source window and get_artifact_context can fetch artifact-centered lines. Add only if logs show repeated “needed wider current-document context” failures.
+
+The implemented tool set is `["get_artifact_context", "get_document_metadata"]`.
+`get_document_metadata(record_id)` reads `kb.inputs.doc_metadata` plus scalar input fields
+and returns the document title, document number, filename, publication/implementation
+dates, language, extracted metadata, and the same `authority_class` heuristic used in the
+matched-provision payload. This supports currency and authority checks without opening
+broad search.
+
+### 3.3 Provision Review Harness
+
+Document review is an agentic application: the deterministic code prepares evidence,
+budgets, tools, and storage boundaries, while the LLM is the reviewer brain that decides
+what the evidence means. The provision reviewer makes that split explicit. The "harness"
+is the code path around each LLM review turn; it does not only send a prompt. It builds
+the artifact work units, places each unit in a bounded multi-turn conversation, validates
+tool calls and JSON responses, normalizes findings, persists per-match analyses, and
+decides what to do when the model or a dependency misbehaves.
+
+The current harness is configured by `reviewers.provisions` in `doc-review.local.toml`:
+- `input="artifact"`,
+- `model="deepseek-flash-chen"`,
+- `prompt="prompt-review-provisions-v4.md"`,
+- `max_tool_turns=4`,
+- `max_tool_tokens=24000`,
+- `tools=["get_artifact_context", "get_document_metadata"]`.
+
+Because the input is `artifact`, `buildReviewers` routes the reviewer through the
+legacy/document runner that
+calls `provisionsReviewer.ReviewDocument` directly, rather than through the ordinary
+chunk/block scheduler. The reviewer still reuses the scheduler's canonical windows for
+cache layout and source context.
+
+The outer loop is deterministic and provision-centric:
+
+```text
+load provisions for record_id
+cap with PROVISION_REVIEW_MAX_PROVISIONS, when set
+for each provision:
+  retrieve matching provisions with live hybrid search and object-anchor retrieval
+  dedupe, exclude same-record matches, cap with PROVISION_REVIEW_MAX_MATCHES
+hydrate source_context for each matched provision
+load canonical ~200-line artifact review windows
+build one review unit per provision
+run units window-grouped: seed one unit per window, stagger, then run the remainder
+```
+
+Each review unit is one agentic review of one provision-under-review. The user message is
+assembled with the AR2 window-first layout:
+
+```text
+<DOCUMENT_INPUT>
+{canonical source window JSON}
+</DOCUMENT_INPUT>
+
+<REVIEW_TASK>
+{prompt-review-provisions-v4.md}
+
+# ARTIFACT REVIEW INPUT
+{provision_under_review, artifact_line_spans, context_truncated, matching_provisions}
+</REVIEW_TASK>
+```
+
+When no source window can be resolved, the harness sends only `<REVIEW_TASK>...`.
+If a provision span crosses the selected window boundary, the payload includes
+`context_truncated=true`; the prompt tells the model not to treat this as an extraction
+error and to use `get_artifact_context` when more context is needed.
+
+The prompt is part of the harness contract, not decorative text. Version 4 requires two
+separate outputs:
+
+- `analyses`: one comparison record for every entry in `matching_provisions`, even when
+  there is no issue.
+- `findings`: only the reportable issues or observations.
+
+This matters because "no finding" is not the same as "no review happened." The raw parsed
+payload is returned alongside normalized findings so the harness can preserve both output
+streams. Findings are normalized into `ReviewFinding`, tagged with `Pass="P5"`,
+`Aspect="provisions"`, and `ArtifactID=<prov_id>`, and defaulted to
+`finding_type="issue"`, `severity="low"`, and the provision source line spans when the
+model omits those fields. Cross-document links stay structured through
+`related_artifact_id` and `related_record_id`.
+
+#### Implemented Solution — Store Analyses as Review Results
+
+The implementation parses `analyses` from the provision prompt payload, converts each
+analysis into a first-class `ReviewFinding`, and returns those rows from `reviewProvision`
+alongside reportable issues/observations. The outer review runner therefore persists
+analyses to the canonical `kb.doc_review_findings` table using the normal findings store.
+The existing `kb.doc_review_provision_analyses` write remains as a compatibility read
+model while report/API readers migrate.
+
+The storage contract is:
+
+- Every `analyses[]` entry becomes one `kb.doc_review_findings` row.
+- Analysis rows use `pass="P5"`, `aspect="provisions"`, `artifact_id=<prov_id>`,
+  `related_artifact_id=<analysis.related_artifact_id>`, and
+  `related_record_id=<analysis.related_record_id>`.
+- Analysis rows use `finding_type="analysis"` so they are distinguishable from
+  `issue` and `observation` findings.
+- Analysis rows use `severity="info"` and `confidence=1.0` unless the prompt later emits
+  an explicit confidence for analyses.
+- `title` should be deterministic, e.g.
+  `Provision comparison: <prov_id> vs <related_artifact_id>`.
+- `description` should be `analysis.summary`.
+- `evidence` should identify the compared provisions and, when cheap to include, the
+  relationship and source filename. The summary remains the human-readable conclusion.
+- `suggestion` should be empty for benign analyses. If the analysis says it rises to a
+  finding, the suggestion belongs on the corresponding reportable finding, not on the
+  analysis row.
+- `metadata` should include `result_kind="provision_analysis"` and
+  `analysis_relationship=<same_subject|related_subject|unrelated>`, alongside the existing
+  related-artifact metadata.
+
+The mapping is intentionally lossy only in presentation, not in identity: the important
+query keys (`run_id`, `input_record_id`, `aspect`, `artifact_id`,
+`related_artifact_id`, `related_record_id`) are native `doc_review_findings` fields or
+existing metadata-derived fields. A report, API response, or UI can therefore retrieve all
+provision review results from one table and split them by `finding_type`.
+
+`kb.doc_review_provision_analyses` is now a compatibility/read-model table rather than the
+source of truth. There are two migration phases:
+
+1. **Dual-write transition (current):** write analyses to `kb.doc_review_findings` and
+   continue writing `kb.doc_review_provision_analyses` until the Typst report and any
+   API/UI readers consume analysis rows from `doc_review_findings`.
+2. **Single-write after readers move:** stop inserting into
+   `kb.doc_review_provision_analyses`; either leave the table for historical runs or add a
+   backfill migration/view that derives its shape from `doc_review_findings` rows where
+   `aspect='provisions'` and `finding_type='analysis'`.
+
+Dual-write is operationally safer: existing reports keep working while the canonical table
+starts receiving complete results. After a backfill and reader migration, the side table
+can be deprecated.
+
+This change also makes count semantics explicit at the row level. Consumers that need
+issue counts can filter out `finding_type="analysis"`; coverage views and per-provision
+report sections can include it.
+
+With `max_tool_turns > 0` and a resolved chat client, each unit uses
+`runToolUseReviewWithPayload`. The conversation starts with a small common system message:
+"You are a document review engine. Return strict JSON findings only unless you need to
+call an available tool." The first user message is the window-first review task above,
+and the available tool definitions are adapted from the configured tool registry. For the
+current provisions reviewer, the only exposed tool is `get_artifact_context`; the model
+can use it to verify source lines around an artifact when the included `source_context`
+or source window is insufficient.
+
+The inner multi-turn loop is:
+
+```text
+for turn in 1..MaxToolTurns:
+  call the tool-capable model with messages and tool definitions
+  record LLM usage and turn_count metadata
+  if the model requested tools:
+    append assistant tool_calls
+    execute each tool call
+    append each tool result as a tool-role message
+    if MaxToolTokens is exhausted, break to finalization
+    continue
+  if the model returned parseable JSON with a findings key:
+    return normalized findings plus raw payload
+  otherwise:
+    ask one final no-tools repair/finalization call and return or fail
+finalize without tools
+```
+
+A model response is treated as either tool calls or findings, never both. Tool calls take
+precedence. The harness validates tool names and required arguments, scopes execution by
+`record_id`, and converts tool failures into JSON error payloads for the model to read
+and recover from; a bad tool call does not abort the review unit by itself.
+
+If the turn budget or token budget is exhausted, the harness force-finalizes. It appends a
+final user instruction telling the model that the investigation budget is spent and that
+it must return strict JSON of the form `{"findings":[...]}`, using only evidence already
+collected. This finalization call is made without tools. A valid `{"findings":[]}` is a
+normal outcome. If the final response is malformed, the harness performs a repair pass for
+common JSON failures or for DSML-style text tool calls emitted after tools are closed; if
+that repair also fails, the unit logs the parse error and returns no findings for that
+provision.
+
+Error handling is intentionally local to the provision unit where possible:
+
+- Missing database handle, provision-load failure, or match-build failure aborts the
+  reviewer because the harness cannot establish the review evidence.
+- No extracted provisions or no review units is a logged zero-finding outcome.
+- Source-window load failure degrades to payload-only review; it is logged but not fatal.
+- Payload marshal failure, one-shot LLM failure, tool-loop failure, analysis persistence
+  failure, and malformed final JSON are logged and isolated to the current provision.
+- Stop requests are checked before turns and unit execution; completed findings are
+  returned with `ErrPipelineStopped` when the stop is observed.
+
+This design keeps the LLM in the reasoning seat while keeping the application in charge of
+repeatability, cost, and persistence. The LLM can ask for context over several turns, but
+the harness decides which tools exist, how many turns and tokens are allowed, how responses
+are parsed, what defaults are applied, and how partial failures affect the review run.
+
+### 3.3 Alternative Decisions
 - **Add a corpus-wide category-sibling branch (as in the metric reviewer):** deferred.
   Provision `category_paths` are hierarchical path strings (e.g. `"safety/electrical"`),
   not flat category keys, so a `?|` overlap match is noisier for provisions than for
@@ -167,18 +385,34 @@ they are not responsible for discovering the object-anchored matches.
   relevance signal compared with live hybrid search and object-anchored retrieval.
 - **Tool-use (agentic) reviewer (`max_tool_turns > 0`):** originally not adopted, then
   implemented by ADR 2026070201 AR4/AR5. Current configuration uses
-  `max_tool_turns = 4` and `get_artifact_context`.
+  `max_tool_turns = 4`, `get_artifact_context`, and `get_document_metadata`.
 
-### Database Migrations
-**None for the reviewer.** Reads `kb.provisions`, `kb.search_artifacts`,
-`kb.artifact_objects`, `kb.object_nodes`, and object-id `kb.artifact_connections` edges;
-writes findings to the existing `kb.doc_review_findings` (run-scoped via `run_id`, [5]).
-No reviewer-owned table, column, or `kb.search_artifacts` partition.
+### 3.4 Database Migrations
+The reviewer reads `kb.provisions`, `kb.search_artifacts`, `kb.artifact_objects`,
+`kb.object_nodes`, and object-id `kb.artifact_connections` edges; writes reportable
+findings to `kb.doc_review_findings` (run-scoped via `run_id`, [5]); and should also write
+each provision comparison analysis to `kb.doc_review_findings` as
+`finding_type="analysis"`.
+
+No new table is required for analysis rows if the implementation uses the existing
+`doc_review_findings` columns plus metadata. If strict metadata keys are enforced in code,
+extend the finding metadata envelope/reserved keys with:
+
+```json
+{
+  "result_kind": "provision_analysis",
+  "analysis_relationship": "same_subject | related_subject | unrelated"
+}
+```
+
+`kb.doc_review_provision_analyses` currently exists as a reviewer-specific side table. It
+should be treated as transitional. Keep it during dual-write and deprecate it after
+reports/API/UI readers can derive provision analyses from `kb.doc_review_findings`.
 
 Provision object extraction/reconciliation tables and object-id connection partitions
 are owned by ADR 2026070101, not by this reviewer ADR.
 
-### Data Formats
+### 3.5 Data Formats
 
 **Provision view (loaded from `kb.provisions`)** — the "provision under review":
 
@@ -211,41 +445,72 @@ sets `Pass="P5"`, `Aspect="provisions"`, defaults `finding_type="issue"`,
 `severity="low"`, and `location` from the provision's `source_line_spans` when the model
 leaves them empty.
 
-### Environment Variables
+**Analysis output** — the mandatory comparison-analysis JSON from
+`prompt-review-provisions-v4.md`; each entry should be converted into a
+`kb.doc_review_findings` row:
+
+```json
+{
+  "pass": "P5",
+  "aspect": "provisions",
+  "severity": "info",
+  "finding_type": "analysis",
+  "title": "Provision comparison: 1001_prv_3 vs 2002_prv_9",
+  "description": "The provisions govern the same pressure relief requirement but use different rating thresholds...",
+  "evidence": "relationship=same_subject; provision_under_review=1001_prv_3; related=2002_prv_9",
+  "location": "88-90",
+  "suggestion": "",
+  "confidence": 1.0,
+  "artifact_id": "1001_prv_3",
+  "related_artifact_id": "2002_prv_9",
+  "related_record_id": 2002,
+  "metadata": {
+    "result_kind": "provision_analysis",
+    "analysis_relationship": "same_subject"
+  }
+}
+```
+
+### 3.6 Environment Variables
 - `REVIEW_MAX_TASKS` (existing) — bounds the per-provision LLM fan-out.
 - `PROVISION_REVIEW_MAX_MATCHES` (new, optional, default `20`) — cap on matching
   provisions per doc provision.
 - `PROVISION_REVIEW_MAX_PROVISIONS` (new, optional, default `0` = no cap) — cap on the
   number of doc provisions reviewed.
 
-## Implementation
+## 4. Implementation
 
-### Code Changes
+### 4.1 Code Changes
 
 | File | Change |
 |---|---|
 | `ChenWeb/server/api/doc-reviews/review-provisions.go` | `provisionsReviewer` implementing `Reviewer` (`Name()="provisions"`, `Group()="P5"`, `Strategy()=StrategyDocument`). `ReviewDocument` loads provisions, builds matches from live `FindSimilarArtifactsOnTheFly` plus object-anchored provision rosters, hydrates source context, and runs window-grouped artifact review units. Tool-use is enabled when configured. |
-| `ChenWeb/server/api/doc-reviews/review-document.go` | Resolves `provisions`/P5 runtime, budget, and tool config; appends the `provisionsReviewer` runner with `cfg.Input="artifact"`. |
+| `ChenWeb/server/api/doc-reviews/review-document.go` | Resolves `provisions`/P5 runtime, budget, and tool config; appends the `provisionsReviewer` runner with `cfg.Input="artifact"`. `ReviewFindingsSQLStore` remains the canonical writer for rows in `kb.doc_review_findings`; converted analysis rows now pass into the same store. |
+| `ChenWeb/server/api/doc-reviews/models.go` / finding metadata helpers | Add metadata support for `result_kind="provision_analysis"` and `analysis_relationship`, while preserving existing i18n and related-artifact metadata. |
+| `ChenWeb/server/api/doc-reviews/review-tools.go` | Adds `get_document_metadata(record_id)`, a narrow read-only metadata tool over `kb.inputs` / `doc_metadata`. It is registered but not part of `coreToolNames`; reviewers must opt in via TOML. |
 | `ChenWeb/server/api/doc-processing/search_artifact_indexing.go`, `extract-provisions.go` | Reindex provisions in `kb.search_artifacts`, persist/reconcile provision objects, and index provision object-node edges under the shared object contract. |
-| `ChenWeb/doc-review.local.toml` | `reviewers.provisions`: `input="artifact"`, `model="deepseek-v4-flash"`, `prompt="prompt-review-provisions-v2.md"`, `max_tool_turns=4`, `tools=["get_artifact_context"]`. |
-| `ChenWeb/prompts/prompt-review-provisions-v2.md` | Current prompt (v2 supersedes v1). |
+| `ChenWeb/doc-review.local.toml` | `reviewers.provisions`: `input="artifact"`, `model="deepseek-flash-chen"`, `prompt="prompt-review-provisions-v4.md"`, `max_tool_turns=4`, `max_tool_tokens=24000`, `tools=["get_artifact_context", "get_document_metadata"]`. |
+| `ChenWeb/prompts/prompt-review-provisions-v4.md` | Current prompt (requires per-match `analyses` plus reportable `findings`; instructs when to use source-context vs document-metadata tools). |
+| `ChenWeb/server/api/doc-reviews/typst_report.go`, `controller.go`, result summary UI | Follow-up reader migration: treat `finding_type="analysis"` as coverage/comparison evidence and filter it out where a view wants issue counts only. |
 | `ChenWeb/server/api/doc-reviews/review-provisions_test.go` | **New** tests (assembly branches/dedup/exclusion/cap; reviewProvision payload + tagging). |
 
 Target resolution maps live-search hit ids and object-edge artifact ids to
 `kb.provisions` rows. Because `prov_id` is globally unique (`"<record>_prv_<n>"`),
 resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric reviewer.
 
-## Operational Behaviors
+## 5. Operational Behaviors
 - **No provisions / no matches:** returns zero findings (logged, not an error).
 - **Dependency:** meaningful after `extract_provisions` has populated `kb.provisions`,
   `kb.search_artifacts`, and the ADR 2026070101 object graph: artifact-object
   persistence, object-node reconciliation, and object `belong_to` indexing.
 - **Parallelism & stop / idempotency:** identical to the metric reviewer and all
   reviewers — concurrent per-provision calls under `REVIEW_MAX_TASKS`, stop at the next
-  boundary, findings written under the current `run_id` (prior run findings deleted by
-  `PostProcessIndex`).
+  boundary, findings and analysis rows written under the current `run_id` (prior run
+  findings deleted by `PostProcessIndex`).
+- **Analysis visibility:** analyses are complete review-output rows. Consumers that need
+  issue-only counts can filter `finding_type='analysis'`; coverage views can include it.
 
-## Consequences
+## 6. Consequences
 **Positive**
 - Cross-document provision consistency: conflicting/contradictory requirements,
   prohibitions, or obligations across the corpus that no single-document reviewer can
@@ -254,6 +519,9 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
   lexical/vector search registry and existing reviewer plumbing.
 - Object-anchored matching retrieves provisions tied to the same canonical object as the
   provision-under-review, improving relevance over document-level entity co-occurrence.
+- Storing analyses in `kb.doc_review_findings` makes the review result query model
+  complete: a consumer can reconstruct both "what was flagged" and "what was checked" from
+  the same run-scoped table.
 
 **Negative / cost**
 - Per-provision live search adds read-time search cost; bounded by
@@ -264,8 +532,11 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
   live semantic-search hit will not be compared.
 - Object-anchored recall depends on provision object extraction and reconciliation
   quality. Provisions without a reconciled `object_id` rely on live hybrid search only.
+- Analysis rows will increase `kb.doc_review_findings` row counts substantially, so
+  summaries must filter by `finding_type` instead of treating every row as a reportable
+  issue.
 
-## Tests
+## 7. Tests
 - Branch A: a doc provision with a live hybrid-search hit to a cross-document provision
   -> one LLM call, finding tagged `P5`/`provisions`.
 - Branch B: an object-anchored provision in another document is attached to the
@@ -277,18 +548,22 @@ resolution batches by `prov_id` (`WHERE prov_id = ANY($1)`), like the metric rev
 - No matches → no LLM call, no findings.
 - `reviewProvision` payload contains `provision_under_review` + `matching_provisions`;
   findings get `Pass=P5`/`Aspect=provisions` and default severity/type/location.
+- `analyses` entries are converted into `ReviewFinding`/storage rows with
+  `finding_type="analysis"`, `severity="info"`, `ArtifactID=<prov_id>`, structured
+  related artifact fields, and `metadata.result_kind="provision_analysis"`.
+- Storage tests verify analysis metadata is written through `kb.doc_review_findings`.
 
-## Documentation Impact
+## 8. Documentation Impact
 - `doc-processor/+CAPSULE.md` [1]: no pipeline-table change (provisions review is an
   aspect, not a doc processor).
-- This ADR + `prompt-review-provisions-v2.md` are the current design/behavior records.
+- This ADR + `prompt-review-provisions-v4.md` are the current design/behavior records.
   Shares the live-search and reviewer-integration design with ADR 2026063002 [4].
 - Intentionally left undocumented here: exact live-search RRF weighting (owned by
   `search_artifact_indexing.go` / extract-provisions spec); the deferred
   category-sibling branch. Object extraction/reconciliation policy is documented by ADR
   2026070101 [7].
 
-## References
+## 9. References
 - [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
 - [2] `ChenWeb/doc-review.local.toml`
 - [3] `KnowledgeStore/doc-repo/adrs/202606/2026062804-adr-doc-review-run.md` (run model) and `ChenWeb/server/api/doc-reviews/review_cache_scheduler.go` (dispatch)

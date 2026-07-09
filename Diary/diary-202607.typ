@@ -142,3 +142,13 @@ I believe the true question is:
   are to solve user problems, regardless of the latency and the cost,
   the harness will be more resiliant to retrieval quality. LLMs can explore
   the knowledge base, possibly through multiple turns.
+
+= 2026/07/09 - 
+#let a_005 = link(
+  "https://github.com/linuxrebel/DocuBrowser"
+)[#text(fill: blue)[DocuBrowser URL]]
+
+#a_005 \
+Source: Hacker News
+
+This is an open-source project, very similar to SemOS. It has GUI. Written in Python.
