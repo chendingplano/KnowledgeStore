@@ -333,6 +333,40 @@ One row per block. Populated fields:
 }
 ```
 
+#### 1.3.3.2b Merge Resolution (force_clear=false only)
+
+One row per pending Metric Group sent to the Merge Resolution LLM call (ADR
+2026071002 DR2/DR4). Only produced on merge-mode runs (`force_clear=false`);
+absent on wipe-mode runs (`force_clear=true`) since there is nothing to merge.
+Written regardless of whether the call ultimately succeeds — `errors` is set
+on failure so a failed merge run still leaves a traceable record of what was
+sent.
+
+Populated fields:
+
+- `call_reason` = 'extract_metrics'
+- `doc_proc_name` = 'extract_metrics'
+- `model_names`: the model that produced the returned `winning_metrics` (primary or fallback)
+- `prompt_name`: `METRIC_MERGE_RESOLVE_PROMPT` name
+- `record_id`: the ID of the record the doc processor is processing
+- `entry_type = 'extract_metrics'`
+- `llm_call_id`: `<record_id>_merge_g<group_index>`
+- `activity_name` = 'merge_resolve_metrics'
+- `artifact`: `{"candidates": [...], "winning_metrics": [...]}` — the exact candidates payload sent to the LLM and its `winning_metrics` output (or empty if the call failed)
+- `errors`: any error message (both primary and fallback model failed)
+- `extra_info`: activity-specific payload
+- `ms_used`
+
+**`extra_info`** Shape
+```json
+{
+  "group_index": 0,
+  "total_groups": 3,
+  "candidates_count": 2,
+  "winners_count": 1
+}
+```
+
 When the doc processor finishes, generate one record:
 - `call_reason` = 'extract topics'
 - `doc_proc_name` = 'generate_topics',

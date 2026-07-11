@@ -42,7 +42,10 @@ breaks the processing into multiple passes:
 3. Pass 2: enrich candidates into final metric rows, batched by chunk (see `METRIC_ENRICH_GROUP_SIZE`)
 4. Deterministic Step B: final metric dedup before persistence
 
-### 3.2 Pass 1: Metric Candidates
+### 3.2 Incremental Processing
+Incremental processing is documented in [10].
+
+### 3.3 Pass 1: Metric Candidates
 
 Pass 1 uses:
 
@@ -60,6 +63,7 @@ Pass 1 output:
   "language": "string",
   "candidates": [
     {
+      "candidate_id": "48_1",
       "metric_name_hint": "string",
       "subject_hint": "string",
       "evidence_quote": "string",
@@ -72,6 +76,13 @@ Pass 1 output:
   ]
 }
 ```
+
+`candidate_id` rules:
+
+- format: `<chunk_id>_<seqno>`
+- `chunk_id` is the source chunk sequence number used by the metrics processor
+- `seqno` starts at `1` within that chunk's Pass 1 candidate list
+- this ID is human-readable and is used as the lineage key between Pass 1 candidates and later final metrics/logs
 
 Pass 1 rules:
 
@@ -108,6 +119,7 @@ Pass 2 output:
   "language": "string",
   "metrics": [
     {
+      "candidate_id": "48_1",
       "metric_name": "string",
       "metric_name_en": "string",
       "source_line_spans": ["12", "13:15"],
@@ -145,11 +157,12 @@ Important notes:
 
 - one output row = one metric
 - use only the merged candidate and its supporting evidence
+- each final metric row should carry the originating `candidate_id` when the processor can determine a unique source candidate
 - `uncertain_metrics` may be returned by the LLM but are not persisted to `kb.metrics`
 - `metric_categories` must contain one or more category keys suitable for lookup in `kb.artifact_categories`
 - category paths are not generated or stored by the enrichment pass
 
-### 3.3 Deterministic Step B: Final Metric Dedup
+### 3.4 Deterministic Step B: Final Metric Dedup
 
 `dedupeFinalMetricRows` deduplicates the enriched metric rows before persistence.
 
@@ -175,10 +188,16 @@ Important notes:
 
 **Output order**: first-seen order (insertion order of the first occurrence of each key).
 
-#### 3.3.1 Metric IDs
+#### 3.4.1 Metric IDs
 Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` is a sequence number, starting from 1.
 
-### 3.4 Indexing
+`metric_id` and `candidate_id` are different:
+
+- `candidate_id` identifies the Pass 1 candidate within a chunk
+- `metric_id` identifies the persisted row in `kb.metrics`
+- `candidate_id` links the pre-persistence candidate logs to the persisted/final metric logs
+
+### 3.5 Indexing
 
 Metrics indexing runs in the pipeline's **Phase C (post-process)** — after every doc
 processor for the record has finished — not inside the metrics processor's Phase B
@@ -204,7 +223,7 @@ Note: semantic metric↔metric similarity is **not** an indexing output — it i
 at read time (see [Semantic Similarity (Computed On-The-Fly)](#semantic-similarity-computed-on-the-fly)),
 not materialized as `kb.artifact_connections` edges.
 
-#### 3.4.1 Line-Overlap Artifact Edges
+#### 3.5.1 Line-Overlap Artifact Edges
 
 These edges make intra-document, line-overlapping artifacts explicitly traversable in
 `kb.artifact_connections`. They are built deterministically at index time — no LLM or hybrid
@@ -248,7 +267,7 @@ existing edges scoped to `target_type = 'metric'` (plus
 inserts the fresh set. The delete is scoped by target family so parallel Phase-C family runs
 never clobber each other's edges.
 
-#### 3.4.2 Search Artifact Row
+#### 3.5.2 Search Artifact Row
 
 Add each persisted metric to `kb.search_artifacts` using the metric's `search_document`.
 
@@ -260,7 +279,7 @@ Rules:
 - `source_line_spans` is copied from `kb.metrics.source_line_spans`
 - search text is the same de-duplicated metric text used to populate `kb.metrics.search_document`
 
-#### 3.4.3 Connected Artifacts JSON
+#### 3.5.3 Connected Artifacts JSON
 
 Populate `kb.metrics.connected_artifacts` as a JSON object by comparing `kb.metrics.source_line_spans` with artifacts from the same `input_record_id`.
 
@@ -286,7 +305,7 @@ Rules:
 - `topics`, `scenes`, `provisions`, `entities`, and `inv_items` may be empty arrays.
 - The `connected_artifacts` JSON is the per-metric overlap set for quick lookup; the same line-overlap facts are also written as traversable edges in `kb.artifact_connections` (see [Line-Overlap Artifact Edges](#line-overlap-artifact-edges)).
 
-#### 3.4.4 Metric and Artifact Categories
+#### 3.5.4 Metric and Artifact Categories
 
 Connect each metric to its artifact categories.
 
@@ -308,7 +327,7 @@ Rules:
   - `extra_info` containing at least `{"source":"extract_metrics","category_key":<category_key>,"category_id":<category_id>}`
 - Do not use `kb.inventory_categories` for metric categories.
 
-#### 3.4.5 Index Metrics by Category Paths
+#### 3.5.5 Index Metrics by Category Paths
 
 Use `kb.metrics.source_line_spans` to find semantic projection category paths:
 
@@ -326,7 +345,7 @@ Rules:
 - Save metric IDs in `metrics.txt` under the matching category path.
 - Each `metrics.txt` entry uses `kb.metrics.metric_id`.
 
-#### 3.4.6 Semantic Similarity (Computed On-The-Fly)
+#### 3.5.6 Semantic Similarity (Computed On-The-Fly)
 
 Semantic metric↔artifact similarity is **not materialized** as `kb.artifact_connections`
 edges. Every artifact already lives in `kb.search_artifacts` and is discoverable by hybrid
@@ -370,7 +389,7 @@ defined in [7]; the implementation is `docprocessing.FindSimilarArtifactsOnTheFl
 
 Because nothing is persisted, there is no edge idempotency to manage for semantic similarity.
 
-### 3.4.7 Indexing Metrics to Objects
+#### 3.5.7 Indexing Metrics to Objects
 Metrics mention artifact objects through `kb.metrics.metric_id` = `kb.artifact_objects.artifact_id`.
 Artifact objects connect to object nodes through `kb.artifact_objects.object_id` = 
 `kb.object_nodes.object_id`. 
@@ -384,7 +403,7 @@ For each metric, add a record to `kb.artifact_connections`:
   - `relation_method = 'object_id'`
   - `source_record_id = kb.artifact_objects.source_record_id`
 
-### 3.5 Thinking Behavior
+### 3.6 Thinking Behavior
 
 Metrics extraction must force thinking off for all passes:
 
@@ -401,7 +420,7 @@ This avoids provider errors such as:
 
 - `Unknown parameter: 'thinking'`
 
-### 3.6 Logging
+### 3.7 Logging
 
 The processor should log:
 
@@ -413,10 +432,11 @@ The processor should log:
 - final dedup results
 - metrics indexing start/result, including connected artifact counts and category-path counts
 - metrics indexing errors, including empty `metric_categories`, empty `chunks`, empty `semantic_projects`, or no matching category paths
+- when `force_clear=false` (merge mode, see [10] DR2/DR4): for each pending Metric Group sent to the Merge Resolution LLM call, one `kb.doc_proc_logs` row (`activity = 'merge_resolve_metrics'`) containing the exact candidates payload sent to the LLM and the `winning_metrics` (or error) it returned — fires whether the call succeeds or fails, so a merge run always has a traceable record of what was sent and decided
 
 The shared LLM client should also log the raw HTTP response body before decoding.
 
-### 3.7 Metric ID
+### 3.8 Metric ID
 
 Metrics are identified by:
 
@@ -426,7 +446,7 @@ Metrics are identified by:
 
 where `seqno` starts at `1`.
 
-## 3. Workflow
+## 4. Workflow
 
 - For each chunk, run Pass 1 to extract metric candidates.
 - Retry candidate extraction with `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK` when the primary candidate model fails.
@@ -435,6 +455,8 @@ where `seqno` starts at `1`.
 - Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
 - Save final metrics to `kb.metrics`.
+- After each successful save/upsert step, write one `kb.doc_proc_logs` row with `activity = 'extract_metrics_final'`.
+- The `extract_metrics_final` artifact must contain the exact metric rows being saved in that write operation, and every row in that artifact must include `candidate_id`.
 - Write `.metrics` artifact output.
 - Upsert status in `kb.inputs.status`.
 
@@ -450,6 +472,8 @@ is no longer materialized here — it is computed live at review time. See the
 **Progress Update (per block):**
 - When beginning extraction, set `progress` to `"0%"` in `kb.inputs.status`.
 - After each block completes in either pass, insert a log entry to `kb.doc_proc_logs` with `proc_progress` set to the current progress (see [doc-processor-log-spec.md Section 1.3.3](doc-processor-log-spec.md)), then update the `progress` attribute of the corresponding entry in `kb.inputs.status`.
+- Pass 1 candidate logs use `activity = 'extract_metric_candidates'` and must include candidate rows with `candidate_id`.
+- Final-save logs use `activity = 'extract_metrics_final'` and must include the final metric rows that were written, each with its `candidate_id`.
 
 ```text
 total_blocks = total_blocks_pass1 + total_blocks_pass2
@@ -518,6 +542,32 @@ Rules:
 - save `metric_categories` to support category membership indexing
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
 - save additional information to `ext_info`
+
+`ext_info` requirements:
+
+- always include `language`
+- always include `schema_version = "2"`
+- seed `title` from `kb.inputs.doc_metadata.title` when present; otherwise fall back to `kb.inputs.title`
+- seed `doc_no` from `kb.inputs.doc_metadata.doc_no` when present; otherwise fall back to `kb.inputs.doc_no`
+- for metric rows whose artifact objects are later written to `kb.artifact_objects`, merge in `object_name` from the preferred linked object row where:
+  - `kb.artifact_objects.artifact_type = 'metric'`
+  - `kb.artifact_objects.artifact_id = kb.metrics.metric_id`
+  - the preferred row should favor `object_role IN ('measured_object', 'self')`, then first row order
+- this is forward-only behavior; no backfill is required for existing metric rows
+
+### 5.1.1 Read Payload and Metric Detail UI
+
+When returning metric records for the metrics detail view, the read path should expose:
+
+- `document_title`
+- `document_doc_no`
+- `object_name`
+
+These values come from the same document/object sources described above and are used by the
+metrics detail panel with this display order:
+
+- under `Context`, show `Document Title` and `Doc No` above `Section`
+- under `Metric`, show `Object` directly under `Subject`
 
 ### 5.2 Category Table Migration
 
@@ -661,8 +711,12 @@ This API persists reviewed final metric rows returned by the preview flow.
 - insert rows into `kb.metrics`
 - assign `metric_id = <record_id>_mtc_<seqno>` based on existing row count
 - set `event_id = rest-api`
-- save `ext_info = {"source":"rest-api","schema_version":"2"}`
+- save `ext_info` with at least:
+  - `source = "rest-api"`
+  - `schema_version = "2"`
+  - `title` and `doc_no` seeded from `kb.inputs.doc_metadata` with fallback to top-level input fields, the same way as the document-processor save path
 - run the same post-save metrics indexing workflow used by the document processor
+- when metric artifact objects are written for these saved metrics, merge `object_name` into `kb.metrics.ext_info` using the same artifact-object linkage rule as the document-processor save path
 - leave `model_name`, `prompt_name`, and `metric_keywords_en` empty in the current implementation
 - return the number of inserted metrics
 
@@ -756,4 +810,5 @@ Refer to [3], [4], [5] and [6].
 [6] KnowledgeStore/Capsules/coding-capsules/full-text-search/metric-search-impl.md \
 [7] KnowledgeStore/Capsules/coding-capsules/llm-wiki/hybrid-search.md \
 [8] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md \
-[9] KnowledgeStore/Capsules/coding-capsules/categories/category-mgmt-spec.md
+[9] KnowledgeStore/Capsules/coding-capsules/categories/category-mgmt-spec.md \
+[10] KnowledgeStore/doc-repo/adrs/202607/2026071002-adr-doc-processor-incremental.md
