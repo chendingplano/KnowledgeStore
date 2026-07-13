@@ -549,3 +549,138 @@ the system, especially the prompts or change models.
 The problem is: how to be sure we are good at extracting artifacts from future
 unknown documents.
 
+= 2026/07/14 - Six AI Orchastration Types
+#let a_007 = link(
+  "https://dzone.com/articles/ai-orchestration-types"
+)[#text(fill: blue)[Six AI Orchastration Types]]
+
+#a_007 \
+Source: dzone
+
+- Workflow Orchastration: our doc processor pipeline is the workflow orchastration. 
+  I don't feel this is an AI orchastration. It is true that every doc processor
+  uses LLM. But this is just software orchastration.
+- Agent Orchestration: this is true AI orchastration. It appears that this overlaps
+  with workflow orchastration. In SemOS, we use pipelines to organize doc processors.
+  Each doc process can be considered an agent. This is thus agent orchastration.
+- Model Orchestration: there are two types of model orchestration: dynamic and static.
+  SemOS statically configures which model to use for doc processors and its
+  backfill models. This is static model orchestration. Dynamic orchestration
+  is more advanced, but it requires a model to determine the complexity of
+  agents. A Japanese start-up: Fugu, uses a small model as the agent orchastration.
+- Resource Orchestration: manage GPU/TPU scheduling, load balancing,
+  and cost optimization across distributed AI infrastructure. 
+- Data Orchestration: manage ETL pipelines and coordinates information flow
+  between systems so AI receives clean, timely, correctly formatted data.
+  My understanding is that data orchestration should also control which data
+  to include in a conversation or for an agent. It may also have the ability
+  to dynamically determine whether the current knowledge base is good, complete,
+  whether new sources of data are needed, whether we need to extract new
+  artifacts, whether we need new relations. Another direction is ontology,
+  such as business terms, common terms, definitions, etc.
+- Service Orchestration: integrate multiple AI services and APIs - internal and third-party -
+  into sophisticated applications that deliver compounding values. Again,
+  I don't think this is specific for AI orchestration. It is normal software
+  orchestration. In SemOS, we have PDF parser (in Python), File Converter (Go),
+  and Doc Processor (Go) services. PDF parser and file converter does not
+  use LLMs (normal services), while doc processor does (agent).
+
+= 2026/07/14 - Parquet vs Lance: How Storage Layout Changes the Read Path
+#let a_008 = link(
+  "https://dzone.com/articles/parquet-vs-lance-how-storage-layout-changes-the-re-1"
+)[#text(fill: blue)[Parquet vs Lance]]
+
+#let a_009 = link(
+  "https://arxiv.org/pdf/2504.15247"
+)[#text(fill: blue)[Lance Arxiv Paper]]
+
+#let a_010 = link(
+  "https://maxnilz.com/papers/Lance%20Efficient%20Random%20Access%20in%20Columnar%20Storage%20through%20Adaptive%20Structural%20Encodings.pdf?utm_source=chatgpt.com"
+)[#text(fill: blue)[Lance: Efficient Random Access in Columnar Storage through Adaptive Structural Encodings]]
+
+#a_008 \
+#a_009 \
+Source: dzone
+
+Parquet is good at large datasets, while Lance (#a_009) focuses on:
+- full-text search
+- Semantic search
+- RAG
+
+Lance addresses an increasingly important problem in AI data infrastructure: traditional 
+columnar storage formats (especially Apache Parquet) were designed for analytical scans, 
+whereas modern AI workloads—vector search, RAG, feature retrieval, multimodal datasets, 
+and embedding stores—require both high-throughput sequential scans and extremely efficient 
+random access. The authors argue that with modern NVMe SSDs, random access is no longer 
+fundamentally limited by hardware; instead, the primary bottleneck is how columnar file 
+formats encode structural metadata such as nested arrays, null values, and repetition 
+information. (#a_009)
+
+The central contribution of the paper is introducing *structural encoding* as a first-class 
+design concern. The authors distinguish it from traditional compression: compression focuses 
+on reducing data size, while structural encoding determines how nested data is organized 
+into buffers, how many I/O operations are required to retrieve an individual value, and 
+how much unnecessary data must be read (read amplification). Through detailed analysis of 
+Apache Arrow, Apache Parquet, and their own Lance format, they demonstrate that structural 
+encoding has a much larger effect on random-access latency than previously appreciated. 
+They also show that simply configuring Parquet differently can improve random-access 
+performance by more than 60× compared to its default configuration, although this comes 
+with trade-offs in scan speed and memory consumption. (#a_009)
+
+Building on these observations, the paper presents the *Lance structural encoding scheme*, 
+which adaptively switches between two encoding strategies depending on the characteristics 
+of the data. Large fixed-width objects (such as vector embeddings) use a "full-zip" encoding 
+optimized for direct access without maintaining large in-memory indexes, while smaller and 
+variable-width data use a "miniblock" encoding that balances locality and scan efficiency. 
+This adaptive design allows Lance to achieve near-optimal random access while preserving 
+full-scan performance and avoiding the large RAM overhead required by Parquet's page indexes. 
+The design also introduces practical improvements such as more efficient handling of nested 
+lists, packed structs, and reduced search-cache requirements. (#a_010)
+
+The significance of this work extends beyond a new file format. The paper argues that 
+future AI data systems should optimize storage simultaneously for analytics and retrieval 
+rather than treating them as separate workloads. This is particularly relevant for vector 
+databases, RAG systems, feature stores, and multimodal datasets, where retrieving a small 
+subset of rows efficiently is often as important as scanning entire datasets. Instead of 
+proposing a fundamentally new storage architecture, the authors show that careful redesign 
+of low-level structural encoding can substantially improve performance while remaining 
+compatible with modern cloud object storage and NVMe-based infrastructure. They conclude 
+that both Parquet and Lance still have room for improvement, but Lance's adaptive structural 
+encoding offers a more flexible foundation for AI-oriented storage systems. (#a_009)
+
+*Row Groups*\
+This is similar to buckets in JimoDB. A row group consists of a block of tabular data.
+A file may contain multiple row groups. This is different from JimoDB, where a data
+object is created per field per bucket. Data objects are read-only and appended to 
+physical files.
+
+One issue with JimoDB's approach is that most formats (columnar) organize 'data objects'
+based on columns, which means that the data objects of the same column are stored
+in the same file. I am not sure whether this is critical. Let's assume we want to scan
+a column and the total size of all the data objects for the column is 10 GB. Apparently,
+we should not read the entire file into memory in one call, not just because of the
+file size, but the memory usage, read efficiency, etc.
+
+Instead, we want to read the 10 GB file by 'chunks', one chunk at a time. When reading
+chunks, I am not sure whether it is critical whether the chunks of the same column are
+stored in the same physical file or not.
+
+But one thing JimoDB misses is a Column Header. Various information can be stored
+in Column Headers, such as:
+- min and max values per bucket
+- value bitmap per bucket 
+- value list per bucket
+- [value, bucket-list]: present for small cardilarity columns. List only
+  the pairs where the bucket list is much smaller than the total number of buckets.
+  Note that the buckets can be identified very efficiently since buckets
+  can be viewed as arrays: buckets[idx], such as buckets[0], buckets[1], ...
+  Bucket lists can be a bitmap of the index.
+- And so on.
+
+Column headers should play a critical role in reading/scanning data
+if the reading/scanning is 'selective'.
+
+Another thinking is about object IDs and keys. These are high cardilality
+columns. It will be very efficient in reading if we can organize the values
+in such a way that we can easily determine the buckets by looking at the values.
+
