@@ -13,36 +13,23 @@ reaches a terminal state.
 
 ## Open
 
-- **[2026071401 — light/dark mode not carried from /semos into /home3](202607/2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3.md)**
-  — `fixed-unverified`. Builds and type-checks; never exercised in a browser.
-  Owed: toggle mode on `/semos`, click `知识库`, confirm `/home3/knowledge` opens
-  in the same mode; toggle inside `/home3`, return to `/semos`, confirm it
-  persisted.
-
-- **[2026071402 — knowledge store cards ignore light mode](202607/2026071402-bug-knowledge-store-cards-ignore-light-mode.md)**
-  — `fixed-unverified`. Builds and type-checks; the light-mode card colors have
-  not been seen rendered. Owed: confirm the near-white neon panel reads well on
-  the cream page, the halo is not overpowering, the `ACTIVE` pill keeps contrast,
-  and dark mode is unchanged.
-  Also owed, and wider than the fix: the rest of `/home3` (`metrics`, `chunks`,
-  `inputs`, `doc-structure`, `doc-review-report/[id]`) became reachable in light
-  mode for the first time with 2026071401 and has never been audited for the same
-  defect class — an opaque layer painted over a theme-aware one. **Partly
-  addressed** by 2026071403 below, which covers the record column shared by nine
-  of those views; each host's own content column is still unaudited.
-
-- **[2026071403 — record browser owns a palette instead of inheriting one](202607/2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one.md)**
-  — `fixed-unverified`. Builds and type-checks; **visible on nine views** and seen
-  in none of them. The largest unverified surface of the three theme bugs.
-  Owed: check the record column on `metrics`, `chunks`, `doc-structure`,
-  `summary-tree`, `provisions`, `semantic-projections`, `inputs`,
-  `inventory-items` (all should now be letterpress, matching their content
-  column), and `kb-extraction` (should be visually unchanged).
-  Also owed: `kb-input-search-dialog.svelte` reads no tokens and takes no
-  `darkMode` — almost certainly has the same light-mode defect, not investigated.
-  Open question: `kb-extraction-view` is the only host on the blue palette and
-  omits `--brass`/`--crimson`/`--text-primary`. Intentional, or drift? If drift,
-  aligning it lets the record browser's fallbacks be deleted outright.
+- [2026071401 — light/dark mode not carried from semos to home3](202607/2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3.md)
+  — `fixed-unverified`: the mode store itself has still not been exercised in a
+  browser end to end (toggle on `/semos` → `知识库` → `/home3`, and back).
+- [2026071402 — knowledge store cards ignore light mode](202607/2026071402-bug-knowledge-store-cards-ignore-light-mode.md)
+  — `fixed-unverified`: the light-mode `neon` slab values are a judgment call that
+  has not been seen rendered.
+- [2026071403 — record browser owns a palette instead of inheriting one](202607/2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one.md)
+  — `fixed-unverified` across nine views; only `doc-structure` has since been seen
+  in a browser (in 2026071404). The other eight hosts are still unseen.
+- [2026071404 — doc-structure line cards ignore light mode](202607/2026071404-bug-doc-structure-line-cards-ignore-light-mode.md)
+  — the reported symptom is `fixed-verified`, but two things are still owed:
+  the delete / PDF-line-selection dialogs were retokenized without being seen with
+  real data, and **the light-mode audit of each host view's own content column is
+  still open for the other eight `/home3` views**.
+- `kb-input-search-dialog.svelte` reads no theme tokens and takes no `darkMode`
+  prop (noted in 2026071403, still true). Reachable from the `Search` button on
+  every view that embeds the record browser. Never investigated.
 
 ## Not classified
 
