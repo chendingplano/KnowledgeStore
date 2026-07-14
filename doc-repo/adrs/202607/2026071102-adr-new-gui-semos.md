@@ -73,6 +73,25 @@
   algorithm and file-naming/migration plan:
   [2026-07-14-semos-site-config-i18n-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-site-config-i18n-design.md).
   Not yet implemented — design only.
+* 2026/07/14, Re-designed the Workspace Landing page. It had been left on the
+  deleted `/semos1` dark variant (near-black banner, indigo `#6b7aff`, angled
+  clip-path, glassy cards) while the Main page moved to `/semos2` paper-and-ink,
+  so it contradicted the shared header/footer. Now uses the same material —
+  paper veil, bronze ornaments, icon coins, layered card depth — at app-shell
+  density (compact banner, tighter rhythm) per the Design Direction density
+  rule. Closed two rule violations found in the page: announcements were
+  hardcoded in the Svelte component (now `[workspace].announcements` in TOML)
+  and empty-state copy was hardcoded English (now in the message catalog).
+  Established the principle that resolves where content belongs: **UI chrome →
+  message catalog, tenant content → TOML** — which is the precedent already set
+  by nav labels vs. hero copy, so it does not pre-empt the open nav-label
+  question. Recent Activity and Alarms ship as designed empty states: no
+  endpoint backs them and fabricating demo content is the same mistake as the
+  invented `[[stats]]` figures. Extracted the bronze ornament to a shared
+  `Ornament.svelte`. Noted that `ja`/`ko` message catalogs do not exist despite
+  being in `supported_languages` — folded into the language-config open
+  question. Full design:
+  [2026-07-14-semos-workspace-redesign-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-workspace-redesign-design.md).
 
 ## Context
 SemOS is a Knowledge Management AI Application system.
@@ -248,7 +267,8 @@ is hardcoded in the Svelte components:
 | `[cta]` | `title`, `subtitle` (closing call-to-action) |
 | `[footer]` | `text`, `address`, `newsletter`, `email` |
 | `[[footer.quick_links]]`, `[[footer.resources]]` | `label`, `href` |
-| `[workspace]`, `[[workspace.apps]]` | Workspace Landing content |
+| `[workspace]` | `kicker`, `banner_title`, `banner_subtitle`, `banner_image`, `announcements` (array of strings) |
+| `[[workspace.apps]]` | `name`, `description`, `href`, `icon` |
 
 Mirrored by Go structs in `server/api/sitehandler/sitehandler.go` and TS
 interfaces in `web/src/lib/services/siteConfigService.ts`; the JSON tags,
@@ -484,6 +504,13 @@ Open as of 2026/07/14:
   above), but not decided — still requires an explicit call on whether nav
   labels become tenant-configurable or stay in the shared, non-tenant
   message catalog.
+- **`ja` and `ko` message catalogs do not exist.** `project.inlang/settings.json`
+  declares `locales: ["en", "zh-cn"]`, but `[frontend].supported_languages` lists
+  four. Folds into the existing language-config reconciliation question below.
+- **The `web` project has no working test runner.** `.test.ts` files exist but
+  `vitest` is not installed and no test script is defined, so they cannot run.
+  Frontend changes currently carry no automated regression net beyond
+  `svelte-check`. Pre-existing; surfaced by the Workspace re-design.
 
 **Deliberately deferred to future ADRs** (not open questions for this pass,
 but real work not designed here):
@@ -499,3 +526,4 @@ but real work not designed here):
 
 - [2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md) — resolves the Main Page design-variant decision, adds the configurable `logo_image` field, and fixes the light/dark mode consistency bug.
 - [2026-07-14-semos-site-config-i18n-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-site-config-i18n-design.md) — resolves "Nav labels vs. config": per-locale site-config file naming, locale-resolution/fallback algorithm (language-family siblings, default-language fallback, required default file), and the partial-translation content-merge mechanism. Design only, not yet implemented.
+- [2026-07-14-semos-workspace-redesign-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-workspace-redesign-design.md) — Workspace Landing page re-design: paper-and-ink port at app-shell density, `[workspace].announcements` config, and the chrome-vs-content rule for where a string belongs.
