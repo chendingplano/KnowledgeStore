@@ -1,6 +1,7 @@
 # Bug: light/dark mode is not carried from `/semos` into `/home3`
 
 Date: 2026-07-14
+Status: fixed-unverified — builds and type-checks; not yet exercised in a browser
 System: `ChenWeb` web frontend (SvelteKit)
 Component: `web/src/lib/stores`, `web/src/app.html`, `web/src/routes/+layout.svelte`,
 `web/src/routes/semos`, `web/src/routes/home3`, `web/src/lib/services`
@@ -119,6 +120,26 @@ With nothing stored, `/home3` used to always open dark. It now follows the OS
 `prefers-color-scheme` — the rule `/semos` already used. Anyone with a saved
 preference under the old `semos-theme` key gets it re-derived from their OS
 setting once, then re-persisted under `chenweb-theme`.
+
+#### Addendum (2026-07-14): this default change exposed a latent bug
+
+See [doc-2026071402-bug-knowledge-store-cards-ignore-light-mode](2026071402-bug-knowledge-store-cards-ignore-light-mode.md).
+
+Because `/home3` previously *always* opened dark, its pages were in practice
+never seen in light mode, and styling that hardcoded dark colors looked correct.
+Making the mode follow the OS turned light into the default for light-mode users
+and put that styling on screen: the knowledge store cards' default `neon` preset
+paints an opaque near-black slab over the theme-aware `--card-bg`, so the cards
+stayed black while their text flipped to dark ink and became unreadable.
+
+The fix in this document is not the cause and needs no change. The lesson is
+about the shape of the risk: **changing a default makes a previously unreachable
+code path reachable, and exposes whatever was already wrong in it.** The
+"Verification" section below noted that the browser check had not been done — that
+check is what would have caught this. The rest of `/home3` (`metrics`, `chunks`,
+`inputs`, `doc-structure`, `doc-review-report/[id]`) has now been seen in light
+mode for the first time too, and has not been audited for the same class of
+defect: an opaque layer sitting above a theme-aware one.
 
 ## Verification
 
