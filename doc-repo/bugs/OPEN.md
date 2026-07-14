@@ -27,7 +27,22 @@ reaches a terminal state.
   Also owed, and wider than the fix: the rest of `/home3` (`metrics`, `chunks`,
   `inputs`, `doc-structure`, `doc-review-report/[id]`) became reachable in light
   mode for the first time with 2026071401 and has never been audited for the same
-  defect class — an opaque layer painted over a theme-aware one.
+  defect class — an opaque layer painted over a theme-aware one. **Partly
+  addressed** by 2026071403 below, which covers the record column shared by nine
+  of those views; each host's own content column is still unaudited.
+
+- **[2026071403 — record browser owns a palette instead of inheriting one](202607/2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one.md)**
+  — `fixed-unverified`. Builds and type-checks; **visible on nine views** and seen
+  in none of them. The largest unverified surface of the three theme bugs.
+  Owed: check the record column on `metrics`, `chunks`, `doc-structure`,
+  `summary-tree`, `provisions`, `semantic-projections`, `inputs`,
+  `inventory-items` (all should now be letterpress, matching their content
+  column), and `kb-extraction` (should be visually unchanged).
+  Also owed: `kb-input-search-dialog.svelte` reads no tokens and takes no
+  `darkMode` — almost certainly has the same light-mode defect, not investigated.
+  Open question: `kb-extraction-view` is the only host on the blue palette and
+  omits `--brass`/`--crimson`/`--text-primary`. Intentional, or drift? If drift,
+  aligning it lets the record browser's fallbacks be deleted outright.
 
 ## Not classified
 
