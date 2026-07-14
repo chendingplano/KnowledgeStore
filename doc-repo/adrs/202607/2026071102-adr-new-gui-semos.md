@@ -55,6 +55,24 @@
   fabricated figures (now placeholders). Recorded three parallel Main Page
   design variants (`/semos`, `/semos1`, `/semos2`) and the pending decision
   to choose one and delete the others. Added per-highlight imagery.
+* 2026/07/14, Resolved the technical blocker behind the "Nav labels vs.
+  config" open question (whether nav labels should move into config itself
+  is still open — see Open Questions): site-config content (hero,
+  highlights, features, footer, stats, workspace apps) moves to one TOML
+  file per (tenant, locale) pair — `site-default-zh-cn.toml`,
+  `site-default-en.toml`, etc. — instead of one hardcoded-language file per
+  tenant. Locale resolution falls back from the requested locale to
+  same-language-family siblings (e.g. simplified ↔ traditional Chinese,
+  silent, no warning) and then to `[frontend].default_language` (logged as
+  a warning — a real translation gap, not an equivalent substitution); the
+  default-language file itself is required to exist, with no further
+  fallback below it. Partial per-tenant translation is supported for free:
+  the default-language file loads first as a base struct and the resolved
+  locale file is unmarshaled on top of it, so fields a translation omits
+  keep their default-language values. Full design, including the fallback
+  algorithm and file-naming/migration plan:
+  [2026-07-14-semos-site-config-i18n-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-site-config-i18n-design.md).
+  Not yet implemented — design only.
 
 ## Context
 SemOS is a Knowledge Management AI Application system.
@@ -239,9 +257,12 @@ TOML keys and TS field names are identical snake_case.
 **Exception — navigation labels are NOT in this file.** Header/footer nav
 labels come from the i18n message catalog (`semos_nav_*` in
 `web/messages/*.json`) because they need per-locale translation, which the
-TOML schema does not model. If nav labels must become tenant-configurable,
-that needs an explicit decision: either drop translation for them, or add
-per-locale sections to the config schema.
+TOML schema did not model. **Update 2026/07/14:** the TOML schema now does
+model per-locale content (see per-locale site-config design below), so the
+technical blocker is gone — but *whether* nav labels should actually move
+into config, to become tenant-configurable, is still an open call, not
+decided by that design. That design only defines the mechanism; it doesn't
+migrate nav labels into it.
 
 **Warning — placeholder figures.** `[[stats]]` currently ships em-dashes.
 An earlier implementation pass hardcoded *invented* numbers ("127K+
@@ -445,14 +466,24 @@ Which Main Page design variant wins is also resolved (see Main Page →
 Design variant, and
 [2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md)).
 
+The technical blocker behind "Nav labels vs. config" is resolved — a
+per-locale config mechanism now exists (see below) — but the actual
+decision of whether nav labels should move into config remains open, now
+unblocked rather than decided.
+
 Open as of 2026/07/14:
 - **`[[stats]]` figures.** Currently placeholder em-dashes after an
   implementation pass shipped fabricated numbers. Need real figures, or the
   stats band should be dropped.
-- **Nav labels vs. config.** Header/footer nav labels live in the i18n
-  catalog, not the site-config file, so they are translatable but not
-  tenant-configurable. Confirm that is acceptable, or design per-locale
-  config sections.
+- **Per-locale site-config content is designed but not implemented.**
+  Renaming `site-default.toml`/`tenant-demo.toml` to per-locale files
+  requires real translation of their content (today's file mixes English
+  branding/hero with Chinese highlights/features — neither is a complete
+  translation of the other), which is out of scope for the design itself.
+- **Should nav labels move into config?** Now technically possible (see
+  above), but not decided — still requires an explicit call on whether nav
+  labels become tenant-configurable or stay in the shared, non-tenant
+  message catalog.
 
 **Deliberately deferred to future ADRs** (not open questions for this pass,
 but real work not designed here):
@@ -467,3 +498,4 @@ but real work not designed here):
 ## References
 
 - [2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md) — resolves the Main Page design-variant decision, adds the configurable `logo_image` field, and fixes the light/dark mode consistency bug.
+- [2026-07-14-semos-site-config-i18n-design.md](../../../../ChenWeb/docs/superpowers/specs/2026-07-14-semos-site-config-i18n-design.md) — resolves "Nav labels vs. config": per-locale site-config file naming, locale-resolution/fallback algorithm (language-family siblings, default-language fallback, required default file), and the partial-translation content-merge mechanism. Design only, not yet implemented.
