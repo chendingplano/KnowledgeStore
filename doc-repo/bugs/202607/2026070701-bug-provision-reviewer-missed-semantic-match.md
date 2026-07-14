@@ -1,7 +1,8 @@
 # Bug: provision reviewer can miss semantically close cross-document matches
 
-Date: 2026-07-07
-System: `ChenWeb` provision review / cross-document artifact matching
+Date: 2026-07-07\
+Status: fixed-verified\
+System: `ChenWeb` provision review / cross-document artifact matching\
 Component: `server/api/doc-reviews` and `server/api/doc-processing`
 
 ## Summary

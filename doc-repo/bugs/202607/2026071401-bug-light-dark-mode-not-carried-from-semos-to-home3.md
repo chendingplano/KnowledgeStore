@@ -1,10 +1,10 @@
 # Bug: light/dark mode is not carried from `/semos` into `/home3`
 
-Date: 2026-07-14
-Status: fixed-unverified — builds and type-checks; not yet exercised in a browser
-System: `ChenWeb` web frontend (SvelteKit)
+Date: 2026-07-14\
+Status: fixed-verified — builds and type-checks; verified in a browser\
+System: `ChenWeb` web frontend (SvelteKit)\
 Component: `web/src/lib/stores`, `web/src/app.html`, `web/src/routes/+layout.svelte`,
-`web/src/routes/semos`, `web/src/routes/home3`, `web/src/lib/services`
+`web/src/routes/semos`, `web/src/routes/home3`, `web/src/lib/services`\
 Related: [doc-2026071102-adr-new-gui-semos](../../adrs/202607/2026071102-adr-new-gui-semos.md)
 (Cross-Cutting Requirements: light/dark mode must be site-wide)
 

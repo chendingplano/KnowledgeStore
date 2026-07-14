@@ -1,9 +1,10 @@
 # Bug: PDF grounding highlight shows an entire list block instead of the cited line(s)
 
-Date: 2026-07-10
+Date: 2026-07-10\
+Status: fixed-verified\
 System: `ChenWeb` Knowledge System PDF viewer (`/home3/knowledge` and sibling
 `home3` views: metrics, provisions, inventory items, object manager, chunk
-management, scene blocks, artifact categories)
+management, scene blocks, artifact categories)\
 Component: `web/src/lib/components/home3` (PDF highlight overlay rendering),
 `server/api/file-converters` (MinerU→line-file converter),
 `python/pdf-parser` (MinerU parser backend)

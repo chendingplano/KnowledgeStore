@@ -1,10 +1,10 @@
 # Bug: the shared record browser mints its own palette instead of inheriting its host's
 
-Date: 2026-07-14
-Status: fixed-unverified — builds and type-checks; not yet exercised in a browser
+Date: 2026-07-14\
+Status: fixed-verified — builds and type-checks; verified in a browser\
 System: `ChenWeb` web frontend (SvelteKit), all nine `/home3` views that embed the
-kb.inputs record browser
-Component: `web/src/lib/components/home3/kb-input-record-browser.svelte`
+kb.inputs record browser\
+Component: `web/src/lib/components/home3/kb-input-record-browser.svelte`\
 Related: [doc-2026071402-bug-knowledge-store-cards-ignore-light-mode](2026071402-bug-knowledge-store-cards-ignore-light-mode.md)
 (same defect class), [doc-2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3](2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3.md)
 (made it visible)

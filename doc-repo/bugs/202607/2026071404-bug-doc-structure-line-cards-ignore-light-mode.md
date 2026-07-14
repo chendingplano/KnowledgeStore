@@ -2,10 +2,10 @@
 
 Date: 2026-07-14
 Status: fixed-verified — the reported symptom was exercised in a browser in both modes;
-some secondary surfaces of the same component were not (see "Still worth doing")
-System: `ChenWeb` web frontend (SvelteKit), `/home3/doc-structure`
+some secondary surfaces of the same component were not (see "Still worth doing")\
+System: `ChenWeb` web frontend (SvelteKit), `/home3/doc-structure`\
 Component: `web/src/lib/components/home3/doc-structure-view.svelte`,
-`web/src/lib/components/home3/doc-structure-settings.js`
+`web/src/lib/components/home3/doc-structure-settings.js`\
 Related: [doc-2026071402-bug-knowledge-store-cards-ignore-light-mode](2026071402-bug-knowledge-store-cards-ignore-light-mode.md)
 (same defect class), [doc-2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one](2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one.md)
 (named this as an open audit item), [doc-2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3](2026071401-bug-light-dark-mode-not-carried-from-semos-to-home3.md)
