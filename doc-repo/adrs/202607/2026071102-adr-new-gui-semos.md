@@ -168,6 +168,10 @@ page.
 - Resolves the earlier open question — dark mode is in scope for v1, not
   deferred. Design Direction's color system should be defined as light/dark
   token pairs from the start rather than retrofitted later.
+- A flash-of-wrong-theme bug (mode not applied before first paint, so it
+  didn't actually hold "consistently across pages" as required above) was
+  found and fixed on Main and Workspace — see
+  [2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md).
 
 ### Content Configurability
 - Product/feature/user-dependent content (marketing copy, feature
@@ -217,7 +221,7 @@ is hardcoded in the Svelte components:
 
 | Section | Drives |
 |---|---|
-| `[branding]` | `site_name`, `logo_text`, `powered_by` |
+| `[branding]` | `site_name`, `logo_text`, `logo_image`, `powered_by` |
 | `[hero]` | `kicker`, `slogan`, `subtitle`, `image`, both CTA labels/hrefs |
 | `[[highlights]]` (×5) | `title`, `description`, `image` |
 | `[features_section]` | `kicker`, `title`, `subtitle` (heading above the feature cards) |
@@ -305,26 +309,26 @@ Artistic, Modern, and Multi-Media fashion.
 - Get Started
 - a Footer
 
-#### Design variants (as built, 2026/07/14)
+#### Design variant (resolved, 2026/07/14)
 
-Three visual treatments of this same page exist side by side, all reading
-the **same** site-config file (see As-built config schema above) — they
-differ only in styling, not in content or data flow. Kept in parallel so
-they can be compared before one is chosen.
+Three visual treatments of this page existed side by side for comparison,
+all reading the **same** site-config file (see As-built config schema
+above) — they differed only in styling, not in content or data flow.
 
-| Route | Direction |
+| Route (historical) | Direction |
 |---|---|
 | `/semos` | Original. Restrained modern-SaaS; uses the app's existing CSS variable tokens, so it adapts to any palette swap. |
 | `/semos1` | Dark and theatrical. Always-dark header, full-bleed dark hero, stats band, bento feature cards. Own hex palette (`#080b14` / accent `#6b7aff`). |
 | `/semos2` | Light "paper and ink" — modelled on the reference site the customer likes (miraitaxcpa.com), not copied from it. Image at full strength under a pale paper veil; dark ink text; bronze ornament dividers (diamond + dots) between blocks instead of rules; cards with real depth (gradient surface, top bevel, layered shadows, hover lift). Palette: paper `#faf9f7`/`#f3f1ec`, ink `#17181c`, bronze `#b08d57`. |
 
-**Pending decision:** which variant becomes *the* Main Page. The other two
-should be deleted once chosen — three parallel copies of the same page is
-maintenance debt, not a feature.
+**Decided:** `/semos2` ("paper and ink") won and was promoted to the
+canonical `/semos` path; the other two were deleted. Full rationale and
+implementation detail:
+[2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md).
 
-Highlight imagery: each of the five highlights now has its own photo
-(`web/static/images/kb-*.jpg`), matched to its subject and served locally.
-Referenced from config, so all three variants pick them up.
+Highlight imagery: each of the five highlights has its own photo
+(`web/static/images/kb-*.jpg`), matched to its subject and served locally,
+referenced from config.
 
 ### Workspace Landing Page
 - A banner similar to the main page's banner but with different image and 1-2 lines about the workspace
@@ -437,11 +441,11 @@ shared config), and tenant-dependent pages resolve tenant from the session
 post-login, then look up that tenant's config filename from the tenant
 table (see Content Configurability).
 
+Which Main Page design variant wins is also resolved (see Main Page →
+Design variant, and
+[2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md)).
+
 Open as of 2026/07/14:
-- **Which Main Page design variant wins?** Three parallel implementations
-  exist (`/semos`, `/semos1`, `/semos2` — see Main Page → Design variants).
-  They must be narrowed to one, with the losers deleted. Until then the
-  same page is maintained in triplicate.
 - **`[[stats]]` figures.** Currently placeholder em-dashes after an
   implementation pass shipped fabricated numbers. Need real figures, or the
   stats band should be dropped.
@@ -461,3 +465,5 @@ but real work not designed here):
   separate `[languages]` section, if they turn out to need to be one thing
 
 ## References
+
+- [2026-07-14-semos-main-page-logo-theme-design.md](2026-07-14-semos-main-page-logo-theme-design.md) — resolves the Main Page design-variant decision, adds the configurable `logo_image` field, and fixes the light/dark mode consistency bug.
