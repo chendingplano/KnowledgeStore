@@ -192,12 +192,55 @@ Docs affected / updated:
   are not (see Stale docs).
 
 Stale docs:
-- None, but the audit doc-2026071403 opened is still only partly done. The other
-  eight views that embed the record browser (`metrics`, `chunks`, `summary-tree`,
-  `provisions`, `semantic-projections`, `inputs`, `inventory-items`,
-  `kb-extraction`) have **not** had their own content columns checked for this
-  same defect. `doc-structure` was the one in the screenshot; it is unlikely to
-  be the only one.
+- None. The audit doc-2026071403 opened is now **closed**: the other eight views
+  were swept — see the addendum below.
+
+## Addendum (2026-07-14): the other eight views, as predicted
+
+`doc-structure` was not the only one. Sweeping the remaining eight hosts found the
+same rule broken three more ways. Committed as `wtuu b701`,
+`fix(web): the remaining eight /home3 views follow the page light/dark mode`.
+
+1. **`chunk-mgmt` repeats this exact bug three times over.** It has *three*
+   persisted background settings — `chunkCardBackground`, `summaryBackground`,
+   `contentBackground` — and all three defaults were frozen dark hex. Two of them
+   are the same tell as `doc-structure`: `#161A22` and `#1C212C` are
+   character-for-character the dark-mode `panelBg` and `panelBgAlt`. Fixed the
+   same way, migration included, with a `Follow theme` reset per picker.
+2. **`.doc-frame` — the document `<iframe>` — was `#0a0d14` in six views**
+   (`inputs`, `inventory-items`, `summary-tree`, `semantic-projections`,
+   `metric`, `provision`). A near-black document frame on a cream page. Now a
+   `--doc-frame-bg` token. `doc-structure` escaped this only because it uses the
+   theme-aware `SharedPdfViewer` instead of a raw iframe.
+3. **`metric` and `provision`** hardcoded dark dialogs (`#111827`), table headers
+   (`#181d27`) and edit inputs (`#1a202b`); **`kb-extraction`** used light-on-dark
+   tints (`#a7f3d0`, `#fecaca`, `#fca5a5`) that disappear on white. All tokenized.
+   A stray `#22c55e` also survived in `provision` — the green from the *old*
+   record-browser palette that doc-2026071403 removed.
+
+Left deliberately: mid-tone confidence-bar fills (`#d6a93c`, `#b9657a`), brass
+tints, dark ink on brass, and the `.pvw-*` PDF-toolbar rules whose tokens are owned
+by `pdf-view-window.svelte`.
+
+Dark mode is byte-identical across all eight: every new token's dark branch is the
+constant it replaced.
+
+### A false pass worth recording
+
+The first verification sweep loaded each view via `/home3/knowledge?section=…`,
+scanned the rendered DOM for dark surfaces, and reported **all eight clean**. That
+result was worthless: without a selected knowledge store the page renders
+`No Knowledge Store Selected` and **the views never mount at all**. A scan over an
+empty DOM finds no defects and looks like success.
+
+The views were then mounted directly through a temporary dev-only route
+(`/home3/__themecheck`, since deleted) that passes `darkMode` straight in, and each
+changed surface was probed for its computed value in both schemes. That is what
+actually produced the table above.
+
+The lesson generalizes past this bug: **a verification that cannot fail is not a
+verification.** Before trusting a green sweep, confirm the thing under test was
+actually on screen.
 
 Intentionally left undocumented / not fixed:
 - `kb-input-search-dialog.svelte` — still reads no tokens and takes no `darkMode`

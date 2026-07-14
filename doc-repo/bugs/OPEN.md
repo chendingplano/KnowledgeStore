@@ -20,13 +20,16 @@ reaches a terminal state.
   — `fixed-unverified`: the light-mode `neon` slab values are a judgment call that
   has not been seen rendered.
 - [2026071403 — record browser owns a palette instead of inheriting one](202607/2026071403-bug-record-browser-owns-a-palette-instead-of-inheriting-one.md)
-  — `fixed-unverified` across nine views; only `doc-structure` has since been seen
-  in a browser (in 2026071404). The other eight hosts are still unseen.
+  — `fixed-unverified` across nine views. All nine have since been seen in a
+  browser in both modes (in 2026071404), but with empty/error data states, not
+  with a real record loaded.
 - [2026071404 — doc-structure line cards ignore light mode](202607/2026071404-bug-doc-structure-line-cards-ignore-light-mode.md)
-  — the reported symptom is `fixed-verified`, but two things are still owed:
-  the delete / PDF-line-selection dialogs were retokenized without being seen with
-  real data, and **the light-mode audit of each host view's own content column is
-  still open for the other eight `/home3` views**.
+  — `fixed-verified`, and the content-column audit that 2026071403 opened is now
+  **closed**: all nine `/home3` host views have been swept and tokenized. Still
+  owed: every view was verified with empty/error data (the browser session was
+  unauthenticated, so `kb.inputs` returned `500`). The dialogs, tables, chunk
+  cards and document frames were probed for computed values through the real
+  cascade, but never seen populated with a real record.
 - `kb-input-search-dialog.svelte` reads no theme tokens and takes no `darkMode`
   prop (noted in 2026071403, still true). Reachable from the `Search` button on
   every view that embeds the record browser. Never investigated.
