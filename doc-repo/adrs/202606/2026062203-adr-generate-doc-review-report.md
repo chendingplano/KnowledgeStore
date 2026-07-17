@@ -135,6 +135,12 @@ actual lines covered by `source_line_spans`, and 10 lines after
 reviewer keeps the resolved metric fields and omits usable context rather than
 failing the whole review.
 
+In the Chinese-language report only, the metric field table omits
+`metric_name_en`, `metric_subject_en`, `metric_desc`, `metric_context`, and
+`metric_unit_en` (labels 指标名称（英文）, 对象（英文）, 描述, 上下文, and
+单位（英文）, respectively, including their English-language row); these
+fields still render in the English-language report.
+
 ### 1.1.2 Provisions reviewer
 
 `[reviewers.provisions]` uses `prompt-review-provisions-v2.md`,

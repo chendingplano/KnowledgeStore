@@ -26,3 +26,9 @@ reaches a terminal state.
   aliases; builds and type-checks. Still owed: browser verification of the
   data-populated surfaces (results table, record-detail dialog), which need an
   authenticated backend — `kb.inputs` returns `500` unauthenticated.
+- [2026071701 — Chinese doc review report shows English-duplicate and internal-context metric fields](202607/2026071701-bug-metric-cn-report-shows-english-and-context-fields.md)
+  — `fixed-unverified`. `metricFieldRows` in `typst_report.go` now skips
+  `MetricNameEn`/`SubjectEn`/`Description`/`DescriptionEn`/`Context`/`ContextEn`/`UnitEn`
+  for the Chinese report; `go build`/`go test ./api/doc-reviews/...` pass. Still
+  owed: regenerate a real report and visually confirm the seven fields are gone
+  from `-report-cn.pdf` and the English report is unaffected.

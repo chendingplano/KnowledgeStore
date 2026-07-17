@@ -41,6 +41,10 @@
   for screened candidates; `prompt-review-metrics-missing-v1.md`; wired into
   `doc-review.local.toml` as `metrics_completeness` (P5, tool-use enabled,
   max_tool_turns=4). Stage 6 (AR7 object-anchored batching A/B) remains open.
+* 2026/07/17, findings now carry `metadata.run_id`, the review run that
+  produced them, mirroring the row's real `run_id` column so a finding is
+  self-describing when read from `metadata` alone (openspec change
+  `add-run-id-to-doc-review-findings`).
 
 ---
 
@@ -481,6 +485,9 @@ quality lift per token. Cache effectiveness is verified with the
 
 ---
 
+## Findings Related Documents
+Refer to [11], [12], and [13].
+
 ## References
 
 [1] ADR 2026061801 — Document Review: LLM-Powered Multi-Aspect Review Pipeline \
@@ -493,3 +500,6 @@ quality lift per token. Cache effectiveness is verified with the
 [8] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md \
 [9] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-spec.md \
 [10] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md
+[11] KnowledgeStore/doc-repo/adrs/202607/2026070603-adr-doc-review-findings-artifact-id.md
+[12] KnowledgeStore/doc-repo/adrs/202606/2026063001-adr-doc-review-findings-translation.md
+[13] KnowledgeStore/doc-repo/bugs/202606/2026062601-bug-translate-findings.md

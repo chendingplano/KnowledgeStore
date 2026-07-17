@@ -684,3 +684,111 @@ Another thinking is about object IDs and keys. These are high cardilality
 columns. It will be very efficient in reading if we can organize the values
 in such a way that we can easily determine the buckets by looking at the values.
 
+= 2026/07/16 - Agent Loop
+#let a_011 = link(
+  "https://www.bobbytables.io/p/the-agentic-loop-three-loops-in-a"
+)[#text(fill: blue)[Agent Loop]]
+
+#a_011\
+Source: Hacker News
+
+There are actually not just one loop, but three:
+- Inference Loop
+- Tool Loop
+- Human Loop
+
+The most important, also the outer loop, is the inference loop. This is
+the 'heart' of the entire engine. LLMs use this loop to think-action,
+repeatly, until the goal is achieved.
+
+During the think-action loop (the reference loop), 
+
+= 2026/07/17 - Toward Harness that Can Do Anything
+#let a_012 = link(
+  "https://eardatasci.github.io/c/ambiance/index.html"
+)[#text(fill: blue)[Generic Harness]]
+
+#a_012 \
+Source: Hacker News
+
+#quote(block: true, attribution:[Ritchie and Thompson])[
+- Write programs that do one thing and do it well. To do a new job, build afresh rather than complicate old programs by adding new "features".
+- Write programs to work together. Expect the output of every program to be the input for another program.
+- Write programs to handle text streams, because that is a universal interface.
+]
+
+*Characteristics of Agent Harness*
+- Determinism as much as possible. The LLM should choose what goal to pursue,
+  but the deliberation towards that goal should be well-defined or at least
+  a collection of well-defined steps.
+- The core prompt should be as small as possible, and the LLM should then
+  choose what skills to load into context at runtime.
+- LLMs start going crazy as you approach context limits.
+- A good harness MUST make use of the a priori coding knowledge of the LLM.
+  Wrangling it through a novel one ultimately wastes tokens.
+- A good harness makes delegation easy and efficient (tool use, or to other agents).
+- A harness should feel light to the LLM, but actually do a lot of things in 
+  the background, including logging, sanity checks, failsafes, sanitizations, etc.
+- Should handle LLM failures
+- Great logging and clear error message.
+- Write modular, transparent tools that do one thing and do it well. 
+  Ensure they fail loadly.
+- Write tools, skills, and connectors that work together.
+- Skills dictate workflows.
+- Tools are the means to execute them.
+- Connectors are the data which the Agent manipulates.
+- Text streams are a universal interface, and a Language Model has home-court
+  advantage. Everything should be a flat text file.
+- Evertying is a File
+- APIs should be simple.
+- Avoid heavy curls
+- Avoid complicated regex
+- Whenever dealing with external data sources, your harness should perform
+  whatever manipulation might be necessary to clean it up before it reaches the LLMs.
+- Categorizing everything into directories, you can save your Agent a lot of tokens.
+- Consider the Filesystem Hierarchy Standard (FHS)
+- LLMs are experts at navigating the Linux FS.
+- LLMs are experts at common Linux commands, such as grep, git, etc.
+- Consider putting logs, a lot of them, in logs
+- A heartbeat turns a harness to a live animal
+- A full agent turn on a fixed interval (30 minutes by default) to check
+  whether anything needs attention, like file changes, external state, etc.
+- Pair each event with prompts that are specific to the event, such as doc processors.
+- Clear separate harness-level logic, agent (doc processors, doc reviewers) logic, 
+  workflow (doc processor service) logic, event logic
+- Users: three types: `root`, which handles all system-level stuff,
+  `pai`, which is the human-facing LLM that actually interacts with the outside world,
+  `librarian`, which journals what `pai` is good at, what it is bad at, and what
+  the system did for the day.
+- There shall be three loops (refer to #a_011)
+
+*References*:\
+GitHub: https://github.com/whitematterlabs/ambiance
+
+= 2026/07/18 - 40x Faster than Binrary Search
+#let a_013 = link(
+  "https://curiouscoding.nl/posts/static-search-tree/"
+)[40x Faster than Binary Search]
+
+#a_013 \
+Source: Hacker News
+Keywords: [Binary Search, S-Tree, S+Tree]
+
+It uses the algorithm introduced by Algorithmica.
+
+= 2026/07/18 - Ploy
+#let a_014 = link(
+  "https://ploy.ai/"
+)[Ploy Website]
+
+#a_014 \
+Source: Hacker News
+
+Ploy is the marketing platform that turns your website into your company's growth engine.
+
+*Your website launched, then stopped*!
+- Monitor
+- Act
+- Surface
+
+We should learn from this website: let the LLM work 24 hours for us.
