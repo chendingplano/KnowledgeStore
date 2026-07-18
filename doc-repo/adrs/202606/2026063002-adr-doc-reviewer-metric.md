@@ -45,6 +45,18 @@
   metrics, provisions, and inventory-item extraction now all produce and reconcile
   shared `kb.artifact_objects` / `kb.object_nodes` records; this ADR consumes that
   implemented object-reconciliation contract.
+* 2026/07/18, verified the Go reviewer pipeline against the prompt v4 output-contract
+  change: `analyses[].relationship` (and its stored form,
+  `kb.doc_review_findings.metadata.analysis_relationship`) is opaque to the Go code —
+  `parseMetricAnalysesJSON` and `metricAnalysesAsFindings` copy the string through
+  without validating or branching on specific values, and storage
+  (`FindingMetadataEnvelope`), translation (`finding_translation.go`), and the report
+  renderer (`typst_report.go`) do the same. No prior code assumed the old
+  `same_subject | related_subject | unrelated` vocabulary, so the v4 classification
+  taxonomy (`same_consistent | same_conflict | related_distinct | unrelated |
+  undetermined`) required no Go changes to parse, persist, or render correctly — only
+  the stale `MetricAnalysis` doc-comment and metrics test fixtures (which had hardcoded
+  `"same_subject"` as example data) were updated for accuracy.
 * 2026/07/18, prompt v4 redesigned classification-first: the earlier prompts framed the
   task as conflict-hunting, implicitly assuming a retrieved candidate is either the same
   metric (consistent) or a conflict. v4 makes classification the primary task: each
@@ -57,16 +69,16 @@
   only within the same-metric roster. Also fixed the stale `match_via` vocabulary
   (`entity` -> `object_anchor`) and resolved the v4 draft's English-vs-Chinese output
   contradiction in favor of Chinese.
-* 2026/07/18, match ordering + LLM cap configuration: matches are now ordered by
-  match-source priority — `object_anchor` first, then `metric_category`, then
-  `hybrid_search` — with confidence (RRF score) as the tie-break within a source;
-  a metric reachable from several branches keeps the highest-priority `via`.
-  `MaxMatchesPerMetric` and the per-call LLM cap both truncate this order, so the
-  strongest sources reach the LLM first and `match_rank` reflects the priority.
-  The per-call LLM cap (previously env `MAX_MATCHES_TO_LLM` only, default 3) is
-  now configured via `[doc-reviewer].max_artifacts_passed_to_llm` in
-  `ChenWeb/config.local.toml` (config > env > default 3); it is shared by the
-  metrics, provisions, inventory-items, and entities artifact reviewers.
+* 2026/07/18, match ordering: matches are now ordered by match-source priority —
+  `object_anchor` first, then `metric_category`, then `hybrid_search` — with
+  confidence (RRF score) as the tie-break within a source; a metric reachable from
+  several branches keeps the highest-priority `via`. `MaxMatchesPerMetric` and the
+  per-call LLM cap (env `MAX_MATCHES_TO_LLM`, default 3, shared by the metrics,
+  provisions, inventory-items, and entities artifact reviewers) both truncate this
+  order, so the strongest sources reach the LLM first and `match_rank` reflects the
+  priority. (A same-day attempt to also expose this cap as
+  `[doc-reviewer].max_artifacts_passed_to_llm` in `ChenWeb/config.local.toml` was
+  reverted per operator preference; the cap stays env-var-only.)
 * 2026/07/05, clarified the review goal and corrected DR1: for each
   metric-under-review, the reviewer first retrieves relevant cross-document metrics, then
   asks the LLM to review the metric with that context. Object-anchored retrieval is part
@@ -241,9 +253,9 @@ Dedup/cap/order rules:
   `line-overlapped-artifact` edges are therefore not a match source: line overlap only
   exists within one document.)
 - `matches[M]` is capped at `MaxMatchesPerMetric` (default 20) in the priority order above.
-- The per-LLM-call cap is `[doc-reviewer].max_artifacts_passed_to_llm`
-  (`ChenWeb/config.local.toml`), falling back to env `MAX_MATCHES_TO_LLM`, then 3; it
-  truncates the same order.
+- The per-LLM-call cap is env `MAX_MATCHES_TO_LLM` (default 3); it truncates the same
+  order and is shared by every artifact reviewer (metrics, provisions, inventory-items,
+  entities).
 
 ### DR2 — Separate missing-metric reviewer
 
@@ -428,8 +440,7 @@ model leaves them empty.
 - `METRIC_REVIEW_MAX_MATCHES` (new, optional, default `20`) — cap on matching metrics
   per doc metric.
 - `MAX_MATCHES_TO_LLM` (existing, optional, default `3`) — cap on matches included in
-  each LLM call payload, shared by all artifact reviewers. Overridden by
-  `[doc-reviewer].max_artifacts_passed_to_llm` in `ChenWeb/config.local.toml` when set.
+  each LLM call payload, shared by all artifact reviewers.
 - `METRIC_REVIEW_MAX_METRICS` (new, optional, default `0` = no cap) — cap on the number
   of doc metrics reviewed (safety valve for very metric-heavy documents).
 - `METRIC_COMPLETENESS_REVIEW_MAX_OBJECTS` (new, optional, default `0` = no cap) — cap
