@@ -45,6 +45,18 @@
   metrics, provisions, and inventory-item extraction now all produce and reconcile
   shared `kb.artifact_objects` / `kb.object_nodes` records; this ADR consumes that
   implemented object-reconciliation contract.
+* 2026/07/18, prompt v4 redesigned classification-first: the earlier prompts framed the
+  task as conflict-hunting, implicitly assuming a retrieved candidate is either the same
+  metric (consistent) or a conflict. v4 makes classification the primary task: each
+  candidate is classified `same_consistent` / `same_conflict` / `related_distinct` /
+  `unrelated` / `undetermined` (emitted in `analyses[].relationship`), with measurement
+  conditions derived from both source contexts (same-name metrics under different
+  conditions, e.g. at-rest vs running, are `related_distinct`, not conflicts; candidates
+  sharing only an object/category/semantic context are expected, healthy non-matches).
+  Only `same_conflict` produces a conflict finding; outlier/currency/pattern checks apply
+  only within the same-metric roster. Also fixed the stale `match_via` vocabulary
+  (`entity` -> `object_anchor`) and resolved the v4 draft's English-vs-Chinese output
+  contradiction in favor of Chinese.
 * 2026/07/18, match ordering + LLM cap configuration: matches are now ordered by
   match-source priority — `object_anchor` first, then `metric_category`, then
   `hybrid_search` — with confidence (RRF score) as the tie-break within a source;
@@ -287,14 +299,16 @@ the same shared object model, so peer object nodes are not processor-specific si
 
 ### DR3 — Prompts
 The original prompt was `ChenWeb/prompts/prompt-review-metrics-v1.md`; current
-configuration uses `prompt-review-metrics-v2.md` for the `metrics` aspect and
-`prompt-review-metrics-missing-v1.md` for `metrics_completeness`. The metric conflict
-prompt instructs the model to compare one "metric under review" against matching metrics
-from other documents and emit findings only for genuine cross-document discrepancies
-(conflicting values, units, thresholds, or definitions for what is plausibly the same
-quantity), not mere restatements. The missing-metric prompt asks whether the document
-omits expected metrics for an object compared with peer-document rosters. Both prompts
-emit the standard review-finding JSON contract (see Data Formats).
+configuration uses `prompt-review-metrics-v4.md` for the `metrics` aspect and
+`prompt-review-metrics-missing-v1.md` for `metrics_completeness`. The metric prompt is
+classification-first (see 2026/07/18 change log): for every retrieved candidate the model
+first classifies the relationship (`same_consistent`, `same_conflict`, `related_distinct`,
+`unrelated`, `undetermined`), deriving measurement conditions from both source contexts,
+and only `same_conflict` — same metric, same conditions, incompatible
+values/units/definitions — produces a conflict finding. All candidates are recorded in the
+mandatory `analyses` array regardless of classification. The missing-metric prompt asks
+whether the document omits expected metrics for an object compared with peer-document
+rosters. Both prompts emit the standard review-finding JSON contract (see Data Formats).
 
 ### Alternative Decisions
 - **Live hybrid search at review time** (call the metric search path per metric):
@@ -518,9 +532,9 @@ the other artifact reviewers.
 ## Documentation Impact
 - `doc-processor/+CAPSULE.md` [1]: the `review_document` row already covers the review
   pipeline; no pipeline-table change (metrics is a review *aspect*, not a doc processor).
-- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md` is a
-  historical behavior record. Current behavior is split between
-  `prompt-review-metrics-v2.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
+- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md`–`v3` are
+  historical behavior records. Current behavior is split between
+  `prompt-review-metrics-v4.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
   (`metrics_completeness`). The document-review spec [6] should describe these as
   artifact-based cross-document reviewers that use `Input="artifact"` (direct
   `ReviewDocument` path).
