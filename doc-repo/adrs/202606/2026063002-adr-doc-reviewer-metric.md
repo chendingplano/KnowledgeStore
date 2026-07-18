@@ -7,6 +7,25 @@
 **Tags**: Document Reviewer, Metric, Cross-Document Consistency
 
 ## Change Logs
+* 2026/07/18, prompt v5 (`prompt-review-metrics-v5.md`, now `reviewers.metrics.prompt` in
+  `ChenWeb/doc-review.local.toml`) fixes an observed v4 failure: a candidate whose own
+  `analyses` summary concluded "entirely different quantities... no substantive
+  relevance" (an applicability-age threshold vs. a two-arm blood-pressure-difference
+  threshold, matched only via `hybrid_search` because both sit in a blood-pressure
+  measurement document) still produced a finding. v4 already forbade findings on
+  `unrelated`/`related_distinct` candidates, but did not stop the model from hedging via
+  the low-confidence-observation path meant for `undetermined` cases. v5 adds: a hard
+  gate in §4 (a finding may reference a candidate only if it is classified `same_conflict`
+  or `undetermined`-with-material-stakes, with an explicit instruction to cross-check
+  every finding's `related_artifact_id` against its own `analyses` relationship before
+  output) plus the exact counter-example above so the model has a concrete negative
+  case; tightens §5 to state that "unrelated" is a confident answer, not a point on the
+  same scale as a hedged observation; and strengthens the `match_via` guidance in §1 so
+  `hybrid_search`-only matches with differing category/unit/value_class carry a prior
+  toward `unrelated` rather than neutral treatment. `match_via` was already present in
+  the LLM's input payload before this change (`matchedMetricsPayload` in
+  `review-metrics.go` has always included it) — the fix is prompt guidance on how to use
+  it, not new data plumbing.
 * 2026/06/30, ADR Created
 * 2026/06/30, Fleshed out after codebase review: resolved the initial DR1
   "hybrid search" mechanism as precomputed `hybrid_search` edges (historical;
@@ -311,7 +330,7 @@ the same shared object model, so peer object nodes are not processor-specific si
 
 ### DR3 — Prompts
 The original prompt was `ChenWeb/prompts/prompt-review-metrics-v1.md`; current
-configuration uses `prompt-review-metrics-v4.md` for the `metrics` aspect and
+configuration uses `prompt-review-metrics-v5.md` for the `metrics` aspect and
 `prompt-review-metrics-missing-v1.md` for `metrics_completeness`. The metric prompt is
 classification-first (see 2026/07/18 change log): for every retrieved candidate the model
 first classifies the relationship (`same_consistent`, `same_conflict`, `related_distinct`,
@@ -543,9 +562,9 @@ the other artifact reviewers.
 ## Documentation Impact
 - `doc-processor/+CAPSULE.md` [1]: the `review_document` row already covers the review
   pipeline; no pipeline-table change (metrics is a review *aspect*, not a doc processor).
-- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md`–`v3` are
+- This ADR is the design record for the reviewer; `prompt-review-metrics-v1.md`–`v4` are
   historical behavior records. Current behavior is split between
-  `prompt-review-metrics-v4.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
+  `prompt-review-metrics-v5.md` (`metrics`) and `prompt-review-metrics-missing-v1.md`
   (`metrics_completeness`). The document-review spec [6] should describe these as
   artifact-based cross-document reviewers that use `Input="artifact"` (direct
   `ReviewDocument` path).
