@@ -45,6 +45,16 @@
   metrics, provisions, and inventory-item extraction now all produce and reconcile
   shared `kb.artifact_objects` / `kb.object_nodes` records; this ADR consumes that
   implemented object-reconciliation contract.
+* 2026/07/18, match ordering + LLM cap configuration: matches are now ordered by
+  match-source priority — `object_anchor` first, then `metric_category`, then
+  `hybrid_search` — with confidence (RRF score) as the tie-break within a source;
+  a metric reachable from several branches keeps the highest-priority `via`.
+  `MaxMatchesPerMetric` and the per-call LLM cap both truncate this order, so the
+  strongest sources reach the LLM first and `match_rank` reflects the priority.
+  The per-call LLM cap (previously env `MAX_MATCHES_TO_LLM` only, default 3) is
+  now configured via `[doc-reviewer].max_artifacts_passed_to_llm` in
+  `ChenWeb/config.local.toml` (config > env > default 3); it is shared by the
+  metrics, provisions, inventory-items, and entities artifact reviewers.
 * 2026/07/05, clarified the review goal and corrected DR1: for each
   metric-under-review, the reviewer first retrieves relevant cross-document metrics, then
   asks the LLM to review the metric with that context. Object-anchored retrieval is part
@@ -206,13 +216,22 @@ input payload. If `max_tool_turns > 0`, tools are only an optional follow-up mec
 additional context; they are not responsible for discovering the Branch C object-anchored
 matches.
 
-Dedup/cap rules:
+Dedup/cap/order rules:
 - A matching metric is identified by its `metric_id`; duplicates across live hybrid search,
-  category siblings, and object-anchored metrics are collapsed.
+  category siblings, and object-anchored metrics are collapsed. A duplicate keeps the
+  highest-priority `match_via` (see next rule).
+- `matches[M]` is ordered by match-source priority — `object_anchor` (shares the measured
+  object) first, then `metric_category`, then `hybrid_search` — with confidence (RRF
+  score) as the tie-break within a source. `match_rank` reflects this order.
 - A metric's own record is never a match: matches with `record_id = record_id` are excluded
   so the reviewer is strictly cross-document; same-document near-duplicates are handled by
-  the metric deduplication pipeline, not this reviewer.
-- `matches[M]` is capped at `MaxMatchesPerMetric` (default 20), highest-confidence first.
+  the metric deduplication pipeline, not this reviewer. (Intra-document shared-line
+  `line-overlapped-artifact` edges are therefore not a match source: line overlap only
+  exists within one document.)
+- `matches[M]` is capped at `MaxMatchesPerMetric` (default 20) in the priority order above.
+- The per-LLM-call cap is `[doc-reviewer].max_artifacts_passed_to_llm`
+  (`ChenWeb/config.local.toml`), falling back to env `MAX_MATCHES_TO_LLM`, then 3; it
+  truncates the same order.
 
 ### DR2 — Separate missing-metric reviewer
 
@@ -394,6 +413,9 @@ model leaves them empty.
   per-metric LLM fan-out.
 - `METRIC_REVIEW_MAX_MATCHES` (new, optional, default `20`) — cap on matching metrics
   per doc metric.
+- `MAX_MATCHES_TO_LLM` (existing, optional, default `3`) — cap on matches included in
+  each LLM call payload, shared by all artifact reviewers. Overridden by
+  `[doc-reviewer].max_artifacts_passed_to_llm` in `ChenWeb/config.local.toml` when set.
 - `METRIC_REVIEW_MAX_METRICS` (new, optional, default `0` = no cap) — cap on the number
   of doc metrics reviewed (safety valve for very metric-heavy documents).
 - `METRIC_COMPLETENESS_REVIEW_MAX_OBJECTS` (new, optional, default `0` = no cap) — cap
@@ -478,8 +500,10 @@ the other artifact reviewers.
   metric-under-review through `kb.artifact_objects` -> `kb.object_nodes` ->
   `kb.artifact_connections`.
 - Dedup: a target reachable via both `hybrid_search` and object-anchored branches appears
-  once.
-- Cap: `MaxMatchesPerMetric` truncates to the highest-confidence matches.
+  once, tagged with the higher-priority `object_anchor` provenance.
+- Ordering: matches sort by source priority (`object_anchor` > `metric_category` >
+  `hybrid_search`), then confidence within a source.
+- Cap: `MaxMatchesPerMetric` truncates in that priority order.
 - Live search uses stored query embeddings from `kb.search_artifacts`.
 - Metric object persistence writes `kb.artifact_objects` rows and reconciles them to
   `kb.object_nodes`.
