@@ -656,6 +656,9 @@ full-coverage evaluator for every processor immediately.
 
 ---
 
+## ADR
+Refer to [5].
+
 ## References
 
 [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
@@ -665,3 +668,5 @@ full-coverage evaluator for every processor immediately.
 [3] `KnowledgeStore/Capsules/coding-capsules/doc-processor/observability-design.md`
 
 [4] `KnowledgeStore/doc-repo/adrs/202607/2026071201-adr-doc-process-runs.md`
+
+[5] `KnowledgeStore/doc-repo/adrs/202607/2026071301-adr-doc-processor-benchmark.md`

@@ -32,3 +32,10 @@ reaches a terminal state.
   for the Chinese report; `go build`/`go test ./api/doc-reviews/...` pass. Still
   owed: regenerate a real report and visually confirm the seven fields are gone
   from `-report-cn.pdf` and the English report is unaffected.
+- [2026071901 — DeepSeek `deepseek-v4-flash-300` llm usage events logged without account/profile linkage](202607/2026071901-bug-deepseek-llm-usage-account-profile-not-resolved.md)
+  — `fixed-unverified`. Data-only fix: inserted the missing
+  `llm_account_model_profile` row under the account holding the current
+  `.models.toml` API key; the `resolveAccountProfileIDs` join was re-run
+  directly and now resolves. Still owed: confirm against a live
+  `MID-CWB-ENTITY-RELATION` call that the WARN stops and the resulting
+  `llm_usage_event` row has non-null `account_id`/`profile_id`.

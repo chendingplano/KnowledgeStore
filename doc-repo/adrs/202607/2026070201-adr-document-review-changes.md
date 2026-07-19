@@ -45,6 +45,18 @@
   produced them, mirroring the row's real `run_id` column so a finding is
   self-describing when read from `metadata` alone (openspec change
   `add-run-id-to-doc-review-findings`).
+* 2026/07/18, the doc-review-report page's embedded Document Structure panel
+  replaces its raw LINES list with a foldable Finding Details view of the
+  selected finding, its source artifact, its `kb.doc_review_logs` row, and the
+  `public.llm_usage_event` calls that produced it (openspec change
+  `doc-review-finding-details-panel`). Three additive backend exposures
+  support it: `FindingItem.Metadata`/`ReferenceDoc` (raw `metadata` and
+  `reference_doc` JSONB, previously fetched but discarded or not selected at
+  all); `object_node_canonical_name` joined onto the artifact-wiki response
+  for metric/provision/inventory-item artifacts via `kb.artifact_objects` →
+  `kb.object_nodes`; and a new `GET /api/v1/llm/usage-events/by-ids` endpoint
+  (no id-list lookup existed previously for `public.llm_usage_event`). No
+  schema migration — all columns already existed.
 
 ---
 

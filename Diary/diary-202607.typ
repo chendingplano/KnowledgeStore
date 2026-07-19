@@ -792,3 +792,98 @@ Ploy is the marketing platform that turns your website into your company's growt
 - Surface
 
 We should learn from this website: let the LLM work 24 hours for us.
+
+= 2026/07/19 - Harness Engineering
+#let a_015 = link(
+  "https://github.com/lopopolo/harness-engineering/tree/trunk"
+)[#text(fill: blue)[Harness Engineering]]
+
+#a_015 \
+Source: Hacker News
+
+This repository is a structured *knowledge base and field guide for harness engineering*, rather 
+than a software framework or executable agent harness. It defines harness engineering as 
+improving an agent’s performance while holding the model and coding agent relatively constant, 
+then changing the external environment around them: context, tools, permissions, examples, 
+tests, and feedback mechanisms. The objective is to help an agent recover the real intent of 
+a task, operate the actual system, respect organizational authority, prove that the outcome 
+works, and leave the environment better prepared for future runs.
+
+A central argument is that general model weights do not contain an organization’s private 
+and continuously changing “process data”: its current operational state, local terminology, 
+quality standards, procedures, exception history, and authority relationships. The harness 
+must expose this information through retrievable repository context and usable tools. It 
+also carries nonfunctional requirements—reliability, security, compatibility, performance, 
+maintainability, operability, and risk posture—so that these constraints become concrete 
+examples, types, tests, policies, and executable checks rather than depending on an agent 
+to infer them from a prompt.
+
+The repository organizes this philosophy into twelve theses. These include holding the 
+worker constant while evaluating the harness; routing context just in time instead of 
+loading everything into the prompt; giving one primary agent ownership of the whole 
+job; making tools discoverable and interpretable; separating capability from authority; 
+verifying claims in the real environment; converting feedback and failures into durable 
+infrastructure; and optimizing for accepted outcomes rather than token counts, lines 
+of code, or number of agents. Of particular relevance to SemOS is its distinction 
+between a *large navigable knowledge store* and a *small active working set*, with 
+root instructions routing the agent to authoritative sources only when an unresolved 
+decision requires them.
+
+The repository itself demonstrates this routing model through `AGENTS.md`. An agent 
+first examines the target repository’s own architecture, instructions, tools, tests, 
+permissions, history, and precedents. It then identifies the specific decision that 
+remains unresolved and loads only the relevant thesis—for example, tool legibility, 
+authority, proof, domain modeling, feedback, or continuous maintenance. Target-local 
+truth always takes precedence over the general guidance. This is a significant design 
+point: the repository is not intended to be copied as a standard directory layout 
+or universal policy set; it is intended to sharpen decisions within another system’s 
+existing contracts.
+
+Finally, it includes practical playbooks for improving one bounded agent workflow, 
+reviewing an entire repository, and evaluating a harness through controlled 
+comparisons. These procedures encourage observing representative trajectories, 
+locating the earliest failed handoff, applying the smallest reversible intervention 
+at the correct ownership boundary, and rerunning the job to determine whether 
+the change genuinely improved the outcome. The maintainers explicitly describe 
+the playbooks as editorial syntheses rather than fully validated methodologies, 
+so the repository is best understood as a carefully sourced and agent-readable 
+body of engineering arguments, patterns, and experimental procedures—not a 
+production-ready harness package.
+
+= 2026/07/21 - Agent Harness Engineering
+
+"Roughly: anytime you find an agent makes a mistake, you take the time to engineer a solution such that the agent never makes that mistake again."
+
+"The rest is the harness: the prompts, tools, context policies, hooks, sandboxes, subagents, feedback loops, and recovery paths wrapped around the model so it can actually finish something."
+
+"A decent model with a great harness beats a great model with a bad harness."
+
+= 2026/07/22 - Search Is Becoming the Control Plane for AI
+#let a_016 = link(
+  "https://dzone.com/articles/ai-agent-search"
+)[#text(fill: blue)[Search Is the Control Plane]]
+
+#a_016 \
+Source: dzone
+
+Search is no longer simply about people finding information. Agents need to locate resources, services, etc. Listing all the tools to LLMs becomes impractical unless we give it a Search tool.
+
+REST APIs are designed for human developers, but the agent requires something else - APIs that self-explain, can be discovered at runtime, and communicate their purpose in a language that is already understood by the model.
+
+This is the issue search is meant to solve. Not keyword search, semantic search
+
+== Actions 
+1. Expose Internal Tools as MCP Servers
+If your team has internal APIs, databases, or services that your agents will ever need to access — wrap them in MCP now. Provide well-crafted descriptions of each tool in natural language. This is what most teams miss out on and then kick themselves later for. The key to finding the tool is the quality of its description.
+
+2. Create a Tool Catalog, Not a Tool List
+Don't explicitly include tool arrays in your agent configuration. Create an indexable catalog, even a basic vector index of your tools' descriptions. It is queried by your agent at the beginning of every task, and only loads what is needed. This alone will reduce the amount of context bloat and make your agent a much better agent at novel tasks for which it wasn't explicitly trained.
+
+3. Avoid SERP APIs, Stick to AI Native Search APIs for External Data
+In the event that your agent has to fetch external information, Exa, Tavily, and Firecrawl are designed for that purpose. They send back information that agents can read. Typical search engines provide HTML-ranked results for human readers. The impact that your agent can have with what it produces is huge.
+
+4. Keep Discovery and Invocation Apart in the Design of Your System
+They are two different operations that have distinct performance needs. Discovery (finding the correct tool) should be quick, stored in a cache, and be semantic. Invocation (literally the calling of) must be reliable and have error handling. If they are combined, their systems are slow at both. Do not mix them until day 1.
+
+5. Pay Attention to the A2A and ANP Protocols
+MCP resolves the tool discovery issue. A2A and ANP are a solution to the agent discovery problem, which involves finding the agent to which another agent can delegate. This is the next component of the same issue. Your orchestrator agent should be able to find its agent of choice, not be hard-coded with a list of agents that it knows about. That infrastructure is being developed today.

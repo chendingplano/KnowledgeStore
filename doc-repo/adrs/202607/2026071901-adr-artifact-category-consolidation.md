@@ -3,7 +3,7 @@
 **Date:** 2026-07-19 \
 **Status:** Proposal \
 **Component:** ChenWeb \
-**Authors**: Chen Ding \
+**Authors**: Anthropic Fable 5
 
 ## Change Logs
 * 2026/07/19, ADR Created

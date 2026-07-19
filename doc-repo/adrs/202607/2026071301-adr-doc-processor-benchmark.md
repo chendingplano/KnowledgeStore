@@ -66,6 +66,49 @@ named model definitions is how v1 compares providers and model parameters. The
 benchmark runs each variant over the same synthetic dataset and reports paired quality,
 latency, token, cache, and cost deltas.
 
+### 3.3 Future processor-family expansion
+
+The current implementation is not metrics-only. V1 implements scored benchmark support
+for:
+
+- `chunking`
+- `extract_metrics`
+
+The framework is intentionally broader than those two processors. Future benchmark
+work may add additional processor or artifact families, for example:
+
+- provisions
+- inventory items
+- semantic projections
+- entity relation
+
+Adding one of those future benchmark families requires explicit implementation work for:
+
+- processor identity and applicability rules
+- expected-output schema support in `expected.json`
+- dataset validation
+- adapter capture and reconciliation
+- scorer logic
+- reporting integration
+
+This ADR therefore treats future processor-family benchmarks as a supported extension
+direction, not as something already implemented by v1.
+
+### 3.4 Multi-artifact benchmark experiments
+
+The benchmark framework may also run experiments that include multiple processors in one
+benchmark, provided each processor has implemented dataset, adapter, and scorer support.
+
+V1 already demonstrates this pattern with experiments that include both:
+
+- `chunking`
+- `extract_metrics`
+
+However, the benchmark remains processor-specific in how quality is evaluated and
+reported. Multi-processor experiments do not imply a single combined heterogeneous
+quality score. The system should continue to preserve separate quality vectors unless a
+future design explicitly introduces a justified aggregate.
+
 ## 4. System Architecture
 
 The system has five components with narrow interfaces.
