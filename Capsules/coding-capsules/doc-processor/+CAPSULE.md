@@ -254,6 +254,13 @@ processors still index inline at the end of their Phase B `HandleEvent`; migrate
 
 For more information about indexing artifacts, refer to [16].
 
+**Deletion lifecycle:** any processor or post-process indexer that writes
+document-owned rows or files for a `kb.inputs.id` must also participate in
+the input deletion contract. The source of truth is ADR 2026072301:
+`KnowledgeStore/doc-repo/adrs/202607/2026072301-adr-kb-input-artifact-deletion.md`.
+That ADR lists the current generated tables/files and defines the future
+per-module deleter registration model.
+
 ### 7.5 Artifact Category Creation Under Concurrent Pipelines
 
 Some doc processors, currently `extract_metrics` and
