@@ -10,6 +10,9 @@
 * 2026/07/23, ADR created. Defines the deletion model for `kb.inputs`,
   documents current generated data, and establishes the future deleter
   registration contract for doc processors and other artifact-producing modules.
+* 2026/07/23, updated. Adds the delete audit log requirement in
+  `kb.doc_proc_logs` and records ArtifactWeb repair cleanup stats as part of
+  the deletion contract.
 
 ## Context
 
@@ -40,7 +43,8 @@ The delete flow SHALL:
 3. Delete the `kb.inputs` row in the same transaction.
 4. Commit the database transaction.
 5. Delete document-owned files and artifact directories after commit.
-6. Log file cleanup failures as warnings unless they make the database delete
+6. Write a delete audit row to `kb.doc_proc_logs`.
+7. Log file cleanup failures as warnings unless they make the database delete
    unsafe.
 
 Database cleanup is transactional because partial table cleanup creates
@@ -122,6 +126,11 @@ Delete behavior:
 
 * Delete log rows before deleting their run rows when FK constraints require it.
 * Delete rows where `record_id = kb.inputs.id`.
+* After the delete succeeds, insert a fresh audit row into `kb.doc_proc_logs`
+  with `entry_type = 'delete_input'`, `doc_proc_name = 'delete_input'`, and
+  `record_id = kb.inputs.id`.
+* The delete audit row SHOULD include machine-readable `extra_info` describing
+  cleanup work, such as ArtifactWeb scan stats.
 * Pipeline logs are document-owned operational records. They should disappear
   with the input unless explicitly copied to a separate audit system.
 
@@ -300,6 +309,8 @@ Registration rules:
 * The deleter SHOULD expose a dry-run plan for admin tooling.
 * The deleter SHOULD include focused tests that prove rows/files for one input
   are deleted while rows/files for another input remain.
+* The coordinator or owning deleter SHOULD emit a delete audit summary into
+  `kb.doc_proc_logs`, including any useful cleanup stats in `extra_info`.
 
 Example module ownership:
 
@@ -362,8 +373,11 @@ Schema evolution:
 
 Audit requirements:
 
-* If compliance requires retaining delete history, write a separate audit event
-  before commit. Do not keep normal processor output as the audit log.
+* The delete flow SHOULD emit a `delete_input` audit row in
+  `kb.doc_proc_logs` after document-owned log rows have been removed.
+* If stronger compliance retention is required later, add a separate immutable
+  audit sink rather than preserving normal processor output rows for deleted
+  documents.
 
 ## Consequences
 
