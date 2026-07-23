@@ -205,21 +205,35 @@ category. They may contain:
 * `metadata.txt`: category metadata.
 * `semantic_projections.txt`: semantic projection IDs, usually prefixed by the
   input record ID, e.g. `415_...`.
+* `chunks.txt`
+* `entities.txt`
+* `inventory_items.txt`
 * `summaries.txt`
 * `topics.txt`
 * `metrics.txt`
 * `provisions.txt`
 * `products.txt`
+* `relations.txt`
+* `scenes.txt`
 
 Semantic projection artifacts are special because the `.semantic_projections`
 JSON file contains `category_paths` arrays; each path maps to a directory under
-`ARTIFACT_WEB_DIR`. For record `415`, the deleter must remove entries for
-`415_...` from all relevant `semantic_projections.txt` files.
+`ARTIFACT_WEB_DIR`. The category path controls which directories are relevant,
+but the deleter must not depend on `connected_artifacts` inside the semantic
+projection artifact. `connected_artifacts` is a derived/live view and should not
+be written to `.semantic_projections` artifact JSON going forward.
+
+For record `415`, the deleter must remove entries whose first field starts with
+`415_` from every known per-leaf artifact index file listed above. This broad
+prefix cleanup is required even when `$ARTIFACT_DIR/Artifacts/0/415` has already
+been deleted and the `.semantic_projections` JSON is no longer available.
 
 Delete behavior:
 
-* Remove this record's semantic projection entries from every
-  `semantic_projections.txt`.
+* Remove this record's entries from every known ArtifactWeb leaf index file,
+  including but not limited to `semantic_projections.txt`, `metrics.txt`,
+  `topics.txt`, `scenes.txt`, `inventory_items.txt`, `provisions.txt`,
+  `summaries.txt`, and `entities.txt`.
 * Remove the file if no entries remain.
 * Prune directories that become empty or metadata-only after the record entries
   are removed.
