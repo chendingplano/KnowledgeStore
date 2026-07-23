@@ -44,23 +44,55 @@ Direct Corpus Interaction, DCI, Exploration, Explorable Knowledge Base]
 )
 
 = Overview
-This paper, *“Beyond Semantic Similarity: Rethinking Retrieval for Agentic Search via Direct Corpus Interaction,”* argues that conventional retrieval systems (BM25, dense vector search, hybrid retrieval, rerankers) expose a corpus through an overly restrictive interface: you issue a query, receive a top-*k* list, and then reason over that shortlist. The authors argue this design works reasonably well for classic question answering, but becomes a bottleneck for *agentic search*, where an LLM needs to iteratively explore, refine hypotheses, combine weak clues, and recover from incorrect assumptions. Their core thesis is that the limitation is not merely the retriever’s ranking quality, but the abstraction itself: semantic retrieval compresses a rich corpus into a lossy similarity API too early in the reasoning process. ([Hugging Face][1])
+This paper, *“Beyond Semantic Similarity: Rethinking Retrieval for Agentic Search via 
+Direct Corpus Interaction,”* argues that conventional retrieval systems (BM25, dense vector 
+search, hybrid retrieval, rerankers) expose a corpus through an overly restrictive interface: 
+you issue a query, receive a top-k list, and then reason over that shortlist. The authors 
+argue this design works reasonably well for classic question answering, but becomes a 
+bottleneck for agentic search, where an LLM needs to iteratively explore, refine hypotheses, 
+combine weak clues, and recover from incorrect assumptions. Their core thesis is that the 
+limitation is not merely the retriever’s ranking quality, but the abstraction itself: 
+semantic retrieval compresses a rich corpus into a lossy similarity API too early in the 
+reasoning process. ([Hugging Face][1])
 
-To address this, they propose *Direct Corpus Interaction (DCI)*, a radically simpler retrieval paradigm: instead of querying a vector database or search engine, the agent interacts directly with the raw corpus using general-purpose tools like `grep`, file reads, shell commands, and lightweight scripting. In effect, retrieval becomes exploration rather than lookup. This is particularly interesting because DCI requires *no embedding model, no indexing pipeline, and no retrieval-specific infrastructure*. The agent incrementally probes the corpus, checks exact lexical constraints, discovers intermediate entities, and revises its search strategy dynamically—much closer to how a human investigator would work in a terminal than how RAG typically operates. ([Hugging Face][1])
+To address this, they propose *Direct Corpus Interaction (DCI)*, a radically simpler retrieval 
+paradigm: instead of querying a vector database or search engine, the agent interacts directly 
+with the raw corpus using general-purpose tools like `grep`, file reads, shell commands, and 
+lightweight scripting. In effect, retrieval becomes exploration rather than lookup. This is 
+particularly interesting because DCI requires *no embedding model, no indexing pipeline, 
+and no retrieval-specific infrastructure*. The agent incrementally probes the corpus, checks 
+exact lexical constraints, discovers intermediate entities, and revises its search strategy 
+dynamically—much closer to how a human investigator would work in a terminal than how RAG 
+typically operates. ([Hugging Face][1])
 
-Empirically, the paper reports that this surprisingly low-tech approach outperforms strong traditional retrieval baselines on several benchmarks, including datasets from BRIGHT and BEIR, and performs strongly on more agentic tasks such as BrowseComp-Plus and multi-hop QA. The implication is not that embeddings are “bad,” but that stronger reasoning agents benefit from richer interaction surfaces than “retrieve top 10 documents by similarity.” In other words, as LLMs become more capable planners, retrieval APIs may become the bottleneck rather than the reasoning model itself. ([Hugging Face][1])
+Empirically, the paper reports that this surprisingly low-tech approach outperforms strong 
+traditional retrieval baselines on several benchmarks, including datasets from BRIGHT and 
+BEIR, and performs strongly on more agentic tasks such as BrowseComp-Plus and multi-hop QA. 
+The implication is not that embeddings are “bad,” but that stronger reasoning agents benefit 
+from richer interaction surfaces than “retrieve top 10 documents by similarity.” In other 
+words, as LLMs become more capable planners, retrieval APIs may become the bottleneck rather 
+than the reasoning model itself. ([Hugging Face][1])
 
-Conceptually, this is an important paper because it challenges a foundational assumption in modern RAG architectures: that retrieval should be a separate preprocessing stage feeding context into reasoning. Instead, it suggests retrieval and reasoning should be intertwined in an interactive loop. This aligns closely with the design philosophy behind coding agents like Claude Code, Codex, or filesystem-native knowledge systems, where the model explores documents directly rather than relying on precomputed embeddings. 
+Conceptually, this is an important paper because it challenges a foundational assumption in 
+modern RAG architectures: that retrieval should be a separate preprocessing stage feeding 
+context into reasoning. Instead, it suggests retrieval and reasoning should be intertwined 
+in an interactive loop. This aligns closely with the design philosophy behind coding agents 
+like Claude Code, Codex, or filesystem-native knowledge systems, where the model explores 
+documents directly rather than relying on precomputed embeddings. 
 
-To us, this is especially relevant because it strongly supports the “explorable knowledge base” model over strict RAG pipelines: if the agent is capable enough, giving it direct access to structured corpora may outperform forcing everything through semantic retrieval.
+This is especially relevant to SemOS because it strongly supports the “explorable knowledge 
+base” model over strict RAG pipelines: if the agent is capable enough, giving it direct 
+access to structured corpora may outperform forcing everything through semantic retrieval.
 
 == Implementation
-The implementation of *Direct Corpus Interaction (DCI)* is intentionally minimalist. The paper’s point is not to invent a new retrieval
-algorithm, but to show that a sufficiently capable agent can treat the corpus itself as the retrieval substrate. In practice, DCI looks 
+The implementation of *Direct Corpus Interaction (DCI)* is intentionally minimalist. The 
+paper’s point is not to invent a new retrieval algorithm, but to show that a sufficiently 
+capable agent can treat the corpus itself as the retrieval substrate. In practice, DCI looks 
 much more like an autonomous command-line workflow than a conventional RAG system.
 
-At the core, the corpus is simply exposed as a *filesystem of raw documents* (plain text in the experiments). The LLM agent is given 
-access to a small toolbox of generic operations rather than a retriever API. These tools include things like:
+At the core, the corpus is simply exposed as a *filesystem of raw documents* (plain text 
+in the experiments). The LLM agent is given access to a small toolbox of generic operations 
+rather than a retriever API. These tools include things like:
 
 - exact text search (`grep`, `ripgrep`)
 - file listing / directory traversal (`ls`, `find`)
@@ -80,7 +112,8 @@ For example, if asked:
 
 > “Which company acquired the startup founded by person X?”
 
-A conventional retriever tries to guess the right documents from the original wording. DCI instead may do:
+A conventional retriever tries to guess the right documents from the original wording. 
+DCI instead may do:
 
 1. Search for mentions of *person X*
 2. Read matching snippets
@@ -91,6 +124,17 @@ A conventional retriever tries to guess the right documents from the original wo
 
 That is explicit decomposition rather than semantic one-shot retrieval.
 
+#quote(block: true, attribution:[Chen Ding, 2026/07/23])[
+*Comment:*
+Instead of `grep`, we can use BM25. This should bring more relevant
+chunks than `grep`. For this reason, I would expand the tool set to include BM25.
+
+Another problem is that keywords are very sensitive to spelling, aliases, acronyms,
+etc. If we can extend BM25 search to handle the spelling, aliases, and acronyms,
+that will be a further plus.
+]
+
+
 Implementation-wise, the agent follows a standard *ReAct/tool-use loop*:
 
 - reason about current hypothesis
@@ -99,7 +143,8 @@ Implementation-wise, the agent follows a standard *ReAct/tool-use loop*:
 - update belief state
 - continue until enough evidence exists
 
-The key design decision is that *retrieval logic is delegated to the LLM planner*, not hardcoded into an index/query engine.
+The key design decision is that *retrieval logic is delegated to the LLM 
+planner*, not hardcoded into an index/query engine.
 
 *Candidate generation / search strategy*
 
@@ -112,7 +157,8 @@ The paper describes DCI as using *progressive exploration*, not exhaustive scann
 - inspecting neighboring context after matches
 - fallback to alternative search terms if initial hypotheses fail
 
-This matters because DCI is not “load the whole corpus into context.” It remains selective, but selection happens dynamically.
+This matters because DCI is not “load the whole corpus into context.” It remains selective, 
+but selection happens dynamically.
 
 *Why it works*
 
@@ -252,9 +298,7 @@ LLMs can exploit that.
 
 *3. LLMs understand semantics in paths*
 
-Path names are not just filesystem metadata.
-
-They are semantic signals.
+Path names are not just filesystem metadata. They are semantic signals.
 
 Example:
 

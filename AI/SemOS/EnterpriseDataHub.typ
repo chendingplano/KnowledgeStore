@@ -138,11 +138,11 @@ It is very close to `IP Addresses`:
 - Compact and efficient
 - Huge Address Space (not suffering from IPv4 problems)
 
-This is called Docids (@ref-docid).
+This is called Docids (\@ref-docid).
 
 === Principle 05: Multi-Tenant
 
-EHD supports multi-tenants. Refer to @sec-multi-tenant
+EHD supports multi-tenants. Refer to \@sec-multi-tenant
 
 == LLMs are `context machines,` not `query engines`
 
@@ -278,7 +278,7 @@ Docids have two parts:
   Offset: 36 bits, support up to 64 billion data entries per shard
 ```
 
-Docid-8 address space is 2**62 (about 4 zillions)
+Docid-8 address space is 2\*\*62 (about 4 zillions)
 
 *Docid-12* Format
 
@@ -305,7 +305,7 @@ A tenant is assigned a globally unique TenantID (an integer).
 
 === Public Data Entries
 
-Files whose names are ended with "_pub" (for snake case) or "Pub" (for Pascal case)
+Files whose names are ended with "\_pub" (for snake case) or "Pub" (for Pascal case)
 are treated as public data entries.
 
 (TBD).
@@ -519,7 +519,7 @@ for human users and, more importantly, agents.
 
 #figure(
    image("Images/image_2026032901.png", width: 100%),
-   caption: [Schema Migration (#a_26032901)],
+   caption: [Schema Migration (a_26032901)],
 )
 
 == Explorability
