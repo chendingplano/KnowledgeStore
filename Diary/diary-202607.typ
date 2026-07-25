@@ -887,3 +887,113 @@ They are two different operations that have distinct performance needs. Discover
 
 5. Pay Attention to the A2A and ANP Protocols
 MCP resolves the tool discovery issue. A2A and ANP are a solution to the agent discovery problem, which involves finding the agent to which another agent can delegate. This is the next component of the same issue. Your orchestrator agent should be able to find its agent of choice, not be hard-coded with a list of agents that it knows about. That infrastructure is being developed today.
+
+= 2026/07/26 - Calamine
+#let a_017 = link(
+  "https://docs.rs/calamine/latest/calamine/"
+)[#text(fill: blue)[Calamine Excel]]
+
+#a_017 \
+Source: Hacker News
+
+This is a tool to read Excel, written in Rust. High performance.
+
+= 2026/07/26 - Wigolo
+#let a_018 = link(
+  "https://github.com/chendingplano/wigolo.git"
+)[#text(fill: blue)[Wigolo - Open-Source Web Search]]
+
+#a_018 \
+Source: WeChat
+
+wigolo gives an AI agent one surface for everything web-related: search, fetch, crawl, 
+extract, cache, find-similar, research, and autonomous gather loops. It runs wherever 
+your agent runs — as an MCP server next to your coding agent, as a REST/MCP endpoint 
+on the box where your self-hosted agents live, or embedded through an SDK inside your 
+own app. The core tools need no API keys, nothing it touches leaves ~/.wigolo/, and 
+no bill grows with how much your agent thinks.
+
+= 2026/07/26 - Self-Harness
+#let a_019 = link(
+  "https://summarizepaper.com/en/arxiv-id/2606.09498v1/?utm_source=chatgpt.com"
+)[#text(fill: blue)[AI-Powered Paper Summarization about the arXiv paper 2606.09498v1]]
+
+This paper, *"Self-Harness: Harnesses That Improve Themselves"*, argues that the performance 
+of an LLM-based agent depends not only on the underlying foundation model but also on its 
+*harness*—the surrounding runtime system including prompts, tool usage, memory, execution 
+policies, error recovery, and other orchestration logic. Today these harnesses are almost 
+entirely designed manually by humans. The authors argue that this approach does not scale 
+because every new model has different strengths and weaknesses, requiring continual human 
+tuning. Instead, they propose *Self-Harness*, a framework in which an agent autonomously 
+improves its own harness without assistance from human engineers or stronger 
+models. (#a_019 [SummarizePaper][1])
+
+The proposed framework consists of a three-stage iterative optimization loop. First, 
+*Weakness Mining* analyzes execution traces from previous tasks to identify recurring 
+model-specific failure patterns rather than isolated mistakes. Next, *Harness Proposal* 
+generates targeted, minimal modifications to the harness that address those weaknesses—for 
+example, adjusting instructions, changing tool usage policies, or introducing additional 
+validation steps. Finally, *Proposal Validation* subjects every proposed modification to 
+regression testing and only accepts changes that improve performance without introducing 
+regressions. This makes the harness evolve gradually while remaining stable, much like 
+continuous integration and automated regression testing in software 
+engineering. ([SummarizePaper][1])
+
+To evaluate the idea, the authors implemented Self-Harness on *Terminal-Bench-2.0*, 
+starting from a deliberately minimal harness and testing three different foundation 
+models: *MiniMax M2.5*, *Qwen3.5-35B-A3B*, and *GLM-5*. Across all three models, the 
+approach produced substantial improvements in held-out benchmark performance. Pass 
+rates increased from *40.5% to 61.9%*, *23.8% to 38.1%*, and *42.9% to 57.1%*, 
+respectively. Importantly, the learned harness changes were not generic prompt 
+additions; qualitative analysis showed that they addressed each model's particular 
+weaknesses, demonstrating that harness optimization is inherently model-specific 
+rather than universally transferable. ([SummarizePaper][1])
+
+The broader significance of the paper is that it shifts the optimization target 
+from *training better models* to *teaching agents to improve the systems surrounding 
+themselves*. Rather than relying on humans to continually refine prompts, tool policies, 
+memory strategies, and execution rules, an agent can observe its own failures, infer 
+recurring causes, propose improvements, and validate them automatically. This aligns 
+closely with emerging ideas in agent engineering—such as evolving `AGENTS.md`, 
+maintaining failure registries, and continuously refining execution harnesses—that 
+view an agent as an adaptive software system rather than simply a static language 
+model. The paper suggests a future where harness engineering becomes an ongoing 
+autonomous process, allowing agents to adapt as foundation models and tasks evolve 
+instead of requiring constant manual intervention. ([SummarizePaper][1])
+
+SemOS has limited harness capabilities. Unlike coding assistant, which is an application,
+SemOS is a 'collection of apps'. Harness normally is application dependent. That is,
+different applications may require different harness. 
+
+For instance, Doc Process Pipeline is a capability or an embedded app in SemOS.
+Most doc processors use LLMs to extract artifacts. Extracting harness is mostly
+per-document, which means that memory is not crucial to them. The most important
+part is prompts. 
+
+A general purpose Self Harness does not work. The authors create a Self Harness
+for the selected benchmark, which is essentially an 'app'.
+
+In order for a Self Harness to work or make sense, we need to know:
+- What the harness does (the app)
+- How to tell what's correct and what's not
+- The variables that can be tuned to correct or improve the harness
+- The chaos engineering, or the randomness of changing the variables
+  when deterministic improvement methods hit the wall
+- The ralph loop, when to stop
+- And possibly many more
+
+The things that can be tuned or learned include:
+- Prompts
+- Memory
+- The knowledge base
+- Tools
+- Ontology
+
+SemOS should have a Harness Editor. For instance, there should be a harness editor
+for extracting metrics, entities and relations, inventory items, topics,
+scenes, workflows, references, terminologies,
+etc. 
+
+Each extractor is an agentic application, and each agentic app has a 
+Agent Harness specifically tuned for that app.
+

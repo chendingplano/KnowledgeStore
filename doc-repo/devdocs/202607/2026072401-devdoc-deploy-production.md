@@ -39,7 +39,7 @@ If missing, install Docker CE per Docker's official Ubuntu 20.04 instructions.
 sudo usermod -aG docker $(whoami)
 ```
 
-A **new SSH connection** (not just a new shell) picks up the updated group — no reboot needed.
+A **new SSH connection** (not just a new shell) picks up the updated group — no reboot needed. Linux computes group membership at login time, so any session (SSH or local) already open when `usermod -aG docker` ran keeps the *old* group list — `docker ps`/`docker start`/etc. in that session will fail with `permission denied while trying to connect to the Docker daemon socket`, even though `id`/`groups` in a **fresh** session correctly shows `docker`, and even though the daemon and containers are perfectly healthy. Reconnect, or run `newgrp docker` in the stale session to pick up the group without reconnecting.
 
 **Gotcha:** if this box already runs other Docker workloads (it's common on shared staging machines), check `docker ps` first and pick container names/ports that don't collide. On `192.168.29.96` there were already Dify, AgentGPT, and unrelated `postgres`/`mysql` containers running.
 
@@ -872,6 +872,8 @@ sudo journalctl -u <unit> -n 100 --no-pager     # -f to follow live
 
 `journalctl -u <unit>` without `sudo` shows nothing for units running as a different user (e.g. `caddy` runs as system user `caddy`, not `cding`) — use `sudo` or add your user to the `adm`/`systemd-journal` group.
 
+**Watching a service's output live instead of tailing logs:** every one of the six systemd-managed services has a `<service>-start-sync` task in `ChenWeb/mise.toml` — `nats-start-sync`, `kratos-start-sync`, `chenweb-start-sync`, `doc-processor-start-sync`, `parser-result-converter-start-sync`, `caddy-start-sync`. Each stops the systemd unit and re-execs that unit's exact `ExecStart` command (same binary, same env vars/working dir) attached to your terminal, so you see stdout/stderr directly instead of `journalctl`. Ctrl-C to stop it, then `mise restart-<service>` to hand it back to systemd — otherwise it stays down until the next reboot. `caddy-start-sync` runs via `sudo` since the `caddy` binary has no `setcap` and needs root to bind ports 80/443 in the foreground; `kratos-start-sync` `cd`s into `~/Workspace/Kratos` first since that's where its own `mise.toml`/`mise.local.toml` (env/secrets) live.
+
 ### 8.4 Restart everything (rare — e.g. after changing `.env` or `config.local.toml`)
 
 Order matters because of the dependency chain (`nats-server`/`kratos`/ParadeDB → `chenweb`/workers → `caddy`):
@@ -934,6 +936,66 @@ sudo security add-trusted-cert \
   -k /Library/Keychains/System.keychain \
   "$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
 ```
+
+### 8.7 Starting the system from scratch, step by step
+
+Everything under systemd (`nats-server`, `kratos`, `chenweb`, `doc-processor`, `parser-result-converter`, `caddy`) is `enable`d, so on a normal reboot it all comes back up on its own in dependency order — you should not need this section. Use it when something was stopped by hand, after a fresh box bring-up before the systemd units exist yet, or when the auto-start chain didn't fire for some reason. The order below is the real dependency chain from §6/§8.1 — do not start these out of order, since e.g. `kratos` will crash-loop if native Postgres isn't up yet, and `chenweb` will fail its NATS/Kratos/ParadeDB dependency checks if started before steps 1–4.
+
+**All `mise` commands below run from `~/Workspace/ChenWeb`** — that's where its `mise.toml` (the ops-task wrapper, distinct from the Mac dev `mise.toml`) lives. It defines `restart-*` tasks per service but no separate `start-*` tasks — `systemctl restart` on a currently-stopped unit just starts it, so `restart-*` doubles as "start" here; there's no meaningful difference for a service that isn't already running.
+
+**Step 1 — native PostgreSQL 12** (Kratos's database) — no mise task wraps this one (it's a stock apt package, not part of ChenWeb's mise.toml), so it stays a raw systemctl call:
+```bash
+sudo systemctl start postgresql
+systemctl is-active postgresql   # expect "active"
+```
+
+**Step 2 — ParadeDB** (ChenWeb's `miner` database — Docker container, `--restart unless-stopped` means it's usually already up once `docker.service` is). If this fails with `permission denied ... docker.sock` in an SSH session that's been open since before you were added to the `docker` group, see the §1.2 gotcha — reconnect or `newgrp docker`, the container itself is likely already running fine:
+```bash
+mise paradedb-start     # docker start chenweb-paradedb; no-op if already running
+mise health-paradedb    # confirms pg_search/vector extensions are present
+```
+
+**Step 3 — NATS server (JetStream)**:
+```bash
+mise restart-nats     # restart nats in background
+mise nats-start-sync  # start nats in foreground
+mise health-nats      # port check + JetStream stream listing
+```
+`mise nats-start-sync` stops the unit and runs the same command attached to your terminal (Ctrl-C to stop, then `mise restart-nats` to hand it back to systemd).
+
+**Step 4 — Kratos** (needs step 1):
+```bash
+mise restart-kratos
+mise health   # also checks ChenWeb/Caddy — those will still fail/404 until steps 5-6, that's expected here
+```
+Foreground/debug variant: `mise kratos-start-sync` (Ctrl-C to stop, then `mise restart-kratos`).
+
+**Step 5 — ChenWeb + its NATS workers** (needs steps 2–4):
+```bash
+mise restart-chenweb
+mise restart-doc-processor
+mise restart-parser-result-converter
+mise health   # "ChenWeb :8080 -> 200"-ish and /session should now report 401 Login required —
+              # confirms ChenWeb is up AND actually calling Kratos
+```
+Foreground/debug variants, one at a time: `mise chenweb-start-sync`, `mise doc-processor-start-sync`, `mise parser-result-converter-start-sync` (each stops only that unit — the other two in this step stay under systemd; Ctrl-C then `mise restart-<service>` to resume).
+
+**Step 6 — Caddy** (needs step 5, reverse-proxies to ChenWeb/Kratos):
+```bash
+mise restart-caddy
+mise health   # Caddy :80 line should now show a redirect code (308)
+```
+Foreground/debug variant: `mise caddy-start-sync` — runs via `sudo` since the `caddy` binary has no `setcap` and needs root to bind ports 80/443 outside systemd (Ctrl-C to stop, then `mise restart-caddy`).
+
+*Shortcut:* once steps 1–2 are done, `mise restart-all` folds steps 3–6 into a single ordered command (it's the same `nats/kratos → chenweb/workers → caddy` sequence, see §8.4) — use the individual `restart-*` tasks above only when isolating which layer is actually broken.
+
+**Step 7 — `pdf-parser` (optional)** — only if PDF ingestion is needed right now; not yet a systemd unit (§8.6), so it's always manual regardless of the others:
+```bash
+mise pdf-parser-start        # or pdf-parser-start-sync to run in the foreground
+mise pdf-parser-status
+```
+
+If any step's check fails, run `mise logs-<service>` (e.g. `mise logs-kratos`) or `mise status` before moving to the next step — starting something downstream of a broken dependency just produces a second, more confusing failure.
 
 ## 9. Known gaps / deliberately deferred
 
