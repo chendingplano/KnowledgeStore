@@ -2054,11 +2054,32 @@ The most important design rule is:
 Deliberately deferred beyond CDM v1.0:
 
 1. **Numbered, referenceable figures and tables** — requires a numbering
-   authority and a `figure` container (§2). **Now known to be required** by the
-   CDM Editor's auto-generated content (list of figures, list of tables, list of
-   formulas, index), so this is a scheduled need rather than a hypothetical one.
-   The artifact appendices in that feature should be render-time projections
-   rather than stored blocks, to avoid a document → pipeline → document cycle.
+   authority and a `figure` container (§2).
+
+   *Narrowed 2026/07/26 (ADR 2026072602 DR5d).* This was previously recorded as
+   required by the CDM Editor's list of figures, list of tables, and list of
+   formulas. It is not. Those lists need numbers that exist at **layout** time,
+   and Typst produces them itself from `#outline(target: figure.where(...))` —
+   the same way Microsoft Word builds a table of contents from heading styles.
+   What still needs a numbering authority is **citing** a figure or table from
+   outside its own rendering: naming "Table 3" in an artifact, a retrieval
+   projection, or another document requires a stable number carried in the AST,
+   which layout-time numbering does not provide. That is a smaller and later
+   need than the original entry implied.
+
+   Two renderer prerequisites follow for the display lists, recorded here
+   because they touch this specification: tables must be emitted inside
+   `#figure(kind: table, caption: …)` rather than as a bare `#table(...)`
+   (§5.2), and `Block.caption` must be permitted on `table`, not only on
+   `image` (§1.2, §5.2). The field already exists on the single `Block` struct,
+   so the second is a validator change with no migration.
+
+   The **index** remains fully deferred: it needs authored index terms, an
+   inline node type CDM does not have.
+
+   The artifact appendices in that same editor feature are resolved separately
+   (§10.5): they are render-time projections rather than stored blocks, which is
+   what avoids a document → pipeline → document cycle.
 2. **Structured diagram model** — Phase 4 (§13.4); no schema proposed yet.
 3. **Multi-language documents** — `language` is per document; a per-block
    language override is not yet modeled.
