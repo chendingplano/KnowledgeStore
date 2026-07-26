@@ -31,7 +31,7 @@ engine knows exactly where every element lands on every page, an anchored render
 tells SemOS **where** a piece of extracted knowledge lives inside a document.
 That makes Typst the *location substrate* for authored documents — the role a
 parsed PDF plays for uploaded ones — so navigation and highlight work the same
-way regardless of where a document came from. See §5.6.
+way regardless of where a document came from. See §5.7.
 
 **Normative note.** This document defines CDM schema version `1.0`. Where earlier
 drafts showed several candidate shapes for the same construct (equations, table
@@ -487,7 +487,7 @@ pipeline in §10:
 | Renderer | Output | Purpose |
 |---|---|---|
 | Typst | `.typ` → PDF | Primary publication format |
-| Typst → SVG | paginated `.svg` pages | **Viewing substrate** — the anchored render used for navigation and highlight (§5.6) |
+| Typst → SVG | paginated `.svg` pages | **Viewing substrate** — the anchored render used for navigation and highlight (§5.7) |
 | HTML | HTML fragment | Browser viewing of fragments, MathML/MathJax |
 | Markdown | `.md` | LLM context, interchange |
 | Plain text | `.txt` | Retrieval projections (§8), line file (§10.1) |
@@ -1040,13 +1040,49 @@ templates. Resolution order for a given document:
    specific level available (user → tenant → system).
 3. The fallback template, at the most specific level available.
 
-## 5.5 Markdown and Plain-Text Renderers
+## 5.5 Templates Carry Formatting Requirements
+
+Templates are not a convenience feature. They are how CDM answers a hard
+real-world requirement: **mandatory document formatting standards.**
+
+Many organizations require documents to be formatted in a prescribed way, and
+some are regulated at extreme granularity — China's mandatory standard governing
+how a national standard must be formatted specifies fonts, sizes, spacing,
+numbering, and section structure in exacting detail.
+
+The obvious way to meet such a requirement is to build an online rich-text
+editor that enforces the formatting directly, as a Word or Google Docs
+equivalent. That approach has been tried and its failure mode is known: the
+formatting rules become entangled with the editor itself, the tool grows
+extremely difficult to maintain, and — most damagingly — it is welded to *one*
+standard. Adapting it to another customer's rules is impractical, because the
+rules were never a separable artifact.
+
+CDM's split is the direct answer. The document stores what it *means*; the Typst
+template carries what it must *look like*. A second formatting standard is a
+second template, not a second editor. The rules become data — versioned,
+reviewable, and swappable per customer, tenant, or document type through the
+resolution order in §5.4.
+
+This is the load-bearing reason §12 forbids presentation properties in the
+canonical schema. Font, size, color, alignment, and spacing belong to the
+template, so an editing surface should expose *semantic* actions — heading,
+emphasis, list, table, callout, definition — and let the template decide how each
+one looks. Every presentation property admitted into a document is one the
+template can no longer control, and it is exactly that leakage that made the
+earlier tool unmaintainable.
+
+Full support for a specific mandatory standard is deferred until the CDM and
+CDM Editor designs are mature (§16). The requirement is recorded here because it
+constrains the architecture now: it is why formatting must stay in templates.
+
+## 5.6 Markdown and Plain-Text Renderers
 The Markdown renderer emits CommonMark plus fenced code and LaTeX math; it is
 the basis for the LLM context projection (§9.3). The plain-text renderer emits
 no markup at all and is the basis for the retrieval projections (§8, §9.1,
 §9.2). Both walk the same block tree with the same `renderBlock` dispatch shape.
 
-## 5.6 Anchored Rendering: Typst as the Location Substrate
+## 5.7 Anchored Rendering: Typst as the Location Substrate
 
 Typst is not only how a CDM document is published. It is how SemOS knows
 **where** a piece of extracted knowledge lives inside a document.
@@ -1461,7 +1497,7 @@ are identical.
       │                                 └── semantic annotations
       │                                       │
       │                                       ▼
-      │                              Typst anchored rendering (§5.6)
+      │                              Typst anchored rendering (§5.7)
       │                                       │
       ▼                                       ▼
   line file + bboxes                  line file + anchor map
@@ -1496,11 +1532,17 @@ An authored document moves through:
 editing → published → rendered → line_file_generated → doc-process pipeline
 ```
 
-- **editing** — a draft. It has no `kb.inputs` row and is invisible to every
-  worklist.
-- **published** — a `kb.inputs` row is created with `type = 'cdm'`, marking the
-  document's origin. Tenancy is carried on that row.
-- **rendered** — anchored rendering (§5.6) produces the SVG pages and the anchor
+- **editing** — a draft. Its `kb.inputs` row exists from creation (so that
+  author-triggered processing, §10.5, has somewhere to attach artifacts), but
+  the row is written so that **both** derived states are terminal:
+  `parse_state = 'parsed_success'` and `pipeline_state = 'success'`. A draft is
+  therefore invisible to both worklists, and anything that runs against it runs
+  because the author explicitly asked, never because a poller picked it up.
+- **published** — the document's `doc_processing` status entry is cleared, so
+  `pipeline_state` derives back to `'pending'` and the standard doc-processing
+  worklist enqueues it for the authoritative full run. Publishing is thus a
+  *status transition on an existing row*, not a row creation.
+- **rendered** — anchored rendering (§5.7) produces the SVG pages and the anchor
   map.
 - **line_file_generated** — the line file is emitted from the same AST in the
   same pass as the anchor map, one line per **anchorable unit**: a paragraph, a
@@ -1515,6 +1557,12 @@ A CDM document is therefore **born parsed**: the CDM AST *is* the parse result,
 so there is no file to parse, but everything downstream of parsing still applies.
 PDF generation remains available for export and download, and is not on the
 critical path for viewing, navigation, or highlight.
+
+Because a draft may already have been processed on demand (§10.5), the run
+triggered at publish can encounter artifacts from earlier draft runs. Artifacts
+are therefore keyed to the `content_version` they were derived from, and a run
+supersedes artifacts from an older version of the same document rather than
+appending to them.
 
 The canonical document should be versioned:
 
@@ -1533,6 +1581,183 @@ The canonical document should be versioned:
 when the document's content changes, and `renderer_version` records which
 renderer produced a cached artifact. This lets projections be regenerated when a
 renderer improves without modifying the source document.
+
+## 10.2 Chunking: Semantic Declaration, Physical Resolution
+
+Chunking is an **artifact**, produced after the line file exists. Its physical
+form is a list of line ranges with overlaps:
+
+```text
+overlap: []
+lines: [1-23]
+
+overlap: [21-23]
+lines: [24-42]
+
+overlap: [39-42]
+lines: [43-66]
+```
+
+Because the line file is logically the same for both document origins (§10.1),
+this artifact and everything that consumes it are unchanged for CDM documents.
+
+What CDM adds is the ability for an **author** to declare chunk boundaries at
+the *semantic* level, which are then resolved to the *physical* level once the
+line file is generated:
+
+```text
+author declares chunk groups on blocks   (semantic, stored in the AST)
+                │
+                ▼
+        line file generated               (§10.1)
+                │
+                ▼
+   chunk groups resolve to line ranges    (physical, the .chunks artifact)
+```
+
+Blocks may carry an optional chunk-group identifier; a maximal run of
+consecutive blocks sharing an identifier forms one semantic chunk. Overlap
+remains the chunker's concern, not the author's — the author declares *where
+meaning divides*, and the pipeline decides how much context to carry across the
+seam.
+
+If a document declares no chunk groups, the pipeline chunks it automatically, as
+it does for uploaded documents. Author-declared chunking is therefore an
+optional refinement, never a prerequisite.
+
+This two-level split mirrors anchored rendering (§5.7): the AST carries intent,
+and the physical coordinates are derived once the concrete artifact exists.
+
+## 10.3 Author Annotations Are Artifacts
+
+The CDM Editor lets an author select a span of text and mark it as a semantic
+object — a `terminology`, `concept`, `definition`, `entity`, `relation`, or
+`canonical object`. These are **artifacts in exactly the same sense** as the ones
+a doc processor extracts, stored in the same tables, consumed by the same search
+and review tooling. They differ only in how they were produced: far cheaper, and
+far more accurate, because a human asserted them.
+
+Since an author annotates a span of text, and spans resolve to line ranges via
+the line file, an author-created artifact carries the same `source_line_spans`
+provenance as an extracted one — and therefore the same navigate-and-highlight
+behavior (§5.7) with no special handling.
+
+**Every artifact records its origin.** Artifact tables carry an origin
+discriminator defaulting to `extracted`, with `human-created` for author
+assertions. This follows the existing convention on `kb.images.origin`. The flag
+matters well beyond bookkeeping: it tells downstream consumers which assertions
+carry human authority, lets review tooling skip re-verifying what a human
+asserted, and lets extraction avoid overwriting it.
+
+Artifact types that do not exist yet — `terminology`, `concept`, `definition` —
+are planned as ordinary doc processors with ordinary tables. CDM adds no new
+artifact types of its own.
+
+## 10.4 Document Versions Are Documents
+
+A new version of a document is a **new document**, not a revision record inside
+an existing one. It gets its own canonical document and its own `kb.inputs` row,
+and it is processed independently.
+
+Versions are linked by a typed relation recorded on the input row (in a
+dedicated column or within `kb.inputs.doc_metadata`), naming the document this
+version was created from and how it relates to it:
+
+```text
+addendum   — adds to the prior version without altering it
+amendment  — modifies part of the prior version
+replace    — supersedes the prior version entirely
+```
+
+This keeps every version independently addressable, independently processed, and
+independently citable — which matters because artifacts, `source_line_spans`,
+anchors, and renderings are all bound to a specific document. A revision model
+that mutated one document in place would invalidate all of them on every edit.
+
+Note the two distinct counters this leaves:
+
+- `content_version` (§1, §11) is the **within-document** edit counter. It
+  increments as an author saves changes to *one* document, and keys that
+  document's derived renderings, anchors, and projections.
+- The **version lineage** above is *between* documents, and is the notion a
+  reader means by "version 2 of the standard".
+
+## 10.5 Author-Triggered Extraction and Generated Appendices
+
+An author writing a document may want an appendix of the metrics it contains.
+The action is explicit: the author invokes *Generate Appendix of Metrics*, and
+the system does, in order:
+
+```text
+generate line file  →  chunk  →  run the extract_metrics doc processor
+        →  reconcile with the author's own marked metrics
+        →  render the appendix
+```
+
+This is the same line file, the same chunking, and the same doc processor used
+after publication (§10.1). Nothing about extraction is special-cased for the
+editor; only the *trigger* differs — an author asked, rather than a worklist
+poller.
+
+**Why this does not create a cycle.** The apparent circularity is document →
+pipeline → artifacts → document content. It is broken by three properties:
+
+1. The trigger is **manual and bounded**. A run happens because an author asked
+   for one; it does not cascade.
+2. A draft sits off both worklists (§10.1), so a run cannot enqueue further runs.
+3. The appendix is a **render-time projection**, not a stored block.
+
+The third point is the important one. The appendix is *rendered from* the current
+artifacts at render time; it is not written back into the AST. So it never
+becomes stale content that disagrees with the artifacts, editing the document
+never invalidates a stored appendix, and — decisively — nothing the appendix
+contains can ever be re-extracted as if it were authored prose. The
+*Generate Appendix* action therefore means "run extraction now, so the appendix
+has current artifacts to show", not "insert an appendix into my document".
+
+### 10.5.1 Reconciling Human and LLM Assertions
+
+An author who has marked metrics by hand (§10.3) will often *still* want the
+extractor to run — precisely because they may have missed some. The two sources
+have complementary strengths:
+
+- **Human marking** is high **precision**: what the author marked is right.
+- **LLM extraction** is high **recall**: it finds what the author overlooked.
+
+So the two sets are reconciled rather than concatenated. Where both assert the
+same metric, they are merged into one, and **the human assertion wins** — its
+values, wording, and boundaries are authoritative, and the `origin` stays
+`human-created`. Where only the extractor found something, it is added with
+`origin = 'extracted'`.
+
+This is the same class of problem the object reconciliation machinery already
+solves for entities and inventory items (`kb.reconcile_runs`,
+`kb.entity_merge_candidates`, `kb.entity_merges`, `kb.inventory_item_merges`;
+ADR 2026070701 for ambiguous ties). Note that no equivalent exists for metrics
+yet, so human/LLM reconciliation of metrics needs building, with the entity
+machinery as its model.
+
+### 10.5.2 Provenance Is Displayed, Never Erased
+
+While drafting, the author needs to see which assertions are theirs and which
+came from the LLM, so the appendix can show provenance per entry. When the
+document is published, that annotation should usually disappear — a reader of a
+standard does not need to see which metrics an LLM proposed.
+
+**This is a display setting, not a data operation.** The `origin` value on the
+artifact (§10.3) is permanent and is never cleared, at publish or at any other
+time. Publishing hides provenance in the *rendered appendix*; it does not remove
+provenance from the *record*.
+
+The distinction matters because `origin` is what tells downstream consumers
+which assertions carry human authority — it lets review tooling skip
+re-verifying what a human asserted, and lets a later extraction run avoid
+overwriting it. Erasing it at publish would destroy exactly the value the flag
+exists to provide, and it is unrecoverable: nothing else in the system records
+that a human, rather than a model, made that claim.
+
+So: one permanent `origin` column, and a per-render `show_provenance` option
+that defaults on while editing and off once published.
 
 # 11. Storage Model
 
@@ -1619,13 +1844,20 @@ CREATE TABLE IF NOT EXISTS kb.cdm_renderings (
     renderer          VARCHAR(32) NOT NULL,
     renderer_version  VARCHAR(32) NOT NULL,
     media_type        VARCHAR(128) NOT NULL,
+    page              INTEGER NOT NULL DEFAULT 0,
     rendered_content  BYTEA NOT NULL,
     create_time       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_kb_cdm_renderings
-        UNIQUE (document_id, content_version, renderer, renderer_version)
+        UNIQUE (document_id, content_version, renderer, renderer_version, page)
 );
 ```
+
+`page` was added during Phase 1 implementation: the original key had no room for
+a paginated renderer, since anchored rendering (§5.7) produces one SVG file
+*per page* under the same `renderer`/`renderer_version`. `page` is `0` for
+non-paginated renderers (the Typst source itself, a single PDF export, the
+generated line file) and the page number (1-indexed) for each SVG page.
 
 Retrieval projections:
 
@@ -1659,7 +1891,7 @@ CREATE INDEX IF NOT EXISTS idx_kb_cdm_projections_document_id
 dimension matches the embedding model already used elsewhere in the `kb` schema
 and must be changed together with it.
 
-The anchor map (§5.6), one row per highlight fragment:
+The anchor map (§5.7), one row per highlight fragment:
 
 ```sql
 CREATE TABLE IF NOT EXISTS kb.cdm_anchors (
@@ -1690,7 +1922,7 @@ CREATE INDEX IF NOT EXISTS idx_kb_cdm_anchors_lookup
 `line_number` is the line in the generated line file (§10.1), which is what
 artifact `source_line_spans` refer to — so resolving an artifact to a highlight
 is an index lookup on this table. `fragment_ordinal` distinguishes the
-per-page fragments of a unit that breaks across pages (§5.6); a unit contained
+per-page fragments of a unit that breaks across pages (§5.7); a unit contained
 on one page has a single row with ordinal `0`. Coordinates are in points, in the
 page coordinate space shared with the rendered SVG.
 
@@ -1756,7 +1988,7 @@ For equations, store `original` with `parse_status: "skipped"` and no
 `normalized` AST; the renderer takes the §6.4 fallback path. Do **not** store
 parallel LaTeX and Typst variants — that is Option A, which §6.4 rejects.
 
-Phase 1 also delivers the publish lifecycle and anchored rendering (§5.6,
+Phase 1 also delivers the publish lifecycle and anchored rendering (§5.7,
 §10.1): paginated SVG pages, the anchor map, and line-file generation. These
 belong in Phase 1 rather than later because they are what lets an authored
 document enter the existing doc-process pipeline at all — without a line file
@@ -1792,7 +2024,12 @@ definitions only when the value justifies the complexity.
 
 # 14. CDM Editor
 This is a browser-based editor. Users use the CDM Editor to create and edit
-documents. The CDM Editor is addressed in a separate document.
+documents. It is specified separately in
+`2026072502-spec-cdm-editor`, whose Design Decisions section records how its
+requirements were reconciled with this model — formatting via templates (§5.5),
+author annotations as artifacts (§10.3), versions as documents (§10.4), and
+author-declared chunking (§10.2). ADR `2026072602` records the same decisions
+with their alternatives.
 
 # 15. Summary
 
@@ -1817,7 +2054,11 @@ The most important design rule is:
 Deliberately deferred beyond CDM v1.0:
 
 1. **Numbered, referenceable figures and tables** — requires a numbering
-   authority and a `figure` container (§2).
+   authority and a `figure` container (§2). **Now known to be required** by the
+   CDM Editor's auto-generated content (list of figures, list of tables, list of
+   formulas, index), so this is a scheduled need rather than a hypothetical one.
+   The artifact appendices in that feature should be render-time projections
+   rather than stored blocks, to avoid a document → pipeline → document cycle.
 2. **Structured diagram model** — Phase 4 (§13.4); no schema proposed yet.
 3. **Multi-language documents** — `language` is per document; a per-block
    language override is not yet modeled.
@@ -1827,13 +2068,32 @@ Deliberately deferred beyond CDM v1.0:
    the existing extractors already consume from the PDF parser. The exact
    contract must be read off the current implementation before the generator is
    written.
-6. **Text selection in the viewer** — SVG output is not selectable text (§5.6).
+6. **Text selection in the viewer** — SVG output is not selectable text (§5.7).
    If users must select text in CDM documents, the likely answer is an invisible
    text layer positioned over the SVG from the anchor map, which is the technique
    PDF viewers use.
 7. **SVG page delivery** — whether pages are pre-rendered and cached at publish
    or rendered on demand is a performance question to settle once realistic page
    counts are known.
+
+Deferred and recorded during the CDM Editor review (ADR 2026072602):
+
+8. **User-defined document lifecycles** — an editorial lifecycle is a
+   user-defined finite state machine with optional entry conditions, automatic
+   triggers, and manual transitions. It is a **separate axis** from the
+   processing lifecycle in §10.1; both use the word `published` and they are not
+   the same thing. Keeping them separate is what lets this be added later as
+   document metadata plus definition tables, without touching the AST.
+9. **Ontology association** — must connect to the existing object model
+   (ADR 2026070101) rather than introduce a parallel one.
+10. **Mandatory formatting standards** — full support for a prescribed standard
+    (§5.5) awaits maturity of CDM and the editor. The architecture already
+    accommodates it: a standard is a template.
+11. **Chunk-group field on `Block`** — the concrete representation of
+    author-declared semantic chunking (§10.2) is deferred to the Phase 2
+    chunking work.
+12. **Retention plans** — documents may carry a retention plan, archived on
+    expiry and eventually hard-removed. Not yet modeled.
 
 **Resolved since the first draft:** tenant scoping of `document_key` — CDM
 documents inherit `tenant_id` and `ks_store_id` from their `kb.inputs` row

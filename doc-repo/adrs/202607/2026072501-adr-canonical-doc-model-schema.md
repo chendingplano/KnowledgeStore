@@ -291,8 +291,17 @@ off, so a CDM document without one would be invisible to all existing knowledge
 tooling.
 
 Lifecycle: `editing → published → rendered → line_file_generated →
-doc-process pipeline`. A draft has no input row at all, which keeps it off every
-worklist without needing a status sentinel.
+doc-process pipeline`.
+
+> **Amended 2026/07/26 by ADR 2026072602 DR5.** An earlier form of this decision
+> gave a draft *no* input row. That is incompatible with author-triggered
+> extraction in the editor, which needs somewhere to attach artifacts while the
+> document is still being written. A draft now has its input row from creation,
+> written with **both** derived states terminal
+> (`parse_state = 'parsed_success'`, `pipeline_state = 'success'`) so it stays
+> off both worklists; publishing clears the `doc_processing` status entry so
+> `pipeline_state` derives back to `'pending'` and the standard worklist
+> enqueues it. Publish is a status transition, not a row creation.
 
 `parse_state` and `pipeline_state` are *derived* from the `status` JSONB by
 `kb.input_status_parse_state` and `kb.input_status_pipeline_state`, and both

@@ -1,7 +1,7 @@
 # ADR 2026072601 — CDM Anchored Rendering: Typst Layout as the Location Substrate
 
 **Date:** 2026-07-26 \
-**Status:** Accepted (design only — not yet implemented) \
+**Status:** Implemented \
 **Component:** SemOS CDM rendering and provenance — Typst renderer, `kb.cdm_anchors`, line-file generation, document viewer \
 **Authors**: Chen Ding \
 **Tags**: SemOS, CDM, typst, provenance, highlight, viewer, svg, doc-processing
@@ -11,6 +11,14 @@
   not a generated PDF — is the location substrate for authored documents.
   Capability was verified hands-on against Typst 0.14.2 before the decision was
   taken.
+* 2026/07/26, Phase 1 implemented in `ChenWeb/server/api/cdm/`. Added an
+  Implementation Notes section recording four real corrections found only
+  through actual Typst compilation (cross_reference via `#link` not `#ref`,
+  citation as plain text not `#cite`, lists needing an explicit `#block[...]`
+  wrapper, table-row anchors embedded in cell content rather than as table
+  arguments), a confirmed X/W fragment-precision limitation, and the
+  `kb.cdm_renderings` schema fix (new `page` column) it took to store
+  multiple SVG pages. Status moved to Implemented.
 
 ## Context
 
@@ -201,10 +209,94 @@ SVG page rendering, line-file generation, and a resolver from
   highlight contract. Scoped as a follow-on change.
 - Text selection in CDM documents is not solved by this decision (DR3).
 
+## Implementation Notes (2026/07/26)
+
+Phase 1 was implemented in `ChenWeb/server/api/cdm/{model,rendering,store}`.
+The design above held; four points below were discovered only once real Typst
+compilation was in the loop, not from reasoning about the design, and are
+recorded because they change what a future maintainer needs to know.
+
+* **`cross_reference` renders as `#link(label(id))[...]`, not
+  `#ref(label(id))`.** Verified against the compiler: `#ref` only resolves
+  Typst's own numbered/referenceable elements (headings, figures, equations
+  with numbering enabled) and hard-errors — "cannot reference text" — on
+  arbitrary content such as a plain paragraph. Since a CDM `cross_reference`
+  must be able to target *any* block, `#link` is the only mechanism that
+  resolves universally.
+* **`citation` renders as plain bracketed text, not `#cite(label(...))`.**
+  `#cite` requires an actual `#bibliography` to be present in the document or
+  it hard-errors ("the document does not contain a bibliography"). Phase 1
+  builds no bibliography infrastructure, and `reference` blocks (the entries a
+  citation would resolve against, spec §7) are not even a supported block type
+  in this renderer — Phase 3 scope. Rendering visible text instead of a call
+  guaranteed to fail was the only defensible Phase 1 choice.
+* **Every block is wrapped, but a `list` needs an explicit `#block[...]`
+  container.** Every rendered block gets a Typst label matching its own id,
+  used for both cross-reference targets and (see below) as the anchor point.
+  Attaching that label directly after a bare list's markup was verified to
+  attach to the *last item*, not the list as a whole — the compiler warns
+  "content labelled multiple times... only the last label is used" and
+  silently discards the earlier one, which would have broken that item's own
+  reference/anchor. Wrapping list items in `#block[...]` gives the list's own
+  label a container to attach to instead.
+* **Anchors are a separate mechanism from content labels, by necessity for
+  tables.** A `#table(...)` call's positional arguments are all cells
+  (row-major, by declared column count); a bare `mark()` call inserted as an
+  extra argument would corrupt the table's shape. Verified instead that a mark
+  embedded *inside* a cell's own content — `[#mark(id, "start")text]` —
+  records its position without disturbing layout, so each row's start/end
+  marks live in its first and last cell respectively.
+
+One precision limitation was found and is now documented prominently rather
+than silently accepted: fragment `x`/`w` use the page's full content
+margin/width for every unit, not the unit's actual rendered width. This is
+verified pixel-accurate for full-width flow content (paragraphs, headings) —
+confirmed both by automated bounds checks and by a manual visual proof
+(rendering a real document, painting a rectangle at the derived fragment
+coordinates over the real compiled page, and inspecting the image) — but
+visibly overshoots for narrower content such as a table, and undershoots the
+true left edge for indented list items. The Y-axis (page and vertical
+bounds — the harder problem, since it required solving pagination) is
+unaffected and pixel-accurate in both cases. Fixing X/W precision would need a
+per-unit measured width, which is deferred rather than solved now, consistent
+with this ADR's DR4 rejection of `measure()` for the page-spanning case.
+
+A related schema gap was found and fixed: `kb.cdm_renderings`' original unique
+key `(document_id, content_version, renderer, renderer_version)` had no room
+for a paginated renderer, since one document produces multiple SVG files
+(one per page) under the same renderer/version. Migration
+`20260726000002_add_page_to_kb_cdm_renderings.sql` adds a `page` column
+(`0` for non-paginated renderers) and widens the unique key to include it;
+applied and rolled back cleanly against the live `miner` database before being
+left applied. See ADR 2026072501's storage section and spec §11 (updated).
+
 ## Tests
 
-No application tests yet. The capability itself was verified experimentally
-before deciding, against Typst 0.14.2:
+The capability was verified experimentally before deciding (see the original
+Tests section content below), then re-verified end-to-end during
+implementation against the real Typst 0.14.2 binary and the live `miner`
+database — not merely asserted at the Go string level:
+
+* `TestGoldenFilesCompileWithTypst`, `TestAnchoredRendering_AlignmentAgainstRenderedSVG`,
+  and the `TestRenderSVGPages_*` / `TestExtractAnchors_*` suites all compile
+  real Typst source and/or query the real compiler; these caught the four
+  implementation-notes findings above, none of which were visible from
+  Go-level assertions alone.
+* `TestCollectUnits_EveryUnitHasExactlyOneAnchorPair` queries real Typst output
+  and asserts the coverage property directly (every anchorable unit has
+  exactly one start and one end mark).
+* `TestExtractAnchors_PageRelativeCoordinates` and
+  `TestDeriveFragments_PageSpanningUnit` force a real 40-paragraph document
+  across a page boundary and verify page-relative coordinates and the
+  paired-mark fragment derivation end to end.
+* `TestPublisher_PublishEndToEnd` and `TestPublisher_RepublishSupersedesArtifacts`
+  (`ChenWeb/server/api/cdm/store/publish_test.go`) exercise the full pipeline —
+  save, create draft, publish (render, extract anchors, derive fragments,
+  generate line file, render SVG pages, persist all of it, transition
+  `kb.inputs`) — against the live database, including `ResolveHighlight`
+  returning a well-formed fragment for a real line number.
+
+Pre-implementation findings, retained for the historical record:
 
 * `typst query` returns exact per-unit `{page, x, y, w, h}` — confirmed.
 * Units past a page break report page-relative coordinates on the correct page —
@@ -218,11 +310,14 @@ before deciding, against Typst 0.14.2:
 * Typst HTML export discards pagination — confirmed
   (`page set rule was ignored during HTML export`).
 
-At implementation these become: an alignment test rendering a page and asserting
-a rect at an anchor covers the expected region; a page-spanning fragment test; a
-coverage test asserting every line-file line has exactly one anchor; and a parity
-test resolving an artifact to a highlight for both a CDM and an uploaded
-document.
+Not yet done: an actual doc processor (e.g. `extract_metrics`) has not been run
+against a generated CDM line file to confirm its artifacts carry usable
+`source_line_spans` end to end — that requires the doc-processor
+binary/worker, outside what could be driven in this session. A direct
+side-by-side parity check against an uploaded document's real highlight
+resolution code path is likewise not done; `ResolveHighlight` is verified to
+return the documented `{page, x, y, w, h}` shape, but not compared line-by-line
+against the PDF-based resolver's actual output.
 
 ## Documentation Impact
 
@@ -249,11 +344,16 @@ strategy (pre-render at publish vs. on demand); and the invisible-text-layer
 design for text selection, which is only needed if that requirement firms up.
 
 ## References
-- Spec: `doc-repo/specs/202607/2026072501-spec-canonical-doc-model.md` §5.6, §10.1, §11
+- Spec: `doc-repo/specs/202607/2026072501-spec-canonical-doc-model.md` §5.7, §10.1, §11
 - ADR 2026072501 (CDM v1.0 schema decisions) — DR11–DR14 in particular
 - Change: `ChenWeb/openspec/changes/cdm-phase1-ast-and-typst-renderer/`,
   capability `cdm-anchored-rendering`
+- Implementation: `ChenWeb/server/api/cdm/rendering/{anchors,svg,linefile,typst}.go`,
+  `ChenWeb/server/api/cdm/store/publish.go`
+- Migrations: `ChenWeb/project_migrations/20260726000001_create_kb_cdm_tables.sql`,
+  `..._20260726000002_add_page_to_kb_cdm_renderings.sql`
 - Existing viewer: `ChenWeb/web/src/lib/components/home3/shared-pdf-viewer.svelte`
 - Existing Typst invocation: `ChenWeb/server/api/doc-reviews/typst_report.go`
+- Existing line-file dialect: `ChenWeb/server/api/file-converters/opendata.go` (`formatOpenDataLines`), `mineru.go`
 - Inferred-mapping failure precedent: `ChenWeb/server/cmd/backfill-mineru-list-bboxes/main.go`
 - Worklist queries: `ChenWeb/server/api/kbhandler/handler.go:679`, `:748`
