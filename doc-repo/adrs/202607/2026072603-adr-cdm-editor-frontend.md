@@ -1,7 +1,9 @@
 # ADR 2026072603 — CDM Editor Frontend Architecture and API Surface
 
 **Date:** 2026-07-26 \
-**Status:** Accepted (design only — not yet implemented). DR1 (editing
+**Status:** Accepted; **Implemented (MVP)** as of 2026/07/27 via OpenSpec
+change `ChenWeb/openspec/changes/cdm-editor-mvp/`, with the divergences and
+gaps recorded in the 2026/07/27 Change Log entries below. DR1 (editing
 component) and DR3 (MVP scope) confirmed by the owner 2026/07/26 \
 **Component:** CDM Editor frontend (ChenWeb `web/`), CDM HTTP API (ChenWeb
 `server/api/`) \
@@ -16,6 +18,65 @@ component) and DR3 (MVP scope) confirmed by the owner 2026/07/26 \
 * 2026/07/26, accepted. DR1 (editing component) and DR3 (MVP scope) confirmed by
   the owner; the remaining decisions follow from the spec and Phase 1's shape.
   Spec `2026072502` Open Question 1 struck accordingly.
+* 2026/07/27, implemented (MVP) via OpenSpec change `cdm-editor-mvp`, 9 task
+  groups: `cdmhandler` + routes (DR2), read-only block rendering (DR1), inline
+  editing via TipTap (DR1), structured editors for the remaining six block
+  types (DR1/DR3), save/publish/preview wiring (DR3/DR4/DR6), and the
+  `/home3/cdm` routes (DR7). Divergences found during implementation, beyond
+  the path correction design.md's own D1 already caught before this build
+  started:
+  - **DR7's Paraglide i18n commitment is reversed: not implemented.** Checked
+    against the actual frontend before building and found that no `/home3/*`
+    feature uses Paraglide today — it is used only on the public `/semos`
+    pages (42 message keys, all `semos_*`-prefixed). Making the CDM editor the
+    first i18n'd `home3` feature would contradict every sibling view
+    (`doc-review-report-view.svelte`, `inputs-mgmt-view.svelte`,
+    `document-review-view.svelte`, ...). Presented as a choice, not decided
+    silently; the owner chose to match the `home3` precedent. CDM editor
+    strings are hard-coded English. i18n for all of `home3` (CDM included) is
+    now a separate, deliberate change if wanted.
+  - **DR2's `POST .../versions` and `DELETE ...` endpoints were never built.**
+    `POST .../versions` is DR3/D4's already-acknowledged deferral (opening a
+    new version of a published document needs the `kb.inputs` version-relation
+    field from ADR 2026072602 DR3, which does not exist yet — the MVP explains
+    the frozen state but offers no action). `DELETE` (soft delete, D14) was
+    simply never in the 9 implemented task groups' scope and was not
+    separately called out as deferred until this review; recorded here for
+    that reason. Only 6 of DR2's original 8 endpoints exist: create, list,
+    get, save, publish, render.
+  - **DR5's "slug derivation from heading text" is implemented but never
+    exercised by the live editor.** `block-id.ts`'s `allocateBlockId` correctly
+    prefers a heading-text-derived slug and is unit-tested for it, but every
+    call site that actually creates a block during editing
+    (`BlockList.svelte`'s insert action, `BlockView.svelte`'s "add list item")
+    only ever supplies the block's type, never heading text — because the
+    built interaction model creates a block empty and lets the author type
+    into it afterward, so there is no moment during creation when heading text
+    exists yet. In practice, every block id in this MVP is a type-plus-counter
+    slug (`heading-2`, `paragraph-3`), never a text-derived one like
+    `score-range`. Closing this needs either a UX change (author types a
+    heading's text before it becomes a block) or a rename-on-first-save step;
+    neither was in scope for this change. Not a regression to fix under
+    "verification" — recorded as a known MVP limitation.
+  - Two real implementation bugs were found and fixed while building this live
+    (a `structuredClone` crash on a Svelte 5 `$state`-proxied document, and a
+    focused block's floating toolbar hiding/blocking the "Insert at top"
+    control) — see `cdm-editor-mvp/tasks.md` groups 7-8 for the full
+    root-cause detail; both are fixed in the shipped code.
+  - **Environment caveat, not an architecture change:** this build's working
+    environment has no `TEST_DATABASE_URL` and no way to establish a real
+    Kratos session, so the DB-backed Go tests (`cdmhandler`, `cdm/store`) and
+    full browser-level auth flows exist in the repo and are believed correct
+    but could not be executed here — they report `skip`, not `pass`, in this
+    environment. Everything not requiring a live database or a real session
+    (Go model/rendering tests, frontend unit tests, and Playwright runs with
+    the CDM API mocked at the network layer) was actually run and passed.
+    Real Typst compilation was exercised directly (bypassing the DB) to verify
+    DR4/DR5d's preview output.
+  - No database migration was needed, confirming this ADR's own prediction:
+    `kb.cdm_documents`/`kb.cdm_blocks`/`kb.cdm_renderings`/`kb.cdm_anchors`
+    already existed from the preceding Phase 1 implementation, and none of the
+    9 task groups' commits touch `project_migrations/`.
 
 ## Context
 
@@ -268,31 +329,38 @@ already configured for `store.Publisher`.
 
 ## Implementation
 
-Not started. Suggested sequence, each step independently verifiable:
+**Implemented (MVP)**, 2026/07/27, as OpenSpec change
+`ChenWeb/openspec/changes/cdm-editor-mvp/` (see that change's `tasks.md` for
+the full per-group account, including bugs found and fixed along the way).
+The suggested sequence below is what actually happened, steps 5-6 renumbered
+slightly as they landed as task groups 7-8:
 
-1. `cdmhandler` with load/save/create + routes and auth. Verify with HTTP tests
-   against the live staging database, the convention this project already
-   follows for `kbhandler`.
+1. `cdmhandler` with load/save/create + routes and auth, under `/api/v1/cdm`
+   per design.md D1 (not `/api/cdm` as originally written above). Verified
+   with HTTP tests against the live staging database, following the
+   `kbhandler` convention.
 2. The Svelte block list with read-only rendering of all nine Phase 1 block
-   types, loading a real document from the API. Verify against the existing
-   `cdmfixtures` documents, which already cover every block and inline type.
+   types, loading a real document from the API. Verified against the existing
+   `cdmfixtures` documents.
 3. Inline editing via TipTap for `paragraph`/`heading`/`quote`, with the
    CDM↔ProseMirror mapping tested round-trip.
 4. Structured editors for `table`, `list`, `code`, `equation`, `image`,
    `callout`.
-5. Save with optimistic concurrency (DR6), publish, new-version (D8).
-6. Preview via rendered SVG pages (DR4).
-
-This should be carried as an OpenSpec change under
-`ChenWeb/openspec/changes/`, per this project's workflow, rather than
-implemented directly from this ADR.
+5. Save with optimistic concurrency (DR6), publish with confirmation, and
+   preview via rendered SVG pages (DR4) — new-version (D8) was **not**
+   implemented; see the 2026/07/27 Change Log entry above.
+6. `/home3/cdm` routes and the full create→edit→save→publish→preview loop
+   driven live end to end.
 
 ### Code Changes
 
-None yet. Anticipated: new `server/api/cdmhandler/`, route registration in
-`server/api/routes.go`, new `web/src/routes/home3/cdm/`, new
-`web/src/lib/components/cdm/`, and a TipTap dependency added to
-`web/package.json`.
+`server/api/cdmhandler/` (new: `handler.go`, `documents.go`), route
+registration in `server/api/routes.go`, `web/src/routes/home3/cdm/` (list and
+`[key]` editor routes), `web/src/lib/components/cdm/` (types, API client,
+block-id allocation, block list/view, inline editor + ProseMirror schema/
+mapping, structured block editors, document editor wiring), and `@tiptap/core`
++ `@tiptap/pm` added to `web/package.json` (not `@tiptap/starter-kit` — DR1's
+CDM-only schema is hand-written).
 
 ## Operational Behaviors
 
@@ -331,29 +399,59 @@ None yet. Anticipated: new `server/api/cdmhandler/`, route registration in
 
 ## Tests
 
-When implemented, these decisions imply: a round-trip test that a document
+All implemented, as anticipated, with one scope adjustment (no new-version
+endpoint exists, so no test covers it): a round-trip test that a document
 loaded through the API, edited in the block model, and saved returns
-byte-identical canonical JSON when unedited (DR1, DR2); a CDM↔ProseMirror
-mapping test covering every inline type in both directions (DR1); a test that
-the ProseMirror schema cannot produce a presentation mark (DR1, D1); an API test
-that saving a published document is rejected and that the new-version endpoint
-produces a second document with the expected relation (DR2, D8); a test that a
-stale `content_version` is rejected and the current one returned (DR6); a test
-that a duplicate block ID is rejected with the slug named (DR5); and a test that
-preview returns the same SVG bytes as a publish render of the same
-`content_version` (DR4).
+byte-identical canonical JSON when unedited (DR1, DR2 —
+`types.test.ts`'s fixture round-trip plus the Go-side
+`TestSave_ThenLoad_RoundTrips`/`TestGetDocument_ReturnsCanonicalJSON`); a
+CDM↔ProseMirror mapping test covering every inline type in both directions
+(DR1 — `inline-mapping.test.ts`, 13 cases); a test that the ProseMirror schema
+cannot produce a presentation mark (DR1, D1 — `inline-paste.test.ts`'s
+paste-sanitization cases); an API test that saving a published document is
+rejected (DR2, D8 — `TestSave_PublishedDocumentIsFrozen`/
+`TestSaveDocument_PublishedDocumentIs409Frozen`; the new-version endpoint
+itself was never built, see above); a test that a stale `content_version` is
+rejected and the current one returned (DR6 —
+`TestSave_StaleVersionIsRejected`/`TestSaveDocument_StaleVersionIs409`); a test
+that a duplicate block ID is rejected with the slug named (DR5 —
+`TestValidate_DuplicateBlockID`, `TestSave_SlugConflictReturnsTypedError`); and
+a test that preview returns the same SVG bytes as a publish render of the same
+`content_version` (DR4 — `TestPublisher_PreviewMatchesPublishedArtifact`,
+added during the `cdm-editor-mvp` change's own verification pass after
+noticing this guarantee had only ever been true "by construction," never
+actually checked). DR9's "editing invalidates the preview" got the same
+treatment: `TestRenderDocument_EditInvalidatesCachedPreview`.
+
+The DB-backed Go tests and any test requiring a real Kratos session could not
+be run in the environment this change was built in (no `TEST_DATABASE_URL`,
+no way to establish a session) — they report `skip`, not `pass`, there. They
+are ordinary Go tests, identical in kind to every other `kbhandler`/`cdm`
+test in this repo, and will run normally wherever that environment variable
+is set.
 
 ## Documentation Impact
 
 *What knowledge changed:* the editing component question that spec
 `2026072502` left open is answered, as a block-list-plus-inline-editor split
 rather than a single library choice; the missing CDM HTTP API is identified and
-specified; and an MVP scope is drawn that adds no backend capability.
+specified; and an MVP scope is drawn that adds no backend capability. As of
+2026/07/27: the MVP is built, at `/api/v1/cdm` rather than `/api/cdm`;
+Paraglide i18n (DR7) is not part of it, matching actual `home3` practice
+rather than the ADR's original assumption; block ids in practice are always
+type-plus-counter slugs, not heading-text-derived ones, because the built
+interaction model never has heading text at block-creation time; and two
+DR2 endpoints (`versions`, soft `delete`) were never built.
 
 *Which docs were updated:* `2026072502-spec-cdm-editor` — §5 phasing corrected
 to record that CDM Phase 1 and D5a are implemented, and to state that no HTTP
 API exists; D5a annotated with what the implementation actually learned; status
-line updated. This ADR is new.
+line updated. This ADR is new. **2026/07/27:** this ADR's own Status line,
+Change Log, Implementation, and Tests sections updated to record the MVP's
+completion and the divergences found while building it (see the 2026/07/27
+Change Log entry); `2026072502-spec-cdm-editor` §5 phasing updated again to
+record which MVP features actually shipped (superseding the 2026/07/26
+update, which recorded only that Phase 1 the engine was done).
 
 *Which docs are now stale:* none. Spec §6 Open Question 1 (editing component)
 was answered by DR1 and struck on acceptance; the remaining questions were
@@ -363,7 +461,11 @@ renumbered and the resolution recorded beneath them.
 change summaries (spec §6 Q2, not needed by the MVP); the retired-block-ID store
 (D9), which has no consumer until cross-document references exist; and the
 concrete TipTap node-view implementations, which are implementation detail
-rather than architecture.
+rather than architecture. Newly, as of 2026/07/27: the specific TipTap
+node-view/extension source (still implementation detail); the exact Playwright
+mock response shapes used for browser-level verification in the absence of a
+usable auth/DB environment (recorded in `cdm-editor-mvp/tasks.md` instead,
+since they are test scaffolding, not architecture).
 
 ## References
 - Spec: `doc-repo/specs/202607/2026072502-spec-cdm-editor.md` — D1, D8, D9, D10,

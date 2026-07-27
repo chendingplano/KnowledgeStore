@@ -4,9 +4,12 @@
 - **Status:** Proposed — all Design Decisions recorded in ADR 2026072602 [3].
   D1–D7 map to DR1–DR7 (first review), D5a to DR5d, and D8–D17 to DR8–DR17
   (second review). **D13 is Proposed pending confirmation**; every other
-  decision is Accepted. **D5a is implemented** (2026/07/26); no other feature in
-  this spec has been built, and there is no editor UI or CDM HTTP API yet.
-- **Date:** 2026-07-25 (revised 2026-07-26)
+  decision is Accepted. **D5a is implemented** (2026/07/26). **The editor MVP
+  is implemented** (2026/07/27, ADR 2026072603, `cdm-editor-mvp`): CDM HTTP API
+  and editor UI for §2.2, §3.1, the non-frozen half of §2.3, and preview
+  including D5a's outlines — see §5 for exactly what shipped and what did not
+  (versioning §2.5, delete §2.6, and templates §2.8 remain unbuilt).
+- **Date:** 2026-07-25 (revised 2026-07-26, 2026-07-27)
 - **Component:** SemOS / ChenWeb — Canonical Document Model, authoring, artifacts
 - **Authors:** Chen Ding
 - **Tags:** SemOS, CDM, editor, authoring, artifacts, versioning, templates,
@@ -484,6 +487,15 @@ identity, not a label.
   silently.
 - Allocation derives a slug from heading text or block type plus a short
   disambiguator, unique within the document (CDM §1.2).
+  **Implementation note (`cdm-editor-mvp`, 2026/07/27):** the allocator
+  supports both, but the MVP's insert-then-type interaction (a block is
+  created empty; the author types its content afterward) means heading text
+  never exists at the moment a block is actually created through the shipped
+  editor. Every id it produces is therefore type-plus-counter (`heading-2`),
+  never text-derived (`score-range`), even though the fixtures this spec and
+  its tests use show the latter style. Closing this needs either a different
+  interaction (author supplies heading text before the block exists) or a
+  rename step after first save; out of scope for the MVP.
 
 Cross-document references always point at published — hence frozen (D8) —
 documents, so ID churn is confined to drafts and never breaks an external
@@ -623,29 +635,54 @@ user-visible labels are localized through that mechanism.
 
 Editor features are gated by CDM phases (CDM §13). **CDM Phase 1 is
 implemented** (AST, validator, Typst renderer, anchored rendering, line-file
-generation, storage, publish lifecycle, and D5a's outlines), so its row below is
-unblocked. No editor feature has started: there is no editor UI and no HTTP API
-in front of the Phase 1 Go packages, which are library-only today.
+generation, storage, publish lifecycle, and D5a's outlines).
+
+**As of 2026/07/27, the editor MVP is also implemented** — HTTP API
+(`/api/v1/cdm/*`) and editor UI (`/home3/cdm`) — via ADR 2026072603 and
+OpenSpec change `ChenWeb/openspec/changes/cdm-editor-mvp/`. The Phase-1-gated
+row below is split accordingly: what the MVP actually shipped vs. what
+remains unblocked-but-not-yet-built.
 
 | Depends on | Editor features |
 |---|---|
-| CDM Phase 1 — AST, Typst renderer, publish lifecycle, anchored rendering (**done**) | Create documents (§2.2), Text Edit Tool (§3.1), save/publish and versioning (§2.3, D8), version management (§2.5), template selection (§2.8), TOC and lists of figures/tables/formulas (D5a, **done**), delete (§2.6) |
+| CDM Phase 1 (**done**) — MVP **shipped** | Create documents (§2.2); Text Edit Tool (§3.1) for all nine Phase 1 block types; in-place save with optimistic concurrency and publish (§2.3, the non-frozen half only); on-demand preview, including the TOC and lists of figures/tables/formulas (D5a) |
+| CDM Phase 1 (**done**) — unblocked, **not yet built** | Opening a new version of a published document (§2.3's frozen-document half, D8); version history/lineage browsing (§2.5); delete (§2.6); template selection/management (§2.8 — the MVP always renders with `rendering.DefaultTheme`, no per-document template choice) |
 | CDM Phase 2 — retrieval projection and chunking | Search (§2.1), Inline Search (§3.7), author-declared chunking (§3.9) |
 | CDM Phase 3 — semantic blocks | Annotations that write blocks (§3.2), Document Reviewers (§3.3), Summarization / Extraction / Rewrite (§3.4–§3.6) |
 | New artifact types + metric reconciliation (not part of CDM) | Search by semantic object (§2.1), annotations that write artifacts (§3.2), artifact appendices (D5b) |
 | Deferred | Ontology (§3.8), lifecycle FSM (§2.4), retention (§2.7), concurrency control (D16), index (D5c), mandatory formatting standards (D1) |
 
-Two things deserve emphasis, because they are easy to miss when scheduling.
+Two things deserve emphasis, because they were easy to miss when scheduling —
+one now resolved, one still live.
 
-**There is no HTTP API for CDM.** Phase 1 delivered Go packages
-(`cdm/model`, `cdm/rendering`, `cdm/store`) that no route calls; nothing under
-`server/api/routes.go` mentions CDM. Every feature in the Phase 1 row above
-therefore needs an API surface built before or alongside its UI. This is not
-captured by "Phase 1 is done" and is the first real cost of the editor.
+**There was no HTTP API for CDM; now there is.** Phase 1 delivered Go packages
+(`cdm/model`, `cdm/rendering`, `cdm/store`) with no route in front of them.
+`cdm-editor-mvp` added `server/api/cdmhandler`, registered under the existing
+`/api/v1` group (`/api/v1/cdm/*`, not `/api/cdm/*` as ADR 2026072603 originally
+wrote — corrected during implementation). Every "shipped" feature in the table
+above goes through it; the "not yet built" row still needs API work of its own
+(a `versions` endpoint, a `delete` endpoint, template CRUD) before its UI can
+exist.
 
 **The editor's most valuable feature is gated on work not yet scheduled.**
 Semantic annotation depends on artifact types that D2 explicitly does not add in
-the current phase; that work must be planned, not assumed to fall out.
+the current phase; that work must be planned, not assumed to fall out. This
+remains true after the MVP: semantic annotation was explicitly out of the
+MVP's scope (ADR 2026072603 DR3) and is unaffected by anything shipped above.
+
+Two further gaps the MVP itself introduced, worth carrying into whatever plans
+the "not yet built" row above: **Paraglide i18n was not applied to the editor**
+(§3's toolbar and every editor string are hard-coded English) — checked
+against actual `home3` practice first, which uses Paraglide nowhere outside
+the public `/semos` pages, so this matches every sibling `home3` feature
+rather than diverging from D17's vocabulary-as-configuration intent; and
+**block ids in the shipped editor are always a type-plus-counter slug**
+(`heading-2`, not `score-range`) rather than the heading-text-derived slug D9
+describes, because the built insert-then-type interaction never has heading
+text available at the moment a block is created. Both are recorded in ADR
+2026072603's 2026/07/27 Change Log entry with the reasoning; neither blocks
+anything in the table above, but a future pass at §2.8 (templates) or a
+rename affordance would be the natural place to close the second one.
 
 # 6. Open Questions
 
