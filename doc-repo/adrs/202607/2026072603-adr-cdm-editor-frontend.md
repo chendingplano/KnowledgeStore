@@ -99,6 +99,44 @@ component) and DR3 (MVP scope) confirmed by the owner 2026/07/26 \
     two CSS custom properties it already read (`--cdm-surface`, `--cdm-muted`,
     which nothing had ever defined) plus `color-scheme` for its native form
     controls. No API, store, or AST change.
+* 2026/07/27, **DR1's editing-component decision and DR7's routes both
+  extended, same day, by impl `2026072703`: one split-pane shell replaces the
+  single-column editor and the embed-only list, everywhere.** Requested
+  directly against what `2026072702` had just shipped, not as a new change:
+  make the `/development` embed's rebuilt list the **only** design (not an
+  embed-only variant beside the MVP's original single-column editor), reshape
+  it as two persistent panes (list/editor left, docked live preview right,
+  drag-resizable divider) with no store-gate step, and stop calling
+  `CreateDocument` the moment a title is typed — defer it to the author's
+  first confirmed save, naming the target knowledge store in that
+  confirmation.
+  - **New component, one per product rather than one per host.**
+    `CdmEditorShell.svelte` is now what `/home3/cdm`, `/home3/cdm/[key]`, and
+    the `/development` embed all render — DR7's routes still exist, but both
+    now delegate to the same shell `2026072702`'s embed used alone.
+  - **No API or store change.** `CreateDocument` still writes `kb.inputs` and
+    `kb.cdm_documents` atomically in one call (design D2 of this change's own
+    `design.md`, unaffected) — only *when* the editor UI decides to make that
+    call moved, from "New Document" to the first confirmed Save.
+  - **DR4's preview (on-demand, cached by `content_version`, never
+    per-keystroke) is unchanged in behavior; only its display moved** — from
+    `DocumentEditor`'s own modal overlay to a pane the shell owns permanently,
+    via three `$bindable` props (`previewPages`/`previewVersion`/
+    `previewLoading`) instead of local `$state` rendered into a fixed overlay.
+  - **A real regression, caught by Playwright and fixed before shipping:**
+    the shell's `editingDocument` was first declared with plain `$state`,
+    which deep-proxies the value; `DocumentEditor`'s own
+    `structuredClone(initialDocument)` then threw at runtime the moment a
+    document was opened — the identical `$state`-vs-`$state.raw`
+    `structuredClone` crash `DocumentEditorPage.svelte` was built to avoid in
+    the original MVP (this document's own 2026/07/27 entry above). Fixed the
+    same way: `$state.raw`. Recorded because it is exactly the kind of
+    regression a same-day follow-up reintroduces from a fix that was never
+    made structurally hard to undo.
+  - Full detail, including what did not change (the backend contract; that
+    `/home3/cdm`'s own in-shell document navigation does not update the URL,
+    a documented tradeoff rather than an oversight) is in impl
+    `2026072703-impl-cdm-editor-split-shell`.
 
 ## Context
 

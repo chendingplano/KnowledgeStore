@@ -72,6 +72,16 @@ invisible to both worklists but has somewhere to attach author-triggered
 artifacts. Tenant and store scoping (`tenant_id`, `ks_store_id`) are inherited
 from that row.
 
+**Implementation note (split-pane shell, 2026/07/27, impl `2026072703`):**
+"immediately" describes the API (`CreateDocument` still writes both rows
+atomically in one transaction the moment it is called — unchanged). What
+changed is when the editor UI *calls* it: "New Document" opens a fresh,
+empty, purely in-memory document with no `document_key` and no server call at
+all, and the author's first Save on it is what actually invokes
+`CreateDocument`, after confirming a dialog that names the target knowledge
+store. Nothing above the API boundary changed; only how soon the UI commits
+to writing something.
+
 ## 2.3 Modify Documents and Versioning
 
 A document is **read-write until it is published, and read-only afterwards**
@@ -685,6 +695,18 @@ endpoint still takes no such parameters, which becomes wrong at pagination
 scale), and the active knowledge store still does not survive a page reload,
 since `knowledgeStoreState` is an in-memory singleton shared with the other
 `home3` views.
+
+**Same day, made into one shared design instead of an embed-only one.** Impl
+`2026072703` replaced the single-column editor and `2026072702`'s rebuilt list
+with `CdmEditorShell`, one component all three hosts (`/home3/cdm`,
+`/home3/cdm/[key]`, and the `/development` embed) now render: a persistent
+two-pane frame — list/editor on the left, a docked live preview on the right,
+a drag-resizable divider — with the store-gate screen replaced by an
+auto-selected store and a compact dropdown, and "New Document" deferring its
+`CreateDocument` call until the author's first confirmed save (§2.2's
+implementation note above). Preview moved from a modal overlay into that
+persistent right pane; design D9's on-demand, never-per-keystroke rule is
+unchanged, only where the result is displayed.
 
 Two further gaps the MVP itself introduced, worth carrying into whatever plans
 the "not yet built" row above: **Paraglide i18n was not applied to the editor**
