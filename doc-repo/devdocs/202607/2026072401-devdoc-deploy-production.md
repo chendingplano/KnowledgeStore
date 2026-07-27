@@ -1,5 +1,5 @@
 # How to Build and Deploy a Production System
-**Date:** 2026-07-24 (updated 2026-07-24 after first full bring-up on staging)
+**Date:** 2026-07-24 (updated 2026-07-24 after first full bring-up on staging; updated 2026-07-28 to add the `create-admin` sysadmin-bootstrap tool, §2.5)
 **Scope:** Deploy `ChenWeb` — Go backend + Kratos (auth) + NATS/JetStream + Postgres/ParadeDB + the Python `pdf-parser`/MinerU service — to a Linux server (Ubuntu 20.04 LTS or newer), built from a MacMini. Target reference machine in this doc: `192.168.29.96` (ssh port `8822`, user `cding`).
 
 **Audience:** This doc is written so both a human and Claude Code can follow it end-to-end on a brand-new box with no prior state. Every gotcha below was hit for real on a fresh Ubuntu 20.04 machine — follow the order given, it avoids most of the trial-and-error.
@@ -521,16 +521,46 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
 
 Note this differs slightly from the Mac's own ChenWeb repo: there, `config.toml`/`.env` sit at the repo root alongside the actual Go/Svelte source. On Linux, `~/Workspace/ChenWeb/` holds the deploy artifacts (binary, config, migrations, `Data/`) at its root and `python/pdf-parser` as a real source subdirectory — no Go/Svelte source is ever present, since the binary is cross-compiled and the frontend is embedded at build time (§2.1–2.2).
 
-The Go binary and `config.toml` alone are **not enough** — the migration SQL directories and the shared library config also have to be present on disk (they're read from the filesystem at runtime, not embedded in the binary):
+The Go binary and `config.toml` alone are **not enough** — the migration SQL directories, the app's `config/` tree, and the shared library config also have to be present on disk (they're read from the filesystem at runtime, not embedded in the binary):
 
 ```bash
 rsync -P -e "ssh -p 8822" .cache/server-linux cding@<host>:~/Workspace/ChenWeb/server-linux
 rsync -P -e "ssh -p 8822" config.toml cding@<host>:~/Workspace/ChenWeb/config.toml
+rsync -avz -e "ssh -p 8822" config cding@<host>:~/Workspace/ChenWeb/
 rsync -avz -e "ssh -p 8822" project_migrations shared_migrations cding@<host>:~/Workspace/ChenWeb/
 rsync -avz -e "ssh -p 8822" ~/Workspace/shared/libconfig.toml cding@<host>:~/Workspace/shared/libconfig.toml
 ```
 
-Run everything from `~/Workspace/ChenWeb/` as the working directory on Linux — `config.toml`, `.env`, `project_migrations/`, and `shared_migrations/` are all resolved relative to cwd (or its parents, for the migration dirs — see `server/cmd/config/config.go:resolveMigrationDir`).
+This `config/` copy is not optional. The customer-facing SemOS pages call `/api/site-config`, and that handler reads files such as `config/site/site-default-zh-cn.toml` directly from disk at request time. If you deploy only the binary, `/semos` and any other config-backed pages fail with alarms like:
+
+```text
+LoadSiteConfig failed: ... open config/site/site-default-zh-cn.toml: no such file or directory
+```
+
+The `project_migrations/` copy is equally non-optional. Several frontend pages now depend on **seeded database content**, not just code + TOML files. In particular, `/development` and `/resources` call `/api/v1/page-config/:pageKey`; the backend expects `kb.page_def` / `kb.page_config` rows created by the page-config seed migrations (`20260721000001_seed_page_config_development_nav.sql`, `20260722000002_seed_page_config_resources_nav.sql`, later companion seeds on 2026-07-22 / 2026-07-27). If the target box has an older `project_migrations/` directory, ChenWeb can start successfully but these pages log warnings like:
+
+```text
+page-config: unknown page_key requested page_key="development"
+page-config: unknown page_key requested page_key="resources"
+```
+
+So the deploy order matters:
+
+1. `rsync` the latest `project_migrations/` to the target box.
+2. Restart `chenweb` so startup goose migrations can see the new files and apply them.
+3. Smoke-test both `GET /api/site-config` and at least one page-config-backed route (`/development`, `/resources`) before calling the deploy complete.
+
+One more auth-related gotcha surfaced on **July 28, 2026**: page-config-backed pages also depend on the signed-in Kratos identity having a non-empty `metadata_public.roles` array. Without that, the strict access model hides almost every sidebar/app entry even when the DB seed rows are present, so the UI looks "half empty" rather than obviously broken. Older builds could create email-signup users with `metadata_public = null` because signup wrote roles only into the HTTP response, not back into the Kratos identity itself. Before declaring a fresh deploy healthy, verify at least one newly created email account through the Kratos Admin API and confirm it has something like:
+
+```json
+{"admin": false, "roles": ["guest"], "is_owner": false}
+```
+
+If an already-created staging/test account is missing that metadata, patch the identity in Kratos (or recreate the user) before debugging page-config visibility; otherwise `/home3/knowledge`, `/development`, `/resources`, `/semos/workspace`, etc. can look like frontend/menu bugs when the real issue is missing roles on the user record.
+
+If you ever need to replay a goose migration file manually with `psql`, **do not** run the raw file with `psql -f migration.sql`: goose files contain both `-- +goose Up` and `-- +goose Down`, and plain `psql` executes both sections. Either let ChenWeb/goose apply the migration normally, or extract and run only the `Up` section.
+
+Run everything from `~/Workspace/ChenWeb/` as the working directory on Linux — `config.toml`, `.env`, `config/`, `project_migrations/`, and `shared_migrations/` are all resolved relative to cwd (or its parents, for the migration dirs — see `server/cmd/config/config.go:resolveMigrationDir`).
 
 ### 2.4 doc-processor and parser-result-converter (NATS workers)
 
@@ -573,6 +603,40 @@ sudo systemctl restart doc-processor parser-result-converter
 (The `nats` CLI isn't installed by default — `curl -sL -o /tmp/nats-cli.zip https://github.com/nats-io/natscli/releases/download/v0.4.0/nats-0.4.0-linux-amd64.zip`, unzip, copy the `nats` binary to `~/bin/`. Genuinely useful for debugging JetStream — `nats stream ls`, `nats stream info <name>` — worth installing proactively rather than only when something breaks.)
 
 Systemd units follow the same pattern as `chenweb.service` (§1.7) — `WorkingDirectory=/home/<user>/Workspace/ChenWeb`, `Environment=SHARED_LIB_CONFIG_DIR=...`, plus the one `*_CONFIG=./config.toml` override each needs; no HTTP port, so no `curl` health check — verify via `systemctl is-active` and `journalctl -u <unit>` showing `jetstream subscription active` for the expected subjects.
+
+### 2.5 `create-admin` — bootstrap the default `sysadmin` account
+
+A brand-new Kratos instance (§1.6) starts with **zero identities** — there is no seeded admin account, and self-registration alone only grants `metadata_public.roles: ["guest"]` (§2.3's July 28 gotcha), not `admin`. `server/cmd/create-admin` is a small one-shot CLI (not a long-running service, no systemd unit) that creates or promotes the default `sysadmin` account directly via the Kratos Admin API (`auth.KratosCreateIdentityWithPassword` / `auth.KratosUpdateIdentity` in `shared/go/api/auth/kratos.go`), the same way `useradminhandler.go` promotes existing users — so it needs `KRATOS_ADMIN_URL` reachable (loopback-only, `:4434`, same as ChenWeb itself uses) but does **not** touch Postgres directly and does **not** need the full ChenWeb config/migration tree present.
+
+**Build** (same cross-compile pattern as §2.2):
+
+```bash
+cd ~/Workspace/ChenWeb
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+  go build -buildvcs=false \
+  -o .cache/create-admin-linux \
+  ./server/cmd/create-admin/.
+```
+
+**Deploy** (same rsync pattern as §2.3 — only the binary is needed, no config/migrations):
+
+```bash
+rsync -P -e "ssh -p 8822" .cache/create-admin-linux cding@<host>:~/Workspace/ChenWeb/create-admin-linux
+```
+
+**Use** — run once, after Kratos (§1.6.4) is up and reachable at `KRATOS_ADMIN_URL`, before or after the `chenweb` service itself is started (order doesn't matter, since this talks to Kratos directly, not through ChenWeb):
+
+```bash
+cd ~/Workspace/ChenWeb
+./create-admin-linux -email admin@dingbo.bzton.cn
+# -first-name defaults to "sysadmin" (Kratos has no separate username field — see below)
+# -last-name and -password are optional too; omitting -password prints a
+# generated one once — copy it immediately, it is not logged or shown again.
+```
+
+- `-email` is the only flag that's effectively required — Kratos identities are keyed by email, not a username, so there is no way to create an identity without one.
+- **Idempotent / safe to re-run**: if an identity with that email already exists (e.g. re-running this after a redeploy, or the account was created by hand through the Kratos Admin API already), it does **not** error or duplicate — it just ensures `metadata_public.admin = true` and `roles: ["admin"]` on the existing identity and exits 0. This also means it's the fix for the §2.3 "page-config looks half-empty" gotcha if it ever recurs on the sysadmin account specifically: re-running `create-admin` with that same email backfills the missing `roles` metadata without needing to recreate the identity.
+- Verify: `curl -s http://127.0.0.1:4434/admin/identities?credentials_identifier=admin@dingbo.bzton.cn | jq '.[0].metadata_public'` should show `{"admin": true, "roles": ["admin"]}`; or log in as that email/password at the deployed `/login` page and confirm admin-only nav entries appear.
 
 ## 3. Configuration — what must be a real environment variable vs. what can go in `.env`
 
@@ -888,7 +952,7 @@ sudo systemctl restart caddy
 
 ### 8.5 Where things live
 
-* `~/Workspace/ChenWeb/` — binaries (`server-linux`, `doc-processor-linux`, `parser-result-converter-linux`), `config.toml`/`config.local.toml`/`.env`, `project_migrations/`, `shared_migrations/`, `prompts/`, `.models.toml`, `docs/doc-templates/`, `python/pdf-parser/`, `Data/` (all runtime storage — logs, staging, artifacts, DocReviewReports, etc.)
+* `~/Workspace/ChenWeb/` — binaries (`server-linux`, `doc-processor-linux`, `parser-result-converter-linux`, `create-admin-linux` — the last one a one-shot tool, not a running service, see §2.5), `config.toml`/`config.local.toml`/`.env`, the runtime `config/` tree (`config/site/*.toml`, `config/workspace-content/*.toml`, etc.), `project_migrations/`, `shared_migrations/`, `prompts/`, `.models.toml`, `docs/doc-templates/`, `python/pdf-parser/`, `Data/` (all runtime storage — logs, staging, artifacts, DocReviewReports, etc.)
 * `~/Workspace/Kratos/` — built from source (`src/kratos/kratos`), config in `mise.local.toml` (**not** a copy of the Mac's — separate secrets, see devdoc §1.6.2)
 * `~/Workspace/ThirdParty/mineru/` — MinerU, CPU/pipeline backend
 * `~/Workspace/shared/libconfig.toml` — shared-library system table names (`SHARED_LIB_CONFIG_DIR` env var points here; **must** be a real exported env var, not just in `.env` — see devdoc §3)
@@ -965,20 +1029,25 @@ mise health-nats      # port check + JetStream stream listing
 
 **Step 4 — Kratos** (needs step 1):
 ```bash
-mise restart-kratos
+mise restart-kratos     # start kratos in background
+mise kratos-start-sync  # start kratos in foreground (will kill then start)
 mise health   # also checks ChenWeb/Caddy — those will still fail/404 until steps 5-6, that's expected here
 ```
-Foreground/debug variant: `mise kratos-start-sync` (Ctrl-C to stop, then `mise restart-kratos`).
 
 **Step 5 — ChenWeb + its NATS workers** (needs steps 2–4):
 ```bash
-mise restart-chenweb
-mise restart-doc-processor
-mise restart-parser-result-converter
+mise restart-chenweb            # start in background
+mise chenweb-start-sync         # start in foreground
+
+mise restart-doc-processor      # start in background
+mise doc-processor-start-sync   # start in foreground
+
+mise restart-parser-result-converter    # start in background
+mise parser-result-converter-start-sync # start in foreground
+
 mise health   # "ChenWeb :8080 -> 200"-ish and /session should now report 401 Login required —
               # confirms ChenWeb is up AND actually calling Kratos
 ```
-Foreground/debug variants, one at a time: `mise chenweb-start-sync`, `mise doc-processor-start-sync`, `mise parser-result-converter-start-sync` (each stops only that unit — the other two in this step stay under systemd; Ctrl-C then `mise restart-<service>` to resume).
 
 **Step 6 — Caddy** (needs step 5, reverse-proxies to ChenWeb/Kratos):
 ```bash
@@ -991,7 +1060,8 @@ Foreground/debug variant: `mise caddy-start-sync` — runs via `sudo` since the 
 
 **Step 7 — `pdf-parser` (optional)** — only if PDF ingestion is needed right now; not yet a systemd unit (§8.6), so it's always manual regardless of the others:
 ```bash
-mise pdf-parser-start        # or pdf-parser-start-sync to run in the foreground
+mise pdf-parser-start         # start in background
+mise pdf-parser-start-sync    # start in foreground
 mise pdf-parser-status
 ```
 

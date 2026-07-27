@@ -162,13 +162,183 @@ The term should be used precisely.
 | Knowledge graph | Instance data and assertions using those meanings | Pump P-101 has a discharge-pressure observation of 690 kPa |
 | Application profile | Context-specific required/allowed use of the model | an inspection certificate for a pressure vessel must report test pressure and date |
 
-SKOS is designed for concept schemes, labels, hierarchical relations, and mappings.
-OWL provides classes, properties, individuals, axioms, and inference. SHACL validates a
-data graph against explicit shapes. PROF describes profiles that constrain, combine, or
-guide the use of other specifications. These are complementary tools, not competing
-choices [R1][R2][R3][R9]. PROF is a W3C Working Group Note rather than a Recommendation;
-it is useful here as a descriptive pattern for SemOS profiles, not as a mandatory
-conformance standard.
+#### 3.1.1 SKOS
+**SKOS (Simple Knowledge Organization System)** is a W3C standard for representing **knowledge organization systems**—such as taxonomies, thesauri, subject heading systems, classification schemes, and controlled vocabularies—in RDF. Unlike full ontology languages such as OWL, SKOS is designed to model **concepts and their relationships**, not the detailed semantics of the real-world entities those concepts describe. In other words, SKOS answers questions like *"What concepts exist?"*, *"What are their preferred labels?"*, and *"How are they organized?"*, rather than *"What are the logical properties of this object?"*.
+
+The core abstraction in SKOS is the **Concept** (`skos:Concept`). A concept represents an idea or topic, such as *Response Time*, *Cardiovascular Disease*, or *Artificial Intelligence*. Each concept can have one or more human-readable labels, including a preferred label (`skos:prefLabel`), alternative labels (`skos:altLabel`) for synonyms or acronyms, and hidden labels (`skos:hiddenLabel`) for search purposes. Concepts can also have textual definitions (`skos:definition`), notes, examples, and multilingual labels. This makes SKOS particularly useful for search systems, metadata catalogs, digital libraries, and document management systems.
+
+SKOS also provides lightweight semantic relationships between concepts. The most common are `skos:broader` and `skos:narrower` for hierarchical relationships, and `skos:related` for associative relationships. For example, *Response Time* may have the broader concept *Performance Metric*, while *Time to First Byte (TTFB)* is a narrower concept. Unlike ontology languages, SKOS intentionally avoids giving these relationships strict logical meaning. A broader relationship simply indicates a conceptual hierarchy rather than formal subclass or inheritance semantics. This flexibility makes SKOS easy to build and maintain while remaining interoperable across organizations.
+
+For systems like **SemOS**, SKOS aligns well with the artifact category design. The categories (such 
+as metric categories, inventory categories, or document topics) naturally correspond to `skos:Concept`s. 
+The multilingual names become `prefLabel`s, aliases and abbreviations become `altLabel`s, 
+descriptions become `definition`s, and category hierarchy maps to `broader`/`narrower`. Since SemOS has also 
+been designing a keyword alias resolution module, SKOS provides a standardized way to represent canonical 
+terms and synonyms. However, SKOS would not replace the richer ontology. The category objects include 
+metadata such as typical attributes, common value ranges, usage guidance, examples, and relationships 
+to extracted artifacts—information that goes beyond standard SKOS. A practical architecture would therefore 
+treat SKOS as the **lightweight vocabulary layer** for concept management and discovery, while a richer 
+ontology (for example, in OWL or your own SemOS schema) models the detailed semantics, constraints, 
+causal relationships, and artifact-specific knowledge.
+
+#### 3.1.2 OWL
+**OWL (Web Ontology Language)** is a W3C standard for building **formal ontologies** on the 
+Semantic Web. Whereas SKOS is intended to organize and label concepts, OWL is intended to 
+describe the **meaning of entities and their relationships** in a way that both humans and 
+machines can reason about. OWL is built on RDF and RDF Schema (RDFS), but adds a much richer 
+set of constructs for expressing classes, properties, constraints, equivalence, cardinality, 
+and logical rules. This enables software to infer new facts automatically rather than merely 
+storing explicitly defined relationships.
+
+The central elements of OWL are **classes**, **individuals**, and **properties**. 
+OLWprovides classes, properties, individuals, axioms, and inference. A class 
+represents a type of thing (for example, *Medical Device* or *Performance Metric*), while 
+individuals are concrete instances of those classes (for example, a specific MRI scanner 
+or a particular latency measurement). Properties describe relationships or attributes. 
+Object properties connect one individual to another (e.g., *measures*, *manufacturedBy*), 
+while datatype properties connect an individual to literal values (e.g., *responseTime = 125 ms*). 
+OWL also supports inheritance through subclass relationships, allowing a reasoner to 
+understand that every *MRI Scanner* is also a *Medical Device*.
+
+A major strength of OWL is its ability to express **logical constraints**. You can specify 
+that two classes are equivalent, that two classes are disjoint (nothing can belong to both), 
+that a property is transitive, symmetric, or functional, or that a class must have certain 
+required properties. For example, you could define a class *High Availability System* as any 
+system having an availability of at least 99.99%, or state that every *Medical Standard* must 
+reference at least one regulatory authority. An OWL reasoner can then automatically classify 
+instances, detect inconsistencies, and infer implicit relationships that were never explicitly 
+asserted.
+
+OWL comes in several profiles with different trade-offs. **OWL 2 DL** is the most widely used 
+because it provides strong expressive power while ensuring that automated reasoning remains 
+computationally decidable. **OWL 2 EL**, **OWL 2 QL**, and **OWL 2 RL** are specialized profiles 
+optimized for large ontologies, efficient database querying, or rule-based reasoning, 
+respectively. Ontology editors such as Protégé and reasoners such as HermiT, Pellet, and ELK 
+are commonly used to build and validate OWL ontologies.
+
+For a system like **SemOS**, OWL is well suited for modeling **domain semantics** rather than 
+document organization. SKOS can describe the vocabulary of categories, keywords, and aliases, 
+while OWL can define what those categories actually mean and how they relate. For example, 
+you could model that every *Response Time Metric* measures exactly one *Performance Characteristic*, 
+that *Time to First Byte* is a subtype of *Response Time Metric*, or that certain metrics are 
+only applicable to particular product types. As your plans extend to representing products, metrics, 
+inventory items, causal relationships, and compliance knowledge extracted from standards, OWL 
+provides a rigorous semantic layer that supports consistency checking and automated inference. 
+At the same time, not every aspect of SemOS needs OWL—many retrieval-oriented structures, search 
+indexes, summaries, and extracted document artifacts are better represented using simpler data 
+models, reserving OWL for knowledge where formal semantics and reasoning provide tangible value.
+
+### 3.1.3 SHACL
+**SHACL (Shapes Constraint Language)** is a W3C standard for **validating RDF graphs**. While 
+OWL answers the question *"What is logically true?"*, SHACL answers a different question: 
+*"Does this data conform to my expected schema or business rules?"* This distinction is important. 
+OWL is based on the **Open World Assumption**, meaning that missing information is simply unknown. 
+SHACL, on the other hand, is intended for **data quality and validation**. It checks whether RDF 
+data satisfies a set of constraints and reports violations when it does not.
+
+The central concept in SHACL is a **Shape**. A shape defines constraints that a set of RDF 
+nodes must satisfy. For example, suppose you have a class `Metric`. A SHACL shape might 
+require that every metric:
+
+* has exactly one preferred name,
+* has at least one unit,
+* has a numeric threshold,
+* belongs to at least one category, and
+* references its source document.
+
+If a metric is missing its unit or has two preferred names, the SHACL validator reports these as 
+validation errors. Unlike OWL, SHACL does not attempt to infer missing information—it simply 
+checks the data against the declared constraints.
+
+SHACL provides a rich collection of constraint types. You can specify required properties, 
+cardinality (`minCount`, `maxCount`), datatype restrictions, allowed value ranges, string 
+patterns, enumerated values, class membership, and relationships between nodes. It also supports 
+more advanced features such as logical combinations (`sh:and`, `sh:or`, `sh:not`), conditional 
+validation, custom validation functions, and rule execution. This makes SHACL suitable not only 
+for structural validation but also for enforcing domain-specific business rules.
+
+One way to think about the three major Semantic Web standards is:
+
+| Standard | Purpose                                     | Typical Question                                |
+| -------- | ------------------------------------------- | ----------------------------------------------- |
+| RDF      | Represent facts as a graph                  | "What data do we have?"                         |
+| SKOS     | Organize concepts and vocabularies          | "What concepts exist and how are they related?" |
+| OWL      | Model formal semantics and enable reasoning | "What can be logically inferred?"               |
+| SHACL    | Validate data quality                       | "Is this data complete and correct?"            |
+
+For **SemOS** project, SHACL could be particularly valuable because your pipeline extracts structured 
+artifacts from documents using LLMs. LLM-generated data is rarely perfect, so having an automatic 
+validation layer is useful before storing artifacts in the knowledge base. For example, you could 
+define SHACL shapes stating that every extracted metric must have a canonical name, a category, a 
+confidence score between 0 and 1, at least one source location, and either a unit or an explicit 
+indication that the metric is unitless. Likewise, product entities could be required to have identifiers, 
+provisions could require a normative keyword ("shall", "should", etc.), and category objects could 
+require multilingual labels and descriptions. Invalid extractions can then be flagged for correction, 
+re-extracted by another model, or sent for human review. This fits naturally into an LLM-based extraction 
+pipeline because SHACL serves as a deterministic quality gate after probabilistic extraction.
+
+In practice, these standards complement rather than replace one another. A typical semantic architecture 
+uses **SKOS** to manage vocabularies and aliases, **OWL** to define the meaning and relationships of 
+domain entities, and **SHACL** to ensure that the actual data conforms to the intended model. For many 
+production knowledge graphs, SHACL is the mechanism that keeps data clean, while OWL provides the semantic 
+richness and inference capabilities needed for advanced querying and reasoning.
+
+### 3.1.4 PROF
+**PROF (Profiles Vocabulary)** is a W3C recommendation for describing **profiles of specifications**. 
+A *profile* is essentially a constrained or specialized version of an existing standard that is 
+tailored for a particular community, application, or use case. Instead of inventing an entirely new 
+standard, a profile says, "We use this existing specification, but only these parts, with these additional rules." PROF provides a machine-readable way to publish and discover those profiles.
+
+For example, suppose your organization adopts RDF, SHACL, and SKOS, but imposes additional requirements for medical standards. You might require that every concept has both English and Chinese labels, that all metrics include units and confidence scores, and that every extracted provision references its source document. Those requirements define a **profile** of the underlying standards. PROF lets you describe that profile, state which standards it is based on, provide human-readable documentation, and point to machine-readable artifacts such as SHACL validation rules, OWL ontologies, JSON-LD contexts, or XML schemas.
+
+The key concepts in PROF are relatively simple. A **Profile** describes the constrained specification itself. It is linked to one or more **base specifications** (called *Resource Descriptors*) that it profiles. The profile can also advertise various **artifacts** associated with it, such as:
+
+* Human-readable documentation
+* SHACL validation shapes
+* OWL ontology files
+* JSON-LD contexts
+* RDF schemas
+* Example datasets
+* API documentation
+
+This allows software to discover not only *what* the profile is, but also *how* to use it and *where* to obtain the supporting resources.
+
+A useful way to think about PROF is that it describes the **contract** for an ecosystem rather than the data itself. For example:
+
+* **OWL** defines the ontology.
+* **SKOS** defines the controlled vocabulary.
+* **SHACL** defines validation rules.
+* **PROF** describes how all of those pieces fit together into a particular implementation profile.
+
+This makes it easier for different organizations or systems to interoperate while still allowing each to impose its own conventions.
+
+For your **SemOS** project, PROF could become a valuable packaging and governance mechanism. You have been designing a comprehensive knowledge representation involving extracted metrics, provisions, products, categories, aliases, causal models, and multilingual metadata. Rather than documenting these requirements informally, you could publish a **SemOS Profile** that references the underlying standards (RDF, SKOS, OWL, SHACL) and links to all of the artifacts needed to implement the profile:
+
+* the SemOS ontology (OWL),
+* category vocabularies (SKOS),
+* extraction validation rules (SHACL),
+* JSON-LD contexts,
+* API specifications,
+* example datasets, and
+* implementation guides.
+
+This would allow external tools and organizations to understand exactly what "SemOS-compliant" means and automatically discover the resources needed to validate or consume SemOS knowledge graphs. As SemOS evolves, you could publish multiple profiles—for example, a **Medical Standards Profile**, a **Software Engineering Profile**, or a **Lightweight Retrieval Profile**—all sharing the same core architecture but specializing it for different domains or deployment scenarios.
+
+### 3.1.5 RDF
+RDF (Resource Description Framework) is a standard W3C data model used to describe, 
+link, and exchange information on the web through simple triples (subject, predicate, and object). 
+It forms the foundational layer of the  Semantic Web , turning separate data points into an 
+interconnected graph. [1, 2, 3]  
+
+* Triples: Every piece of data is a statement consisting of a subject (the resource), a predicate (the property or relationship), and an object (the value or another resource). 
+* URIs/IRIs: Items in a triple are typically identified using web addresses (Uniform Resource Identifiers) so computers worldwide mean the exact same thing by a term. 
+* Graphs: When you connect multiple triples together, they form a web-like directed graph of information instead of traditional database rows and columns. [1, 6]  
+
+Common Formats and Uses 
+
+* Formats: Written in human- and machine-readable text files using languages like Turtle (.ttl), RDF/XML, or JSON-LD. 
+* Integration: Used to merge different datasets smoothly even if their underlying database structures do not match. 
+* Ecosystem: Acts as the base for advanced tools like SPARQL (for querying graphs) and OWL (for defining complex logic and ontologies). [1, 2, 3, 6]  
 
 ### 3.2 Ontology is not the same as canonical identity
 
@@ -189,6 +359,13 @@ Conflating these questions creates hard-to-repair errors. For example, merging t
 `object_nodes` because both are classified as pumps would confuse class membership with
 identity. Similarly, storing “pressure = 100 psi” directly on an object would overwrite
 parallel claims from different documents, times, and modalities.
+
+[1] https://en.wikipedia.org/wiki/Resource_Description_Framework
+[2] https://www.w3.org/RDF/
+[3] https://www.oxfordsemantic.tech/faqs/what-is-rdf
+[4] https://www.youtube.com/watch?v=NzzAxEPpuJQ
+[5] https://graphwise.ai/fundamentals/what-is-rdf/
+[6] https://www.youtube.com/watch?v=l1q7JGRrTNs
 
 ### 3.3 Open-world knowledge versus closed-world review
 

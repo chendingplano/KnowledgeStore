@@ -13,6 +13,36 @@ reaches a terminal state.
 
 ## Open
 
+- [2026073003 — extract_metrics recall investigation wrap-up: final state and disposition](202607/2026073003-bug-extract-metrics-recall-investigation-wrapup.md)
+  — `open, paused by decision`. Closes out the three-stage investigation started in
+  2026073001/2026073002. One root cause fixed with high confidence (scope-language
+  misclassification, validated non-contaminated at `v8`/`v9`: 3/4→4/4 on `resolution`).
+  A second partially fixed (heading misclassification interacting with a real
+  recall-consistency problem on `alarm`: 2/4 historical → 3/4 under `v9`, not yet
+  reliable). A third — clauses failing in correlated pairs across identical calls —
+  observed twice independently, still unexplained. Per explicit user decision, this
+  line of investigation is paused here; `v9`/`v4` are NOT promoted to production
+  (`mise.local.toml` still pins `v4`/`v2`) pending validation against all 9 fixture
+  documents, which was never run. That full-corpus validation is the concrete item
+  still owed if this is picked back up.
+- [2026073002 — reframing extract_metrics instability with required-vs-best-effort coverage scoring](202607/2026073002-bug-extract-metrics-required-vs-best-effort-coverage-scoring.md)
+  — `open`, follow-up to 2026073001. Added `gold.toml`'s `expectation` field (19
+  qualitative clauses marked `best_effort`) and `coverage.go`'s `ScoreCoverage`
+  judgement (`captured`/`missing_required`/`missing_best_effort`), tested against
+  2026073001's own 4 real runs. Rescoring isolates the real, still-open problems:
+  `resolution` (`limit_absent`) failed 4/4, `alarm` succeeded only 2/4 — everything
+  else was acceptable best-effort variation. Awaiting review on: whether
+  `cl:ent-readability-1m` is correctly best_effort, the resolution/alarm fixes
+  themselves, and whether `captured` should later split into correct/incorrect.
+- [2026073001 — `extract_metrics` recall is unstable across identical, temperature-0 repeated calls](202607/2026073001-bug-extract-metrics-recall-instability-across-identical-calls.md)
+  — `open`. Four repeats of the same document/prompts produced 4/6/8/4 metric rows.
+  One clause (`resolution`, `limit_absent`) failed 4/4 — the most reproducible failure
+  in the dataset. Two clause pairs succeeded/failed together across all 4 runs,
+  suggesting the noise may cluster by processing unit rather than being independent
+  per-clause. Also found and isolated a separate `gold.toml` fixture defect (a merged
+  clause text) unrelated to the model. Temperature is already 0 and not configurable —
+  ruled out as the cause. See 2026073002 for a rescoring that isolates which findings
+  here are still real defects vs. acceptable best-effort noise.
 - [2026071404 — doc-structure line cards ignore light mode](202607/2026071404-bug-doc-structure-line-cards-ignore-light-mode.md)
   — `fixed-verified`, and the content-column audit that 2026071403 opened is now
   **closed**: all nine `/home3` host views have been swept and tokenized. Still

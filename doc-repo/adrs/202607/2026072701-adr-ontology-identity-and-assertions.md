@@ -8,7 +8,7 @@
 
 ## Change Logs
 * 2026/07/27, ADR created. Ratifies the architectural decisions stabilized in
-  spec `2026072702-spec-canonical-artifacts` after incorporating ontology
+  spec `2026072702-spec-ontology-canonical-artifacts` after incorporating ontology
   governance, authoring lifecycle, and artifact-association design.
 
 ## Context
@@ -49,7 +49,7 @@ projections, topics, and scene blocks are especially dangerous here: they are
 valuable artifacts, but they are regenerated or derived views whose identities
 must not become the ontology itself.
 
-Spec `2026072702-spec-canonical-artifacts` resolves that problem by separating:
+Spec `2026072702-spec-ontology-canonical-artifacts` resolves that problem by separating:
 
 ```text
 source evidence
@@ -319,7 +319,7 @@ Follow-up ADRs are still needed for:
 
 ## References
 
-1. [2026072702-spec-canonical-artifacts](/Users/cding/Workspace/KnowledgeStore/doc-repo/specs/202607/2026072702-spec-canonical-artifacts.md)
+1. [2026072702-spec-ontology-canonical-artifacts](/Users/cding/Workspace/KnowledgeStore/doc-repo/specs/202607/2026072702-spec-ontology-canonical-artifacts.md)
 2. [2026072302-rsch-object-centric-ontology](/Users/cding/Workspace/KnowledgeStore/doc-repo/research/202607/2026072302-rsch-object-centric-ontology.md)
 3. [2026070101-adr-object-centric-design](/Users/cding/Workspace/KnowledgeStore/doc-repo/adrs/202607/2026070101-adr-object-centric-design.md)
 4. [2026070701-adr-object-reconciliation-ambiguous-tie-resolution](/Users/cding/Workspace/KnowledgeStore/doc-repo/adrs/202607/2026070701-adr-object-reconciliation-ambiguous-tie-resolution.md)

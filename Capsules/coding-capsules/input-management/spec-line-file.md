@@ -1,1 +1,0 @@
-/Users/cding/Workspace/KnowledgeStore/doc-repo/202604/2026042101-line-file-spec.md

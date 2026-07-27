@@ -997,3 +997,15 @@ etc.
 Each extractor is an agentic application, and each agentic app has a 
 Agent Harness specifically tuned for that app.
 
+= 2026/07/27 - Dev Notes
+
+*Ontology*
+- Ontology Objects: term, axiom or mapping, semantic assertion, profile rule domain module, 
+- Artifact lifecycle: candidate, normalize and reconcile, validate, human/policy
+  approval, immutable release, active, deprecated or superseded
+- Ontology Terms: external resources?
+- Ontology Assertions: 'P-101 has discharge pressure 690 kPa'
+- Domain modules: terms, axioms, mappings, profiles, dependencies, validation fixtures, release metadata
+
+= 2026/07/30 - Dev Notes
+Working on the benchmark.
