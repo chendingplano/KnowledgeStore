@@ -77,6 +77,28 @@ component) and DR3 (MVP scope) confirmed by the owner 2026/07/26 \
     `kb.cdm_documents`/`kb.cdm_blocks`/`kb.cdm_renderings`/`kb.cdm_anchors`
     already existed from the preceding Phase 1 implementation, and none of the
     9 task groups' commits touch `project_migrations/`.
+* 2026/07/27, **DR7 extended: the editor is now reachable, and its list route
+  is a page.** Recorded in impl `2026072702-impl-cdm-editor-workspace-app`.
+  Two things DR7 did not say, both of which mattered:
+  - **DR7 named the routes but not the way in.** Nothing in the product linked
+    to `/home3/cdm`; the only way to reach the shipped MVP was to type the
+    path. `/semos/workspace` now carries a seventh `[[workspace.apps]]` tile,
+    `key = "cdm_editor"` → `/home3/cdm`. Its label *is* localized ("CDM
+    Editor" / "智能编辑器"), which does not reopen this ADR's reversal of
+    DR7's Paraglide commitment: app tiles localize through the site-config +
+    `kb.page_config` overlay (ADR 2026071701/2026071602), a mechanism that
+    already existed and that the other six tiles already use. The editor's own
+    strings remain hard-coded English.
+  - **`/home3/cdm` was route wiring, not a page.** Task group 8 shipped a bare
+    heading, an unstyled store `<ul>`, and a plain `<table>`; the project owner
+    assessed it as a temporary bridging page, which is what it was built as.
+    It is rebuilt as the editor's document-management landing page (store
+    gate, create row, status tabs, title filter, designed empty/error states,
+    light and dark), and `/home3/cdm/[key]` given matching chrome.
+    `DocumentEditor.svelte` is unmodified: both route wrappers now define the
+    two CSS custom properties it already read (`--cdm-surface`, `--cdm-muted`,
+    which nothing had ever defined) plus `color-scheme` for its native form
+    controls. No API, store, or AST change.
 
 ## Context
 

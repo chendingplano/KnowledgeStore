@@ -645,7 +645,7 @@ remains unblocked-but-not-yet-built.
 
 | Depends on | Editor features |
 |---|---|
-| CDM Phase 1 (**done**) — MVP **shipped** | Create documents (§2.2); Text Edit Tool (§3.1) for all nine Phase 1 block types; in-place save with optimistic concurrency and publish (§2.3, the non-frozen half only); on-demand preview, including the TOC and lists of figures/tables/formulas (D5a) |
+| CDM Phase 1 (**done**) — MVP **shipped** | Create documents (§2.2); Text Edit Tool (§3.1) for all nine Phase 1 block types; in-place save with optimistic concurrency and publish (§2.3, the non-frozen half only); on-demand preview, including the TOC and lists of figures/tables/formulas (D5a); reachable from `/semos/workspace` as its own app tile, with a document-management landing page (impl `2026072702`) |
 | CDM Phase 1 (**done**) — unblocked, **not yet built** | Opening a new version of a published document (§2.3's frozen-document half, D8); version history/lineage browsing (§2.5); delete (§2.6); template selection/management (§2.8 — the MVP always renders with `rendering.DefaultTheme`, no per-document template choice) |
 | CDM Phase 2 — retrieval projection and chunking | Search (§2.1), Inline Search (§3.7), author-declared chunking (§3.9) |
 | CDM Phase 3 — semantic blocks | Annotations that write blocks (§3.2), Document Reviewers (§3.3), Summarization / Extraction / Rewrite (§3.4–§3.6) |
@@ -669,6 +669,22 @@ Semantic annotation depends on artifact types that D2 explicitly does not add in
 the current phase; that work must be planned, not assumed to fall out. This
 remains true after the MVP: semantic annotation was explicitly out of the
 MVP's scope (ADR 2026072603 DR3) and is unaffected by anything shipped above.
+
+**The MVP was shipped unreachable, and now is not.** Task group 8 built
+`/home3/cdm` as route wiring, and nothing in the product linked to it — the
+only way in was to type the path. Impl `2026072702` (2026/07/27) added a
+seventh `/semos/workspace` app tile ("CDM Editor" / "智能编辑器" →
+`/home3/cdm`) and rebuilt that route into a document-management landing page:
+knowledge-store gate, create-document row, and a document list with status
+tabs, a title filter, status badges, and designed empty/error states, themed
+for light and dark. It added **no capability** — same three endpoints, same
+`knowledgeStoreState` scoping — so every row of the table above is unchanged
+by it. Two limitations it records rather than fixes: the document list's title
+and status filters are client-side over the page `ListDocuments` returns (that
+endpoint still takes no such parameters, which becomes wrong at pagination
+scale), and the active knowledge store still does not survive a page reload,
+since `knowledgeStoreState` is an in-memory singleton shared with the other
+`home3` views.
 
 Two further gaps the MVP itself introduced, worth carrying into whatever plans
 the "not yet built" row above: **Paraglide i18n was not applied to the editor**
