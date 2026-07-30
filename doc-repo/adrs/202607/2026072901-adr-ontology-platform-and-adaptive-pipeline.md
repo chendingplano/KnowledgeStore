@@ -101,13 +101,16 @@ grew their own variants of it, and while ontology terms are about to grow a fift
 Building the keyword module as a fourth bespoke system would lock in the divergence. DR15
 extracts the kernel instead.
 
-### C5. Knowledge stores exist as a registry but are not wired to anything
+### C5. Knowledge stores have partial membership wiring but no semantic or pipeline role
 
 `kb.knowledge_store` (tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status) is created,
-has CRUD handlers, and has a default-store resolver. But `kb.inputs` carries **no** knowledge-store
-reference, and nothing in the pipeline, the ontology design, or review scoping consults it.
-"Run pipeline A on knowledge store K1" is not expressible today, and neither is
-"in KS-Medical, *ML* means millilitre." DR18 wires it as both a routing key and a scope key.
+has CRUD handlers, and has a default-store resolver. `kb.inputs.ks_store_id` already exists, uses
+the legacy `ks_store_id` name, is nullable in the deployed schema, carries no foreign key to
+`kb.knowledge_store`, and can already be populated by current ingestion paths. What it still does
+**not** do is drive pipeline selection, identity/lexicon scope, ontology visibility, or review
+profiles. "Run pipeline A on knowledge store K1" is not expressible today, and neither is
+"in KS-Medical, *ML* means millilitre." DR18 completes and normalizes this partial wiring by
+making the store both a routing key and a scope key.
 
 ### C6. The connecting insight
 
@@ -1259,11 +1262,15 @@ parallel.** Each phase ends with an exit criterion that is a test, not a judgmen
   **Drafted:** `ChenWeb/benchmark/doc-processors/gold/display-module-v1/gold.toml` — 显示屏模块,
   9 metric definitions, 9 synthetic authority documents across 5 families, 40 clauses, 36
   hand-derived expected verdicts covering all 11 DR21 verdict kinds, each with a stated rationale.
-  Not yet wired to the generator, the corpus-level case kind, or the DR21 comparator — see that
-  directory's README for the remaining implementation gap. Authoring it surfaced a finding: the
-  proposed application's mock shows `identical` ("一致") for several quantitative-enterprise-vs-
-  qualitative-authority cells (触控响应时间, 有效视角); under DR21 that pairing is always
-  `qualitative_only`, never `identical` — the mock should not be treated as gold for those cells.
+  The fixture, generator, resolver/coverage helpers, `CorpusDataset`, comparator, verdict scorer,
+  and dedicated `gold-run` / `analyze` CLI are now built, and `gold-run` can execute the real
+  processors through its dedicated path. The remaining integration gap is narrower: `CorpusDataset`
+  itself is not wired into the existing orchestrator/runner/store execution engine, and real
+  normalized verdict scoring is still gated by structured metric output plus
+  `normalize_assertions`. Authoring it surfaced a finding: the proposed application's mock shows
+  `identical` ("一致") for several quantitative-enterprise-vs-qualitative-authority cells
+  (触控响应时间, 有效视角); under DR21 that pairing is always `qualitative_only`, never
+  `identical` — the mock should not be treated as gold for those cells.
 * Build the DR21 strictness comparator standalone — it is a pure function over normalized
   constraints, needs no pipeline or database, and the benchmark is its first caller.
 * Assemble the fixture corpus: ambiguous objects, multilingual names, unit conversion,
@@ -1271,6 +1278,42 @@ parallel.** Each phase ends with an exit criterion that is a test, not a judgmen
 * Baseline measurement per document kind: processor cost, artifact yield, artifact usefulness —
   the numbers P1 and P5 are judged against.
 * Choose the pilot domain module and its authoritative source (OD1).
+
+#### P0 verified baseline — 2026-07-30
+
+| Area | Verified schema/current data | Code lifecycle | P1/P2 consequence |
+|---|---|---|---|
+| Artifact-object cardinality and soft object reference | `kb.artifact_objects` currently has 587 rows over 456 distinct `(source_record_id, artifact_type, artifact_id)` keys, so duplicates are permitted; `object_id` is non-null in live data today but has no FK to `kb.object_nodes.object_id`, so the object link remains soft. | `ArtifactObjectSQLStore.ReplaceObjectsForRecord` deletes and reinserts rows transactionally, scoped by `source_record_id` plus `artifact_type`. | P1 can preserve current replacement behavior unchanged; P2 must treat `object_id` as a soft pre-canonical link until ontology-governed identity exists. |
+| Search partitions and non-atomic reindex | `kb.search_artifacts` is LIST-partitioned by `artifact_type` with 11 partitions; 9 are populated today and 2 are empty (`knowledge`, `product`). The parent currently holds 103799 rows. | `replaceRegistryRows` deletes existing rows and then inserts replacements through separate DB calls, so reindex replacement is scoped but not atomic. | P1 can reproduce legacy behavior exactly, but any policy-driven retry or plan persistence must account for transient empty search state during replacement. |
+| Connection partitions, uniqueness, and atomic scoped replacement | `kb.artifact_connections` is LIST-partitioned by `relation_method` with 10 partitions; 7 are populated today and 3 are empty (`llm`, `manual`, `structural`). The deployed uniqueness constraint is `(relation_method, source_type, source_id, target_type, target_id, relation_name)`. | `ReplaceConnections` and `ReplaceConnectionsBySource` scope-delete and reinsert inside transactions, preserving atomic replacement by method plus relation scope. | P1 can safely wrap connection work in execution plans without redefining edge identity; P2 assertion/evidence work can rely on scoped edge replacement already being atomic. |
+| Scene-block occurrence identifier semantics | `kb.scene_objects.object_id` values are live as `<input_record_id>_sbk_<sequence>` occurrences such as `200_sbk_1`; `scene_id` carries the semantic label for the extracted block. | Forced scene regeneration deletes prior rows for the input record before re-extraction, then upserts on `(input_record_id, object_id)`. | P1 documentation must keep the current occurrence-ID meaning explicit; P2 should not overload `scene_objects.object_id` as canonical identity. |
+| Cascade/input deletion and canonical-node retention | `kb.artifact_objects`, `kb.search_artifacts`, `kb.artifact_connections`, and `kb.scene_objects` all delete per input record through FKs or explicit delete specs, while `kb.object_nodes` remains corpus-wide and intentionally survives per-document deletion. | `inputRelatedDeleteSpecs` explicitly covers per-record artifacts and tests assert that `kb.object_nodes` must never be deleted as part of a single-input cleanup. | P1 can keep delete semantics as-is; P2 canonical identity work must continue treating object nodes as cross-document state rather than document-owned rows. |
+| Knowledge-store membership and missing referential/routing semantics | `kb.inputs.ks_store_id` exists today, is nullable, and currently yields 194 `Research` inputs, 0 `卫健委标准` inputs, and 15 unassigned inputs. Search artifacts are therefore already partly groupable by store membership, but the column still has no FK and no semantic scope contract. | Current ingestion paths can persist `ks_store_id`, store CRUD/default-store lookup exists, and runtime selection still reads one global `doc-processing.required_processors` list rather than a store-specific policy. | P1 DR18 work must add binding semantics and referential integrity without inventing differentiated pipelines before evidence exists; P2 scope-aware identity and lexicon resolution should key off the normalized store concept rather than the legacy nullable column. |
+
+Live observations from the read-only audit on 2026-07-30:
+
+* `kb.search_artifacts` exact partition rows: `entity` 42664, `inventory_item` 8578, `knowledge` 0, `metric` 6541, `product` 0, `provision` 13915, `relation` 23754, `scene_block` 2288, `semantic_projection` 2068, `summary` 789, `topic` 3202.
+* `kb.artifact_connections` exact partition rows: `category_name` 98939, `entity_name` 31781, `entity_relation` 37030, `hybrid_search` 70003, `line_overlap` 45314, `line-overlapped-artifact` 16410, `llm` 0, `manual` 0, `object_id` 410, `structural` 0.
+* `kb.artifact_objects` currently has 587 rows, 456 distinct `(source_record_id, artifact_type, artifact_id)` keys, 75 duplicate groups, 0 null `object_id`, and 0 live orphan `object_id`.
+* `kb.search_artifacts` currently has 103799 rows, `kb.artifact_connections` has 299887 rows, and `kb.scene_objects` has 2150 rows.
+* Search-artifact distribution today is `entity` 42664, `relation` 23754, `provision` 13915, `inventory_item` 8578, `metric` 6541, `topic` 3202, `scene_block` 2288, `semantic_projection` 2068, `summary` 789.
+* Connection-method distribution today is `category_name` 98939, `hybrid_search` 70003, `line_overlap` 45314, `entity_relation` 37030, `entity_name` 31781, `line-overlapped-artifact` 16410, `object_id` 410.
+* Knowledge-store inventory today is `Research` (`research`, `active`) with 194 inputs, `卫健委标准` (`document`, `active`) with 0 inputs, and 15 inputs with no `ks_store_id`.
+
+Evidence inspected:
+
+* Read-only catalog/live SQL against `kb.artifact_objects`, `kb.object_nodes`, `kb.search_artifacts`, `kb.artifact_connections`, `kb.scene_objects`, `kb.inputs`, and `kb.knowledge_store` on 2026-07-30.
+* Migration `ChenWeb/project_migrations/20260425000002_add_kb_inputs_store_fields.sql`.
+* Go/config paths `server/api/doc-processing/artifact_objects.go`, `server/api/kbsearch/registry.go`, `server/api/doc-processing/search_indexing.go`, `server/api/doc-processing/connections_store.go`, `server/api/doc-processing/generate-scene-blocks-processor.go`, `server/api/kbhandler/metrics_handler.go`, `server/api/kbhandler/metrics_handler_test.go`, `server/api/cdmhandler/documents.go`, `server/api/kbhandler/upload_handler.go`, `server/api/kbhandler/stores_handler.go`, `server/api/kbhandler/default_store_handler.go`, `server/api/doc-processing/runtime.go`, `server/api/doc-processing/runtime_selection_test.go`, `server/api/kbhandler/kb_config_handler.go`, and `config.toml`.
+
+These row counts are live observations, not normative contracts; only the schema shape, code paths,
+and explicit ADR decisions are normative.
+
+P0 status after the 2026-07-30 documentation baseline:
+
+* Verified now: deployed schema/current-data audit for §13.5 claims and current knowledge-store inventory.
+* Structurally frozen next in this ADR slice: the competency-question contract, with owner approval still pending for P0 exit.
+* Still open before P0 exit: domain/application owner approval, authoritative medical-standard editions and a real-data worked example, the merged DR16 keyword spec, the `semos-ontology` repository plus CI skeleton, broader ambiguous/multilingual/unit/supersession/conflict fixtures, and evidence for differentiated per-store pipeline policies.
 
 *Exit:* domain and application owners agree on expected answers for the pilot questions; any spec
 mismatch is corrected in writing before migrations.
