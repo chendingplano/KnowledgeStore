@@ -69,7 +69,7 @@ RDF/SPARQL parity case in P7 unless marked operational-only.
 
 | ID | Frozen question | Expected answer shape | Positive / negative fixture contract | SQL phase | Owner review |
 |---|---|---|---|---|---|
-| CQ-I01 | Which artifact-object mentions resolve to canonical object X? | Ordered mention refs with artifact, evidence, decision, and canonical ID | ≥2 mentions resolve to X / similar mention remains separate | P2 | Pending domain owner |
+| CQ-I01 | Which artifact-object mentions resolve to canonical object X? | Ordered mention refs with artifact, evidence, decision, and canonical ID | At least two mentions may resolve to one canonical object X; a single mention may also resolve, but this fixture tests the multi-mention case. | P2 | Pending domain owner |
 | CQ-I02 | Is node X an individual, type, collection, occurrence, or concept? | Exactly one governed `ontological_level`, with provenance | one fixture per level / invalid or missing level rejected | P2 | Pending ontology owner |
 | CQ-I03 | Which ontology classes apply to X, and what supports each classification? | Qualified class assertions with status and evidence | supported multi-classification / unsupported inferred class absent | P2–P3 | Pending ontology owner |
 | CQ-I04 | Which IDs were merged or redirected to canonical ID X? | Non-transitive redirect/tombstone history | explicit A→B and B→C retained / no inferred A→C decision | P2 | Pending ontology owner |
