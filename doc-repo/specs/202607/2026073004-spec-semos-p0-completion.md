@@ -131,6 +131,75 @@ Update handoff `2026073002-handoff-semos-ontology-status` so a later session see
 - what remains before P0 exit;
 - that P1/P2 have not started.
 
+### 2.6 Ontology terminology and implementation map
+
+Add the following canonical crosswalk to the consolidated ADR. The support labels mean:
+
+- **Native** — represented and governed directly in SemOS operational stores and APIs.
+- **Existing artifact** — already exists in document processing but is not ontology content by
+  default.
+- **Selective import** — external content is compiled into the native model.
+- **Projection** — generated for interchange; not the operational source of truth.
+- **Deferred** — extension seams are preserved, but implementation requires a demonstrated need.
+- **Not planned** — deliberately excluded from the architecture.
+
+| General term | SemOS implementation mapping | Support and phase | Boundary or reason if not fully supported |
+|---|---|---|---|
+| Ontology | The seven-layer semantic architecture plus governed core/domain modules | **Native, P2–P4** | Operationally relational; it is not synonymous with the navigation graph |
+| Stable term | Immutable `term_id` and stable IRI in a released ontology module | **Native, P2** | A material meaning change creates a replacement term rather than mutating identity |
+| Definition | Versioned term definition with release and provenance | **Native, P2** | Labels may change; changed intended referents require a new term |
+| Vocabulary / controlled vocabulary | Released terms, multilingual labels, definitions, statuses, and namespaces | **Native, P2** | Does not by itself imply class logic or inference |
+| Taxonomy | Explicit conceptual `broader`/`narrower` or formal class `subClassOf`, kept distinct | **Native, P2** | Browsing hierarchy is never silently promoted to class inheritance |
+| Thesaurus | Concept labels, synonyms, acronyms, `broader`/`narrower`/`related`, and mappings | **Native, P2–P3** | The supported subset lives in the term registry and lexicon; there is no standalone thesaurus-management product |
+| Subject heading system | Imported or locally authored concept scheme used for indexing and mapping | **Selective import, P2–P4** | Headings remain retrieval concepts unless separately approved as ontology classes |
+| Classification scheme | Governed concept scheme plus mappings; class membership uses qualified assertions | **Native, P2–P3** | Scheme membership, object classification, and canonical identity are separate decisions |
+| Concept scheme | Namespace/release grouping for `concept` terms and their hierarchy | **Native, P2** | Scheme boundaries do not create identity equivalence |
+| SKOS | Label/mapping/concept-scheme discipline; compiled external vocabularies; generated SKOS artifacts | **Native, P2–P3; Selective import, P2–P4; Projection, P7** | SemOS adopts the useful model and interchange format, not a separate SKOS runtime |
+| SKOS Concept / Concept | `kb.ontology_terms.term_kind = concept` with labels, notes, hierarchy, and mappings | **Native, P2** | A concept is not automatically a real-world individual or OWL class |
+| Preferred, alternative, hidden labels | `kb.ontology_term_labels` with language and label type | **Native, P2** | One released preferred label per configured language/scope |
+| Synonym / acronym | Alternative/acronym term labels; keyword surfaces remain in the lexicon | **Native, P2–P3** | Lexical equivalence does not prove semantic identity |
+| Mapping (`exact`, `close`, `broad`, `narrow`, `related`) | Governed `kb.ontology_mappings` with evidence and approval | **Native, P2** | Conservative mappings replace automatic `owl:sameAs` |
+| Knowledge graph | Qualified assertions and canonical referents, with selected navigation projections | **Native, P3–P4** | SemOS supports the governed subset needed by competency questions, not a generic triple store; `kb.artifact_connections` remains a derived navigation graph |
+| RDF | `.ttl`/JSON-LD projection of released terms, assertions, and profiles | **Projection, P7** | PostgreSQL remains the operational source of truth |
+| RDF triple | Export view of a governed term, mapping, classification, or assertion | **Projection, P7** | Qualified assertions may require RDF reification/n-ary patterns, not one lossy triple |
+| IRI / URI | Stable external identifier for modules, terms, profiles, and releases | **Native, P2** | Dereferenceable publication is P7 |
+| RDFS class/property/subclass | Native term kinds and explicit axioms with RDFS export | **Native, P2; Projection, P7** | Only approved axiom kinds are executable |
+| OWL | Selected class/property/axiom discipline and generated ontology artifacts | **Native, P2; Projection, P7** | Native support is limited to compiler-approved constructs; SemOS does not adopt OWL as its runtime or storage engine |
+| Class | `term_kind = class`; membership is a qualified classification assertion | **Native, P2–P3** | Categories and extracted entity types are not classes by default |
+| Individual | `kb.object_nodes` referent with `ontological_level = individual` | **Native, P2** | Identity is managed by `semid`, separately from classification |
+| Collection / occurrence / type | Other governed `ontological_level` values on canonical referents | **Native, P2** | These levels are mutually distinguished but may have several class assertions |
+| Object property | Governed property term whose value is another referent/term | **Native, P2–P3** | Assertion qualifiers live on the assertion, not the property term |
+| Datatype property | Governed property term whose value has a declared literal/value form | **Native, P2–P3** | Metric values use structured value/unit/condition contracts |
+| Axiom | Released `kb.ontology_axioms` row using a compiler-approved axiom kind | **Native, P2** | Support is limited to compiler-approved kinds; arbitrary OWL expressions are not accepted |
+| Inference | Named, deterministic SQL/Go derivations with trace and bounded semantics | **Native, P2–P4** | Support is bounded and named; open-ended description-logic inference is not planned |
+| OWL reasoner / OWL 2 DL runtime | None | **Not planned** | Open-world reasoning does not answer scoped completeness review and adds unjustified runtime cost |
+| `owl:sameAs` | No automatic equivalent; use governed exact/close mappings and merge decisions | **Not planned** | Automatic `owl:sameAs` is excluded because its identity propagation is too strong for lexical or conceptual similarity |
+| Extracted entity | Evidence-bearing artifact mention, optionally bridged to a referent or term | **Existing artifact; Native, P3–P4** | The native work is the governed bridge; extraction output remains a candidate, not authoritative ontology content |
+| Meaning of entities and relations | Governed class/property terms plus qualified assertions and evidence | **Native, P2–P3** | Raw entity types and free-text predicates do not define meaning |
+| Relation / semantic assertion | First-class qualified assertion with subject, predicate, object/value, modality, time, status, and evidence | **Native, P3** | Not stored solely as an unqualified graph edge |
+| Evidence / provenance | One-to-many assertion evidence and producer/model/prompt/human audit records | **Native, P3** | Evidence supports or contradicts; it does not overwrite the source artifact |
+| Constraint / business rule | Typed profile rule evaluated in SQL/Go | **Native, P4** | Rules are scoped and closed-world, unlike absence-based OWL conclusions |
+| SHACL Shape | Paired export form for each supported profile rule kind | **Native, P4; Projection, P7** | The native construct is the paired rule model; no SHACL runtime is required in production |
+| SHACL validator/runtime | External parity/validation tool in CI or interoperability testing | **Deferred, P7** | The production evaluator remains SQL/Go to preserve operational behavior |
+| Profile / application profile | `kb.ontology_profiles` plus applicability scope, release, and typed rules | **Native, P4** | A profile governs “what should be”; it is not a class or document artifact |
+| PROF profile metadata | Publication metadata linking a profile to specifications and artifacts | **Projection, P7** | No separate PROF runtime; native profile records are authoritative |
+| Open-world semantics | Preserved for ontology meaning and unknown facts | **Native, P2–P4** | This is a semantic boundary rather than a separate runtime: missing facts are unknown unless a profile explicitly closes a review dimension |
+| Closed-world validation | Frozen review scope plus profile rules and findings | **Native, P4** | Closure is explicit per profile/dimension, never global |
+| Topic | Existing generated topic artifact; optional grounded links to concepts/terms | **Existing artifact; Native, P6** | The native work is grounded association; a topic is not an ontology concept merely because labels match |
+| Category | Existing retrieval/navigation concept; candidate for governed mapping | **Existing artifact; Native, P4** | P4 retrofits canonicalization/mapping; `belong_to` does not imply `rdf:type` or `subClassOf` |
+| Keyword | Surface mention resolved to a lexicon concept and optionally `aligns_to_term` | **Native, P3** | The native construct is the lexicon; keyword concepts and governed ontology terms remain separately governed |
+| Search similarity / embedding | Candidate-generation evidence | **Native, existing** | This existing capability remains non-authoritative: similarity never activates identity, class membership, mappings, or axioms |
+| QUDT quantity kind/unit/dimension | Published catalog compiled into the `quantity` core module | **Selective import, P2** | Imported content is pinned, validated, and released through the module compiler |
+| SOSA/SSN measurement pattern | Feature-of-interest, observed-property, procedure, result pattern | **Native, P2–P3** | SemOS adopts the useful modeling subset, not a mandatory SOSA/SSN runtime dependency |
+| PROV-O | Entity/activity/agent provenance pattern and later RDF mapping | **Native, P2–P3; Projection, P7** | Native audit tables remain authoritative |
+| OWL-Time / temporal ontology | Valid/effective interval pattern and later mapping | **Native, P2–P4; Projection, P7** | Native support is limited to the required interval model; no general temporal reasoner is planned |
+| SPARQL endpoint | None | **Not planned** | SQL/API serve operational queries; reconsider only if a competency question cannot be met |
+| Triple store | None | **Not planned** | Duplicates PostgreSQL storage and lifecycle without a demonstrated competency need |
+
+The ADR must present this as an implementation contract, not a general glossary: every row names
+the SemOS construct, lifecycle phase, and semantic boundary. Any future term not in the matrix
+defaults to unsupported until an ADR adds it.
+
 ## 3. Design Consequences
 
 The following verified findings become explicit implementation requirements:
@@ -166,9 +235,12 @@ The documentation change is complete when:
 6. the ADR remains `Proposed` and explicitly lists the unresolved P0 exit blockers;
 7. the handoff records completed audit work, added findings, remaining P0 work, and that P1/P2
    have not started;
-8. all changed document IDs and local paths resolve;
-9. a repository-wide search finds no contradictory P0 status statement in the ADR or handoff;
-10. `git diff --check` reports no whitespace errors.
+8. the ADR contains the complete §2.6 terminology crosswalk, and every row identifies its SemOS
+   mapping, support class/phase, and boundary or exclusion rationale;
+9. RDF/OWL/SKOS/SHACL runtime claims in the crosswalk agree with ADR DR13;
+10. all changed document IDs and local paths resolve;
+11. a repository-wide search finds no contradictory P0 status statement in the ADR or handoff;
+12. `git diff --check` reports no whitespace errors.
 
 ## 5. Documentation Protocol
 
