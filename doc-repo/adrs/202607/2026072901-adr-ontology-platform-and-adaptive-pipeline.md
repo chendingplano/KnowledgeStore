@@ -24,6 +24,10 @@
   order and directional verdict vocabulary (DR21), class-anchored comparison runs as an
   application service (DR22), and the metric-definition versus profile naming split (DR23).
   Adds the new-doc-processor roster. Non-goals renumbered DR19 → DR24.
+* 2026/07/30, P0 documentation baseline revision. Records the verified deployed-system audit,
+  freezes the 20 pilot competency questions and 50-term ontology terminology contract, corrects
+  knowledge-store wiring language (C5), and updates the ontology handoff/spec status without
+  changing runtime code or database state.
 
 ## Context
 
@@ -1312,7 +1316,7 @@ object node).
 Phases are ordered by dependency, not by importance. **P1 and P2 are independent and may run in
 parallel.** Each phase ends with an exit criterion that is a test, not a judgment.
 
-#### P0 — Semantic audit, competency questions, corpus baseline *(no code)*
+#### P0 — Semantic audit, competency questions, corpus baseline *(no ontology/runtime implementation)*
 
 * Verify spec §13.5 current-state claims against the deployed database and current code:
   artifact-object cardinality, `kb.search_artifacts` partitions, `kb.artifact_connections`
@@ -1350,8 +1354,8 @@ parallel.** Each phase ends with an exit criterion that is a test, not a judgmen
 
 | Area | Verified schema/current data | Code lifecycle | P1/P2 consequence |
 |---|---|---|---|
-| Artifact-object cardinality and soft object reference | `kb.artifact_objects` currently has 587 rows over 456 distinct `(source_record_id, artifact_type, artifact_id)` keys, so duplicates are permitted; `object_id` is non-null in live data today but has no FK to `kb.object_nodes.object_id`, so the object link remains soft. | `ArtifactObjectSQLStore.ReplaceObjectsForRecord` deletes and reinserts rows transactionally, scoped by `source_record_id` plus `artifact_type`. | P1 can preserve current replacement behavior unchanged; P2 must treat `object_id` as a soft pre-canonical link until ontology-governed identity exists. |
-| Search partitions and non-atomic reindex | `kb.search_artifacts` is LIST-partitioned by `artifact_type` with 11 partitions; 9 are populated today and 2 are empty (`knowledge`, `product`). The parent currently holds 103799 rows. | `replaceRegistryRows` deletes existing rows and then inserts replacements through separate DB calls, so reindex replacement is scoped but not atomic. | P1 can reproduce legacy behavior exactly, but any policy-driven retry or plan persistence must account for transient empty search state during replacement. |
+| Artifact-object cardinality and soft object reference | `kb.artifact_objects` currently has 587 rows over 456 distinct `(source_record_id, artifact_type, artifact_id)` keys, so duplicates are permitted; `object_id` is non-null in live data today but has no FK to `kb.object_nodes.object_id`, so the object link remains soft. | `ArtifactObjectSQLStore.ReplaceObjectsForRecord` deletes and reinserts rows transactionally, scoped by `source_record_id` plus `artifact_type`. | P1 can preserve current replacement behavior unchanged; P2 must preserve one artifact-to-many object mentions, must not add a uniqueness rule that collapses distinct mentions, and must treat `object_id` as a soft pre-canonical link until ontology-governed identity exists. |
+| Search partitions and non-atomic reindex | `kb.search_artifacts` is LIST-partitioned by `artifact_type` with 11 partitions; 9 are populated today and 2 are empty (`knowledge`, `product`). Querying the parent currently returns 103799 rows across its partitions. | `replaceRegistryRows` deletes existing rows and then inserts replacements through separate DB calls, so reindex replacement is scoped but not atomic. | P1 can reproduce legacy behavior exactly, but any policy-driven retry or plan persistence must account for transient empty search state during replacement. |
 | Connection partitions, uniqueness, and atomic scoped replacement | `kb.artifact_connections` is LIST-partitioned by `relation_method` with 10 partitions; 7 are populated today and 3 are empty (`llm`, `manual`, `structural`). The deployed uniqueness constraint is `(relation_method, source_type, source_id, target_type, target_id, relation_name)`. | `ReplaceConnections` and `ReplaceConnectionsBySource` scope-delete and reinsert inside transactions, preserving atomic replacement by method plus relation scope. | P1 can safely wrap connection work in execution plans without redefining edge identity; P2 assertion/evidence work can rely on scoped edge replacement already being atomic. |
 | Scene-block occurrence identifier semantics | `kb.scene_objects.object_id` values are live as `<input_record_id>_sbk_<sequence>` occurrences such as `200_sbk_1`; `scene_id` carries the semantic label for the extracted block. | Forced scene regeneration deletes prior rows for the input record before re-extraction, then upserts on `(input_record_id, object_id)`. | P1 documentation must keep the current occurrence-ID meaning explicit; P2 should not overload `scene_objects.object_id` as canonical identity. |
 | Cascade/input deletion and canonical-node retention | `kb.artifact_objects`, `kb.search_artifacts`, `kb.artifact_connections`, and `kb.scene_objects` all delete per input record through FKs or explicit delete specs, while `kb.object_nodes` remains corpus-wide and intentionally survives per-document deletion. | `inputRelatedDeleteSpecs` explicitly covers per-record artifacts and tests assert that `kb.object_nodes` must never be deleted as part of a single-input cleanup. | P1 can keep delete semantics as-is; P2 canonical identity work must continue treating object nodes as cross-document state rather than document-owned rows. |
@@ -1369,9 +1373,9 @@ Live observations from the read-only audit on 2026-07-30:
 
 Evidence inspected:
 
-* Read-only catalog/live SQL against `kb.artifact_objects`, `kb.object_nodes`, `kb.search_artifacts`, `kb.artifact_connections`, `kb.scene_objects`, `kb.inputs`, and `kb.knowledge_store` on 2026-07-30.
-* Migration `ChenWeb/project_migrations/20260425000002_add_kb_inputs_store_fields.sql`.
-* Go/config paths `server/api/doc-processing/artifact_objects.go`, `server/api/kbsearch/registry.go`, `server/api/doc-processing/search_indexing.go`, `server/api/doc-processing/connections_store.go`, `server/api/doc-processing/generate-scene-blocks-processor.go`, `server/api/kbhandler/metrics_handler.go`, `server/api/kbhandler/metrics_handler_test.go`, `server/api/cdmhandler/documents.go`, `server/api/kbhandler/upload_handler.go`, `server/api/kbhandler/stores_handler.go`, `server/api/kbhandler/default_store_handler.go`, `server/api/doc-processing/runtime.go`, `server/api/doc-processing/runtime_selection_test.go`, `server/api/kbhandler/kb_config_handler.go`, and `config.toml`.
+* The read-only SQL block captured in implementation plan `doc-repo/devdocs/202607/2026073003-devdoc-semos-p0-implementation-plan.md` Chunk 1 / Task 1, executed against `kb.artifact_objects`, `kb.object_nodes`, `kb.search_artifacts`, `kb.artifact_connections`, `kb.scene_objects`, `kb.inputs`, and `kb.knowledge_store` on 2026-07-30.
+* Migration `../ChenWeb/project_migrations/20260425000002_add_kb_inputs_store_fields.sql`.
+* Go/config paths `../ChenWeb/server/api/doc-processing/artifact_objects.go`, `../ChenWeb/server/api/kbsearch/registry.go`, `../ChenWeb/server/api/doc-processing/search_indexing.go`, `../ChenWeb/server/api/doc-processing/connections_store.go`, `../ChenWeb/server/api/doc-processing/generate-scene-blocks-processor.go`, `../ChenWeb/server/api/kbhandler/metrics_handler.go`, `../ChenWeb/server/api/kbhandler/metrics_handler_test.go`, `../ChenWeb/server/api/cdmhandler/documents.go`, `../ChenWeb/server/api/kbhandler/upload_handler.go`, `../ChenWeb/server/api/kbhandler/stores_handler.go`, `../ChenWeb/server/api/kbhandler/default_store_handler.go`, `../ChenWeb/server/api/doc-processing/runtime.go`, `../ChenWeb/server/api/doc-processing/runtime_selection_test.go`, `../ChenWeb/server/api/kbhandler/kb_config_handler.go`, and `../ChenWeb/config.toml`.
 
 These row counts are live observations, not normative contracts; only the schema shape, code paths,
 and explicit ADR decisions are normative.
@@ -1379,7 +1383,7 @@ and explicit ADR decisions are normative.
 P0 status after the 2026-07-30 documentation baseline:
 
 * Verified now: deployed schema/current-data audit for §13.5 claims and current knowledge-store inventory.
-* Structurally frozen next in this ADR slice: the competency-question contract, with owner approval still pending for P0 exit.
+* Structurally frozen in this slice: the competency-question contract, with owner approval still pending for P0 exit.
 * Still open before P0 exit: domain/application owner approval, authoritative medical-standard editions and a real-data worked example, the merged DR16 keyword spec, the `semos-ontology` repository plus CI skeleton, broader ambiguous/multilingual/unit/supersession/conflict fixtures, and evidence for differentiated per-store pipeline policies.
 
 #### P0 competency-question contract
@@ -1713,7 +1717,7 @@ assertion references and object classification are decided.
 * Specs `2026072301-spec-keyword-canonicalization-reconciliation` and
   `2026072703-spec-keyword-canonicalization-reconciliation-2` — **both superseded** by a single
   merged spec written in P0 per DR16. Neither should be implemented as written. Until the merged
-  spec exists, both carry a status note pointing here.
+  spec exists, both still need explicit status notes pointing here.
 * Research `2026072301-rsch-keyword-mgmt` — remains valid as research; its scope-type ladder and
   relation taxonomy are adopted, its standalone-module framing is superseded by DR15.
 * Knowledge-store documentation and the ingestion API spec — `ks_id`, `requested_pipeline`, and
@@ -1729,17 +1733,25 @@ assertion references and object classification are decided.
 * A new capsule `KnowledgeStore/Capsules/coding-capsules/ontology/+CAPSULE.md` for the module
   source format, compiler, and release workflow.
 
-**Documents updated now.** This ADR only. The affected documents are updated per phase, with each
-phase's documentation landing in the same change as its code.
+**What knowledge changed?** The ADR now records the verified deployed P0 baseline, the complete
+pilot competency-question contract, the ontology terminology support boundary, and the remaining
+blockers for P0 exit.
 
-**Documents now stale.** `+CAPSULE.md` §7.1–§7.3 becomes stale the moment P1 lands and must be
-updated in that change, not after. Research §5.4 and spec §7's differing Layer-4 descriptions are
-superseded by DR1; both should carry a pointer to this ADR.
+**Which docs/specs/ADRs/tests are affected?** ADR `2026072901`, spec `2026073004`, and handoff
+`2026073002` are affected. No code tests or application behavior changed in this documentation
+slice.
 
-**Intentionally left undocumented.** Physical column-level DDL (deferred to each phase's
-migration), governance role-to-person assignment and authorization controls, the IRI hostname
-policy, and the precedence-policy vocabulary for multi-jurisdiction conflicts (spec §17 items 3–5
-remain open).
+**Which docs were updated?** This ADR, spec `2026073004-spec-semos-p0-completion.md`, and handoff
+`2026073002-handoff-semos-ontology-status.md`.
+
+**Which docs are now stale?** The two superseded keyword specs still remain unmerged until DR16's
+replacement is written. `+CAPSULE.md` §7.1–§7.3 still becomes stale the moment P1 lands and must be
+updated in that same change. Research §5.4 and spec §7's differing Layer-4 descriptions remain
+superseded by DR1 and should keep pointing here.
+
+**Intentionally left undocumented.** Future physical DDL, executable future-schema SQL, the
+authoritative medical-standard source content itself, governance person assignments, and ontology
+repository hosting credentials remain for later phase documents and approvals.
 
 ## Open Decisions
 

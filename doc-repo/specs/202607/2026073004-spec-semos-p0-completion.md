@@ -1,6 +1,6 @@
 # Spec 2026073004 — SemOS P0 Ontology Completion Slice
 
-**Status:** Approved design, pending implementation
+**Status:** Implemented — P0 documentation baseline recorded
 **Date:** 2026-07-30
 **Scope:** Documentation and verified current-state contracts only; no application code,
 database migration, database mutation, or ontology runtime implementation.
@@ -15,6 +15,9 @@ architecture ADR.
 The consolidated source of truth remains ADR
 `2026072901-adr-ontology-platform-and-adaptive-pipeline`. This specification defines the bounded
 work required to make that ADR accurately describe the verified P0 baseline.
+Implementation result: ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline` now carries
+the verified P0 baseline, and handoff `2026073002-handoff-semos-ontology-status` now records the
+completed continuation slice and remaining P0 blockers.
 
 ## 2. Deliverables
 

@@ -8,7 +8,7 @@ This session started as ontology-consolidation work (research `2026072302`, spec
 
 For the technical build this session produced (the `gold-run`/`analyze` CLI, mise tasks, prompt iterations, bug reports), see the companion handoff `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — that document covers the *how*; this one covers the *what's actually designed vs. built*.
 
-The user has explicitly deferred continuing this work: **"I will decide when to continue this work."** Nothing here implies a next session should start automatically.
+Work resumed on 2026-07-30 with explicit approval to complete P0 before starting P1/P2.
 
 ## Document lineage (read in this order if picking this up cold)
 
@@ -41,20 +41,31 @@ Everything that would actually make this "an ontology" — as opposed to a compa
 
 P1 ("pipeline plane") and P2 ("ontology core and canonicalization kernel") — the two phases where the ontology itself actually gets built — have not started.
 
+## P0 continuation completed in this slice
+
+- The deployed §13.5 audit was completed read-only against the live PostgreSQL system and recorded in ADR `2026072901` as a dated baseline.
+- ADR C5 now reflects the real `kb.inputs.ks_store_id` partial wiring: the column exists and ingestion paths can populate it, but it still has no referential, routing, or semantic-scope role.
+- Knowledge stores were inventoried from live data without inventing store-specific pipeline behavior: `Research` is populated, `卫健委标准` is empty, and some inputs remain unassigned.
+- All 20 pilot competency questions are now structurally frozen in the consolidated ADR, with owner approval still pending for P0 exit.
+- The 50-term ontology terminology crosswalk is now part of the consolidated ADR, including explicit non-support for an OWL reasoner runtime, automatic `owl:sameAs`, a SPARQL endpoint, and a triple store.
+- The stale benchmark-wiring note in P0 was corrected while preserving the remaining `CorpusDataset` experiment-engine integration gap.
+
 ## Phase status (P0–P7)
 
-Still inside **P0** ("semantic audit, competency questions, corpus baseline — no code").
+Still inside **P0** ("semantic audit, competency questions, corpus baseline — no ontology/runtime implementation").
 
 **Done within P0:**
 - Gold corpus + comparator + benchmark CLI tooling (this session's build).
 - Real baseline measurement — the `extract_metrics` recall-instability investigation (bug reports `2026073001`–`2026073003`) is literally P0's "baseline measurement per document kind: processor cost, artifact yield, artifact usefulness" bullet, carried out for real against the pilot corpus.
+- Verified deployed DB/code baseline for ADR §13.5, including artifact cardinality, partitions, scene-object semantics, deletion behavior, and current knowledge-store inventory.
+- Frozen competency-question suite and ontology terminology implementation contract in the consolidated ADR.
 
 **Not done, still open within P0:**
-- Verify spec §13.5's current-state claims against the actually-deployed database (artifact-object cardinality, `kb.search_artifacts` partitions, `kb.artifact_connections` uniqueness, scene identifier semantics, cascade/reprocessing behavior) — none of this has been checked yet.
-- Freeze the competency-question suite (research §11.1) with expected answers.
+- Owner approval of the frozen competency answers; P0 is not complete until domain/application owners agree in writing.
 - Merge the two keyword-canonicalization specs into the one DR16 supersedes them with.
 - Stand up the `semos-ontology` data repository and its CI skeleton (OD7).
-- Inventory knowledge stores actually in use and which pipelines each needs (DR18).
+- Confirm authoritative standard editions and a real-data worked example for the pilot domain.
+- Gather enough per-document-kind baseline evidence to justify differentiated store-specific pipeline policies (DR18); the live inventory alone does not yet justify them.
 - Broaden the fixture corpus beyond the one ventilator display-module case — no ambiguous-object, multilingual-name, unit-conversion, or superseded-document fixtures exist yet (devdoc `2026073002-devdoc-gold-benchmark-operations.md` §7 has concrete extension options).
 
 **P1–P7:** not started at all.
@@ -65,16 +76,16 @@ Still inside **P0** ("semantic audit, competency questions, corpus baseline — 
 - **OD3 (where pipeline policies are authored) — Resolved by DR17:** the same data repository and compiler/activation path as ontology modules.
 - **OD2, OD4–OD10 — still open:** facet-vocabulary home (`document-authority` vs. its own module), Phase D sync-vs-async default, multi-jurisdiction precedence vocabulary, hard-deletion/retention policy, ontology-repo hosting/access details (name `semos-ontology` proposed, needs confirming in P0), whether a document may belong to several knowledge stores, lexicon scope granularity, and category-canonicalization retrofit timing.
 
-## One inconsistency worth fixing
+## Resolved history note
 
-The ADR's own P0 section text still reads: *"Not yet wired to the generator, the corpus-level case kind, or the DR21 comparator — see that directory's README for the remaining implementation gap."* That's now stale — the later DR21/DR22 `**Built:**` annotations elsewhere in the same document confirm all three are wired and tested. Whoever resumes this should update that P0 bullet so the document stops contradicting itself.
+The stale P0 benchmark-wiring contradiction in ADR `2026072901` was corrected in this slice. The ADR now distinguishes between the benchmark components that are built and the narrower remaining `CorpusDataset` experiment-engine integration gap.
 
-## Recommended next steps (when resumed — not before, per the user's explicit deferral)
+## Recommended next steps
 
-1. Fix the stale P0 note above.
-2. Decide whether/when to move the consolidated ADR from "Proposed" to "Accepted," or identify what's actually still blocking that decision.
-3. **If continuing P0:** verify spec §13.5's claims against the real deployed DB, freeze the competency-question suite, merge the two keyword specs (DR16), stand up the `semos-ontology` repo (OD7), and broaden the fixture corpus per devdoc `2026073002`'s §7.
-4. **If ready to skip ahead to P1/P2 instead:** the ADR states P1 and P2 are independent and may run in parallel. P1 (pipeline plane — `ProcessorSpec` declarations, DAG planner, facets, `semrules`, named-pipeline routing) needs no ontology dependency and could start immediately. P2 (ontology core — module compiler, canonicalization kernel, the 4a core modules) is where the ontology itself actually starts getting built, and is the natural home for anyone who wants to stop validating the idea and start building it.
+1. Get owner approval on the frozen competency-answer contract and decide whether the consolidated ADR can move from `Proposed` to `Accepted` once those approvals land.
+2. Merge the two keyword specs into the DR16 replacement, then stand up the `semos-ontology` repository and CI skeleton (OD7).
+3. Expand the fixture families beyond the single ventilator display-module case, especially ambiguous-object, multilingual, unit-conversion, supersession, and conflict fixtures.
+4. Gather per-document-kind baseline evidence before authoring differentiated store-specific pipeline policies; P1 and P2 still have not started.
 
 ## Related documents
 
