@@ -104,6 +104,10 @@ Update the consolidated ADR and ontology handoff so that they:
 
 ADR alternatives that currently reject placing machine-consumed data in ChenWeb or
 KnowledgeStore must be reconciled with the new decision rather than left contradictory.
+The checked-in fixture comments and README under
+`ChenWeb/benchmark/doc-processors/gold/display-module-v1/` must also stop promising a later move
+to a DR17 standalone repository. They must identify ChenWeb as the approved current home and
+describe any future relocation as a separate explicit decision.
 
 ### 3.3 Store-shaped benchmark metadata
 
@@ -164,8 +168,32 @@ evidence, or the additional fixtures must be isolated from that resolver.
 
 ### 3.5 Repeatable profile report
 
-Add a deterministic post-processor over `gold-run` JSON plus the validated corpus metadata. It
-produces JSON and Markdown with one row per `(store_profile, document_kind, processor)`:
+First extend `gold-run` to emit a versioned result envelope:
+
+```json
+{
+  "schema_version": 2,
+  "dataset": {
+    "id": "doc-processors-corpus-display-module",
+    "version": "1.1.0",
+    "content_hash": "sha256:..."
+  },
+  "case_id": "display-module-v1",
+  "selected_processors": ["extract_metrics", "extract_provisions"],
+  "dry_run": false,
+  "results": []
+}
+```
+
+`content_hash` covers the canonical manifest plus every referenced fixture byte sequence used by
+the selected case, including document-profile metadata. `selected_processors` records the
+canonical, de-duplicated processor set actually passed to the production runtime. For a dry run
+it is an empty list. The envelope is the evidence provenance contract; the reporter must reject
+the older unversioned shape rather than guessing missing identity or processor selection.
+
+Add a deterministic post-processor over this result envelope plus the validated corpus metadata.
+It produces JSON and Markdown with one row per
+`(store_profile, document_kind, selected_processor)`:
 
 ```text
 documents
@@ -180,13 +208,17 @@ assessment
 
 The report must:
 
-1. validate that every result document belongs to the selected corpus case;
-2. reject duplicate or unknown result documents;
-3. count run failures separately from zero-output successes;
-4. distinguish “no registered result table” from a valid empty result;
-5. aggregate in stable lexical order;
-6. include dataset/case identity and a content hash when available;
-7. label the evidence used for each assessment.
+1. require result-envelope schema version 2;
+2. recompute the selected case's content hash and require it to equal the envelope hash;
+3. require dataset ID/version and case ID to equal the loaded corpus metadata;
+4. validate that every result document belongs to the selected corpus case;
+5. reject duplicate, missing, or unknown result documents;
+6. validate every selected processor against the canonical processor registry;
+7. count run failures separately from zero-output successes;
+8. distinguish “no registered result table” from a valid empty result;
+9. aggregate in stable lexical order;
+10. include the dataset/case identity, content hash, and selected processor set;
+11. label the evidence used for each assessment.
 
 Evidence kinds are:
 
@@ -266,10 +298,12 @@ Schema and reference errors must fail before any benchmark execution:
 Report errors must be explicit and non-partial:
 
 - malformed result JSON;
+- unsupported or missing result-envelope schema version;
 - dry-run JSON presented as executed evidence;
 - duplicate result document;
+- missing result document;
 - result document outside the selected case;
-- incompatible dataset/case metadata;
+- incompatible dataset ID, dataset version, case ID, content hash, or selected processor set;
 - unsupported result shape.
 
 Individual processor run errors are reportable evidence, not parser errors. They appear in failure
@@ -308,7 +342,15 @@ Implementation follows test-driven development.
 The implementation plan must name the exact focused Go tests, CLI smoke commands, and the final
 `go test` scope. Tests requiring PostgreSQL, NATS, Typst, or LLM credentials must be separated
 from offline tests and documented with their prerequisites. The deterministic offline suite is
-required for completion even when the live processor run cannot execute.
+always required.
+
+P0 closeout additionally requires at least one non-dry-run `gold-run` against `chenweb_test`.
+That run must cover all three store profiles and the canonical union of processors marked
+`required` or `useful` by their metadata. The exact command, result-envelope content hash,
+execution date, completion/failure counts, and generated profile-report hash must be recorded in
+the final KnowledgeStore finding. If the environment cannot execute that run, the code and
+offline tests may be complete, but P0 remains open rather than substituting a golden test fixture
+for observed benchmark evidence.
 
 ## 7. Documentation protocol
 
@@ -335,6 +377,10 @@ P0 is complete when all of the following are true:
 - all generated documents have validated profile metadata;
 - at least three store-shaped profiles are represented;
 - the offline report is deterministic and tested;
+- at least one non-dry-run `gold-run` against `chenweb_test` covers all three profiles and every
+  processor marked `required` or `useful`;
+- the final KnowledgeStore finding records the command, date, result-envelope content hash,
+  completion/failure counts, and profile-report hash for that run;
 - the report shows at least two profiles with different expected processor vectors and observed
   yield/evidence patterns;
 - evidence strength and synthetic limitations are explicit;
@@ -356,4 +402,3 @@ The following remain outside P0:
 - real standards, authoritative editions, or production regulatory claims;
 - moving reusable code to `shared`;
 - creating an independent ontology repository.
-
