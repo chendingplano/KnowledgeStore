@@ -531,6 +531,28 @@ ExcludedByPolicy:    [extract_semantic_projections]
 
 With this, the P1 effort's "biggest gap" flagged earlier in this log is now fully closed: every migration, every table, every CRUD path, and the actual enforcement/filtering logic have all been exercised against real Postgres, not just sqlmock.
 
+### Correction: enforcement never actually gated execution (found while preparing the benchmark closeout)
+
+While preparing the P1 benchmark closeout (Chunk 6 — compare legacy-effective vs. policy-proposed output on the ventilator corpus), a re-read of `handleEvent` surfaced a real bug in the "enforced pipeline mode" slice from earlier this session: **`DocPipelineModeEnforced`/`applyPolicyFilter`/`ExcludedByPolicy` computed and persisted the correct filtered plan, but `handleEvent` never used that plan to decide which processors actually ran.**
+
+```go
+plan, planErr := BuildProductionProcessorPlanFromFacts(planFacts)   // correctly filtered
+...
+processors = s.selectProcessors(evt.Operations)   // reads evt.Operations directly; never consulted `plan`
+```
+
+`selectProcessors` only ever reads `evt.Operations` (the raw request) against `s.Processors` (fixed at runtime construction). Flipping `DOC_PIPELINE_PLAN_ONLY=false` changed what got *recorded* as `ExcludedByPolicy`, but not what actually executed — the two modes were behaviorally identical at the point that matters. This is why the earlier live-DB validation (previous subsection) didn't catch it: that validation called `BuildProductionProcessorPlanFromFacts` directly and inspected the returned `plan` object, which behaved exactly as designed — it never drove a document through the full `handleEvent` path, which is precisely where the disconnect lived.
+
+This was found, not reported by the user, and surfaced explicitly before proceeding — given it undermines the premise of the benchmark closeout (nothing to measure if execution doesn't actually change), the user was asked how to proceed and chose to fix it before doing the benchmark.
+
+**The fix:** a new `ControlService.applyPlanEnforcement(processors []Processor, plan ProductionProcessorPlan) []Processor` in `control.go`, called once after the existing `evt.Operations`-based selection (`selectProcessors` + `skipSatisfiedAutoDependencies`) completes, gated on `planErr == nil`. It drops any already-selected processor whose (normalized) name appears in `plan.ExcludedByPolicy()`.
+
+**Why this is safe** (the same "byte-identical unless policy active" reasoning used throughout this log): `plan.ExcludedByPolicy()` is *always* empty in plan-only mode, or when the resolved pipeline declares no `Processors` — i.e. every case that existed before this fix. `applyPlanEnforcement`'s very first line (`if len(excluded) == 0 { return processors }`) makes it a true no-op there, so legacy behavior is untouched regardless of any differences between `selectProcessors`'s name-expansion (`expandProcessorDependencies`/`canonicalOperationName`) and the plan-building path's (`resolveRequiredProcessors`/`normalizeRuntimeName`) — those two parallel implementations were never reconciled or touched; the fix deliberately avoids that by filtering the *already-produced* `[]Processor` slice by name instead of trying to unify the two selection algorithms.
+
+**Regression tests added** (`handle_event_run_test.go`): `TestHandleEvent_EnforcedModeExcludesProcessorsNotInPipeline` drives two processors through a real `handleEvent` call with an authored pipeline declaring only one of them, and asserts (a) only the declared one actually invokes `HandleEvent`, (b) the persisted `kb.doc_process_runs.processors` reflects only what ran, (c) `kb.doc_process_plans.excluded_by_policy` matches. `TestHandleEvent_PlanOnlyModeStillRunsEverythingRequested` proves the same setup without `DOC_PIPELINE_PLAN_ONLY=false` still runs everything requested — the no-op path.
+
+**Scope note:** the live-database validation for this specific fix is unit-test-level (fast, deterministic, exercises the real `handleEvent` function), not re-run against `chenweb_test` — the earlier live-DB check already validated plan *computation* against real Postgres; this fix is orthogonal (a `control.go`-level change to what happens with an already-computed plan), and re-plumbing a full `HandleJetStreamEvent`/real-line-file setup against live data for this specific fix was judged not worth the added setup cost given the unit test exercises the identical `handleEvent` code path with a real `ControlService`.
+
 ## 2. Workspace and branch
 
 - Repo: `ChenWeb`
@@ -611,6 +633,8 @@ Because of that pre-existing baseline failure, P1 verification in this slice is 
 - `ChenWeb/server/api/kbhandler/pipeline_rules_handler.go`
 - `ChenWeb/server/api/kbhandler/pipeline_rules_handler_test.go`
 - `ChenWeb/project_migrations/20260731000010_harden_kb_doc_process_plans_constraints.sql`
+- `ChenWeb/server/api/doc-processing/control.go` (applyPlanEnforcement fix)
+- `ChenWeb/server/api/doc-processing/handle_event_run_test.go` (enforcement-gating regression tests)
 
 ## 5. Targeted tests
 
