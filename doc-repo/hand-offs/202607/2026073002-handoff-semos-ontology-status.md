@@ -17,7 +17,7 @@ Work resumed on 2026-07-30 with explicit approval to complete P0 before starting
 3. ADR `2026072701-adr-ontology-identity-and-assertions.md` (2026-07-27) — ratified the spec's decisions. **Status: Accepted — design only, not yet implemented** (stated explicitly in its own header).
 4. ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (2026-07-29, revised twice since) — consolidates all three of the above plus the doc-processor capsule into one buildable architecture with an executable phased plan (DR0–DR24, P0–P7). **Status: Proposed (draft for review).** This is the current source of truth — treat documents 1–3 above as historical inputs already folded in, not independently authoritative anymore.
 
-## Current status: P0 proof complete; ontology runtime still design-only
+## Current status: P0 proof complete; P1 started; ontology runtime still not built
 
 Searching the entire consolidated ADR for its own `**Built:**` implementation-status annotations turns up exactly three, all under DR21/DR22:
 
@@ -37,9 +37,36 @@ Everything that would actually make this "an ontology" — as opposed to a compa
 - Two-tier pipeline routing: named pipelines, binding policies, blocking-by-default conflict resolution (DR6/DR7).
 - Domain modules — not just the pilot 呼吸机 module, but even the shared 4a core modules (`core`, `quantity`, `document-authority`, `measurement`).
 - Qualified assertions and the evidence schema (DR9).
-- `ProcessorSpec` declarations and the DAG planner that would replace today's hardcoded three-phase pipeline (P1).
+- the ontology core and canonicalization kernel (P2).
 
-P1 ("pipeline plane") and P2 ("ontology core and canonicalization kernel") — the two phases where the ontology itself actually gets built — have not started in code.
+That said, this handoff needs one important correction relative to the earlier P0-only status:
+
+- **P1 has now started in code** in `ChenWeb`.
+- **P2 has not started in code.**
+
+As of Friday, July 31, 2026, the implemented P1 subset includes:
+
+- `ProcessorSpec` / processor-plan declarations for the current 13-processor production roster;
+- deterministic plan facts and derived routing facets from live `kb.inputs` state;
+- code-seeded named-pipeline selection seams and precedence helpers;
+- persisted execution-plan snapshots in `kb.doc_process_plans`;
+- API inspection surfaces for latest-plan and paged plan history;
+- ingestion and rerun persistence of `kb.inputs.requested_pipeline`.
+
+What is **not** yet complete for P1:
+
+- `kb.doc_facets`;
+- authored pipeline/binding/rule tables (`kb.pipelines`, `kb.pipeline_policies`, `kb.pipeline_bindings`, `kb.pipeline_rules`, `kb.knowledge_store_bindings`);
+- store-default binding from live knowledge-store data;
+- conflict detection / blocking behavior at the ADR contract level;
+- explicit shadow mode (`DOC_PIPELINE_PLAN_ONLY`);
+- benchmark closeout for the full P1 policy-plane milestone.
+
+So the correct phase read is:
+
+- **P0:** complete
+- **P1:** started, partially implemented, not finished
+- **P2:** not started
 
 ## P0 continuation completed in this slice
 
@@ -66,10 +93,12 @@ P1 ("pipeline plane") and P2 ("ontology core and canonicalization kernel") — t
 - Merge the two keyword-canonicalization specs into the one DR16 supersedes them with.
 - Confirm authoritative standard editions and a real-data worked example for the pilot domain.
 - Broaden the fixture corpus beyond the one ventilator display-module case — no ambiguous-object, multilingual-name, unit-conversion, or superseded-document fixtures exist yet (devdoc `2026073002-devdoc-gold-benchmark-operations.md` §7 has concrete extension options).
-- Implement the P1 pipeline plane (declarations, facets, rules, named pipelines, bindings, plan persistence, shadow mode).
+- Finish the P1 pipeline plane (declarations, facets, rules, named pipelines, bindings, plan persistence, shadow mode).
 - Implement the P2 ontology core and canonicalization kernel.
 
-**P1–P7:** not started in code; P1 planning is the immediate next step.
+**P1:** started in code but not complete; the immediate next step is to finish P1.
+
+**P2–P7:** not started in code.
 
 ## Open decisions (from the ADR's own table)
 
@@ -83,14 +112,19 @@ The stale P0 benchmark-wiring contradiction in ADR `2026072901` was corrected in
 
 ## Recommended next steps
 
-1. Start P1 with the store-aware policy-selection slice: `ProcessorSpec` declarations, document facets, named pipelines, store/requested-pipeline bindings, persisted execution plans, and shadow mode.
+1. Continue and finish P1, starting from the already-implemented store-aware policy-selection slice: `ProcessorSpec` declarations, document facts/facets, requested-pipeline persistence, named-pipeline selection, persisted execution plans, and plan-inspection APIs — then complete the remaining P1 items (authored bindings/rules, `kb.doc_facets` if retained, shadow mode, conflict handling, and benchmark closeout).
 2. Merge the two keyword specs into the DR16 replacement so the canonicalization-kernel source of truth is ready before P2.
 3. Expand the fixture families beyond the single ventilator display-module case, especially ambiguous-object, multilingual, unit-conversion, supersession, and conflict fixtures.
 4. Confirm authoritative standard editions and a real-data worked example for the pilot domain before claiming domain-level semantic completeness.
+
+## Post-handoff update (2026-07-31, later session)
+
+One item from "What is **not** yet complete for P1" above has since closed: **store-default binding from live knowledge-store data** is now real. `kb.knowledge_store` gained a `default_pipeline` column, and `DocMetadataSQLStore.GetInputRecord` now joins it in, so `StoreBoundPipeline` is no longer always empty. A document in a knowledge store with `default_pipeline` set now resolves to that pipeline via the existing `knowledge_store_binding` precedence rule instead of always falling back to `legacy_default`. See the P1 implementation log's "store-bound default-pipeline slice" entry for detail. The remaining P1 gaps listed above (authored `kb.pipelines`/`kb.pipeline_bindings`/etc. tables, `kb.doc_facets`, conflict-detection enforcement, shadow mode, P1 benchmark closeout) are unchanged.
 
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
 - Operations manual: `KnowledgeStore/doc-repo/devdocs/202607/2026073002-devdoc-gold-benchmark-operations.md` — how to run the benchmark, including corpus-extension options.
 - P0 evidence record: `KnowledgeStore/doc-repo/devdocs/202607/2026073005-devdoc-semos-p0-benchmark-evidence.md` — what was executed, where the generated line files and benchmark artifacts went, and why the current evidence is sufficient to justify P1 policy work.
+- P1 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073103-devdoc-semos-p1-implementation-log.md` — what part of P1 has actually been implemented so far, including the current processor-plan seam, persisted plan storage, requested-pipeline persistence, and API inspection surfaces.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
