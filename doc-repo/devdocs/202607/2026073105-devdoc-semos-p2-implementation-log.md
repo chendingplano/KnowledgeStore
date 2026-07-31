@@ -98,6 +98,46 @@ go test ./server/api/kbhandler -run 'TestCreateOntologyCandidate|TestPromoteOnto
 
 `go test ./server/api/kbhandler/...` (full package) still shows the same pre-existing search/registry/summary/topic/category failures noted in the P1 log (14, none touching ontology code).
 
+## 3b. Chunk B — DB-native module compiler, releases, and activation (complete)
+
+### B1 — Migrations
+
+Migrations `20260731000021`–`00025`:
+
+| Migration | Table / change |
+|---|---|
+| `00021` | `kb.ontology_modules` (module_id UNIQUE; one row per module — current metadata only; versions live in releases) |
+| `00022` | `kb.ontology_module_releases` (immutable; payload JSONB + content_checksum + dependency_releases pins + superseded_by_release_id; UNIQUE(module_id, version)) |
+| `00023` | `kb.ontology_active_releases` (activation pointer; partial unique index = one active per module) |
+| `00024` | `released_in_release_id` added to terms/labels/axioms/mappings (release linkage) |
+| `00025` | drop `UNIQUE(module_id, release_id)` from active releases (rollback re-activates a previously-active release, which must insert a new row) |
+
+### B2–B5 — Stores, validation, compiler, loader
+
+New package `ChenWeb/server/api/ontology/modules/`:
+
+- `modules_store.go` — `ModuleStore` (register modules, list, update declared dependencies). Uses `pq.Array`/`pq.StringArray` for the `depends_on TEXT[]`.
+- `releases_store.go` — `ReleaseStore`:
+  - `CreateRelease` — one transaction: validate → snapshot the module's approved content → content checksum → pin dependency releases → insert immutable release → tag the included content rows `included_in_release` + `released_in_release_id` → supersede the module's prior release. A validation failure rolls back and leaves the previous active release untouched (spec §16.3 items 5 and 7).
+  - `Activate` — deactivates the current active pointer and inserts the new one in a transaction (the partial unique index is the real enforcement); `Rollback` = activate an older release by version; `GetActiveRelease`; `ListReleases`.
+- `validate.go` — release gate: module exists, ≥1 approved term, dependency graph acyclic + every dependency registered + pinnable, dangling-reference guard (axiom/mapping refs resolve in the governed term space or to external IRIs); `Checksum` (sha256 of canonical snapshot payload).
+- `loader.go` — extension seam 4: `LoadActiveModuleReleases` installs active releases into a swappable in-process registry (`GetActiveModule`/`ActiveModuleIDs`), best-effort at startup.
+
+`server/cmd/ontology-compiler` — subcommands `validate`, `release`, `activate`, `rollback`, `modules`, `active`; DB via PG_* env. `mise run ontology-compiler` task added (`COMPILER_ARGS='...'`).
+
+The terms stores now take a `terms.DBX` interface (satisfied by `*sql.DB` and `*sql.Tx`) so the release flow can snapshot + tag content inside the same transaction. JSONB columns are `json.RawMessage` in the Go structs.
+
+### B6 — Verification
+
+- Unit tests: `validateDeps` (cycles, unknown deps, DAG), `Checksum` determinism, active-module registry, ModuleStore CRUD (sqlmock).
+- **Live-Postgres validation** (`chenweb_test`, via a temporary `server/cmd/p3validate` program run against the real stores, then deleted): register `core` + `quantity` (depends on core) → author approved content → `validate` OK → release core@1.0.0 (payload has both terms, content tagged `included_in_release`) → release core@1.1.0 (1.0.0 marked superseded) → activate 1.0.0 → activate 1.1.0 → rollback to 1.0.0 → release quantity@0.1.0 (dependency pinned to core's active release) → empty-module release rejected with the core active pointer untouched → loader loaded the active release. **All checks passed.**
+
+### Bugs found by live validation
+
+1. **`RETURNING` with a `FROM` clause (module store)** — the same bug chunk A found in the content stores: the `moduleSelectColumns` constant included `FROM kb.ontology_modules`, invalid in `INSERT ... RETURNING`. Split into `moduleColumns` + `moduleFrom`.
+2. **Placeholder-count mismatches in INSERT `VALUES`** — when `source_candidate_id` was added to labels/axioms/mappings in chunk A, the `VALUES` placeholders were not renumbered correctly (labels and axioms and mappings each had one extra `$n`). sqlmock matches query *text*, so it passed; live Postgres rejected the inserts ("INSERT has more expressions than target columns"). All three INSERTs fixed.
+3. **`UNIQUE(module_id, release_id)` on active releases too strict** — rollback to a previously-active release is a legitimate re-activation and must insert a new row; dropped the constraint via `00025` (the partial unique index remains the invariant).
+
 ## 5. Current state and next expected slice
 
-Chunk A (ontology content stores + candidate lifecycle) is complete and live-validated. Next: **chunk B** — DB-native module compiler, releases, and activation (`kb.ontology_modules`, `kb.ontology_module_releases`, `kb.ontology_active_releases`; `server/cmd/ontology-compiler` with `validate`/`release`/`activate`/`rollback`; the runtime loader seam).
+Chunks A and B are complete and live-validated. Next: **chunk C** — core 4a module content (`core`, `document-authority`, `measurement` authored as data; the full QUDT catalog imported into `quantity`), released and activated through the compiler (the DR1 data-install property). The QUDT import (a TTL→DB generator) is the long pole and should have its data sourcing started early.
