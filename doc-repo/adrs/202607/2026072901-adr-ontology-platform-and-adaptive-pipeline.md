@@ -28,6 +28,9 @@
   freezes the 20 pilot competency questions and 50-term ontology terminology contract, corrects
   knowledge-store wiring language (C5), and updates the ontology handoff/spec status without
   changing runtime code or database state.
+* 2026/07/31, P0 closeout evidence revision. Records the approved benchmark-evidence run for the
+  ventilator pilot corpus, updates the P0 exit status to complete, and moves the remaining work
+  into explicit post-P0 implementation planning for P1+.
 
 ## Context
 
@@ -1380,11 +1383,13 @@ Evidence inspected:
 These row counts are live observations, not normative contracts; only the schema shape, code paths,
 and explicit ADR decisions are normative.
 
-P0 status after the 2026-07-30 documentation baseline:
+P0 status after the 2026-07-31 closeout revision:
 
-* Verified now: deployed schema/current-data audit for §13.5 claims and current knowledge-store inventory.
-* Structurally frozen in this slice: the competency-question contract, with owner approval still pending for P0 exit.
-* Still open before P0 exit: domain/application owner approval, authoritative medical-standard editions and a real-data worked example, the merged DR16 keyword spec, the `semos-ontology` repository plus CI skeleton, broader ambiguous/multilingual/unit/supersession/conflict fixtures, and evidence for differentiated per-store pipeline policies.
+* Verified: deployed schema/current-data audit for §13.5 claims and current knowledge-store inventory.
+* Frozen and approved for P0 closeout: the competency-question contract and the ontology terminology implementation boundary.
+* Verified with execution evidence: the approved 9-document ventilator pilot benchmark run, generated line-file path, and offline profile report showing differentiated structural-yield patterns across `narrative-research`, `product-specification`, and `regulated-reference` (`2026073005-devdoc-semos-p0-benchmark-evidence.md`).
+* P0 is therefore complete as a bounded benchmark-led proof milestone.
+* Deferred beyond P0: authoritative medical-standard editions and a real-data worked example, the merged DR16 keyword spec, broader ambiguous/multilingual/unit/supersession/conflict fixtures, and the actual implementation of P1+ runtime behavior.
 
 #### P0 competency-question contract
 
@@ -1742,7 +1747,8 @@ blockers for P0 exit.
 slice.
 
 **Which docs were updated?** This ADR, spec `2026073004-spec-semos-p0-completion.md`, and handoff
-`2026073002-handoff-semos-ontology-status.md`.
+`2026073002-handoff-semos-ontology-status.md`, handoff-updated on 2026-07-31 to reflect
+P0 closeout rather than an in-progress P0 state.
 
 **Which docs are now stale?** The two superseded keyword specs still remain unmerged until DR16's
 replacement is written. `+CAPSULE.md` §7.1–§7.3 still becomes stale the moment P1 lands and must be
@@ -1763,7 +1769,7 @@ repository hosting credentials remain for later phase documents and approvals.
 | OD4 | Whether Phase D runs inline or asynchronously by default | Inline for the pilot corpus; move to `kb.scheduled_jobs` when association latency exceeds pipeline latency |
 | OD5 | Multi-jurisdiction precedence vocabulary | Deferred (spec §17.4); unresolved conflicts stay `indeterminate` |
 | OD6 | Hard-deletion and retention for `unsupported` assertions and rejected candidates | Deferred (spec §17.10); indefinite audited retention until decided |
-| OD7 | Ontology data repository name, hosting, and access model | `semos-ontology`, same host as the code repositories, write access for curators; confirm in P0 |
+| OD7 | Ontology source-tree name, hosting, and access model | Working name `semos-ontology`; host and access model remain open, but this is no longer a P0 gate. Current workspace policy keeps documentation in `KnowledgeStore` and implementation in `shared` or `ChenWeb` until a dedicated source tree is intentionally created |
 | OD8 | Whether a document may belong to several knowledge stores | **Resolved in principle, deferred to P6.** Yes, eventually. The governing constraint: a document is processed **once** — artifacts are keyed by `record_id`, and store membership is a *view* (a join), never a copy — while a store must expose every artifact of every document it contains. The open part is scope: identity and lexicon resolution are scope-keyed by store (DR18), so a shared document resolves under its primary store for materialized identity, with read-time re-resolution for secondary stores. Ship `ks_id` as a single FK now; add `kb.input_store_membership` in P6 |
 | OD9 | Scope granularity for the lexicon: knowledge store only, or store + domain + document | Store + document-local overrides in P3 (document-local acronym definitions are strong evidence); add domain if measurement shows collisions |
 | OD10 | Whether category canonicalization retrofits onto the kernel in P4 or waits | P4, driven by the size of the `kb.category_alias_conflicts` backlog measured in P0 |
