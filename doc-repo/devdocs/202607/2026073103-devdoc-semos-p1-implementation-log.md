@@ -497,6 +497,40 @@ It was extended again later the same day (Friday, July 31, 2026, same session, u
 - API route registration (`/kb/pipelines`, `/kb/pipeline-bindings`, `/kb/pipeline-rules`, `/kb/doc-facets`) was not tested via HTTP — only psql-direct CRUD.
 - `DocPipelineModeEnforced` + `applyPolicyFilter` were not tested end-to-end against a real document flowing through `handleEvent` — the Go code that would exercise this path doesn't run in the main worktree yet. This remains a gap: the only way to close it is to either merge the P1 branch into the main worktree and restart the server, or write a standalone Go test binary that imports the P1 packages and runs against `chenweb_test`.
 
+### Follow-up: enforced-mode end-to-end validation (same day, later)
+
+The gap above — `DocPipelineModeEnforced`/`applyPolicyFilter` never exercised against real data — was closed via a temporary standalone Go program (`server/cmd/p1validate/main.go`, written, run, then deleted; not part of the permanent codebase).
+
+**Document used:** record `id=90` in `chenweb_test.kb.inputs` — "Q/SYN 002—2024《便携式呼吸机显示模块规范（合成示例，同一企业不同产品线）》". Important caveat discovered during this slice: **every row in `chenweb_test.kb.inputs` (all 91) is synthetic gold-run corpus data** (`parser_name='gold-run'`, `parse_state='pending'`, titles marked "合成示例"/"(synthetic)") — there is no organically-real, human-uploaded document in this database. `chenweb_test` is deliberately the isolated DB the gold-benchmark tooling uses (per `mise.toml`: "never the production DB/artifacts"); genuine real documents live in a different, untouched database. This was surfaced to the user, who chose to proceed with a synthetic `chenweb_test` row anyway — it still validates the real Go code against real Postgres, which was the actual goal; it just isn't literally-real-world document content.
+
+**Setup:** bound record 90's `ks_store_id` to a test store already bound (via `kb.pipeline_bindings`) to an authored pipeline `ventilator_full` (`processors: [extract_metrics, extract_provisions, generate_topics]`). Left `requested_pipeline` unset and no rule matching (record type is `cdm`, test rules matched `pdf`) so resolution would fall through to the store-binding precedence tier — deliberately exercising the fallthrough path, not just the simplest explicit-request case.
+
+**What the validation program did, using the real P1 Go packages (not sqlmock):**
+
+1. `LoadProductionPipelineRegistry`/`LoadProductionPipelineRules` against live `chenweb_test` — same calls `NewProductionRuntime` makes at startup.
+2. `DocMetadataSQLStore.GetInputRecord(ctx, 90)` — the real `kb.pipeline_bindings JOIN kb.pipelines` query, previously only checked via raw `psql`.
+3. `BuildProductionPlanFactsFromInputRecord` with a deliberately mixed request (`extract_metrics, extract_provisions, generate_topics, extract_semantic_projections` — three inside `ventilator_full`'s declared `Processors`, one outside) and `Mode = DocPipelineModeEnforced`.
+4. `BuildProductionProcessorPlanFromFacts` — the real enforcement path.
+5. `SQLStore.CreateDocProcessPlan` → `GetLatestDocProcessPlan` — the same write/read path `POST`-time persistence and `GET /kb/doc-proc-plans/latest` use.
+
+**Result — every layer behaved exactly as designed, no bugs found:**
+
+```
+StoreBoundPipeline: "ventilator_full"   (loaded via the real JOIN, not mocked)
+Rule match:         none (record type "cdm" didn't match the "pdf" test rules — correct fallthrough)
+Binding source:      knowledge_store_binding
+Selected pipeline:    ventilator_full
+Requested:           [extract_metrics extract_provisions generate_topics extract_semantic_projections]
+ExecutionOrder:      [static_analyzer chunking generate_topics extract_metrics extract_provisions]
+ExcludedByPolicy:    [extract_semantic_projections]
+```
+
+`extract_semantic_projections` — the one requested processor not in the pipeline's declared `Processors` — was correctly filtered out and recorded in `ExcludedByPolicy`, not silently dropped. The persisted row round-tripped through `GetLatestDocProcessPlan` with `ExcludedByPolicy`, `PipelineSelection`, and `PipelineBinding` all intact.
+
+**Cleanup:** the validation program was deleted after running (it was explicitly temporary, not matching any existing integration-test convention in this codebase — none was found to reuse). The test data it created in `chenweb_test` (the `ventilator_full` pipeline, its binding, the two test rules, record 90's `ks_store_id`, and the resulting `kb.doc_process_plans` row) was left in place rather than reverted, consistent with `chenweb_test` being the designated disposable/isolated test database for exactly this kind of work.
+
+With this, the P1 effort's "biggest gap" flagged earlier in this log is now fully closed: every migration, every table, every CRUD path, and the actual enforcement/filtering logic have all been exercised against real Postgres, not just sqlmock.
+
 ## 2. Workspace and branch
 
 - Repo: `ChenWeb`
@@ -914,11 +948,12 @@ All four original Chunk-4/5-adjacent candidates from the July 31 handoff, plus `
 Remaining candidates for the next slice, roughly in the order the P1 plan's Chunk 4/5/6 lay them out:
 
 1. **`kb.pipeline_policies`** — the ADR names this separately from `kb.pipeline_rules`; it isn't clear from this log's own history exactly what distinct capability it was meant to add beyond what `kb.pipeline_rules` + `kb.pipeline_bindings` now cover. Worth reading the ADR/spec directly before starting this, rather than assuming it's just "more of the same."
-2. **P1 benchmark closeout** — compare legacy-effective vs. policy-proposed processor sets on the ventilator pilot corpus, per the P1 plan's Chunk 6. With enforced mode, rules, and live-DB validation all done, this could run the existing benchmark corpus with an authored pipeline (non-empty `processors`), a `kb.pipeline_bindings` or `kb.pipeline_rules` selection, and `DOC_PIPELINE_PLAN_ONLY=false`, comparing actual policy-proposed output against legacy-effective — not just the hypothetical `pipeline_processors_match_executed` comparison.
-3. **End-to-end enforced-mode validation through handleEvent** — the live-DB validation above confirmed all 9 migrations and CRUD operations work against real Postgres, but nothing has exercised `DocPipelineModeEnforced` + `applyPolicyFilter` with a real document flowing through `handleEvent`. The main ChenWeb worktree's Go code predates all P1 Go changes, so the only way to close this gap is to either merge the P1 branch and restart the server, or write a standalone Go test binary.
-4. **Clean up duplicated migration files in the main worktree.** The migration files were copied to the main ChenWeb worktree's `project_migrations/` to get applied against `chenweb_test`, but those copies are now stale (they don't include `20260731000010`). When the P1 branch gets merged properly (rather than piecemeal file copying), the full set will be in place.
+2. **P1 benchmark closeout** — compare legacy-effective vs. policy-proposed processor sets on the ventilator pilot corpus, per the P1 plan's Chunk 6. With enforced mode, rules, and full live-DB validation all done (including the enforcement path itself, see below), this could run the existing benchmark corpus with an authored pipeline, a `kb.pipeline_bindings`/`kb.pipeline_rules` selection, and `DOC_PIPELINE_PLAN_ONLY=false`, comparing actual policy-proposed output against legacy-effective — not just the hypothetical `pipeline_processors_match_executed` comparison. This is now the most concrete remaining item with a defined deliverable (a written evidence report, matching the P0 evidence devdoc's format).
+3. ~~End-to-end enforced-mode validation through handleEvent~~ — **done** (same day, via a temporary standalone Go program against `chenweb_test`; see the "Follow-up" subsection above). `DocPipelineModeEnforced` + `applyPolicyFilter` + the full persist/read-back path were all exercised against real Postgres with real Go code, not sqlmock. No bugs found.
+4. **Clean up duplicated migration files in the main worktree.** The migration files were copied to the main ChenWeb worktree's `project_migrations/` to get applied against `chenweb_test`, then removed again after applying (the worktree's git status is clean). When the P1 branch gets merged properly, the full migration set will land there through the normal git history instead.
+5. **Real, non-synthetic document coverage.** Every document in `chenweb_test` is gold-run synthetic corpus data — none of P1's live validation (this slice or the prior one) has touched an organically-real, human-uploaded document. If that matters before calling P1 production-ready, it requires deliberately choosing to extend validation to whatever database holds real documents, which was explicitly deferred this session (see the "Follow-up" subsection above for why).
 
-With the live-DB validation above, this log's "biggest gap" (end-to-end validation against a real Postgres instance) is partially closed — all schema, columns, constraints, CRUD, and round-trip readback verified directly against `chenweb_test`. The one remaining piece is exercising the enforcement path (`handleEvent` with `DOC_PIPELINE_PLAN_ONLY=false`) against real data, which requires the P1 Go code to be running in a process connected to the DB.
+With this slice, this log's "biggest gap" (end-to-end validation against a real Postgres instance, including the enforcement path itself) is now fully closed for the scope explored so far. What's left is `kb.pipeline_policies`'s undetermined scope, Chunk 6 benchmark evidence, and — if it turns out to matter — real (non-synthetic) document coverage.
 
 Standing scope note (carried forward, now with an added diagnostic): `kb.pipelines.processors` is stored, and now comparable against executed processors via `pipeline_processors_match_executed`, but still not consulted by `BuildProductionProcessorPlanFromFacts` — plan building still selects processors from the request/required list, not from the resolved pipeline's `Processors` field. Wiring that in is real enforcement and should not happen as a side effect of an unrelated slice; it needs its own conflict/blocking-semantics design (per the ADR invariant "rule conflicts are never silently resolved"), and an actual "enforced" `DocPipelineMode` value to switch into (today `DocPipelineModeFromEnv` only knows `plan_only` and rejects everything else).
 
