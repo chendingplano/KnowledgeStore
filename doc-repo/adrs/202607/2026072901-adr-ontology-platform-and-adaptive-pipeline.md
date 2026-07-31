@@ -31,6 +31,16 @@
 * 2026/07/31, P0 closeout evidence revision. Records the approved benchmark-evidence run for the
   ventilator pilot corpus, updates the P0 exit status to complete, and moves the remaining work
   into explicit post-P0 implementation planning for P1+.
+* 2026/07/31, storage-model revision (P2 planning). Records the **DB-native storage decision**:
+  ontology content (terms, labels, axioms, mappings, the QUDT catalog) is authored and versioned
+  **in the database** with `version` columns; there is **no data-only Git repository**. DR2's
+  "author in Git, compile into Postgres" and DR17's dedicated `semos-ontology` repository are
+  revised accordingly (annotated in-place). Code lives in `shared` (shareable) or `ChenWeb`
+  (project-specific). Consequences: the LLM-cannot-activate guarantee becomes code-enforced via
+  the candidate state machine (spec §9.3) rather than Git authorship; the module compiler becomes
+  a DB-native validator/releaser that validates staged content, computes the content checksum, and
+  writes immutable releases; versioning is by column, not by Git tag. See plan
+  `2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md`.
 
 ## Context
 
@@ -217,8 +227,15 @@ which is exactly the feedback loop we want, because it is rare, visible, and rev
 
 ### DR2 — A domain module is a Git-authored source package compiled into an immutable database release
 
+> **2026-07-31 storage revision:** the Git-authoring half of this decision is **not implemented as
+> written**. Ontology content is authored and versioned directly in the database (`version`
+> columns); the compiler validates DB-staged content, computes the deterministic content checksum,
+> and writes immutable releases. The properties "author in Git" bought — review discipline and a
+> structural barrier against LLM activation — are preserved in code: LLM output lands in
+> `kb.ontology_candidates`, and no LLM path can reach accepted content rows.
+
 Spec §9.7 requires module manifests, checksums, and immutable releases but not where the content
-is authored. Decision: **author in Git, compile into Postgres.**
+is authored. Decision: **author in Git, compile into Postgres.** *(revised 2026-07-31 — see above)*
 
 ```text
 <ontology-repo>/                       # a dedicated repository — see DR17
@@ -684,6 +701,12 @@ replaces with the shared kernel.
 The merged result is written as **one** spec superseding both, before implementation begins.
 
 ### DR17 — Ontology and policy data live in their own repository, versioned and pinned like a dependency
+
+> **2026-07-31 storage revision:** the dedicated repository is **not created**. Per the workspace
+> storage principle (data lives in the database; shareable code in `shared`; project-specific code
+> in `ChenWeb`), ontology and policy content is stored and versioned in the database. The lifecycle
+> and reproducibility properties DR17 wanted (independent cadence, reproducible releases) are
+> carried by versioned content rows plus immutable, checksummed releases.
 
 Data-as-code is the right instinct, and the repository must not be the code repository.
 
@@ -1776,6 +1799,7 @@ repository hosting credentials remain for later phase documents and approvals.
 
 ## References
 
+0. [2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel](/Users/cding/Workspace/KnowledgeStore/doc-repo/plan/202607/2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md) — P2 implementation plan (DB-native storage revision, chunks 0–F)
 1. [2026072302-rsch-object-centric-ontology](/Users/cding/Workspace/KnowledgeStore/doc-repo/research/202607/2026072302-rsch-object-centric-ontology.md)
 2. [2026072702-spec-ontology-canonical-artifacts](/Users/cding/Workspace/KnowledgeStore/doc-repo/specs/202607/2026072702-spec-ontology-canonical-artifacts.md)
 3. [2026072701-adr-ontology-identity-and-assertions](/Users/cding/Workspace/KnowledgeStore/doc-repo/adrs/202607/2026072701-adr-ontology-identity-and-assertions.md)
