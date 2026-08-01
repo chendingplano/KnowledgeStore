@@ -2,6 +2,11 @@
 
 Date: July 31, 2026
 
+> **Post-handoff update (2026-08-01):** Generic P4 L6/L7 runtime and the ADR §8.2 document
+> processors are now implemented and live-validated; see P4 checkpoint
+> `2026080104-devdoc-semos-p4-foundation-checkpoint.md`. The remaining P4 boundary is the
+> authority-confirmed pilot data fixture, not generic runtime code.
+
 ## Scope
 
 This session started as ontology-consolidation work (research `2026072302`, spec `2026072702`, ADR `2026072701`) and drifted into building and validating a benchmark harness against the pilot domain those documents chose. This handoff exists specifically to capture **where the ontology design actually stands** — as opposed to what tooling got built — so a future session (or the user) can resume from an accurate baseline instead of assuming more of the ontology itself was implemented than actually was.

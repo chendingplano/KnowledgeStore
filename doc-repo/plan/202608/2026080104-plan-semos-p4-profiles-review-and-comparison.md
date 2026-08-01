@@ -122,7 +122,7 @@ runtime but omitted the ADR's explicit P4 processor obligations.
   processor plan.
 - [x] Extend `extract_provisions` to preserve structured applicability/scope clauses, authority,
   and effective intervals needed by profile selection; do not infer missing values.
-- [ ] Add focused fake-extractor/store tests, production-plan dependency tests, and a live
+- [x] Add focused fake-extractor/store tests, production-plan dependency tests, and a live
   `chenweb_test` validation for each persisted output contract.
 
 Acceptance: every ADR §8.2 P4 processor is executable through the production runtime, writes only
@@ -132,5 +132,5 @@ governed candidate/assertion inputs with source provenance, and remains domain-n
 
 - [x] For each production change, follow red → observed failure → minimal green → focused pass.
 - [x] Run `go test ./server/api/ontology/profiles/... ./server/api/ontology/modules/... ./server/api/ontology/comparison/... -count=1`, `go build ./server/...`, and focused `go vet` before completion.
-- [ ] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data. (The normal migration path was verified on `miner`; this explicit target remains outstanding.)
-- [ ] Maintain a P4 implementation log and update the ontology handoff with implemented/deferred boundaries. (Must be revised after Chunk F.)
+- [x] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data. A disposable `CandidateStore` round-trip verified source-span persistence and removed its temporary row.
+- [x] Maintain a P4 implementation log and update the ontology handoff with implemented/deferred boundaries.
