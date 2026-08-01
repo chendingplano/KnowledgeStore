@@ -237,6 +237,224 @@ identically before this change).
 assertions from `kb.semantic_assertions` inside scope execution instead of the request body) — the
 single highest-priority item left, per the Recommendation section above.
 
+## Addendum 2 (2026-08-01, same day — remaining findings closed)
+
+The remaining items from the original review are now fixed (uncommitted at review time, since
+committed as part of this same session's work):
+
+- **(f)/(g) evaluator correctness** — `evaluateRequiredAssertionPattern`
+  (`rule_required_assertion_pattern.go`) now validates `cfg.Quantifier` against a fixed set
+  (`exists_conforming`/`all_conforming`/`none_matching`/`count_conforming`) before any matching runs,
+  so an unrecognized quantifier always errors instead of silently resolving to `missing`/`indeterminate`
+  when the zero-match branch happened to run first. `all_conforming` now actually differs from
+  `exists_conforming`: it requires every matched assertion to agree on unit and numeric value (new
+  `assertionsAgree` helper), returning the previously-unreachable `ResultConflicting` category when they
+  disagree — this also makes `ReviewAssertion.NumericValue`/`UnitTermID` load-bearing instead of dead
+  fields. Tests: seven new cases in `rule_required_assertion_pattern_test.go` covering all four
+  quantifiers plus the unsupported-quantifier-with-and-without-matches cases.
+- **(d) SHACL emitter parity** — `emitRequiredAssertionPatternSHACL` now emits
+  `sh:qualifiedValueShape`/`sh:qualifiedMinCount`/`sh:qualifiedMaxCount` around a compound value shape
+  (status + predicate + optional assertion-kind + optional quantity-kind), instead of a bare
+  `sh:property`/`sh:minCount`/`sh:maxCount` that could only constrain a single property and, for
+  `none_matching`, was emitting the literal inverse of the native evaluator (`sh:minCount 0` with no
+  max, i.e. "any count is fine"). `none_matching` now emits `qualifiedMinCount 0` +
+  `qualifiedMaxCount 0`. Documented, not fixed: `all_conforming`'s cross-assertion agreement check has
+  no compact SHACL cardinality equivalent, so the shape still only captures its presence requirement —
+  called out in the function's doc comment as the remaining parity gap for P7. Tests: rewrote the
+  existing shape test for the new predicate names, added dedicated `none_matching`-inversion and
+  assertion/quantity-kind-inclusion tests.
+- **(e) release-time rule reference validation** — added an optional
+  `ReferencedTermIDs func(ProfileRule) ([]string, error)` field to the `RuleKind` registration struct
+  (`rule_registry.go`; optional so a rule kind with no term references isn't forced to implement a
+  no-op), implemented it for `required_assertion_pattern`, and wired a new
+  `validateProfileRuleReferences` into `ReleaseStore.validateAndBuildSnapshot`
+  (`modules/validate.go`) alongside the existing axiom/mapping dangling-reference guard. A release now
+  rejects a rule referencing a nonexistent governed term, and separately rejects a rule whose
+  `rule_kind` isn't registered at all (a config/deployment inconsistency that would otherwise release
+  an unevaluatable rule). Tests: `TestRequiredAssertionPatternReferencedTermIDs*` (extractor) and
+  `TestValidateProfileRuleReferences*` (release-gate wiring, as pure-function tests mirroring the
+  existing `validateDeps` test pattern — the axiom/mapping dangling-reference guard itself has no
+  equivalent unit test to follow, only live validation).
+- **Review-scope reproducibility (the highest-priority item)** — `ReviewService.EvaluatePinnedScope`
+  (`review_service.go`) no longer takes an `assertions []ReviewAssertion` parameter. It now derives the
+  assertion set itself from the scope's own pinned `target_object_ids`, via a new required
+  `AssertionLoader` interface (`LoadAcceptedAssertions(ctx, objectID) ([]ReviewAssertion, error)`).
+  `ExecuteOntologyReviewScope` (`kbhandler/ontology_review_scopes_handler.go`) no longer decodes an
+  `assertions` field from the request body at all. Production wiring is a new
+  `reviewAssertionLoader` adapter (`kbhandler/ontology_review_assertion_loader.go`) over
+  `assertions.AssertionStore.ListBySubjectObject(ctx, objectID, "accepted")` — an existing store method
+  that already resolves to the latest revision per logical identity key. This closes both the
+  forgeability gap (a caller could previously inject arbitrary `accepted` assertions and get real
+  findings persisted) and the reproducibility gap (the same scope id now always evaluates against
+  governed state, not whatever a request body happened to contain).
+  **Deliberately not done in this pass:** an assertion watermark column on `kb.ontology_review_scopes`
+  (mirroring `kb.ontology_comparison_runs.assertion_watermark`) and `reviewed_document_ids`-based
+  filtering (would require a join through `kb.assertion_evidence.input_record_id`, which P3 chunk E
+  only recently started populating). Both remain real gaps — a scope's result can still drift over time
+  as new assertions are accepted for the same target objects — but adding a watermark schema change was
+  judged separate, deferrable scope from closing the client-forgeability hole, which was the acute
+  correctness/security issue. Recorded here so it isn't lost.
+
+Verification: `go build ./server/...`, `go vet ./server/...`, and
+`go test ./server/api/ontology/... ./server/api/kbhandler/... ./server/api/doc-processing/... -count=1`
+— no new failures against the baseline (`kbhandler` has 14 pre-existing unrelated failures in
+search/registry/topic code; `doc-processing` has the same 21 pre-existing unrelated failures noted in
+Addendum 1; both confirmed present identically on the unmodified baseline commit).
+
+**Still open, not addressed in this session:** document-scoped filtering (join through
+`kb.assertion_evidence.input_record_id`) — see Addendum 3 for the watermark piece, now closed;
+`Profile`/`ProfileRule` versioning (`CreateProfile`/`CreateProfileRule` still hardcode version 1, so a
+released profile cannot be revised); applicability/precedence fields remain unevaluated (dead data);
+no `p4_exit_test.go`. The comparison-run watermark forgeability noted here is now closed — see
+Addendum 4. Comparison **cells** (verdict/rationale) remain client-supplied and unevaluated by
+`EvaluateDirectionalCell` in production — a materially larger, separate piece of work, not addressed.
+
+## Addendum 3 (2026-08-01, same day — assertion-watermark gap closed)
+
+Per user direction to close the "deliberately not done" gap from Addendum 2, added a real review-run
+concept (the design mirrors `kb.ontology_comparison_runs`/`ComparisonStore`, per user's selected option
+of three presented). Document-scoped filtering (the other half of that gap) was explicitly **not**
+included — see the option comparison below for why.
+
+- **`kb.ontology_review_runs`** (migration `20260801000012`) — `id`, `review_scope_id` (FK to
+  `kb.ontology_review_scopes`), `input_record_id` (FK to `kb.inputs`, using the correct target from
+  the start — the P4 checkpoint records that `kb.ontology_comparison_runs` initially pointed at the
+  wrong table, `kb.input_records`, and had to be corrected after a live-validation failure),
+  `assertion_watermark`, `create_time`. The scope stays reusable; each `/execute` call now creates a
+  new run row pinning the assertion state at that moment, so a **historical run** (not just the scope)
+  is now reproducible even as new assertions get accepted later for the same target objects.
+- **`kb.doc_review_findings.review_run_id`** (migration `20260801000013`) — a new, FK-integrous column
+  distinct from the pre-existing, client-supplied `run_id` (which remains untouched: it's a broader,
+  cross-pass concept shared with LLM-based review findings elsewhere in `doc-reviews`, out of scope for
+  this fix). `review_run_id` is ontology-specific and always server-generated.
+- **`ReviewRunStore.CreateRun`** (`review_runs_store.go`) — same shape/validation pattern as
+  `ComparisonStore.CreateRun`.
+- **Watermark computation** — `ReviewService.EvaluatePinnedScope` (`review_service.go`) now tracks the
+  highest `AssertionID` returned by `AssertionLoader.LoadAcceptedAssertions` across every target object
+  in the scope, formats it as `"assertion:<id>"` (or `"none"` if nothing was loaded), and creates the
+  run via a new required `Runs ReviewRunWriter` seam **before** evaluating rules — the watermark is
+  computed server-side from what was actually loaded, never client-supplied. `EvaluatePinnedScope` now
+  returns `([]RuleEvaluationResult, ReviewRun, error)` instead of just the results, so callers (and the
+  HTTP response) can see which run produced a given set of findings.
+- **Handler + read-back** — `ExecuteOntologyReviewScope` wires `Runs: profiles.ReviewRunStore{DB: db}`
+  and returns the created `ReviewRun` in its response (`ontologyReviewExecutionResponse.Run`), mirroring
+  how `CreateOntologyComparisonRun` returns its created record. `GetOntologyReviewFinding` now also
+  reads back `review_run_id`, extending the existing provenance response (`review_scope_id`,
+  `profile_rule_id`, `assertion_id`) to include which run.
+- Tests: `review_runs_store_test.go` (2 cases), 3 new `ReviewService` watermark-computation tests
+  (zero-assertions → `"none"`; single target → `"assertion:<id>"`; watermark tracks the **highest** id
+  across multiple targets, not just the last one processed), updated `FindingStore`/handler/finding
+  read-back tests for the new column and INSERT shape.
+
+**Why document-scoped filtering was left out of this addendum, per the option comparison presented to
+and selected by the user:** it would additionally join through `kb.assertion_evidence.input_record_id`
+to restrict assertions to ones evidenced within `reviewed_document_ids`, not just matching
+`target_object_ids`. The P3 implementation log recorded that `input_record_id` population on evidence
+rows was only fixed as a chunk-E prerequisite (2026-08-01) — so older assertions/evidence predating
+that fix may not join cleanly, making this a real, separate, higher-risk piece of work than the
+watermark fix. Still open.
+
+Verification: `go build ./server/...`, `go vet ./server/...`, and
+`go test ./server/api/ontology/... ./server/api/kbhandler/... -race -count=1` — no new failures against
+the same pre-existing baseline (14 unrelated `kbhandler` search/registry/topic failures) noted in
+Addendum 2.
+
+## Addendum 4 (2026-08-01, same day — comparison-run watermark forgeability closed)
+
+Per user follow-up, closed the analogous forgeability gap on the comparison side flagged at the end of
+Addendum 3: `CreateOntologyComparisonRun` accepted an arbitrary `assertion_watermark` string directly
+from the request body with no server-side computation, the same shape as the review-run bug Addendum 3
+fixed.
+
+- **`AssertionStore.HighestAcceptedAssertionID`** (`assertions/assertions_store.go`) — new method
+  returning `MAX(id)` (0 if none) among the latest-revision, `accepted` assertions for one subject
+  object, via a single aggregate query rather than loading full rows. Reuses the exact
+  latest-revision-per-`logical_identity_key` filtering `ListBySubjectObject` already used.
+- **`comparison.ComputeAssertionWatermark`** (new file `comparison/watermark.go`) — takes a
+  `ComparisonScope` and a minimal `AssertionWatermarkLoader` interface
+  (`HighestAcceptedAssertionID(ctx, objectID) (int64, error)`), parses the scope's own
+  `target_object_ids`, and returns `"assertion:<max id across all targets>"` or `"none"`. Same
+  computation shape as the review-run watermark (Addendum 3), implemented separately in the
+  `comparison` package to preserve the existing clean separation from `profiles`/`assertions` (neither
+  package imports the other) rather than force a shared cross-package abstraction for ~15 lines of
+  logic.
+- **`CreateOntologyComparisonRun`** (`kbhandler/ontology_comparison_runs_handler.go`) — no longer
+  decodes `assertion_watermark` from the request body at all (only `input_record_id` and
+  `comparator_version`, which remain legitimately caller-supplied: an association tag and a
+  comparator-implementation version tag, not governed state). It now loads the scope via the existing
+  `ComparisonStore.GetScope`, computes the watermark server-side via `ComputeAssertionWatermark` against
+  `assertions.AssertionStore` (which satisfies the new interface structurally — no adapter type needed,
+  unlike the review-side `reviewAssertionLoader` bridge, because the method signatures already match
+  exactly), and only then creates the run. A request to a nonexistent scope now correctly 404s instead
+  of silently persisting a run against a scope id that was never validated.
+- Tests: `HighestAcceptedAssertionID` (2 cases), `ComputeAssertionWatermark` (2 cases, including
+  multi-target max), and 3 handler-level tests — the existing pinned-provenance test (updated for the
+  new scope-lookup + watermark-query mocks), a new test proving a forged `assertion_watermark` in the
+  request body is ignored (the INSERT only matches the server-computed value), and a new
+  scope-not-found → 404 test.
+- `ComparatorVersion` was deliberately left client-supplied: unlike an assertion watermark, it doesn't
+  represent governed data freshness — it's closer to a software/build version tag the caller (the
+  orchestrating comparator invocation) legitimately owns.
+
+Verification: `go build ./server/...`, `go vet ./server/...`, and
+`go test ./server/api/ontology/... ./server/api/kbhandler/... -race -count=1` — no new failures against
+the same pre-existing baseline noted in Addenda 2–3.
+
+**Still not addressed** (explicitly out of scope for this addendum, larger separate work): comparison
+**cells** — `CreateOntologyComparisonCell` still accepts verdict/rationale directly from the request
+body; `EvaluateDirectionalCell`, the actual DR21 comparator, is still invoked only by its own test and
+not wired into any production code path. See the decision record in Addendum 5.
+
+## Addendum 5 (2026-08-01, same day — comparison-cell forgeability: deliberately deferred)
+
+**Decision:** leave `CreateOntologyComparisonCell` as-is (client-supplied verdict/rationale, no
+server-side evaluation) rather than fix it now. Documenting the gap and the reasoning per user request,
+so it isn't silently lost.
+
+**What's wrong:** `CreateOntologyComparisonCell`
+(`kbhandler/ontology_comparison_cells_handler.go`) decodes a full `comparison.ComparisonCell` —
+including `Verdict`, `Rationale`, both sides' `RepresentativeAssertionID`s, and both evidence lists —
+directly from the request body and persists it unchanged. `EvaluateDirectionalCell`
+(`comparison/evaluate_cell.go`), the actual DR21/DR22 comparator built and tested this same day, is
+invoked only from its own test (`store_test.go`) — no production code path calls it. A caller can POST
+any verdict for any target/metric/authority combination and have it persisted as a real, citable
+comparison result, the same forgeability shape the run-watermark fixes (Addenda 3–4) closed for
+`assertion_watermark`.
+
+**Why not fixed now:** unlike the watermark (a single derived scalar computed from data already fully
+available — `target_object_ids` → accepted assertions → max id), wiring the real comparator into
+production requires two pieces of governed logic that don't exist anywhere in the codebase yet:
+
+1. **Family grouping** — deciding which accepted assertions belong to the `subject_family` (e.g. the
+   reviewed enterprise) versus each `authority_family` (e.g. a specific standard) for a given
+   `target_object_id`/`metric_key`. Nothing today classifies an assertion by "family."
+2. **Precedence-based representative selection** — when multiple non-conflicting assertions exist on
+   one side, choosing the one `EvaluateFamily` compares against (and computing the correct
+   `remainder_count` for the rest). The `precedence_policy` field on `ComparisonScope` is stored but,
+   like the review-side `PrecedencePolicy`/`Applicability` fields flagged in the original review, is
+   never evaluated by any code.
+
+Both of these are exactly the kind of design work the ADR/P4 plan explicitly gates on the pilot
+ventilator domain module and a domain-owner-confirmed authority standard — "the pilot domain module
+supplies one part class, its metric definitions, and its expected-metric profile, so the first
+comparison matrix is real rather than a mock" (P4 checkpoint, §8.3.7). Building family-grouping and
+precedence-selection logic against synthetic or guessed rules risks having to redesign it once real
+pilot content lands, which is the same trap the ADR's "no synthetic placeholder is promoted as
+normative content" rule exists to avoid for profiles and rules.
+
+**Bounded alternative considered and declined for now:** validate that client-supplied representative
+assertion IDs exist and are `accepted`, and compute the verdict server-side via the existing
+`EvaluateFamily`/`EvaluateDirectionalCell` from those real records — closing "declare any verdict" while
+leaving family-grouping/precedence-selection as still caller-directed. User chose to leave the whole
+thing deferred rather than take this partial step.
+
+**What would need to happen to close this:** (1) the pilot module/profile/authority confirmation this
+P4 plan already blocks Chunk D on, since family definitions are domain content, not generic runtime;
+then (2) a family-classification mechanism (likely rule-kind-registry-shaped, mirroring seam 6) and a
+precedence evaluator consuming `precedence_policy`; then (3) wire `EvaluateDirectionalCell` into
+`CreateOntologyComparisonCell` (or a new `ComparisonService`, mirroring `ReviewService`) instead of
+accepting a pre-computed cell.
+
 ## Documentation impact
 
 **What knowledge changed?** P4's "generic runtime built" status is downgraded: the schema/lifecycle

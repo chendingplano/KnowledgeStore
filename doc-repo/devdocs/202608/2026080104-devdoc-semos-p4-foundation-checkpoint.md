@@ -102,6 +102,12 @@ profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInf
   live-validated; a later Chunk-A validation should create a disposable draft profile/rule through
   the stores, release/activate it, prove active visibility, then roll the disposable data back or
   clean it up through the governed lifecycle.
+- **Comparison-cell forgeability, deliberately deferred.** `CreateOntologyComparisonCell` still accepts
+  a pre-computed verdict/rationale from the request body rather than evaluating one via
+  `EvaluateDirectionalCell`. Family grouping (subject vs. authority family) and precedence-based
+  representative selection are the missing governed logic, and both are domain content blocked on the
+  same pilot-module/authority confirmation gating Chunk D — see the decision record and what-would-close-it
+  path in `2026080105-devdoc-semos-p4-implementation-review.md` Addendum 5.
 
 ### ADR §8.2 processor completion (2026-08-01)
 
