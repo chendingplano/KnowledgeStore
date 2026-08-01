@@ -103,14 +103,30 @@ profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInf
   the stores, release/activate it, prove active visibility, then roll the disposable data back or
   clean it up through the governed lifecycle.
 
+### ADR §8.2 processor completion (2026-08-01)
+
+- `extract_test_methods` is a routed chunk-batch processor. It validates named procedure output
+  and emits review-only procedure-term and `mea:measured_by` axiom candidates with source spans.
+- `extract_metric_definitions` is a separate routed chunk-batch processor. It emits governed
+  `metric_definition` candidates; values without a definition remain on the assertion path.
+- `extract_product_structure` runs after entity-object reconciliation and relation endpoint
+  linking. It accepts only explicit `part_of`/`component_of` relations whose endpoints resolve to
+  object nodes, emitting structural decision candidates rather than ontology content.
+- `extract_provisions` preserves applicability, authority, and effective interval fields in its
+  backwards-compatible `public_info` JSONB. Missing values are not inferred.
+- Focused fake-extractor/SQL tests, ontology package tests, vet, and both compiler builds passed.
+  A disposable live `chenweb_test` round-trip through `CandidateStore` verified exact source-span
+  persistence and removed its temporary row afterward.
+
 ## Documentation impact
 
 **What knowledge changed?** Profiles/rules now have a concrete governed-content storage and module-release design in code.
 
 **Which docs/specs/ADRs/tests are affected?** P4 planning, the P4 runtime tests, and the module compiler snapshot contract.
 
-**Which docs were updated?** The new P4 implementation plan and this checkpoint.
+**Which docs were updated?** The P4 plan, this checkpoint, and the ontology capsule.
 
-**Which docs are stale?** The ontology handoff remains accurate: P4 was not previously implemented. It should be updated only after a live-validated P4 chunk is complete.
+**Which docs are stale?** The historical ontology handoff's pre-P4 statements are superseded by
+this checkpoint for generic runtime status; pilot authority fixture status remains unchanged.
 
 **What was intentionally left undocumented?** Authority-specific ventilator profile values and standard editions, because they must come from a confirmed real source rather than the synthetic benchmark.

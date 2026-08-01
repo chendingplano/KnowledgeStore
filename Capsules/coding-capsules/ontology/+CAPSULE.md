@@ -1,6 +1,6 @@
 # SemOS Ontology — Content Model, Compiler, and Release Workflow
 
-**Status:** built (P2 chunks A–F and the generic P4 L6/L7 runtime, 2026-08-01). ADR §8.2 P4 document processors remain pending. **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
+**Status:** built (P2 chunks A–F and generic P4 L6/L7 plus ADR §8.2 document processors, 2026-08-01). **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
 
 ## What this is
 
@@ -59,6 +59,9 @@ Installing a domain module never requires a processor, normalizer, or API change
   directional verdicts, representatives, remainder counts, evidence lists, and rationale.
 - The ventilator material remains an optional benchmark fixture only; the runtime contains no
   ventilator-specific schema or Go logic.
+- Routed P4 document processors create review-only candidate inputs: metric definitions, test
+  methods, and explicit product structure retain source spans; provision applicability, authority,
+  and effective interval remain structured `public_info` evidence.
 
 ## Related documents
 
