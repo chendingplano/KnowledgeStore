@@ -707,6 +707,10 @@ replaces with the shared kernel.
 
 The merged result is written as **one** spec superseding both, before implementation begins.
 
+> **2026-08-01 status:** Done. The merged spec is `2026080101-spec-keyword-canonicalization-merged.md`.
+> The keyword-lexicon *code* it describes remains deferred — see the P3 implementation log — but the
+> design disagreement DR16 exists to resolve is closed.
+
 ### DR17 — Ontology and policy data live in their own repository, versioned and pinned like a dependency
 
 > **2026-07-31 storage revision:** the dedicated repository is **not created**. Per the workspace
@@ -1516,6 +1520,16 @@ loss of a merged id.
   with validation gates, and `aligns_to_term` alignment to governed terms. Ships behind
   `KEYWORD_RESOLVER_MODE=observe` first, so mention and backlog volume is measured before any
   resolution affects retrieval.
+
+> **2026-08-01 status:** Assertion/evidence schema (DR9), the operational candidate lifecycle, the
+> normalizer registry (seam 5) with metric and provision instances, and Phase D stages 1–2
+> (`normalize_assertions`, `associate_semantics`) are **Built** — `ChenWeb/server/api/ontology/assertions/`
+> and `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics}.go`, gated by
+> `SEMANTIC_ASSOCIATION_ENABLED`. Live-validated against real Postgres including the actual gold
+> corpus already in `chenweb_test`, not only synthetic fixtures — see the P3 implementation log
+> `2026080103-devdoc-semos-p3-implementation-log.md`. **Not built:** `project_semantics` (stage 3),
+> association telemetry, the deferred/ambiguous backlog drain, and the keyword lexicon (design-only
+> per the DR16 merged spec `2026080101-spec-keyword-canonicalization-merged.md`).
 
 *Exit:* spec §16.2 and §16.3 acceptance suites pass, including conflicting assertions remaining
 separately queryable, corrupted projections detected and repaired, and evidence loss moving an

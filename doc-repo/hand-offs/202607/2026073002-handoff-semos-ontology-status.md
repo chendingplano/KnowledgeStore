@@ -97,7 +97,7 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 - Approved P0 benchmark evidence showing differentiated structural output patterns across `narrative-research`, `product-specification`, and `regulated-reference` for the ventilator pilot corpus.
 
 **Deferred beyond P0:**
-- Merge the two keyword-canonicalization specs into the one DR16 supersedes them with *(still open — prerequisite for the P3 keyword family)*.
+- ~~Merge the two keyword-canonicalization specs into the one DR16 supersedes them with~~ — done (2026-08-01, `2026080101-spec-keyword-canonicalization-merged.md`); the keyword-lexicon *code* itself remains a P3 deferral.
 - Confirm authoritative standard editions and a real-data worked example for the pilot domain.
 - Broaden the fixture corpus beyond the one ventilator display-module case — no ambiguous-object, multilingual-name, unit-conversion, or superseded-document fixtures exist yet (devdoc `2026073002-devdoc-gold-benchmark-operations.md` §7 has concrete extension options).
 - ~~Implement the P2 ontology core and canonicalization kernel~~ — done (2026-08-01).
@@ -106,7 +106,9 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 
 **P2:** complete (as of 2026-08-01) — see the post-handoff update. The deferred-by-design boundary beyond P2 is documented in the P2 implementation log §5.
 
-**P3–P7:** not started in code.
+**P3:** chunks 0–D complete (as of 2026-08-01) — see the post-handoff update. Chunk E, chunk F, and the keyword lexicon (Track B) remain; full detail in the P3 implementation log.
+
+**P4–P7:** not started in code.
 
 ## Open decisions (from the ADR's own table)
 
@@ -155,6 +157,48 @@ Everything is unit-tested and the key flows live-validated against `chenweb_test
 
 The original "Post-handoff update" recorded one early P1 slice (store-bound default pipeline). That, and everything else listed under "not yet complete for P1" in the original handoff, is now implemented and validated as of the same day's later session. P1 is done. See the P1 implementation log (`2026073103-devdoc-semos-p1-implementation-log.md`) for the full build record — schema, code, bugs found and fixed, benchmark evidence, and the two live-Postgres validation proofs for policy activation.
 
+## Post-handoff update (2026-08-01 — P3 chunks 0–D complete)
+
+P3 Track A (assertion/evidence schema, Phase D stages 1–2) is **partially built and live-validated**
+as of 2026-08-01, per plan `2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`
+(chunks 0–D). Delivered:
+
+- the DR9 qualified-assertion and evidence schema (`kb.semantic_assertions`/`assertion_evidence`/
+  `assertion_relations`) with the spec §9.3 **operational** decision state machine, distinct from
+  P2's governed-content machine;
+- `kb.semantic_decision_candidates`, the Phase D counterpart to P2's `kb.ontology_candidates`, with
+  the same fingerprint-dedup/revision/defer-retry mechanics;
+- the `AssertionNormalizerRegistry` (DR11 seam 5) with metric and provision normalizer instances,
+  each self-registering (no edits to the registry or the Phase D stage required to add one);
+- Phase D stages 1–2 (`normalize_assertions`, `associate_semantics`), wired into the pipeline after
+  Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED` (default off — currently inert in production).
+
+Live-validated against **real gold-corpus data already in `chenweb_test`** (not only synthetic
+fixtures), which surfaced genuine findings recorded in the P3 implementation log
+`2026080103-devdoc-semos-p3-implementation-log.md`: the corpus's `threshold_or_target`/provision
+text is predominantly Chinese, requiring Chinese comparator/modality vocabulary the initial
+English-only parser missed entirely; contrast-ratio notation (`500:1`) needed a small preprocessing
+fix; the corpus's metric artifacts have **never** been run through object reconciliation (zero rows
+in `kb.artifact_objects` for `artifact_type='metric'`, versus full reconciliation for provisions and
+inventory items) so real metric candidates mostly defer with `unresolved_referent` today; and no
+governed deontic predicate term exists yet for provisions, so every provision candidate correctly
+defers rather than inventing one.
+
+Also completed as a chunk-0 prerequisite: the DR16 merged keyword spec
+(`2026080101-spec-keyword-canonicalization-merged.md`), superseding the two disagreeing keyword
+specs, closing that documentation gap even though the keyword-lexicon code itself remains deferred.
+
+**Deferred by design beyond this slice:**
+
+- `project_semantics` (Phase D stage 3) and `kb.object_nodes.primary_class_term_id` maintenance;
+- association-run telemetry and the deferred/ambiguous backlog drain (DR5/DR6/DR7 pattern reuse);
+- the keyword lexicon *code* (design is done; `KEYWORD_RESOLVER_MODE` stays `off`);
+- object reconciliation for the metric artifact family (a Phase B/C gap, not Phase D);
+- a governed deontic predicate for provisions (an ontology-content authoring task, not a code task).
+
+**Next:** chunk E (`project_semantics`), chunk F (telemetry, backlog drain, exit-criteria suite), then
+Track B (keyword lexicon).
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -163,4 +207,7 @@ The original "Post-handoff update" recorded one early P1 slice (store-bound defa
 - P1 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073103-devdoc-semos-p1-implementation-log.md` — the complete P1 build record (schema, code, bugs found and fixed, benchmark evidence, live-Postgres validation proofs). P1 is done against its stated exit criteria.
 - P2 implementation plan: `KnowledgeStore/doc-repo/plan/202607/2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md` — the P2 plan (ontology core + canonicalization kernel), chunks 0–F, including the 2026-07-31 DB-native storage revision (no data-only repository; content versioned in the database).
 - P2 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073105-devdoc-semos-p2-implementation-log.md` — the running P2 build record.
+- DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — supersedes `2026072301` and `2026072703`; the keyword-lexicon design source of truth for whenever Track B's code is built.
+- P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
+- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–D build record (schema, code, real-data findings, live-Postgres validation).
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
