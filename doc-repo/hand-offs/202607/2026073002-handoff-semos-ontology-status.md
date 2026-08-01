@@ -119,6 +119,19 @@ The stale P0 benchmark-wiring contradiction in ADR `2026072901` was corrected in
 3. Expand the fixture families beyond the single ventilator display-module case, especially ambiguous-object, multilingual, unit-conversion, supersession, and conflict fixtures.
 4. Confirm authoritative standard editions and a real-data worked example for the pilot domain before claiming domain-level semantic completeness.
 
+## Post-handoff update (2026-08-01 — P2 complete)
+
+P2 (ontology core and canonicalization kernel) is **implemented and validated** as of 2026-08-01, per plan `2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md` (chunks 0, A–F). The DB-native storage revision (data in the database; no data-only repository; version columns) was applied throughout. Delivered:
+
+- ontology content stores (`kb.ontology_terms`/`labels`/`axioms`/`mappings`/`candidates`) with the spec §9.3 candidate lifecycle and fingerprint dedup;
+- the DB-native module compiler (`ontology-compiler`: validate/release/activate/rollback) producing immutable, checksummed releases with an activation pointer;
+- the four core 4a modules installed **as data** (`core`, `document-authority` incl. the DR4 facet vocabulary, `measurement`, and `quantity` with the full QUDT catalog — 4151 terms) — the DR1 property, no code change;
+- the `semid` canonicalization kernel with the governed ontology-term family, `semid_*` tables, and kernel fixtures (ADR tests 18–21, 23);
+- the `object_nodes` extension columns (DR10/DR15.1);
+- extension seams 1–4 and the spec §16.3 items 1–7 exit criteria.
+
+Everything is unit-tested and the key flows live-validated against `chenweb_test`; the dev DB `miner` is fully migrated through `20260731000028`. See the P2 implementation log `2026073105-devdoc-semos-p2-implementation-log.md` and the new ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md`. The ADR P2 section is annotated. P3 (assertions/association, keyword lexicon) is the next phase.
+
 ## Post-handoff update (2026-07-31, final — supersedes all earlier status)
 
 The original "Post-handoff update" recorded one early P1 slice (store-bound default pipeline). That, and everything else listed under "not yet complete for P1" in the original handoff, is now implemented and validated as of the same day's later session. P1 is done. See the P1 implementation log (`2026073103-devdoc-semos-p1-implementation-log.md`) for the full build record — schema, code, bugs found and fixed, benchmark evidence, and the two live-Postgres validation proofs for policy activation.
