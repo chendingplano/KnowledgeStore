@@ -2,7 +2,7 @@
 
 This plan follows P2 closeout on Saturday, August 1, 2026. P2 built the ontology core (governed terms, the module compiler, the four core 4a modules, the `semid` canonicalization kernel with the ontology-term family). P3 builds the layer that gives artifacts something to be *about*: the qualified-assertion and evidence model (DR9), and the three Phase D pipeline stages (`normalize_assertions`, `associate_semantics`, `project_semantics`) that turn extracted artifacts into governed, queryable semantic claims.
 
-> **2026-08-01 status:** Chunks 0–E are complete and live-validated against real Postgres, including real gold-corpus data — see the P3 implementation log `2026080103-devdoc-semos-p3-implementation-log.md`. Chunk F and Track B (keyword lexicon) are not started; this plan document is left as originally written (per the P2 precedent) rather than retroactively checkbox-edited.
+> **2026-08-01 status:** Chunks 0–F are complete and live-validated against real Postgres, including real gold-corpus data — see the P3 implementation log `2026080103-devdoc-semos-p3-implementation-log.md`. This closes out P3 Track A. Track B (keyword lexicon) is not started; this plan document is left as originally written (per the P2 precedent) rather than retroactively checkbox-edited.
 
 ## Scope decision (2026-08-01)
 

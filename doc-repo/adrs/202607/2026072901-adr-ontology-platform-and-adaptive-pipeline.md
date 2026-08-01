@@ -1813,18 +1813,20 @@ loss of a merged id.
   `KEYWORD_RESOLVER_MODE=observe` first, so mention and backlog volume is measured before any
   resolution affects retrieval.
 
-> **2026-08-01 status:** Assertion/evidence schema (DR9), the operational candidate lifecycle, the
-> normalizer registry (seam 5) with metric and provision instances, and all three Phase D stages
-> (`normalize_assertions`, `associate_semantics`, `project_semantics`) are **Built** —
-> `ChenWeb/server/api/ontology/assertions/` and
-> `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics,project_semantics}.go`,
-> gated by `SEMANTIC_ASSOCIATION_ENABLED`. `project_semantics` includes the `ProjectionBuilderRegistry`
+> **2026-08-01 status:** P3 Track A is **Built and complete** — assertion/evidence schema (DR9), the
+> operational candidate lifecycle, the normalizer registry (seam 5) with metric and provision
+> instances, all three Phase D stages (`normalize_assertions`, `associate_semantics`,
+> `project_semantics`, orchestrated by `assertions.RunPhaseD`), association-run telemetry (spec
+> §10.9), and the deferred-candidate backlog drain (`POST /kb/semantic-decisions/drain-deferred`,
+> the DR5 bulk-backfill pattern reused). `project_semantics` includes the `ProjectionBuilderRegistry`
 > (seam 7) and `kb.object_nodes.primary_class_term_id` maintenance (DR10), closing the P2 chunk E
 > deferral. Live-validated against real Postgres including the actual gold corpus already in
 > `chenweb_test`, not only synthetic fixtures — see the P3 implementation log
-> `2026080103-devdoc-semos-p3-implementation-log.md`. **Not built:** association telemetry, the
-> deferred/ambiguous backlog drain, and the keyword lexicon (design-only per the DR16 merged spec
-> `2026080101-spec-keyword-canonicalization-merged.md`).
+> `2026080103-devdoc-semos-p3-implementation-log.md`, which also records two real correctness bugs
+> live validation found and fixed (a revision-supersession gap and an `in_review` resumability gap).
+> **Not built:** the keyword lexicon (design-only per the DR16 merged spec
+> `2026080101-spec-keyword-canonicalization-merged.md`) and the DR6/DR7 halves of the backlog drain
+> (admin review page; LLM auto-resolution).
 
 *Exit:* spec §16.2 and §16.3 acceptance suites pass, including conflicting assertions remaining
 separately queryable, corrupted projections detected and repaired, and evidence loss moving an

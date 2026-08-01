@@ -106,7 +106,7 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 
 **P2:** complete (as of 2026-08-01) — see the post-handoff update. The deferred-by-design boundary beyond P2 is documented in the P2 implementation log §5.
 
-**P3:** chunks 0–E complete (as of 2026-08-01) — see the post-handoff update. Chunk F and the keyword lexicon (Track B) remain; full detail in the P3 implementation log.
+**P3:** Track A complete, chunks 0–F (as of 2026-08-01) — see the post-handoff update. The keyword lexicon (Track B) remains; full detail in the P3 implementation log.
 
 **P4–P7:** not started in code.
 
@@ -231,6 +231,39 @@ deontic predicate for provisions; a real classification-assertion producer.
 **Next:** chunk F (telemetry, backlog drain, the consolidated exit-criteria suite), then Track B
 (keyword lexicon).
 
+## Post-handoff update (2026-08-01, final for this session — P3 Track A complete)
+
+Chunk F is done, closing out all of **P3 Track A** (chunks 0–F). Delivered: association-run
+telemetry (spec §10.9, `assertions.AssociationRunReport`/`BuildAssociationRunReport`), a single
+`assertions.RunPhaseD` orchestrator consolidating the three per-stage `ControlService` wrappers
+chunks C–E built into one call site in `control.go`; the deferred-candidate backlog drain
+(`assertions.DrainDeferredCandidates`, `POST /kb/semantic-decisions/drain-deferred`, the ADR
+`2026070701` DR5 bulk-backfill pattern reused rather than a new mechanism); and a permanent
+spec §16.2/§16.3 exit-criteria test file (`p3_exit_test.go`) mapping every P3-relevant item to
+either a test or a pointer to where live validation already proved it, mirroring
+`candidates/p2_exit_test.go`'s convention exactly.
+
+Two real correctness bugs surfaced during this chunk's own live validation, not from inspection:
+
+1. `DecisionCandidateStore.Propose` only superseded a prior revision that was `accepted`/`rejected`,
+   leaving a `deferred`/`candidate` prior un-retired when a new revision was created — meaning two
+   revisions of the same logical association could sit in a processable status simultaneously.
+   Caught when the backlog drain's first design (directly retry a deferred candidate via
+   `RetryDeferred`) reprocessed a candidate's stale, still-unresolved payload instead of its fresh
+   one. The actual fix was not "retry harder" but a different mechanism: re-running the normalizer
+   (which naturally produces a correctly-superseding fresh revision once this bug was fixed).
+2. `AssociateSemantics.Run` only queried `status='candidate'`, so a crash between the `in_review`
+   transition and the accept/defer decision left a row stuck at `in_review` forever, with no
+   automatic path back. Found while writing the exit-criteria mapping for spec §16.3 item 13
+   ("a transient failure leaves the candidate non-terminal and can resume idempotently").
+
+Both are the same class of bug the P1/P2/P3 logs have now recorded multiple times: real, load-bearing
+gaps that sqlmock-only or synthetic-fixture-only testing structurally cannot catch, found only by
+running the real mechanism against real Postgres and real data.
+
+**P3 Track A is complete.** **Next:** Track B (the keyword lexicon — design is done, code is not),
+then P4 (profiles, the pilot 4b domain module, and ontology-aware metric review).
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -241,5 +274,5 @@ deontic predicate for provisions; a real classification-assertion producer.
 - P2 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073105-devdoc-semos-p2-implementation-log.md` — the running P2 build record.
 - DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — supersedes `2026072301` and `2026072703`; the keyword-lexicon design source of truth for whenever Track B's code is built.
 - P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
-- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–E build record (schema, code, real-data findings, live-Postgres validation).
+- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation).
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.

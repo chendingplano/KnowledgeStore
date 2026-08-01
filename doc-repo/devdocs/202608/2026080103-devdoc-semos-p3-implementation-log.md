@@ -1,11 +1,11 @@
-# SemOS P3 Implementation Log — Assertions, Evidence, and Phase D Association (chunks 0–E)
+# SemOS P3 Implementation Log — Assertions, Evidence, and Phase D Association (chunks 0–F)
 
 **Date:** 2026-08-01
-**Scope:** Execution log for the P3 slice built this session, following plan `2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`, in `ChenWeb`. Chunks 0–D were recorded first (see the git history of this file); this revision adds chunk E.
+**Scope:** Execution log for the P3 slice built this session, following plan `2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`, in `ChenWeb`. Chunks 0–D and 0–E were recorded first (see the git history of this file); this revision adds chunk F, closing out P3 Track A.
 
 ## 0. Summary — what this slice is, and what it deliberately is not
 
-This slice covers **Track A, chunks 0–E** of the P3 plan: the DR9 assertion/evidence schema, the operational association-candidate lifecycle, the DR11 seam-5 normalizer registry with metric and provision instances, and all three DR8 Phase D stages (`normalize_assertions`, `associate_semantics`, `project_semantics`). It does **not** cover chunk F (telemetry/backlog-drain surfaces/exit-criteria suite) or Track B (the keyword lexicon, design-complete per `2026080101-spec-keyword-canonicalization-merged.md` but not built). See §7 for the precise deferred boundary.
+This slice covers **all of Track A, chunks 0–F** of the P3 plan: the DR9 assertion/evidence schema, the operational association-candidate lifecycle, the DR11 seam-5 normalizer registry with metric and provision instances, all three DR8 Phase D stages (`normalize_assertions`, `associate_semantics`, `project_semantics`), association-run telemetry (spec §10.9), the deferred-candidate backlog drain, and the spec §16.2/§16.3 exit-criteria mapping. It does **not** cover Track B (the keyword lexicon, design-complete per `2026080101-spec-keyword-canonicalization-merged.md` but not built) or anything from P4 onward. See §8 for the precise deferred boundary.
 
 Everything below is **unit-tested and live-validated against real Postgres** (`chenweb_test`), including against the actual gold ventilator-corpus data already present in that database from prior P0 benchmark runs — not only synthetic fixtures.
 
@@ -140,40 +140,87 @@ Neither the metric normalizer (produces `mea:measured_by` assertions) nor the pr
 
 Via a second temporary `server/cmd/p3validate` program (deleted after use): with zero classification assertions, a run correctly examines zero targets → author and accept a `core:instance_of` assertion for a real `kb.object_nodes` row → `project_semantics` builds the projection, `kb.object_nodes.primary_class_term_id` is set, `kb.projection_state` records the correct authoritative assertion id/revision → **directly hand-corrupt** the materialized column (bypassing the projection mechanism entirely) → `RepairStaleProjections` detects and repairs it, reporting `repaired=1` → re-running the sweep on an already-correct projection reports `repaired=0` (idempotent) → create a decision-relevant revision of the classification assertion (superseding the first) → `project_semantics` rebuilds, the materialized column and `projection_state` both follow the new authoritative assertion id and revision. **All checks passed.**
 
-## 7. Deferred beyond this slice
+## 7. Chunk F — association telemetry, backlog drain, exit criteria (complete)
 
-Recorded here, in the same spirit as the P2 log's §5, so a later phase or handoff never mistakes chunks 0–E for all of P3:
+### F1 — A prerequisite schema fix: `input_record_id` on `kb.semantic_decision_candidates`
+
+Telemetry needs to reconcile every candidate examined for one input record. The only existing way to do that was parsing the record id back out of `logical_identity_key` (e.g. `"metric:2:2_mtc_1"`) — fragile, and the same class of gap chunk E already found and fixed on `kb.assertion_evidence`. Migration `20260801000006` adds a real `input_record_id` column; `DecisionCandidate` gained the field, both normalizers now populate it, and `AssociateSemantics.Run`'s candidate query was switched from a `LIKE` string match to an indexed equality filter.
+
+### F2 — Association-run telemetry (spec §10.9) and Phase D consolidation
+
+`telemetry.go` — `AssociationRunReport` (artifacts examined, candidates by method, resolution outcomes, lifecycle counts, new assertions, deterministic-vs-human decision counts, stage timings/errors) and `BuildAssociationRunReport`, which queries the *latest revision per logical identity* for one record and buckets it three ways from the exact same row set, so `Reconciles()` — every bucket's total must equal `ArtifactsExamined` — holds by construction, not by hope (spec §16.3 item 17).
+
+This is also where the three per-stage `ControlService` wrapper functions chunks C–E built (`runNormalizeAssertions`, `runAssociateSemantics`, `runProjectSemantics`) were consolidated into one `assertions.RunPhaseD` orchestrator plus a single `ControlService.runPhaseD` call site (`phase_d.go`, replacing the three now-redundant doc-processing files). `RunPhaseD` runs all three stages in order, times each one, captures (without aborting on) per-stage errors, and returns the reconciliation report — strictly more capable than the three separate calls it replaces, calling the exact same already-tested `Normalize`/`Run` methods underneath. `control.go` now has one Phase D call site instead of three.
+
+### F3 — A real bug the drain work found: `Propose` left stale revisions un-superseded
+
+`DecisionCandidateStore.Propose`'s revision-supersede logic originally fired only when the prior revision was `accepted` or `rejected`. A `deferred` or `candidate` prior was left un-retired when a new revision was created — meaning if a candidate's payload changed while it was still non-terminal, **two revisions of the same logical association could sit in a processable status simultaneously**, and a later stage would reprocess the stale one. Fixed: a new revision now supersedes whichever revision was current before it, unconditionally (`prior.Status != StatusSuperseded`), because a new revision replacing the old one is true regardless of what stage the old one had reached. Found live, not by inspection — see F4.
+
+### F4 — Backlog drain: the first design was wrong, and live validation caught it
+
+`backlog_drain.go` — `DrainDeferredCandidates` reuses the ADR `2026070701` DR5 bulk-backfill pattern (a `POST` endpoint, safe to call repeatedly, no admin-review-page or LLM-auto-resolution scope this slice — see §8) for candidates deferred with reason `unresolved_referent`, the dominant real blocker chunk D found.
+
+The first implementation directly flipped a deferred candidate back to `candidate` via `RetryDeferred` once its referent resolved in `kb.artifact_objects`, reusing the spec §16.3 item 12 fingerprint-gated retry mechanism. **Live validation caught this as wrong**: `RetryDeferred` only changes `status`, never `proposed_payload` — so the candidate was reprocessed with its *original, still-empty* `subject_object_id`, and deferred again on stale data. The fix is not "retry harder" but a different mechanism entirely: **re-run the metric normalizer** for the affected record. A resolved referent changes the payload (`subject_object_id` gets populated), so re-normalizing naturally produces a different `payload_fingerprint`, which `Propose` already turns into a correctly-superseding fresh revision (once F3's fix was in place) — the dependency-fingerprint retry gate is the right tool for a defer reason where the payload is *unchanged* and something external changed (e.g. a governed term being released later), not for a resolved-referent defer, where the payload itself is what changes. `DrainDeferredCandidates` now re-normalizes, then calls `associate_semantics` for each affected record.
+
+### F5 — HTTP endpoint
+
+`kbhandler/drain_deferred_decisions_handler.go` — `DrainDeferredSemanticDecisions`, `POST /kb/semantic-decisions/drain-deferred?limit=N`, mirroring `ResolveAmbiguousObjects`'s handler shape exactly (same `errorResponse`/`parsePositiveInt`/`EchoFactory` conventions). No admin review page (DR6) or LLM auto-resolution (DR7) — both are legitimate scope-outs: DR6 is frontend work not verifiable without running and clicking through the dev server, and DR7 has no LLM path to gate in this domain yet.
+
+### F6 — Exit-criteria mapping (spec §16.2/§16.3) and a second real bug it found
+
+`p3_exit_test.go` maps every P3-relevant spec §16.2/§16.3 item to either a permanent test or a pointer to where live validation already proved it, mirroring `../candidates/p2_exit_test.go`'s exact convention. Writing the mapping for item 13 ("a transient resolution/adjudication failure leaves the candidate non-terminal and can resume idempotently") surfaced a second real gap: `AssociateSemantics.Run` only ever queried `status = 'candidate'`, so a crash between the `in_review` transition and the accept/defer decision left a row stuck at `in_review` **forever** — no automatic path ever picked it back up. Fixed: `Run` now selects `status IN ('candidate', 'in_review')`, and `processOne` skips re-transitioning a row that is already `in_review` (which would otherwise be refused by the state machine) rather than assuming it always starts fresh.
+
+### F7 — Live-Postgres validation
+
+Via a third temporary `server/cmd/p3validate` program (deleted after use), against real gold-corpus data (record 2, the same 8-metric record used for chunk D):
+
+- `RunPhaseD` end-to-end: `examined=8`, `by_method={explicit_structured:8}`, `outcomes={deferred:7, matched:1}`, `lifecycle={accepted:1, deferred:7}`, `new_assertions=1`, `reconciles=true`, zero stage errors, real per-stage timings in the single-digit milliseconds.
+- Backlog drain: synthetically resolve a second metric's referent → drain → `{RecordsScanned:1, RecordsReprocessed:1, Accepted:1, Deferred:0, Rejected:0}`, the resolved metric's assertion now `accepted` with the correct subject/predicate/assertion-kind → **re-running the drain immediately** with nothing newly resolved reports `Accepted:0` (idempotent; the 6 genuinely-unresolved metrics are correctly left alone and still scanned).
+- `in_review` resumability: propose a candidate, manually drive it to `in_review` (simulating a crash before the resolve decision), confirm it stays non-terminal, call `AssociateSemantics.Run` again → the stuck candidate is picked up and resolved to `accepted`.
+
+**All checks passed.**
+
+## 8. Deferred beyond this slice
+
+Recorded here, in the same spirit as the P2 log's §5, so a later phase or handoff never mistakes chunks 0–F for all of P3:
 
 1. **`kb.artifact_semantic_links`** (the `about_term`/`describes_occurrence`/`aligns_to_term` table sketched in the plan's chunk D scope). Not created this slice: the only two normalized families (metric, provision) both produce `assertion`-kind candidates that persist to `kb.semantic_assertions`, not artifact-level "about" links — no in-scope family needs this table yet. It belongs with whichever future normalizer first needs it (entity/summary/topic/scene, per spec §10.10), rather than existing unused.
-2. **Chunk F** — association-run telemetry (spec §10.9) and the deferred/ambiguous backlog drain (reusing the ADR `2026070701` DR5/DR6/DR7 pattern) are not built as dedicated surfaces, though every acceptance item chunks A–E individually target has been live-verified inline (see §2–§6 above). The consolidated spec §16.2/§16.3 exit-criteria test suite (as a single runnable suite, rather than the inline checks this slice used) is also not built.
-3. **The keyword lexicon (Track B)** — design complete (`2026080101-spec-keyword-canonicalization-merged.md`); no code. `KEYWORD_RESOLVER_MODE` stays at its `off` default.
-4. **Object reconciliation for the metric artifact family.** `kb.artifact_objects` has zero rows for `artifact_type='metric'` anywhere in `chenweb_test` — a Phase B/C gap (§5, D2), not a Phase D one, but it is the reason nearly every real metric candidate currently defers.
-5. **A governed deontic predicate for provisions** (`core:required`/`core:prohibited`/`core:permitted` or equivalent). Without it, every provision-family candidate defers by design (§5). Authoring this is an ontology-content change (P2-style module authoring), not a Phase D code change.
-6. **A real producer of classification (`core:instance_of`) assertions.** Chunk E's mechanism is complete and live-validated, but no normalizer in this workspace emits classification assertions yet (§E5) — a real gap for a future entity/inventory-item normalizer to close, not a Phase D bug.
-7. **Rewriting `extract_metrics`/`extract_provisions` to emit structured fields directly**, rather than the normalizer parsing free text. Unchanged from the plan's original deferral — still gated on a real (non-synthetic) worked example per the standing P0 deferral.
-8. **`extract_metric_definitions`** (DR23 metric-definition harvesting) — unchanged, explicitly P3–P4.
-9. **LLM-assisted adjudication in `associate_semantics`.** Deterministic-only this slice; additive to add later.
-10. **Unit-term resolution against the QUDT catalog** (`quantity_kind_term_id`/`unit_term_id` on accepted metric assertions are currently left empty; the raw unit string is preserved in the metric candidate's payload but not yet resolved to a `quantity:unit_*` term). A real, scoped follow-up — the 4151-term QUDT catalog P2 imported is exactly the target, but string-to-term matching (labels, symbols, aliases) is its own piece of work.
+2. **The DR6 admin review page and DR7 LLM auto-resolution** for the backlog drain. The DR5 bulk endpoint (§F5) is built; DR6 is frontend work not verifiable without running and clicking through the dev server, and DR7 has no LLM path to gate in this domain yet — both legitimate scope-outs, not gaps in the drain mechanism itself.
+3. **A governed-term-availability backlog drain.** `DrainDeferredCandidates` targets specifically `unresolved_referent` (§F4) — the dominant real blocker. A drain for candidates deferred on a not-yet-released governed term is a natural, separable follow-up if a released module is ever rolled back after candidates were deferred on it; not built because no such case has been observed.
+4. **The keyword lexicon (Track B)** — design complete (`2026080101-spec-keyword-canonicalization-merged.md`); no code. `KEYWORD_RESOLVER_MODE` stays at its `off` default.
+5. **Object reconciliation for the metric artifact family.** `kb.artifact_objects` has zero rows for `artifact_type='metric'` anywhere in `chenweb_test` — a Phase B/C gap (§5, D2), not a Phase D one, but it is the reason nearly every real metric candidate currently defers (and why the backlog drain in §F4 exists).
+6. **A governed deontic predicate for provisions** (`core:required`/`core:prohibited`/`core:permitted` or equivalent). Without it, every provision-family candidate defers by design (§5). Authoring this is an ontology-content change (P2-style module authoring), not a Phase D code change.
+7. **A real producer of classification (`core:instance_of`) assertions.** Chunk E's mechanism is complete and live-validated, but no normalizer in this workspace emits classification assertions yet (§E5) — a real gap for a future entity/inventory-item normalizer to close, not a Phase D bug.
+8. **Item 15's input-deletion cascade** (deleting one input removes only its document-scoped candidates/evidence). Not built this slice — no input-deletion cascade exists yet at all for the P3 stores.
+9. **Item 9's lexical/semantic/structural candidate exercise.** No normalizer in this slice uses any method besides `explicit_structured`, so the "remain candidates until approved" property for those three methods is untested against real candidates — the state machine enforces it structurally regardless of method, but this is recorded as an explicit non-claim rather than implied coverage.
+10. **Rewriting `extract_metrics`/`extract_provisions` to emit structured fields directly**, rather than the normalizer parsing free text. Unchanged from the plan's original deferral — still gated on a real (non-synthetic) worked example per the standing P0 deferral.
+11. **`extract_metric_definitions`** (DR23 metric-definition harvesting) — unchanged, explicitly P3–P4.
+12. **LLM-assisted adjudication in `associate_semantics`.** Deterministic-only this slice; additive to add later.
+13. **Unit-term resolution against the QUDT catalog** (`quantity_kind_term_id`/`unit_term_id` on accepted metric assertions are currently left empty; the raw unit string is preserved in the metric candidate's payload but not yet resolved to a `quantity:unit_*` term). A real, scoped follow-up — the 4151-term QUDT catalog P2 imported is exactly the target, but string-to-term matching (labels, symbols, aliases) is its own piece of work.
 
-## 8. Files touched
+## 9. Files touched
 
-- `ChenWeb/project_migrations/20260801000001..000005_*.sql` (5 migrations)
-- `ChenWeb/server/api/ontology/assertions/{state_machine,assertions_store,nullable,evidence_store,relations_store,decision_candidates_store,normalizer_registry,metric_normalizer,provision_normalizer,associate_semantics,projection_registry,classification_projection,project_semantics}.go` + corresponding `_test.go` files
-- `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics,project_semantics}.go` + `normalize_assertions_test.go`
-- `ChenWeb/server/api/doc-processing/control.go` (three-line Phase D wiring after Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED`)
+- `ChenWeb/project_migrations/20260801000001..000006_*.sql` (6 migrations)
+- `ChenWeb/server/api/ontology/assertions/{state_machine,assertions_store,nullable,evidence_store,relations_store,decision_candidates_store,normalizer_registry,metric_normalizer,provision_normalizer,associate_semantics,projection_registry,classification_projection,project_semantics,telemetry,backlog_drain}.go` + corresponding `_test.go` files + `p3_exit_test.go`
+- `ChenWeb/server/api/doc-processing/phase_d.go` (replaces the three now-redundant `normalize_assertions.go`/`associate_semantics.go`/`project_semantics.go` doc-processing wrapper files) + `phase_d_test.go` (renamed from `normalize_assertions_test.go`)
+- `ChenWeb/server/api/doc-processing/control.go` (one Phase D call site, gated by `SEMANTIC_ASSOCIATION_ENABLED`)
+- `ChenWeb/server/api/kbhandler/drain_deferred_decisions_handler.go`
+- `ChenWeb/server/api/routes.go` (`POST /kb/semantic-decisions/drain-deferred`)
 - `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md`
 - `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`
 - `KnowledgeStore/doc-repo/adrs/202607/2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (DR16 and P3 status annotations)
 
-## 9. Targeted tests
+## 10. Targeted tests
 
 ```bash
 go test ./server/api/ontology/assertions/... -count=1
 go test ./server/api/doc-processing/... -run 'TestSemanticAssociationEnabledFromEnv' -count=1
 ```
 
-Full `go build ./...` and `go vet ./server/api/ontology/... ./server/api/doc-processing/...` pass. `go test ./server/api/doc-processing/...` (full package) shows 21 pre-existing failures (summary/topic/connections/scene-block/metric-category tests) unrelated to this slice — spot-checked one (`TestBuildSummaryID`) and confirmed it is a plain string-format assertion mismatch in unrelated code with no DB dependency, not a P3 regression; none of the 21 failing test names touch any file this slice added or changed. Re-confirmed unchanged (still 21) after adding chunk E.
+Full `go build ./...` and `go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/api/kbhandler/...` pass. `go test ./server/api/doc-processing/...` (full package) shows 21 pre-existing failures (summary/topic/connections/scene-block/metric-category tests) unrelated to this slice — spot-checked one (`TestBuildSummaryID`) and confirmed it is a plain string-format assertion mismatch in unrelated code with no DB dependency, not a P3 regression; unchanged at 21 across chunks D, E, and F. `go test ./server/api/kbhandler/...` shows 2 pre-existing failures in `topic_category_handler_test.go` (PDF coordinate/topic-text parsing) — confirmed unrelated: this slice's only kbhandler change is the new `drain_deferred_decisions_handler.go` file, and neither failing test touches topics, categories, or PDF coordinates in any way connected to semantic decisions.
 
-## 10. Status
+## 11. Status
 
-**Chunks 0–E are complete against their stated scope and live-validated against real Postgres, including real gold-corpus data** (not only synthetic fixtures). Chunk F and Track B (keyword lexicon) remain — see §7.
+**Chunks 0–F are complete against their stated scope and live-validated against real Postgres, including real gold-corpus data** (not only synthetic fixtures). This closes out P3 Track A. Track B (the keyword lexicon) remains — design is done (`2026080101-spec-keyword-canonicalization-merged.md`), code is not.
+
+Two real correctness bugs were found and fixed by this chunk's live validation, not by inspection: `DecisionCandidateStore.Propose` left a stale `candidate`/`deferred` revision un-superseded when a new revision was created (§F3), and `AssociateSemantics.Run` never resumed a candidate orphaned at `in_review` by a crash (§F6). Both are the kind of gap sqlmock-only testing structurally cannot catch — the same lesson chunks A and B already recorded once each with the JSONB-`NULL`-scan and `RETURNING`-with-`FROM` bugs.
