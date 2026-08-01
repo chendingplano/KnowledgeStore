@@ -1,6 +1,6 @@
 # SemOS Ontology — Content Model, Compiler, and Release Workflow
 
-**Status:** built (P2 chunks A–F, 2026-08-01). **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
+**Status:** built (P2 chunks A–F and generic P4 runtime, 2026-08-01). **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
 
 ## What this is
 
@@ -47,6 +47,18 @@ Installing a domain module never requires a processor, normalizer, or API change
 ## Canonicalization kernel
 
 `server/api/ontology/semid` implements the DR15 kernel (normalizers → candidates → scoring → adjudication → merge/split with tombstones → audit) with a family-adapter interface. The ontology-term family is the first instantiation (governed — adjudication ends at a change set, never an auto-accept). `semrules` (`server/api/ontology/semrules`) is the DR3 predicate-evaluator seam; operators register through `RegisterOperator`.
+
+## P4 profiles, review, and comparison
+
+- `kb.ontology_profiles` and `kb.ontology_profile_rules` are governed, versioned module content;
+  drafts cannot be used until inclusion in an active module release.
+- `kb.ontology_review_scopes` freezes profile/release selection, closure, and applicability facts.
+  Execution reloads the stored release IDs rather than current activation and writes finding links
+  to scope, rule, and assertion.
+- `kb.ontology_comparison_scopes`, runs, and cells retain assertion watermarks, release snapshots,
+  directional verdicts, representatives, remainder counts, evidence lists, and rationale.
+- The ventilator material remains an optional benchmark fixture only; the runtime contains no
+  ventilator-specific schema or Go logic.
 
 ## Related documents
 

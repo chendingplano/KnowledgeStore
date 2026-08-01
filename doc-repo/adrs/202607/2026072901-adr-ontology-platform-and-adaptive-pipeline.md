@@ -1833,7 +1833,17 @@ separately queryable, corrupted projections detected and repaired, and evidence 
 assertion to `unsupported` and back; the lexicon resolves the gold set above its promotion gate
 with zero over-merges of `never_merge` pairs.
 
-#### 8.3.7 P4 — Profiles, the first domain module, and ontology-aware metric review *(needs P3)*
+#### 8.3.7 P4 — Profiles, generic review, and comparison runtime *(generic runtime built 2026-08-01)*
+
+**Built:** generic versioned profiles/rules, governed lifecycle and release-visible reads,
+immutable review/comparison scopes, pinned-scope review execution and auditable findings,
+DR21/DR22 cached comparison runs/cells, paired `required_assertion_pattern` SHACL output, and
+authenticated authoring/execution/read APIs. All P4 migrations were live-validated on
+`chenweb_test` through `20260801000011`.
+
+**Deferred data gate:** the ventilator benchmark/domain module is validation data only. It is not
+part of the generic runtime and remains un-authored until a domain owner supplies a traceable
+worked example and approved source values.
 
 * Profile and rule schema; rule-kind registry with paired evaluator and SHACL emitter (seam 6).
 * The pilot 4b domain module authored end to end: classes, properties, profile, rules,
@@ -1848,7 +1858,7 @@ with zero over-merges of `never_merge` pairs.
   module supplies one part class, its metric definitions, and its expected-metric profile, so the
   first comparison matrix is real rather than a mock.
 
-*Exit:* the spec §16.4 acceptance suite passes against the pilot module and fixture corpus —
+*Remaining pilot exit:* the spec §16.4 acceptance suite passes against the pilot module and fixture corpus —
 including `missing` only under a declared closed dimension, `indeterminate` on unresolved rule
 conflict, and SQL/Go versus SHACL parity on identical fixtures.
 
