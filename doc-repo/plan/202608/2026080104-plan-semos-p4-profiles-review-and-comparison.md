@@ -99,9 +99,31 @@ Acceptance: the P4 suite, adapted to the confirmed pilot, passes. This chunk is 
 
 Acceptance: DR22 cells retain every assertion/citation, a precedence-selected representative, remainder count, verdict, direction, and rationale; profile/recommendation policy is versioned separately from the verdict.
 
+## Chunk F — ADR §8.2 P4 document processors
+
+**Status:** Added 2026-08-01 after discovering that the original P4 plan covered the L6/L7
+runtime but omitted the ADR's explicit P4 processor obligations.
+
+- [ ] `extract_test_methods`: add a routed processor that emits governed procedure-term and
+  metric-to-procedure candidates with source spans; register it in the production runtime and
+  processor plan.
+- [ ] `extract_metric_definitions`: add a routed processor that emits governed
+  `metric_definition` candidates (canonical label, aliases, value/range form) from chunks;
+  register it in the production runtime and processor plan.
+- [ ] `extract_product_structure`: add a routed processor that emits evidence-bearing `part_of`
+  and `component_of` candidates from chunks/blocks; register it in the production runtime and
+  processor plan.
+- [ ] Extend `extract_provisions` to preserve structured applicability/scope clauses, authority,
+  and effective intervals needed by profile selection; do not infer missing values.
+- [ ] Add focused fake-extractor/store tests, production-plan dependency tests, and a live
+  `chenweb_test` validation for each persisted output contract.
+
+Acceptance: every ADR §8.2 P4 processor is executable through the production runtime, writes only
+governed candidate/assertion inputs with source provenance, and remains domain-neutral.
+
 ## Verification and documentation
 
 - [x] For each production change, follow red → observed failure → minimal green → focused pass.
 - [x] Run `go test ./server/api/ontology/profiles/... ./server/api/ontology/modules/... ./server/api/ontology/comparison/... -count=1`, `go build ./server/...`, and focused `go vet` before completion.
 - [ ] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data. (The normal migration path was verified on `miner`; this explicit target remains outstanding.)
-- [x] Maintain a P4 implementation log and update the ontology handoff with implemented/deferred boundaries.
+- [ ] Maintain a P4 implementation log and update the ontology handoff with implemented/deferred boundaries. (Must be revised after Chunk F.)

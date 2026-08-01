@@ -1,6 +1,6 @@
 # SemOS Ontology — Content Model, Compiler, and Release Workflow
 
-**Status:** built (P2 chunks A–F and generic P4 runtime, 2026-08-01). **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
+**Status:** built (P2 chunks A–F and the generic P4 L6/L7 runtime, 2026-08-01). ADR §8.2 P4 document processors remain pending. **Storage:** data lives in the database; no data-only repository (2026-07-31 storage decision, ADR `2026072901` DR2/DR17 revision).
 
 ## What this is
 

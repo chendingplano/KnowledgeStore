@@ -1835,13 +1835,15 @@ with zero over-merges of `never_merge` pairs.
 
 #### 8.3.7 P4 — Profiles, generic review, and comparison runtime *(generic runtime built 2026-08-01)*
 
-**Built:** generic versioned profiles/rules, governed lifecycle and release-visible reads,
+**Built (L6/L7 runtime only):** generic versioned profiles/rules, governed lifecycle and release-visible reads,
 immutable review/comparison scopes, pinned-scope review execution and auditable findings,
 DR21/DR22 cached comparison runs/cells, paired `required_assertion_pattern` SHACL output, and
 authenticated authoring/execution/read APIs. All P4 migrations were live-validated on
 `chenweb_test` through `20260801000011`.
 
-**Deferred data gate:** the ventilator benchmark/domain module is validation data only. It is not
+**Remaining P4 work:** ADR §8.2's `extract_metric_definitions`, `extract_product_structure`,
+`extract_test_methods`, and the structured-output extension of `extract_provisions` remain to be
+implemented. **Deferred data gate:** the ventilator benchmark/domain module is validation data only. It is not
 part of the generic runtime and remains un-authored until a domain owner supplies a traceable
 worked example and approved source values.
 
