@@ -25,11 +25,29 @@ go build ./server/cmd/ontology-compiler ./server/cmd/deepdoc
 
 Focused red-green tests cover draft exclusion from active profile/rule reads, profile collection in the compiler snapshot, profile release tagging, and draft-only profile creation.
 
+### Live migration validation (2026-08-01)
+
+The normal `server/cmd/dataservice` migration path was run successfully against the staging
+`miner` database after supplying its required configuration. Goose recorded both migrations in
+`project_db_migration`:
+
+```text
+20260801000007
+20260801000008
+```
+
+Direct schema inspection confirmed `kb.ontology_profiles` and `kb.ontology_profile_rules`, their
+version and lifecycle `CHECK` constraints, the profile-rule `(profile_id, profile_version)` foreign
+key, and both `released_in_release_id` foreign keys to `kb.ontology_module_releases`.
+
 ## Not yet complete
 
 - Profile/rule approval transitions and rule-authoring writes beyond initial profile creation.
 - The seam-6 rule-kind registry, evaluator, SHACL emitters, immutable review scopes, findings integration, comparison scope persistence, the pilot module, and P4 acceptance fixture.
-- Live-Postgres migration validation: the ordinary `dataservice` migration runner stops during unrelated local configuration loading because `PG_DB_NAME_AUTOTESTER` is absent. It did not reach goose or change the database. Resolve that environment/configuration prerequisite, then apply and inspect migrations before claiming this checkpoint live-validated.
+- A live Go-store/release transaction proof is still pending. The migrations and schema are now
+  live-validated; a later Chunk-A validation should create a disposable draft profile/rule through
+  the stores, release/activate it, prove active visibility, then roll the disposable data back or
+  clean it up through the governed lifecycle.
 
 ## Documentation impact
 
