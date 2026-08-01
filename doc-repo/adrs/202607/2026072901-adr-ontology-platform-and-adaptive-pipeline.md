@@ -1635,6 +1635,16 @@ pipeline-table row, status JSON, dashboard registration) and now also declares a
 | `extract_provisions` | **changed** | routed | adds applicability/scope clauses, authority, effective interval | P3–P4 | Profile rules are sourced from provisions; the 范围/适用于 clause decides applicability |
 | `extract_doc_metadata` | **changed** | mandatory | adds standard identity: doc number, edition, issuer, jurisdiction, supersedes | P1 | Column assignment and precedence inside a column both depend on it |
 
+> **2026-08-01 status (`extract_metrics`):** implemented by the OpenSpec change
+> `ChenWeb/openspec/changes/extract-metrics-structured-output/`. `kb.metrics` gained
+> `value_min`/`value_max`/`condition` (migration `20260801000014_add_kb_metrics_structured_value_fields.sql`,
+> prompt v5 `prompt-enrich-metrics-v5.md`); the metric normalizer now consumes the structured
+> fields (`value_range_type`/`value_class`/`metric_value`/`metric_unit`) deterministically, with
+> `parseThresholdOrTarget` demoted to a legacy fallback for rows with no structured values. QUDT
+> unit/quantity-kind term resolution against the `quantity` module is implemented in
+> `associate_semantics.processMetric`. See the P3 log `2026080103` §12.1 addendum for the
+> gold-corpus reconciliation.
+
 Explicitly **not** doc processors: the comparison matrix and verdict computation (DR22, an L7
 service), profile evaluation (L6), the certification-body registry (reference data, not
 extraction), and the product image hotspot map (application data binding an image region to an
@@ -1813,7 +1823,8 @@ loss of a merged id.
   `KEYWORD_RESOLVER_MODE=observe` first, so mention and backlog volume is measured before any
   resolution affects retrieval.
 
-> **2026-08-01 status:** P3 Track A is **Built and complete** — assertion/evidence schema (DR9), the
+> **2026-08-01 status:** P3 Track A is **Built and complete** (see the 2026-08-01 correction below —
+> this framing overstated several items) — assertion/evidence schema (DR9), the
 > operational candidate lifecycle, the normalizer registry (seam 5) with metric and provision
 > instances, all three Phase D stages (`normalize_assertions`, `associate_semantics`,
 > `project_semantics`, orchestrated by `assertions.RunPhaseD`), association-run telemetry (spec
@@ -1827,6 +1838,26 @@ loss of a merged id.
 > **Not built:** the keyword lexicon (design-only per the DR16 merged spec
 > `2026080101-spec-keyword-canonicalization-merged.md`) and the DR6/DR7 halves of the backlog drain
 > (admin review page; LLM auto-resolution).
+>
+> **2026-08-01 correction (post-review):** A same-day implementation review
+> (`2026080106-devdoc-semos-p3-implementation-review.md`) found the "Built and complete" framing
+> above overstated several items: the three Phase D stages were never registered as declared,
+> routed `ProcessorSpec`s (DR5) — `assertions.RunPhaseD` was called from one hardcoded site in
+> `control.go`, invisible to the DR5 planner and DR6 routing; the metric-value parser fabricated or
+> mis-parsed values against corpus-shaped Chinese text (contradicting this log's "never a
+> fabricated value" claim); the `DecisionCandidateStore.Propose` revision-supersede fix (§F3) was
+> not mirrored in `AssertionStore.CreateRevision`, leaving the same class of bug live on the
+> assertion side; and projection staleness (`MarkStale`/`RepairStaleProjections`) plus seam 5's
+> association-resolver step and all of seam 7 had no real caller/consumer despite being described
+> as complete. All five gaps were fixed in the same session (see the review doc's Recommendation
+> section for the full list): `normalize_assertions`/`associate_semantics`/`project_semantics` are
+> now real `ProcessorSpec`s (Phase C, routed, chained via `PostProcessDependsOn`, still gated by
+> `SEMANTIC_ASSOCIATION_ENABLED`); the metric parser anchors numeric extraction to the matched
+> comparator and no longer misreads a standard/document-number dash as a range; `AssertionStore
+> .CreateRevision` now supersedes any non-superseded prior revision; `ProjectSemantics.Run` marks a
+> build failure stale and is registry-driven via a new `RegisterProjectionRecordScope` (seam 7);
+> and `AssociateSemantics.Run` plus the backlog drain are now driven by a new `AssociationResolver`
+> registry and `NormalizeAllFamilies` respectively (seam 5) instead of hardcoded family lists.
 
 *Exit:* spec §16.2 and §16.3 acceptance suites pass, including conflicting assertions remaining
 separately queryable, corrupted projections detected and repaired, and evidence loss moving an

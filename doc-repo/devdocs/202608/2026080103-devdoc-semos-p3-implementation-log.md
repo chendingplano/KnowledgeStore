@@ -224,3 +224,52 @@ Full `go build ./...` and `go vet ./server/api/ontology/... ./server/api/doc-pro
 **Chunks 0–F are complete against their stated scope and live-validated against real Postgres, including real gold-corpus data** (not only synthetic fixtures). This closes out P3 Track A. Track B (the keyword lexicon) remains — design is done (`2026080101-spec-keyword-canonicalization-merged.md`), code is not.
 
 Two real correctness bugs were found and fixed by this chunk's live validation, not by inspection: `DecisionCandidateStore.Propose` left a stale `candidate`/`deferred` revision un-superseded when a new revision was created (§F3), and `AssociateSemantics.Run` never resumed a candidate orphaned at `in_review` by a crash (§F6). Both are the kind of gap sqlmock-only testing structurally cannot catch — the same lesson chunks A and B already recorded once each with the JSONB-`NULL`-scan and `RETURNING`-with-`FROM` bugs.
+
+## 12. Addendum (2026-08-01, same day — implementation review found five more gaps, now fixed)
+
+A same-day implementation review (`2026080106-devdoc-semos-p3-implementation-review.md`) downgraded this log's "complete" framing: the three Phase D stages had never been registered as declared, routed `ProcessorSpec`s (ADR §8.1/§8.2 requires this; `assertions.RunPhaseD` was only ever called from one hardcoded site in `control.go`, invisible to the DR5 planner and DR6 routing); the metric-value parser fabricated or mis-parsed values against corpus-shaped Chinese text in cases this log's §C2 did not test (a leading distance/condition clause, a standard-number dash mistaken for a range, missing 不应超过/不得超过/不得低于 vocabulary); §F3's revision-supersede fix was applied to `DecisionCandidateStore.Propose` but not mirrored in `AssertionStore.CreateRevision`, leaving the identical bug live on the assertion side; and `MarkStale`/`RepairStaleProjections` (projection staleness) plus the association-resolver half of seam 5 and all of seam 7 had no real production caller despite being described as complete — `AssociateSemantics.Run` and the backlog drain hardcoded `'metric'`/`'provision'` rather than consulting the seam-5 registry, and `ProjectSemantics.Run` hardcoded its one projection kind despite a comment claiming a second "requires no change here."
+
+All five are fixed in the same session:
+
+- `ChenWeb/server/api/ontology/assertions/assertions_store.go`'s `CreateRevision` now supersedes any non-superseded prior revision (was accepted-only), matching the already-fixed `decision_candidates_store.go` logic.
+- `metric_normalizer.go`'s `parseThresholdOrTarget` anchors numeric extraction to the matched comparator's position instead of the first number in the string, rejects an unspaced ASCII hyphen inside a standard/document identifier as a range separator, and adds `不应超过`/`不得超过`/`不得低于` to the comparator vocabulary.
+- `normalize_assertions`, `associate_semantics`, and `project_semantics` are now real `ProcessorSpec`s (`ChenWeb/server/api/doc-processing/processor_plan.go`, `runtime.go`, `phase_d.go`) — Phase C, routed, chained via the existing `PostProcessDependsOn` mechanism, still gated by `SEMANTIC_ASSOCIATION_ENABLED` so default production behavior is unchanged.
+- `ProjectSemantics.Run` (`project_semantics.go`) now marks a build failure's target stale via `ProjectionStateStore.MarkStale`, and is driven by a new `RegisterProjectionRecordScope` registration (`projection_registry.go`) instead of hardcoding `ProjectionKindObjectPrimaryClass`. `RepairStaleProjections` gained a real caller: `POST /kb/semantic-decisions/repair-stale-projections`.
+- `AssociateSemantics.Run` and `DrainDeferredCandidates` are now driven by a new `AssociationResolver` registry (`association_resolver_registry.go`) and `NormalizeAllFamilies` respectively, instead of hardcoded family lists.
+
+New regression tests cover all five fixes (`assertions_store_test.go`, `metric_normalizer_test.go`, `project_semantics_test.go`, `association_resolver_registry_test.go`, `projection_registry_test.go`, and `registries_test.go`/`processor_registry_test.go` in `doc-processing`) — `go build ./server/...` and `go test ./server/api/ontology/assertions/... ./server/api/doc-processing/...` pass, with the `doc-processing` pre-existing-failure baseline reduced from 21 to 20 (`TestOptionalProductionProcessorNames`, itself a P4-introduced gap, is now fixed as a side effect of this pass).
+
+### 12.1 Addendum (2026-08-01, same day — §8 items 10 and 13 are now closed)
+
+The OpenSpec change `extract-metrics-structured-output`
+(`ChenWeb/openspec/changes/extract-metrics-structured-output/`) closes §8 items 10 and 13:
+
+- **Item 10 (structured output).** `extract_metrics` now emits structured value fields
+  (`value_range_type`, `value_class`, `metric_value`, `metric_unit`, plus the new
+  `value_min`/`value_max`/`condition` columns added by migration
+  `20260801000014_add_kb_metrics_structured_value_fields.sql`, prompt v5
+  `prompt-enrich-metrics-v5.md`) and the metric normalizer consumes them deterministically;
+  `parseThresholdOrTarget` is demoted to a legacy fallback for rows with no structured values
+  (`value_range_type` NULL/empty). A row that declares structured values is never free-text-parsed,
+  which removes the review's fabrication class structurally (design D1/D5 of the change).
+- **Item 13 (unit-term resolution).** `associate_semantics.processMetric` resolves the raw unit
+  string against `kb.ontology_terms` where `module_id='quantity'` (label/symbol/alias match with
+  normalization) and sets `unit_term_id`/`quantity_kind_term_id` on the accepted assertion;
+  unresolved units leave both term IDs NULL and the assertion is still accepted (no new deferral
+  class).
+
+**§C2 reconciliation.** §C2's "6 correctly-parsed structured assertions + 2 honest `unparsed`,
+never a fabricated value" was recorded against the text-parser path and is contradicted by the
+stored revision-1 candidates for `input_record_id=2`: all 8 rows were parsed, including the
+fabricated `observed_value=1` for "1 m 距离处清晰辨识" (the very row §C2 cited as an `unparsed`
+example) and truncating mis-parses (`observed_value=1024` from "1024×600",
+`observed_value=160` from "水平160°, 垂直140°"). Under the structured-first path the same 8 rows
+produce 4 correct assertions — rows 1-4 (`lower_bound_requirement` 250, `lower_bound_requirement`
+1000, `upper_bound_requirement` 120 ×2), identical to the parser's correct output — and 4 honest
+`unparsed` for rows 5-8, which carry v2-era `minimum`/`other` enums outside the v5 closed
+vocabulary that v4/v5 prompts explicitly reject. The drift 6+2 → 4+4 is therefore the removal of 4
+mis-parses/fabrications, not a regression: rows 5-8 will parse deterministically once re-extracted
+with `prompt-enrich-metrics-v5.md` (2_mtc_5-7 → `range`/`lower_bound` with proper
+`value_min`/`value_max`, 2_mtc_8 → `qualitative`), and honest `unparsed` with `raw_text` preserved
+is the design-correct interim state. The ADR §8.2 `extract_metrics` row is annotated
+`2026-08-01 status` accordingly.
