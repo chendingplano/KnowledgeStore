@@ -163,10 +163,10 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/kbhandler/pipeline_rules_handler_test.go`
 - Test: `ChenWeb/server/api/kbhandler/pipeline_bindings_handler_test.go`
 
-- [ ] Write failing handler tests proving legacy create writes one conditional binding; get/list omit predicates not losslessly representable in the old shape; representable rows round-trip; both update and delete resolve pre-migration `legacy_rule_id`; both update and delete resolve post-migration compatibility ids; active-policy writes return conflict; and no `kb.pipeline_rules` selector write occurs.
-- [ ] Extend binding CRUD for canonical predicate/scope/priority fields and validate through `semrules`.
-- [ ] Implement the pipeline-rules compatibility adapter at the HTTP boundary; new processor-gate requests use the canonical schema and old selector-shaped requests redirect to bindings.
-- [ ] Run focused handler tests and commit.
+- [x] Write failing handler tests proving legacy create writes one conditional binding; get/list omit predicates not losslessly representable in the old shape; representable rows round-trip; both update and delete resolve pre-migration `legacy_rule_id`; both update and delete resolve post-migration compatibility ids; active-policy writes return conflict; and no `kb.pipeline_rules` selector write occurs.
+- [x] Extend binding CRUD for canonical predicate/scope/priority fields and validate through `semrules`.
+- [x] Implement the pipeline-rules compatibility adapter at the HTTP boundary; new processor-gate requests use the canonical schema and old selector-shaped requests redirect to bindings.
+- [x] Run focused handler tests and commit.
 
 ## Chunk D — Benchmark decision and append-only clearance evidence
 
@@ -178,10 +178,10 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/cmd/doc-benchmark/gold_analyze.go`
 - Test: `ChenWeb/server/cmd/doc-benchmark/main_test.go`
 
-- [ ] Write one failing test per approval condition: identical manifest and repetitions, complete paired cases, minimum three cases, gold-positive denominator, zero processor/infrastructure/scorer failures, and exact aggregate routed recall `>=` baseline recall.
-- [ ] Implement pure `EvaluateRoutingClearance(Evidence) Decision`; it owns all benchmark approval logic and returns counts, recall/precision, cost/yield, document kind, checksums, traces, and a stable rejection reason.
-- [ ] Add an analyze option that emits approval-ready evidence but never writes approval state.
-- [ ] Run `go test ./server/api/doc-benchmark ./server/cmd/doc-benchmark -run 'Test(RoutingClearance|AnalyzeRouting)' -count=1`; commit.
+- [x] Write one failing test per approval condition: identical manifest and repetitions, complete paired cases, minimum three cases, gold-positive denominator, zero processor/infrastructure/scorer failures, and exact aggregate routed recall `>=` baseline recall.
+- [x] Implement pure `EvaluateRoutingClearance(Evidence) Decision`; it owns all benchmark approval logic and returns counts, recall/precision, cost/yield, document kind, checksums, traces, and a stable rejection reason.
+- [x] Add an analyze option that emits approval-ready evidence but never writes approval state.
+- [x] Run `go test ./server/api/doc-benchmark ./server/cmd/doc-benchmark -run 'Test(RoutingClearance|AnalyzeRouting)' -count=1`; commit.
 
 ### Task D2: Append-only clearance store and authenticated API
 
@@ -195,11 +195,11 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/kbhandler/policy_authorization_test.go`
 - Modify: `ChenWeb/server/api/routes.go`
 
-- [ ] Write failing store tests for exact document-kind coverage, processor-rule/conditional-binding checksums, incomparable pipeline removed-set deltas, replacement/revocation, and zero/multiple-effective lookup.
-- [ ] Write failing handler tests proving approval reloads the named benchmark runs and calls the exact `docbenchmark.EvaluateRoutingClearance` function; a client cannot submit precomputed pass/fail or actor identity.
-- [ ] Add clearance, coverage-generation, and append-only revocation tables; implement `Approve`, `Replace`, `Revoke`, and `ResolveEffective` with a transaction-scoped subject-slice lock.
-- [ ] Add an injected policy authorizer. Production permits clearance approval/revocation and policy activation only to owner/admin users (`IsOwner`, `Admin`, or normalized `admin` role); proposal approval additionally permits normalized `k_engineer`. Tests distinguish unauthenticated `401`, authenticated-but-unauthorized `403`, and authorized success. Derive the actor from `UserName`; never accept it from the body.
-- [ ] Run focused store/handler/route tests; commit.
+- [x] Write failing store tests for exact document-kind coverage, processor-rule/conditional-binding checksums, incomparable pipeline removed-set deltas, replacement/revocation, and zero/multiple-effective lookup.
+- [x] Write failing handler tests proving approval reloads the named benchmark runs and calls the exact `docbenchmark.EvaluateRoutingClearance` function; a client cannot submit precomputed pass/fail or actor identity.
+- [x] Add clearance, coverage-generation, and append-only revocation tables; implement `Approve`, `Replace`, `Revoke`, and `ResolveEffective` with a transaction-scoped subject-slice lock.
+- [x] Add an injected policy authorizer. Production permits clearance approval/revocation and policy activation only to owner/admin users (`IsOwner`, `Admin`, or normalized `admin` role); proposal approval additionally permits normalized `k_engineer`. Tests distinguish unauthenticated `401`, authenticated-but-unauthorized `403`, and authorized success. Derive the actor from `UserName`; never accept it from the body.
+- [x] Run focused store/handler/route tests; commit.
 
 ## Chunk E — Gates, policy compilation, enforcement, and audit
 
@@ -212,11 +212,11 @@ Existing files changed surgically:
 - Update: `ChenWeb/server/api/doc-processing/control_test.go`
 - Update: `ChenWeb/server/api/doc-processing/doc_process_plan_store_test.go`
 
-- [ ] Write separate failing tests for rank iteration, `require > defer > skip > enable`, agreeing effects, true plus outranking indeterminate, defaults, mandatory immunity, defer fingerprints, explicit processor-list bypass, and run override precedence.
-- [ ] Implement pure gate evaluation and record the would-run/would-skip/would-defer shadow decision without changing effective processors in this task.
-- [ ] Persist complete fact snapshots, pinned policy/version/checksum, selected pipeline definition/checksum, baseline pipeline checksum, binding/gate traces, and rule checksums in the execution plan.
-- [ ] Prove plan reload is identical after in-memory policy/pipeline registry changes in `TestPersistedP5PlanReloadIgnoresLaterActivation`.
-- [ ] Run focused planner/store tests; commit.
+- [x] Write separate failing tests for rank iteration, `require > defer > skip > enable`, agreeing effects, true plus outranking indeterminate, defaults, mandatory immunity, defer fingerprints, explicit processor-list bypass, and run override precedence.
+- [x] Implement pure gate evaluation and record the would-run/would-skip/would-defer shadow decision without changing effective processors in this task.
+- [x] Persist complete fact snapshots, pinned policy/version/checksum, selected pipeline definition/checksum, baseline pipeline checksum, binding/gate traces, and rule checksums in the execution plan.
+- [x] Prove plan reload is identical after in-memory policy/pipeline registry changes in `TestPersistedP5PlanReloadIgnoresLaterActivation`.
+- [x] Run focused planner/store tests; commit.
 
 ### Task E2: Compile and transactionally activate a policy
 
