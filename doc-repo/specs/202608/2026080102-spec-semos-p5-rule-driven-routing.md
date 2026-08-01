@@ -13,10 +13,95 @@ Depends on: implemented P1 pipeline plane and generic P4 profile/review runtime
 
 ## 1. Purpose
 
-P5 replaces the remaining flat-column routing path with one governed applicability mechanism
-shared by extraction planning and review-profile selection. It adds the full `semrules` contract,
-JSON predicates, per-processor effects, selective tier-3 document classification, module-supplied
-routing proposals, and benchmark-gated enforcement.
+P5 decides which governed processing and review configuration applies to a document. It replaces
+the remaining flat-column routing path with one governed applicability mechanism (`semrules`)
+shared by the extraction pipeline and the review runtime.
+
+### 1.1 What P5 routes
+
+P5 routes two related things:
+
+1. **Document processing.** It selects the named pipeline for an input document and then decides,
+   for each routed processor, whether to `require`, `enable`, `skip`, or `defer` it. For example, a
+   standards document may need metric, provision, and test-method extraction, while a narrative
+   research document may not need all three.
+2. **Ontology-aware review.** It selects the released ontology profiles and profile rules that
+   govern a review scope. For example, a document about an object classified as a particular
+   component may be reviewed against the profiles applicable to that component, jurisdiction,
+   and effective date.
+
+P5 routes documents to existing, approved pipelines and profiles. It does not let an LLM choose a
+processor or invent a review requirement directly.
+
+### 1.2 Who uses it
+
+The direct software consumers are:
+
+- the **document-processing planner**, which asks which pipeline and processors should run;
+- the **review-scope resolver**, which asks which profile releases apply to the requested review;
+- the **plan and review inspection APIs**, which expose the decision and trace to operators and
+  reviewers;
+- the **benchmark workflow**, which compares routing-off and routing-on behavior before a
+  suppressive decision may be enforced.
+
+Policy authors and domain-module curators supply reviewed predicates. Administrators approve and
+activate policy versions. Ingestion users and reviewers consume the resulting decisions without
+authoring rules themselves.
+
+### 1.3 Why it is needed
+
+Without P5, every document tends to run the same broad processor set, even when its kind, domain,
+or authority makes some processors unnecessary. That increases LLM cost and artifact noise. The
+opposite shortcut—hard-coded conditional skips—would risk suppressing useful extraction without a
+shared policy, audit trail, or recall measurement.
+
+Review has the same applicability problem: selecting a profile determines which requirements a
+document is judged against. If extraction routing and profile selection use different logic, SemOS
+can require facts during review that its processing pipeline deliberately never extracted. P5
+therefore gives both consumers the same fact model, predicate semantics, activation controls, and
+explanation trace.
+
+### 1.4 How it is used
+
+For each planning or review decision, SemOS builds a fact set from document facets, accepted object
+classifications, review context, and deployment context. `semrules` evaluates approved JSON
+predicates against those facts and returns `true`, `false`, or `indeterminate` with a structured
+trace. The relevant consumer then applies its own governed precedence:
+
+- pipeline bindings select one named pipeline;
+- processor rules refine its routed processors;
+- profile applicability selects pinned profile releases for an immutable review scope.
+
+Missing decision-relevant document facets may trigger the bounded `classify_document` pre-plan
+step once. The final routing result is frozen in the execution plan or review-scope snapshot.
+Shadow mode records what P5 would change while preserving existing execution. A suppressive
+decision affects execution only after its document-kind slice passes the benchmark clearance gate.
+
+### 1.5 Where it runs in the pipeline
+
+P5 is a planning and scope-resolution layer, not another extraction family:
+
+```text
+document ingestion
+  -> always-run preparation and tier-1/tier-2 facet production
+  -> initial semrules applicability pass
+  -> optional classify_document for decision-relevant missing facets
+  -> final semrules pass and immutable execution-plan freeze       [P5 routing]
+  -> enforce or shadow the selected pipeline and processor gates
+  -> extraction/indexing waves
+  -> Phase D semantic association and projections
+  -> review request
+  -> semrules profile selection and immutable review-scope freeze  [P5 review routing]
+  -> P4 generic review and findings
+```
+
+The first P5 use occurs after the minimum always-run preparation needed to establish routing facts
+and before any processor that policy may suppress. The second occurs after document semantics are
+available, when a review scope is created. Both uses call the same evaluator and persist enough
+facts, release pins, checksums, and traces to reproduce the decision later.
+
+P5 adds the full `semrules` contract, JSON predicates, per-processor effects, selective tier-3
+document classification, module-supplied routing proposals, and benchmark-gated enforcement.
 
 P5 does not invent the authority-confirmed ventilator fixture that remains gated in P4. Generic
 runtime completion and synthetic-corpus routing evidence may proceed independently; claims about
