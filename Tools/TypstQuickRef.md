@@ -38,6 +38,16 @@ Link: ```url https://sitandr.github.io/typst-examples-book/book/basics/tutorial/
 )
 ```
 
+## Callout
+```text
+#callout(
+  "Key distinction",
+  [
+    BM25 retrieves documents conditioned on the presence of words. What is desired is retrieval conditioned on the intended meaning of those words.
+  ],
+)
+```
+
 ## Paragraphs
 ```text
 #show heading.where(level: 1): set text(size: 18pt)
