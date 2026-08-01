@@ -108,7 +108,10 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 
 **P3:** Track A complete, chunks 0–F (as of 2026-08-01) — see the post-handoff update. The keyword lexicon (Track B) remains; full detail in the P3 implementation log.
 
-**P4–P7:** not started in code.
+**P4:** generic profiles/rules, deterministic review scopes/findings, and comparison
+scope/run/cell persistence are now implemented as of 2026-08-01; the normative ventilator
+pilot remains blocked on a confirmed, traceable worked example and domain-owner approval.
+**P5–P7:** not started in code.
 
 ## Open decisions (from the ADR's own table)
 
