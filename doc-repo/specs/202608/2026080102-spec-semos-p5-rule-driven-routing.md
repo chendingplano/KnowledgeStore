@@ -260,6 +260,16 @@ Existing CRUD remains compatible for legacy clients. New requests use `predicate
 `target_processor`, and `effect`. Responses expose the canonical predicate plus a
 `predicate_source` value (`json` or `legacy_adapter`).
 
+Compatibility is implemented at the API boundary, not by dual writes. A legacy create request on
+the pipeline-rules route creates one `binding_kind=conditional` row and returns its binding id in
+the legacy `id` field. Get/list renders matching conditional bindings in the old flat shape only
+when their predicates are losslessly representable by the three legacy fields. Update/delete of a
+pre-migration legacy id resolves `legacy_rule_id` to that one authoritative binding; update/delete
+of a post-migration compatibility id addresses the binding directly. Active policy versions are
+immutable, so writes against their rows return conflict and require a draft policy version. The
+old `kb.pipeline_rules` selector rows are never written again and may be dropped after the
+compatibility window.
+
 ### 4.3 Parity gate
 
 Before JSON predicates govern production decisions, every active legacy selection rule is
@@ -321,11 +331,13 @@ uses the processor's declared `OnUndetermined` and records an alarm and trace.
 The effect order is `require > defer > skip > enable`. `require > skip > enable` is inherited from
 DR7; `defer` sits below `require` because an explicit requirement must run, and above `skip`
 because it preserves a dependency-bound retry rather than declaring the processor unnecessary.
-At the highest rule priority, then highest specificity:
+Iterate ranks in descending priority and then descending specificity. `false` candidates are
+discarded; if a rank has no `true` or `indeterminate` candidate, continue to the next rank. At the
+first rank containing a possible match:
 
 | Candidate state | Decision |
 |---|---|
-| all `false` | use the processor's declared default |
+| all `false` | continue to the next rank; use the processor default only after every rank is exhausted |
 | one or more `true` | choose the highest effect; agreeing effects are not a conflict |
 | `indeterminate` rules only | gate is indeterminate |
 | `true` plus `indeterminate` | choose the true effect only if every indeterminate rule's known effect could not outrank it; otherwise gate is indeterminate |
@@ -342,7 +354,8 @@ structured trace, required/missing facts, and whether the decision was shadowed 
 
 `DOC_PIPELINE_PLAN_ONLY=true` remains the default. It computes the complete P5 plan and records
 would-run/would-skip/would-defer outcomes while executing the original requested processor set.
-Enforced mode uses only rules that have passed the benchmark gate in §9.
+Enforced mode applies only suppressive rule/binding slices that have passed the benchmark gate in
+§9; uncleared suppressive decisions remain visible in the shadow plan but do not change execution.
 
 ## 6. Review-profile consumer
 
@@ -360,10 +373,19 @@ P5 adds deterministic selection for P4 review scopes:
 
 Profiles are not mutually exclusive: overlapping `true` profiles are intentionally pinned
 together, and P4's finding procedure reports incompatible requirements rather than P5 discarding
-one silently. A deterministic scope is `indeterminate` and cannot execute when a candidate profile
-has an indeterminate outcome for a subject/dimension the request declares closed. An
-indeterminate profile outside requested closed dimensions is retained in the snapshot but does not
-block execution.
+one silently. A deterministic scope has `selection_status=indeterminate` when a candidate profile
+has an indeterminate outcome for a subject and any of that profile's `closed_dimensions`
+intersects the request's closed dimensions. The scope is still created and executable, preserving
+ADR DR7's “review returns indeterminate and continues” rule: true profiles run normally, while each
+affected subject/dimension yields an `indeterminate` applicability result/finding rather than
+`missing`, `pass`, or silent exclusion. An indeterminate profile with no such intersection is
+retained in the snapshot but does not affect review results.
+
+For P5 v1, a profile's applicability predicate governs every dimension named in that profile's
+`closed_dimensions`; there is no fact-path-to-dimension inference. A later format may declare
+separate per-dimension predicates, but P5 does not infer that mapping. Consequently, a tier-3
+missing path from an indeterminate profile predicate is decision-relevant exactly when the
+profile/request closed-dimension sets intersect.
 
 Explicit profile selection remains supported. Existing explicit review scopes are unchanged.
 Automatic selection uses `selection_mode=deterministic_rule`.
@@ -371,7 +393,7 @@ Automatic selection uses `selection_mode=deterministic_rule`.
 A deterministic-scope request supplies reviewed document ids, target object/class ids, review
 context, closed dimensions, and selection reason; it must not supply `selected_profiles`.
 Knowledge-store identity comes from `kb.inputs.ks_store_id`, not client input. The scope table gains
-`knowledge_store_id`, `selection_status`, `fact_snapshot`, and `selection_snapshot` JSONB. Each
+  `knowledge_store_id`, `selection_status`, `fact_snapshot`, and `selection_snapshot` JSONB. Each
 selected-profile snapshot entry includes profile/version, pinned release id/checksum, applicable
 document/target subjects, predicate checksum, outcome, and trace. Scope creation commits the
 activation pins and snapshot atomically; a concurrent activation either precedes or follows the
@@ -409,9 +431,12 @@ The prompt is a versioned file under `ChenWeb/prompts`; it is never embedded in 
 
 Effective facet reduction is deterministic. Rank observations by method
 `deterministic > metadata > classifier`; consider only the highest rank containing usable
-observations. One canonical value at that rank is `known`; multiple distinct values are
-`conflicting`; malformed values are `invalid`; no observations are `missing`. A lower-ranked
-observation never overwrites or conflicts with a higher-ranked one. Classifier writes are
+or malformed observations. If any observation at that rank is malformed, the fact is `invalid`
+even when another observation is usable; malformed evidence is never silently ignored. Otherwise,
+one canonical value is `known` and uses the minimum confidence across agreeing observations;
+multiple distinct canonical values are `conflicting` and carry every value/confidence; no
+observations are `missing`. A lower-ranked observation never overwrites or conflicts with a
+higher-ranked one. Classifier writes are
 immutable/idempotent by `(record_id, path, source_fingerprint, classifier_version)` and never
 update earlier rows. Concurrent differing classifier results therefore reduce to `conflicting`
 rather than last-writer-wins. The initial plan pins the active vocabulary release; classifier
@@ -444,15 +469,37 @@ routing off versus shadowed routing on. Results are grouped by document kind and
 - review recall and precision;
 - every proposed skip/defer and its explanation trace.
 
-A rule may move from shadow to enforced only when its covered document-kind slice has no measured
-review-recall loss and the evidence record names the corpus version, policy version, predicate
-checksums, and run ids. Insufficient sample size or missing review truth leaves the rule in shadow.
+A policy decision may move from shadow to enforced only when its covered document-kind slice has no
+measured review-recall loss and the evidence record names the corpus version, policy version,
+decision checksums, and run ids. Insufficient sample size or missing review truth leaves the
+decision in shadow.
 
-Clearance is explicit governed data in `kb.pipeline_rule_clearances`: rule id and predicate
-checksum, policy id/version, document kind, corpus manifest checksum, baseline and routed benchmark
-run ids, paired case count, processor-failure count, baseline/routed recall and precision,
-decision (`draft|approved|revoked`), approver, timestamps, and rationale. An active processor rule
-references an approved clearance id for each document kind it may enforce. Approval requires:
+Clearance applies to every policy decision capable of suppressing a processor: a processor rule
+with effect `skip` or `defer`, and a conditional binding whose selected pipeline produces a strict
+subset of the baseline effective processor set. `require`/`enable`, explicit user/run overrides,
+and pre-P5 `store_default` behavior do not need a new P5 clearance. An uncleared suppressive
+conditional binding may select a pipeline in the shadow plan, but enforced execution continues
+with the baseline/store-default pipeline.
+
+Clearance uses three explicit tables:
+
+- `kb.pipeline_routing_clearances`: one immutable approved evidence record containing policy
+  id/version, document kind, corpus manifest checksum, baseline/routed benchmark run ids, paired
+  case and failure counts, baseline/routed recall and precision, approver/time, and rationale;
+- `kb.pipeline_routing_clearance_coverage`: one row per
+  `(policy version, subject_kind, subject_id, document_kind)`, where `subject_kind` is
+  `processor_rule` or `conditional_binding`; it stores the subject checksum, net plan-delta
+  checksum, and clearance id;
+- `kb.pipeline_routing_clearance_revocations`: append-only revocation events naming a clearance,
+  actor, time, and reason.
+
+There is no mutable draft/approved/revoked status. Approval inserts the immutable clearance and
+coverage rows transactionally. A clearance is effective only when no revocation exists. P5 v1
+requires exact document-kind coverage—no wildcard or overlapping range—and the coverage table's
+unique key prevents two effective mappings for the same subject slice. Processor-rule subject
+checksums include target, effect, predicate, and policy version. Conditional-binding subject
+checksums also include the selected pipeline definition checksum and baseline pipeline checksum;
+the derived net plan-delta checksum lists every suppressed processor. Approval requires:
 
 - both terminal successful runs over the identical manifest and repetitions;
 - every case in the declared document-kind slice paired between variants;
@@ -462,10 +509,13 @@ references an approved clearance id for each document kind it may enforce. Appro
   `matched_gold / total_gold` counts (no rounding tolerance).
 
 Precision and cost/yield are recorded but do not override the ADR's no-recall-loss gate. A changed
-predicate, rule, policy version, corpus manifest, or benchmark run produces a checksum/id mismatch
-and cannot reuse the approval. Revocation takes effect immediately. Historical clearance rows are
-never rewritten, so old plans remain auditable. If a record's document kind is missing or has no
-matching approved clearance, the rule remains shadow-only even when global plan-only mode is off.
+predicate, effect, binding target, pipeline definition, baseline pipeline, policy version, corpus
+manifest, or benchmark run produces a checksum/id mismatch and cannot reuse the approval.
+Revocation takes effect immediately because runtime lookup requires `NOT EXISTS` a revocation;
+approval/evidence history is never rewritten. If a record's document kind is missing, coverage is
+absent, a checksum differs, or a revocation exists, that subject remains shadow-only even when
+global plan-only mode is off. Policy activation validates any declared coverage references but may
+activate with missing slices; missing slices are deliberately shadow, not an activation error.
 
 The generic P5 implementation may demonstrate this gate with the existing synthetic corpus. The
 normative ventilator conclusion remains blocked until the authority-confirmed P4 fixture is
@@ -494,9 +544,10 @@ the evidence references already authorized for the plan/review surface.
 - Conflict in fallback mode: apply DR7 fallback, raise a warning, and persist the losing choices.
 - Tier-3 classifier failure: preserve `indeterminate`; do not overwrite prior known facts.
 - Benchmark regression: keep the affected rule shadow-only.
-- Automatic profile-selection indeterminacy on a requested closed dimension: do not create an
-  executable scope; persist/return the selection attempt and raise one warning deduplicated by its
-  request correlation id. Non-decision-relevant evaluator errors remain trace-only.
+- Automatic profile-selection indeterminacy on a requested closed dimension: create the scope with
+  `selection_status=indeterminate`, continue review with explicit indeterminate applicability
+  results, and raise one warning deduplicated by scope id. Non-decision-relevant evaluator errors
+  remain trace-only.
 - No active pipeline policy: use the existing legacy/default path. An active-policy pointer that
   cannot be loaded is an error and must not silently fall back as though no policy existed.
 
@@ -521,8 +572,8 @@ P5 generic runtime is complete when automated and live validation prove:
    identical truth results and traces; per-document/target applicability and release pins survive
    later activation changes;
 10. deterministic scope creation derives one knowledge store, commits pins and snapshots
-    atomically, handles closed-dimension indeterminacy explicitly, and leaves explicit P4 scopes
-    byte-compatible;
+    atomically, continues with explicit indeterminate results for affected closed dimensions, and
+    leaves explicit P4 scopes byte-compatible;
 11. `classify_document` runs only for unresolved, decision-relevant governed facets and runs at
     most once per record/run; concurrent or conflicting observations reduce deterministically
     without overwriting stronger facts;
@@ -531,8 +582,9 @@ P5 generic runtime is complete when automated and live validation prove:
 14. execution/review snapshots remain reproducible after policy or module activation changes;
 15. the benchmark report records cost, yield, recall/precision, and explainable skips for routing
     on versus off;
-16. only rule/document-kind slices with a matching approved clearance checksum can be enforced;
-    changed or revoked evidence returns the rule to shadow immediately.
+16. every suppressive processor-rule or conditional-binding/document-kind slice requires one
+    matching approved, unrevoked clearance coverage row; changed or revoked evidence returns only
+    that subject slice to shadow immediately.
 
 The ADR P5 exit additionally requires documented per-document-kind invocation reduction with no
 measured review-recall loss. Authority-specific pilot claims require the separately approved P4
