@@ -92,9 +92,9 @@ Acceptance: the P4 suite, adapted to the confirmed pilot, passes. This chunk is 
 - Create: comparison migrations/stores under `ChenWeb/server/api/ontology/comparison/`
 - Create tests in `ChenWeb/server/api/ontology/comparison/`
 
-- [ ] Write failing tests for an immutable comparison scope and directional DR21 cells assembled from accepted assertions.
-- [ ] Implement persistence for scopes/runs/cells and use the existing `EvaluateFamily` comparator for verdict computation.
-- [ ] Pin the assertion watermark and module/profile releases; never merge underlying assertions for display equivalence grouping.
+- [x] Write failing tests for an immutable comparison scope and directional DR21 cells assembled from accepted assertions.
+- [x] Implement persistence for scopes/runs/cells and use the existing `EvaluateFamily` comparator for verdict computation.
+- [x] Pin the assertion watermark and module/profile releases; never merge underlying assertions for display equivalence grouping.
 - [ ] Run comparison tests and the pilot fixture once Chunk D is unblocked.
 
 Acceptance: DR22 cells retain every assertion/citation, a precedence-selected representative, remainder count, verdict, direction, and rationale; profile/recommendation policy is versioned separately from the verdict.
@@ -105,4 +105,3 @@ Acceptance: DR22 cells retain every assertion/citation, a precedence-selected re
 - [ ] Run `go test ./server/api/ontology/profiles/... ./server/api/ontology/modules/... ./server/api/ontology/comparison/... -count=1`, `go build ./server/...`, and focused `go vet` before completion.
 - [ ] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data.
 - [ ] Maintain a P4 implementation log and update the ontology handoff, ADR status annotation, and ontology capsule with implemented/deferred boundaries.
-

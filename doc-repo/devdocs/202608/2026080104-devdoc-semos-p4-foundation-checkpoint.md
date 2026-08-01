@@ -63,10 +63,28 @@ These identify candidate source editions, not display-module profile values: the
 worked example and domain-owner approval remain required before releasing any normative ventilator
 profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=74E8A9884B75808BF9369E2E25196F53) and the [official standard notification](https://openstd.samr.gov.cn/bzgk/gb/nd?no=1001).
 
+### P4 Chunk-E comparison checkpoint (2026-08-01)
+
+- Added `kb.ontology_comparison_scopes`, `kb.ontology_comparison_runs`, and
+  `kb.ontology_comparison_cells` in migration `20260801000011`.
+  A scope snapshots target objects/metrics, as-of date, module and profile releases, precedence,
+  and closed-dimension policy. A run additionally fixes an assertion watermark and comparator
+  version. Cells retain both full assertion/citation lists, precedence-selected representative ids,
+  remainder counts, directional verdict, and rationale.
+- Added `ComparisonStore` and `EvaluateDirectionalCell`. The latter always invokes the existing
+  `EvaluateFamily` primitive and fixes direction to `subject_to_authority`; it does not treat a
+  rendered equivalence group as merged source evidence.
+- Focused tests followed red-to-green for scope/run/cell writes and the evaluator. The combined
+  profiles/modules/comparison suites, focused `go vet ./server/api/ontology/...`, and the ontology
+  compiler and DeepDoc builds passed.
+- Live validation succeeded on the staging `miner` database through the normal dataservice path;
+  Goose recorded version `20260801000011` and all three comparison tables exist. The first run
+  exposed a bad foreign-key target (`kb.input_records`); repository evidence showed the canonical
+  table is `kb.inputs`, the migration was corrected, and the rerun succeeded.
+
 ## Not yet complete
 
-- Profile/rule approval transitions and rule-authoring writes beyond initial profile creation.
-- Findings integration, comparison scope persistence, the pilot module, and P4 acceptance fixture.
+- HTTP/API integration for review and comparison execution, the pilot module, and P4 acceptance fixture.
 - A live Go-store/release transaction proof is still pending. The migrations and schema are now
   live-validated; a later Chunk-A validation should create a disposable draft profile/rule through
   the stores, release/activate it, prove active visibility, then roll the disposable data back or
