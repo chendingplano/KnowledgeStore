@@ -87,6 +87,9 @@ profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInf
 - The authenticated API now exposes review-scope creation and retrieval at
   `POST/GET /api/v1/kb/ontology/review-scopes`. It intentionally has no update endpoint: altered
   selection facts require a new immutable scope.
+- The authenticated API now exposes the analogous generic comparison scope endpoints at
+  `POST/GET /api/v1/kb/ontology/comparison-scopes`, retaining pinned module/profile releases
+  rather than accepting a live activation lookup from clients.
 
 ## Not yet complete
 
