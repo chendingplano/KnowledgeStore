@@ -19,6 +19,10 @@ Work resumed on 2026-07-30 with explicit approval to complete P0 before starting
 
 ## Current status: P0 and P1 complete; ontology runtime still not built
 
+> **Historical (as of 2026-07-31).** This section and the phase summary below describe the state
+> *before* P2 was implemented. P2 is now complete and validated (2026-08-01) — see the post-handoff
+> update near the end of this document; the sections below are retained as the session record.
+
 Searching the entire consolidated ADR for its own `**Built:**` implementation-status annotations turns up exactly three, all under DR21/DR22:
 
 - `ChenWeb/server/api/ontology/comparison` (`Compare`, `EvaluateFamily`) — the DR21 requirement-strictness comparator, a pure function over normalized constraints.
@@ -59,17 +63,17 @@ As of Friday, July 31, 2026, the entire P1 pipeline plane is implemented and val
 
 ### Phase status summary
 
-So the correct phase read is:
+As of 2026-07-31 (pre-P2):
 
 - **P0:** complete
 - **P1:** complete
-- **P2:** not started
+- **P2:** not started *(now complete as of 2026-08-01 — see the post-handoff update)*
 
-### P2–P7 — not started
+### P2–P7 — status
 
-The ontology core and canonicalization kernel (P2) and everything downstream of it has not started in code.
+P2 is **complete and validated** as of 2026-08-01 (plan `2026073104`, chunks 0 and A–F): the ontology content stores and candidate lifecycle, the DB-native module compiler/releases/activation, the four core 4a modules installed as data (including the full QUDT catalog into `quantity`), the `semid` canonicalization kernel with the governed ontology-term family, the `object_nodes` extension columns, and extension seams 1–4. The P1 pipeline plane remains the implemented baseline and now has governed ontology content it can route, enforce, and explain.
 
-The P1 pipeline plane (named pipelines, binding policy, processor rules, enforcement, execution plans, policy versioning) is now the implemented baseline — but the semantic processing layer (canonical identity, assertion normalization, Phase D association, the keyword lexicon) hasn't been built yet, and the pipeline's processor allowlists, rules, and policies currently have no ontology content to operate on beyond the existing `extract_metrics`/`extract_provisions` LLM processors.
+P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 deliberately did not build, and where each item lands) is recorded in the P2 implementation log `2026073105-devdoc-semos-p2-implementation-log.md` §5 and summarized in the post-handoff update below.
 
 ## P0 continuation completed in this slice
 
@@ -93,14 +97,16 @@ The P1 pipeline plane (named pipelines, binding policy, processor rules, enforce
 - Approved P0 benchmark evidence showing differentiated structural output patterns across `narrative-research`, `product-specification`, and `regulated-reference` for the ventilator pilot corpus.
 
 **Deferred beyond P0:**
-- Merge the two keyword-canonicalization specs into the one DR16 supersedes them with.
+- Merge the two keyword-canonicalization specs into the one DR16 supersedes them with *(still open — prerequisite for the P3 keyword family)*.
 - Confirm authoritative standard editions and a real-data worked example for the pilot domain.
 - Broaden the fixture corpus beyond the one ventilator display-module case — no ambiguous-object, multilingual-name, unit-conversion, or superseded-document fixtures exist yet (devdoc `2026073002-devdoc-gold-benchmark-operations.md` §7 has concrete extension options).
-- Implement the P2 ontology core and canonicalization kernel.
+- ~~Implement the P2 ontology core and canonicalization kernel~~ — done (2026-08-01).
 
 **P1:** complete (as of 2026-07-31). For reference, the deferred items (real-document validation, live-reload, full DR6 schema beyond the versioning wrapper) are documented in the P1 implementation log.
 
-**P2–P7:** not started in code.
+**P2:** complete (as of 2026-08-01) — see the post-handoff update. The deferred-by-design boundary beyond P2 is documented in the P2 implementation log §5.
+
+**P3–P7:** not started in code.
 
 ## Open decisions (from the ADR's own table)
 
@@ -114,8 +120,10 @@ The stale P0 benchmark-wiring contradiction in ADR `2026072901` was corrected in
 
 ## Recommended next steps
 
-1. Move toward P2 (ontology core and canonicalization kernel), now that the P1 pipeline plane is the implemented baseline. The pipeline machinery (named pipelines, bindings, rules, enforcement, policy versioning) is ready for ontology content; the task ahead is building the semantic layer (canonical identity, assertion normalization, Phase D association, the keyword lexicon) that the pipeline can route, enforce, and explain.
-2. Merge the two keyword specs into the DR16 replacement so the canonicalization-kernel source of truth is ready before P2.
+*(Written pre-P2; P2 is now complete. Updated guidance follows in the post-handoff update below.)*
+
+1. ~~Move toward P2~~ — done (2026-08-01).
+2. Merge the two keyword specs into the DR16 replacement so the canonicalization-kernel source of truth is ready before the keyword family (P3).
 3. Expand the fixture families beyond the single ventilator display-module case, especially ambiguous-object, multilingual, unit-conversion, supersession, and conflict fixtures.
 4. Confirm authoritative standard editions and a real-data worked example for the pilot domain before claiming domain-level semantic completeness.
 
@@ -130,7 +138,18 @@ P2 (ontology core and canonicalization kernel) is **implemented and validated** 
 - the `object_nodes` extension columns (DR10/DR15.1);
 - extension seams 1–4 and the spec §16.3 items 1–7 exit criteria.
 
-Everything is unit-tested and the key flows live-validated against `chenweb_test`; the dev DB `miner` is fully migrated through `20260731000028`. See the P2 implementation log `2026073105-devdoc-semos-p2-implementation-log.md` and the new ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md`. The ADR P2 section is annotated. P3 (assertions/association, keyword lexicon) is the next phase.
+Everything is unit-tested and the key flows live-validated against `chenweb_test`; the dev DB `miner` is fully migrated through `20260731000028`. See the P2 implementation log `2026073105-devdoc-semos-p2-implementation-log.md` and the new ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md`. The ADR P2 section is annotated.
+
+**Deferred by design beyond P2** (documented boundaries, not gaps — full detail in the P2 implementation log §5):
+
+- assertions/evidence schema + Phase D association (`normalize_assertions`/`associate_semantics`/`project_semantics`) — **P3**; this is also why `primary_class_term_id` is not yet populated (classification-as-assertion needs the assertion store);
+- the keyword lexicon (`kb.keyword_*`) as the kernel's second instantiation — **P3**, behind `KEYWORD_RESOLVER_MODE=observe`; the merged DR16 keyword spec should land first;
+- profiles/profile rules/review scopes and the pilot 4b domain module — **P4**;
+- the DR5 stage-DAG planner consuming `Requires`/`Produces` — later (seam 1 complete, planner not built);
+- the full `semrules` predicate language — **P5** (the seam/evaluator shipped, the flat-column rule path stays active);
+- SHACL/RDF projection and the SQL-vs-SHACL parity gate — **P7**.
+
+**Next:** P3 (assertions, evidence, Phase D association, keyword lexicon). Priorities before P3: write the merged DR16 keyword spec, and confirm the pilot's authoritative standard editions with a real-data worked example.
 
 ## Post-handoff update (2026-07-31, final — supersedes all earlier status)
 
