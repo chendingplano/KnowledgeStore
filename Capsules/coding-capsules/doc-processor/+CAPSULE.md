@@ -142,7 +142,7 @@ All doc-processor LLM calls go through `newLLMJSONInput` (`ChenWeb/server/api/do
 
 > For cross-processor cache hits to land, the serialized chunk/block text placed in `InputText` must be **byte-identical** across processors (ADR principle 3). Keep task/schema text out of `InputText` (put it in the prompt, i.e. the `<TASK>` section) and serialize the shared chunk via the canonical helpers in §6.1.
 
-**Canonical chunk serialization (Phase 2.3).** Chunk-based processors build `InputText` via the single helper `canonicalChunkInputText(chunk.Lines, docCtx)` (`input_lines.go`) = `wrapLinesWithDocContext(markedLinesToJSON(lines), docCtx)`, where `docCtx = buildDocContextLine(rec)`. Because every chunk processor loads the same `.chunks` artifact and the same record, the same chunk yields a byte-identical `InputText` across processors → DeepSeek reuses the cached prefix. No per-processor schema/label/index text goes in `InputText`; it lives in the prompt (`<TASK>`). All six chunk-consuming processors are converged: `extract_metrics` (pass 1 candidate — `chunksToBlocks` is 1:1 so it shares the same chunk boundaries; output mapping still uses `Block` internally), `extract_semantic_projections` (pass 1 candidate **and** pass 2 enrich — pass 2 reuses pass 1's chunk prefix), `extract_entity_relation` (entities + freeform relations), `extract_inventory_items`, and `extract_provisions` **chunk mode** (`EXTRACT_PROVISIONS_INPUT` unset/`chunks`).
+**Canonical chunk serialization (Phase 2.3).** Chunk-based processors build `InputText` via the single helper `canonicalChunkInputText(chunk.Lines, docCtx)` (`input_lines.go`) = `wrapLinesWithDocContext(markedLinesToJSON(lines), docCtx)`, where `docCtx = buildDocContextLine(rec)`. Because every chunk processor loads the same `.chunks` artifact and the same record, the same chunk yields a byte-identical `InputText` across processors → DeepSeek reuses the cached prefix. No per-processor schema/label/index text goes in `InputText`; it lives in the prompt (`<TASK>`). Converged chunk consumers include `extract_metrics`, `extract_metric_definitions`, `extract_test_methods`, `extract_semantic_projections`, entity/relation extraction, `extract_inventory_items`, and `extract_provisions` **chunk mode** (`EXTRACT_PROVISIONS_INPUT` unset/`chunks`).
 
 > **Not converged:** `extract_provisions` **blocks mode** uses `Block`s with a different serialization, so its LLM input unit differs from chunk mode. `create_artifact_category` is intentionally **task-first** (its prompt template, not the per-call key, is the stable prefix).
 
@@ -173,6 +173,9 @@ Currently, it has the following doc processors:
 |11 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
 |12 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
 |13 | review_document | configurable | Yes | after 3 | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
+|14 | extract_metric_definitions | routed | Yes | after 3 | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. |
+|15 | extract_test_methods | routed | Yes | after 3 | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
+|16 | extract_product_structure | routed post-process | No additional LLM | after entity/relation post-process | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -182,7 +185,7 @@ For instance, 'after 1' means it uses the Blocking Processor's output as its inp
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. Example:
 
 ```toml
 [doc-processing]
@@ -235,6 +238,18 @@ Important:
 - They used to be hard coded inside `chunking`, but that coupling has been removed.
 - As a result, running `chunking` alone no longer implicitly runs `generate_summaries` or `generate_topics`.
 - To preserve the old behavior, include `generate_summaries` and/or `generate_topics` explicitly in the requested `operation` list, or omit `operation` so the full configured pipeline runs.
+
+### 7.5 P4 Ontology Candidate Outputs
+
+The P4 processors never activate ontology content. `extract_metric_definitions` and
+`extract_test_methods` write review-only rows to `kb.ontology_candidates`, retaining source-line
+spans. `extract_product_structure` writes structural rows to `kb.semantic_decision_candidates`
+only after entity-object reconciliation. Curator review and module release are required before
+candidate terms/axioms become active ontology content.
+
+`extract_provisions` remains the provision artifact processor, extended to retain any explicit
+`applicability`, `authority`, and `effective_interval` values in `kb.provisions.public_info`.
+Missing values remain absent; the processor must not infer them.
 
 ### 7.4 Post Process
 Indexing the artifacts processed by doc processors is not done by doc processors.
