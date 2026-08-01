@@ -96,7 +96,8 @@ profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInf
 
 ## Not yet complete
 
-- HTTP/API integration for review and comparison execution, the pilot module, and P4 acceptance fixture.
+- The authority-confirmed pilot module and P4 acceptance fixture. This is data validation only;
+  the generic profile/review/comparison runtime is implemented.
 - A live Go-store/release transaction proof is still pending. The migrations and schema are now
   live-validated; a later Chunk-A validation should create a disposable draft profile/rule through
   the stores, release/activate it, prove active visibility, then roll the disposable data back or

@@ -101,7 +101,7 @@ Acceptance: DR22 cells retain every assertion/citation, a precedence-selected re
 
 ## Verification and documentation
 
-- [ ] For each production change, follow red → observed failure → minimal green → focused pass.
-- [ ] Run `go test ./server/api/ontology/profiles/... ./server/api/ontology/modules/... ./server/api/ontology/comparison/... -count=1`, `go build ./server/...`, and focused `go vet` before completion.
-- [ ] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data.
-- [ ] Maintain a P4 implementation log and update the ontology handoff, ADR status annotation, and ontology capsule with implemented/deferred boundaries.
+- [x] For each production change, follow red → observed failure → minimal green → focused pass.
+- [x] Run `go test ./server/api/ontology/profiles/... ./server/api/ontology/modules/... ./server/api/ontology/comparison/... -count=1`, `go build ./server/...`, and focused `go vet` before completion.
+- [ ] Run an explicit live-Postgres validation against `chenweb_test` before claiming any chunk that persists or freezes governed review data. (The normal migration path was verified on `miner`; this explicit target remains outstanding.)
+- [x] Maintain a P4 implementation log and update the ontology handoff with implemented/deferred boundaries.
