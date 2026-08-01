@@ -104,7 +104,7 @@ Acceptance: DR22 cells retain every assertion/citation, a precedence-selected re
 **Status:** Added 2026-08-01 after discovering that the original P4 plan covered the L6/L7
 runtime but omitted the ADR's explicit P4 processor obligations.
 
-- [ ] `extract_test_methods`: add a routed processor that emits governed procedure-term and
+- [x] `extract_test_methods`: add a routed processor that emits governed procedure-term and
   metric-to-procedure candidates with source spans; register it in the production runtime and
   processor plan.
   Implementation sequence: (1) fake-extractor test for the document-first per-chunk JSON
