@@ -176,16 +176,23 @@ Currently, it has the following doc processors:
 |14 | extract_metric_definitions | routed | Yes | after 3 | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. |
 |15 | extract_test_methods | routed | Yes | after 3 | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
 |16 | extract_product_structure | routed post-process | No additional LLM | after entity/relation post-process | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
+|17 | normalize_assertions | routed (Phase C) | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
+|18 | associate_semantics | routed (Phase C) | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
+|19 | project_semantics | routed (Phase C) | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
 For instance, 'after 1' means it uses the Blocking Processor's output as its input.
 
+Rows 17-19 are DR8 Phase D stages declared as Phase C post-process processors (see §7.3): they
+run in the post-process tier after every Phase B processor has finished, ordered 17 → 18 → 19
+for one record via `PostProcessDependsOn`, and each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
+
 ### 7.1 Processor Categories
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED` (default `false`), so declaring them here changes nothing in default production behavior. Example:
 
 ```toml
 [doc-processing]
@@ -217,8 +224,8 @@ JetStream command mode selection:
 The pipeline uses a three-phase model per record:
 
 - **Phase A (sequential):** the four mandatory processors (`blocking`, `structure_analyzer`/`static_analyzer`, `chunking`, `extract_metadata`) are executed **in dependency order, one at a time**, regardless of the concurrency flag. Their outputs feed downstream processors. The block buffer is cleared after `static_analyzer` (stale pre-analysis blocks); chunk-buffer consumers read only.
-- **Phase B (concurrent):** all configured configurable processors (#5–#14 from the pipeline table) are **fanned out as concurrent goroutines** under a `sync.WaitGroup`, because they have no cross-dependencies. A per-record mutex serializes all `kb.inputs.status` read-modify-write sequences so concurrent status entries are never lost. Each processor runs to completion independently; a failure in one does not cancel siblings.
-- **Phase C (indexing):** after all doc processors finish, it kicks off this phase [Post Process](#post_process), which indexes the artifacts of the artifacts the doc processors generated.
+- **Phase B (concurrent):** all configured configurable processors (#5–#16 from the pipeline table, i.e. the configurable processors plus the routed Phase B harvesters `extract_metric_definitions`/`extract_test_methods`/`extract_product_structure`) are **fanned out as concurrent goroutines** under a `sync.WaitGroup`, because they have no cross-dependencies. A per-record mutex serializes all `kb.inputs.status` read-modify-write sequences so concurrent status entries are never lost. Each processor runs to completion independently; a failure in one does not cancel siblings.
+- **Phase C (indexing + Phase D):** after all doc processors finish, it kicks off this phase [Post Process](#post_process), which indexes the artifacts of the artifacts the doc processors generated. The DR8 Phase D stages `normalize_assertions`/`associate_semantics`/`project_semantics` (rows 17-19) run in the same post-process tier as `PostProcessIndexer` processors, ordered after the rest via `PostProcessDependsOn`; each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
 
 Controlled by `RUN_DOC_PROCESSOR_CONCURRENT` env var (default `"true"`). Set to `"false"` to fall back to the original sequentially-ordered pipeline.
 
@@ -266,6 +273,14 @@ not abort sibling processors. `MetricsProcessor` is the first adopter (its
 `category_instance`, category-path `metrics.txt`, and `hybrid_search` links). Other
 processors still index inline at the end of their Phase B `HandleEvent`; migrate them to
 `PostProcessIndexer` as cross-artifact indexing is added.
+
+**DR8 Phase D stages (rows 17-19).** The three Phase D processors are declared as
+`PostProcessIndexer` processors with a no-op `HandleEvent` (`server/api/doc-processing/phase_d.go`).
+Their `PostProcessIndex` bodies gate on `SEMANTIC_ASSOCIATION_ENABLED` and `ApiTypes.ProjectDBHandle`,
+then call `assertions.NormalizeAllFamilies`, `AssociateSemantics.Run`, and
+`ProjectSemantics.Run` respectively; `PostProcessDependsOn` chains them 17 → 18 → 19.
+Because `HandleEvent` is a no-op they write no `kb.inputs.status` entry of their own — the
+record's completion state is unaffected by them (they are telemetry-only when enabled).
 
 For more information about indexing artifacts, refer to [16].
 
@@ -681,9 +696,9 @@ Use this checklist when adding a new doc processor (mandatory or configurable).
 
 - Create a spec file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-spec.md`
 - Create an impl file: `KnowledgeStore/Capsules/coding-capsules/doc-processor/<name>-impl.md`
-- Add the processor to the **Doc Processing Pipeline** table in this file with its seqno, type (`mandatory` / `configurable`), dependency, and a reference link.
-- Add a status JSON subsection under **Doc Process Status** in this file.
-- If configurable, add the processor name to the `required_processors` example in the **Processor Categories** section.
+- Add the processor to the **Doc Processing Pipeline** table in this file with its seqno, type (`mandatory` / `configurable` / `routed` — routed Phase C processors are typed `routed (Phase C)`), dependency, and a reference link.
+- Add a status JSON subsection under **Doc Process Status** in this file. Exception: a Phase C `PostProcessIndexer` processor with a no-op `HandleEvent` (like rows 17-19) writes no `kb.inputs.status` entry, so it needs no status subsection — document it in the Post Process section instead.
+- If configurable, add the processor name to the `required_processors` example in the **Processor Categories** section; if routed, mention it in the routed-processor sentence there.
 
 ### 12.2. Implementation
 
@@ -784,3 +799,11 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
   `KnowledgeStore/doc-repo/adrs/202606/2026061801-adr-document-review.md`
   
 [17] Document Review Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
+
+[18] ADR 2026072901 — Ontology Platform and Adaptive Pipeline, §8.2 (the Phase D stage
+  declarations `normalize_assertions`/`associate_semantics`/`project_semantics`):
+  `KnowledgeStore/doc-repo/adrs/202607/2026072901-adr-ontology-platform-and-adaptive-pipeline.md`
+
+[19] SemOS P3 implementation log, §12 (the Phase D `ProcessorSpec` declaration fix that made
+  rows 17-19 real, routed processors):
+  `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md`
