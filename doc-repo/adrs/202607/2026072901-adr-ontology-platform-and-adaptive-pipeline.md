@@ -31,6 +31,13 @@
 * 2026/07/31, P0 closeout evidence revision. Records the approved benchmark-evidence run for the
   ventilator pilot corpus, updates the P0 exit status to complete, and moves the remaining work
   into explicit post-P0 implementation planning for P1+.
+* 2026/08/01, P2 implementation status revision. Annotates the P2 section as implemented and
+  validated (chunks 0, A–F): ontology content stores + candidate lifecycle, DB-native module
+  compiler/releases/activation, the four core 4a modules installed as data (including the full
+  QUDT catalog into `quantity`), the `semid` canonicalization kernel with the governed
+  ontology-term family, the `object_nodes` extension columns, and extension seams 1–4. See the P2
+  implementation log `2026073105-devdoc-semos-p2-implementation-log.md` and the new ontology
+  capsule `Capsules/coding-capsules/ontology/+CAPSULE.md`.
 * 2026/07/31, storage-model revision (P2 planning). Records the **DB-native storage decision**:
   ontology content (terms, labels, axioms, mappings, the QUDT catalog) is authored and versioned
   **in the database** with `version` columns; there is **no data-only Git repository**. DR2's
@@ -1471,6 +1478,14 @@ the run and raises exactly one alarm; shadow mode on the fixture corpus shows th
 decisions.
 
 #### P2 — Ontology core and the canonicalization kernel *(parallel with P1)*
+
+> **Status: implemented and validated (2026-08-01).** All six P2 bullets below are built and
+> live-validated (chunks 0, A–F), with the DB-native storage revision applied throughout. See the
+> P2 implementation log and the ontology capsule. Exit criteria: spec §16.3 items 1–7 are covered
+> by the consolidated `candidates/p2_exit_test.go`; the four core 4a modules install as data with
+> no code change (the DR1 property); a failed validation leaves the previous active release
+> untouched; and the `semid` merge/split fixtures show no transitive closure and no lost merged id
+> (ADR kernel tests 18–21, 23).
 
 * Module compiler, validator, checksum, immutable release, activation pointer, rollback —
   serving both `modules/` and `policies/` from the data repository (DR17).

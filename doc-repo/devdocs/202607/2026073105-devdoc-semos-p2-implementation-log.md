@@ -203,6 +203,34 @@ New package `ChenWeb/server/api/ontology/semid/`:
 
 Migration `20260731000028` adds `ontological_level` (CHECK: individual/type/collection/occurrence/concept), `identity_scope`, `external_identifiers JSONB`, and `primary_class_term_id` (a DERIVED projection; maintained by classification assertions and `project_semantics` in P3 with the assertion store). Combined with chunk D's `merged_into`/`scope_key`, all six DR10/DR15.1 columns now exist. `ObjectNode` carries the corresponding fields. Existing reconciliation tests pass unchanged (test 23 parity).
 
-## 5. Current state and next expected slice
+## 3f. Chunk F — extension seams, exit criteria, and documentation (complete)
 
-Chunks A–E are complete and live-validated. Remaining: **chunk F** — extension seams 1–4 (DR5 `ProcessorSpec`, `FacetProducerRegistry`, minimal `semrules` + `PredicateOperatorRegistry`, the chunk-B compiler loader), the spec §16.3 items 1–7 exit-criteria test consolidation, and the documentation closeout (ontology capsule, ADR annotations, handoff).
+### Seams 1–4
+
+- **Seam 1 — `ProcessorRegistry`** (`doc-processing/registries.go`): `ProcessorSpec` extended with the DR5 fields (`Requires`, `Produces`, `Class`, `Cost`, `OnUndetermined`, `Idempotent`); `RegisterProcessor`/`LookupProcessor`/`SetProcessorRegistry` seeded from the production roster. Adding a processor with a spec never requires editing the mechanism.
+- **Seam 2 — `FacetProducerRegistry`**: `FacetProducer` interface + `RegisterFacetProducer`/`FacetProducers`/`RunFacetProducers`.
+- **Seam 3 — `semrules`** (`server/api/ontology/semrules/`): the DR3 predicate evaluator (predicate tree, operator registry with `RegisterOperator` as the seam, evaluation trace). Minimal by design — the flat-column rule path stays active until P5.
+- **Seam 4 — module compiler + loader** (chunk B) documented in the new ontology capsule.
+
+### Exit criteria (spec §16.3 items 1–7)
+
+`candidates/p2_exit_test.go` consolidates the mapping:
+
+- **Item 1** — fingerprint dedup: reprocessing an identical proposal reuses the candidate (no duplicate review work).
+- **Item 3** — state machine + deferred gate + **approved stays inactive until a release**: `TransitionStatus` now refuses `included_in_release` outright — only the module release path sets it (a guard added this slice, and the release flow now marks promoted candidates `included_in_release`).
+- **Item 4** — no LLM-only activation path (the state machine + release ownership of the active transition).
+- **Item 5 / 7** — atomic release, dependency pins, checksum, rollback-preserves-history, and failed-validation-leaves-previous-active: covered by the `modules` release tests and the chunk-B live run.
+- **Item 6** — versioned term rows: a changed definition inserts a new version, never mutating a released term.
+
+Live-verified the new release-owned transition: a promoted candidate whose content ships in a release becomes `included_in_release` alongside its term.
+
+### Documentation
+
+- New capsule `KnowledgeStore/Capsules/coding-capsules/ontology/+CAPSULE.md` (content model, lifecycle, release workflow, tools).
+- P2 plan and implementation log cross-linked; ADR annotated.
+
+## 5. P2 status
+
+**P2 is complete against its stated scope** (chunks 0 and A–F): the ontology content stores + candidate lifecycle, the DB-native module compiler/releases/activation, the four core 4a modules installed as data (including the full QUDT catalog), the `semid` canonicalization kernel with the governed ontology-term family, the `object_nodes` extension columns, and extension seams 1–4. Everything is unit-tested and the key flows are live-validated against real Postgres (`chenweb_test`; the dev DB `miner` is fully migrated through `20260731000028`).
+
+**What remains explicitly deferred (documented boundaries, not gaps):** assertions/evidence and Phase D association (P3), classification-as-assertion maintenance and `primary_class_term_id` population (P3), the keyword lexicon instantiation (P3), profiles/review (P4), the DR5 DAG planner that consumes `Requires`/`Produces` (later), the full `semrules` language (P5), and the SHACL/RDF projection (P7).
