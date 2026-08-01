@@ -107,6 +107,13 @@ runtime but omitted the ADR's explicit P4 processor obligations.
 - [ ] `extract_test_methods`: add a routed processor that emits governed procedure-term and
   metric-to-procedure candidates with source spans; register it in the production runtime and
   processor plan.
+  Implementation sequence: (1) fake-extractor test for the document-first per-chunk JSON
+  contract `procedures[]` (`procedure_name`, optional `definition`, `metric_names`, and required
+  `source_line_spans`); (2) batch processor validates named procedures and ignores malformed
+  entries; (3) finalization creates only `term` and `axiom` review candidates using the existing
+  candidate store; (4) runtime selection test confirms explicit routing includes static analysis
+  and chunking; (5) run focused tests and commit. Candidate promotion remains a separate curator
+  and module-release action.
 - [ ] `extract_metric_definitions`: add a routed processor that emits governed
   `metric_definition` candidates (canonical label, aliases, value/range form) from chunks;
   register it in the production runtime and processor plan.
