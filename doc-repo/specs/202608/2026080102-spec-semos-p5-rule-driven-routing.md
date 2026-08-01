@@ -72,10 +72,13 @@ trace. The relevant consumer then applies its own governed precedence:
 - processor rules refine its routed processors;
 - profile applicability selects pinned profile releases for an immutable review scope.
 
-Missing decision-relevant document facets may trigger the bounded `classify_document` pre-plan
-step once. The final routing result is frozen in the execution plan or review-scope snapshot.
-Shadow mode records what P5 would change while preserving existing execution. A suppressive
-decision affects execution only after its document-kind slice passes the benchmark clearance gate.
+Missing decision-relevant document facets may trigger the bounded `classify_document` step once
+for the current decision attempt. Extraction planning and deterministic review-scope selection
+each perform their own initial pass, optional classification, and final pass because review facts
+such as targets, purpose, and closed dimensions are not necessarily known during ingestion. The
+final routing result is frozen in the execution plan or review-scope snapshot. Shadow mode records
+what P5 would change while preserving existing execution. A suppressive decision affects execution
+only after its document-kind slice passes the benchmark clearance gate.
 
 ### 1.5 Where it runs in the pipeline
 
@@ -90,15 +93,21 @@ document ingestion
   -> enforce or shadow the selected pipeline and processor gates
   -> extraction/indexing waves
   -> Phase D semantic association and projections
-  -> review request
-  -> semrules profile selection and immutable review-scope freeze  [P5 review routing]
+
+later, when a user or service requests review
+  -> build review/target facts from the request and persisted semantics
+  -> initial semrules profile-applicability pass
+  -> optional classify_document for newly decision-relevant missing facets
+  -> final semrules pass and immutable review-scope freeze          [P5 review routing]
   -> P4 generic review and findings
 ```
 
 The first P5 use occurs after the minimum always-run preparation needed to establish routing facts
 and before any processor that policy may suppress. The second occurs after document semantics are
-available, when a review scope is created. Both uses call the same evaluator and persist enough
-facts, release pins, checksums, and traces to reproduce the decision later.
+available, when an external request creates a review scope; review is not automatically started by
+every extraction run. Review-time classification does not rerun extraction or Phase D. Both uses
+call the same evaluator and persist enough facts, release pins, checksums, and traces to reproduce
+the decision later.
 
 P5 adds the full `semrules` contract, JSON predicates, per-processor effects, selective tier-3
 document classification, module-supplied routing proposals, and benchmark-gated enforcement.
@@ -448,8 +457,10 @@ P5 adds deterministic selection for P4 review scopes:
 
 1. Derive the single knowledge store from all reviewed documents; a mixed-store deterministic
    request is rejected in P5 v1 and may be split into separate scopes.
-2. In one repeatable-read transaction, pin the active module releases and load only profiles
-   visible to that knowledge store.
+2. Generate a stable review-selection attempt id. In one short repeatable-read transaction, read
+   and pin the active module releases and load only profiles visible to that knowledge store; end
+   the transaction before any classifier call and retain the release ids/checksums as attempt
+   inputs.
 3. Evaluate each profile once per applicability subject: each reviewed document paired with each
    requested target object/class, or a document-only subject when no target is supplied.
 4. Freeze every profile/release with at least one `true` subject into the immutable review scope,
@@ -478,25 +489,28 @@ Automatic selection uses `selection_mode=deterministic_rule`.
 A deterministic-scope request supplies reviewed document ids, target object/class ids, review
 context, closed dimensions, and selection reason; it must not supply `selected_profiles`.
 Knowledge-store identity comes from `kb.inputs.ks_store_id`, not client input. The scope table gains
-  `knowledge_store_id`, `selection_status`, `fact_snapshot`, and `selection_snapshot` JSONB. Each
+  `knowledge_store_id`, `selection_attempt_id`, `selection_status`, `fact_snapshot`, and
+`selection_snapshot` JSONB. Each
 selected-profile snapshot entry includes profile/version, pinned release id/checksum, applicable
 document/target subjects, predicate checksum, outcome, and trace. Scope creation commits the
-activation pins and snapshot atomically; a concurrent activation either precedes or follows the
-transaction, never partially changes the scope.
+already-pinned releases and final snapshot atomically; all post-classifier reads address those
+release ids directly rather than rereading current activation. A concurrent activation therefore
+cannot partially change the selection attempt.
 
 Profile-rule-level applicability is evaluated again within the already pinned scope. It may
 exclude a rule from a run but cannot add an unpinned profile or release.
 
 ## 7. Tier-3 document classification
 
-`classify_document` is a cheap-LLM, **mandatory-gated pre-plan producer**, matching the ADR §8.2
-roster. It is registered and observable as a processor, but ordinary processor-gate rules cannot
-skip or require it. The plan resolver invokes it between an initial applicability pass and final
-plan freeze, avoiding a dependency cycle. It receives only unresolved governed facet keys and a
-bounded document sample, and returns values from the pinned `document-authority` vocabulary with
-confidence and source spans.
+`classify_document` is a cheap-LLM, **mandatory-gated pre-decision producer**, matching the ADR
+§8.2 roster. It is registered and observable as a processor, but ordinary processor-gate rules
+cannot skip or require it. The extraction-plan resolver or deterministic review-scope resolver may
+invoke it between its own initial applicability pass and final freeze, avoiding a dependency
+cycle. It receives only unresolved governed facet keys and a bounded document sample, and returns
+values from the decision attempt's pinned `document-authority` vocabulary with confidence and
+source spans.
 
-The planner follows this sequence:
+Each resolver follows this sequence:
 
 1. Build deterministic tier-1 and metadata-derived tier-2 facts.
 2. Evaluate policy/profile predicates with current facts. A missing tier-3 path is
@@ -510,7 +524,10 @@ The planner follows this sequence:
 4. Otherwise schedule `classify_document`, persist its facet facts, rebuild the fact set, and
    evaluate once more.
 5. If facts remain absent, conflicting, or below minimum confidence, preserve
-   `indeterminate`; do not repeatedly call the classifier in the same run.
+   `indeterminate`; do not repeatedly call the classifier for the same record in the same
+   extraction run or review-selection attempt. A multi-document review may classify each record
+   once under that shared attempt id. Review-time classification updates only facet observations;
+   it does not rerun extraction, semantic association, or projections.
 
 The prompt is a versioned file under `ChenWeb/prompts`; it is never embedded in Go.
 
@@ -522,12 +539,13 @@ one canonical value is `known` and uses the minimum confidence across agreeing o
 multiple distinct canonical values are `conflicting` and carry every value/confidence; no
 observations are `missing`. A lower-ranked observation never overwrites or conflicts with a
 higher-ranked one. Classifier observations are immutable and keyed by
-`(record_id, path, run_id, invocation_id)`. Retries of one invocation reuse its stable
+`(record_id, path, decision_attempt_id, invocation_id)`, where `decision_attempt_id` is an
+extraction run id or review-selection attempt id. Retries of one invocation reuse its stable
 `invocation_id` and return the already-written observation; separate concurrent or later runs use
 different invocation ids even when source fingerprint and classifier version match. Concurrent
 differing classifier results can therefore coexist and reduce to `conflicting` rather than
-last-writer-wins. The initial plan pins the active vocabulary release; classifier
-values are validated against that release and the final pass uses the same pin.
+last-writer-wins. The decision attempt pins the active vocabulary release; classifier values are
+validated against that release and the final pass uses the same pin.
 
 ## 8. Domain-module routing proposals
 
@@ -670,8 +688,8 @@ P5 generic runtime is complete when automated and live validation prove:
     atomically, continues with explicit indeterminate results for affected closed dimensions, and
     leaves explicit P4 scopes byte-compatible;
 11. `classify_document` runs only for unresolved, decision-relevant governed facets and runs at
-    most once per record/run; concurrent or conflicting observations reduce deterministically
-    without overwriting stronger facts;
+    most once per record/extraction-run or record/review-selection-attempt; concurrent or
+    conflicting observations reduce deterministically without overwriting stronger facts;
 12. module proposals produce draft policy content without changing active routing;
 13. a failed policy compilation or activation leaves the previous active version effective;
 14. execution/review snapshots remain reproducible after policy or module activation changes;
