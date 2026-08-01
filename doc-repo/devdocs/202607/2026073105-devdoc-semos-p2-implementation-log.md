@@ -138,6 +138,41 @@ The terms stores now take a `terms.DBX` interface (satisfied by `*sql.DB` and `*
 2. **Placeholder-count mismatches in INSERT `VALUES`** — when `source_candidate_id` was added to labels/axioms/mappings in chunk A, the `VALUES` placeholders were not renumbered correctly (labels and axioms and mappings each had one extra `$n`). sqlmock matches query *text*, so it passed; live Postgres rejected the inserts ("INSERT has more expressions than target columns"). All three INSERTs fixed.
 3. **`UNIQUE(module_id, release_id)` on active releases too strict** — rollback to a previously-active release is a legitimate re-activation and must insert a new row; dropped the constraint via `00025` (the partial unique index remains the invariant).
 
+## 3c. Chunk C — core 4a module content installed as data (complete)
+
+### C1–C5 — Curated modules
+
+New `server/cmd/ontology-seed` authors the curated vocabulary for `core`, `document-authority`, and `measurement` as approved content and (unless `--author-only`) releases + activates through the compiler. Re-running is safe (existing modules/terms/labels/releases are skipped).
+
+- `core` (19 terms): referent, information artifact, assertion, evidence, agent, role, occurrence, value, part; predicates `instance_of`, `plays_role`, the DR20 hierarchy (`part_of`/`component_of`/`variant_of`), `about`, `has_evidence`, `asserted_by`, `has_polarity`, `has_confidence`.
+- `document-authority` (22 terms): document kind, issuer, jurisdiction, edition, normative status, supersedes/amends/cites/is_normative/effective_interval, plus the **DR4 facet vocabulary** as governed terms (facet keys `doc_kind`, `domain`, `normative`, `jurisdiction_facet`, `language`; permitted values `standard`/`specification`/`regulation`/`report`/`manual`/`normative`/`informative`).
+- `measurement` (17 terms): `metric_definition` (DR23), metric assertion, observable property, feature of interest, procedure, condition, aggregation window; the metric **assertion kinds** `lower_bound_requirement`/`upper_bound_requirement`/`interval_requirement`/`observed_value`/`target`/`reference`/`capability`; `has_quantity_kind`/`has_unit`/`measured_by`.
+
+### C6 — QUDT full catalog import
+
+New `server/cmd/qudt-import` (uses `github.com/deiu/rdf2go` as a Turtle parser; the QUDT TTL files are transient generator input, the DB is the store):
+
+- Downloads are sourced from `qudt-public-repo` `src/main/rdf/vocab/{unit,quantitykinds,dimensionvectors}/` (the repo structure moved under `src/` — earlier docs' `vocab/units/vocab.ttl` paths are stale).
+- Parses units (`qudt:Unit`), quantity kinds (`qudt:QuantityKind`), and dimension vectors (`qudt:DimensionVector`); skips `qudt:deprecated` entries; takes an English `rdfs:label` as prefLabel and `qudt:symbol` as altLabel; writes one exact mapping back to the source IRI (provenance).
+- Imported **4151 terms** into `quantity` (term_id namespaces `quantity:unit_*` / `quantity:qk_*` / `quantity:dim_*` to avoid cross-class collisions), all approved.
+
+### DR1 property (proved live)
+
+All four core 4a modules are installed **as data** — released and activated through the module compiler with no change to processors, normalizers, or evaluators:
+
+| Module | Terms | Release | Active |
+|---|---|---|---|
+| `core` | 19 | 1.0.0 (checksum c983fa57d239) | ✓ |
+| `document-authority` | 22 | 1.0.0 (d8691f5210c7) | ✓ |
+| `quantity` | 4151 (QUDT) | 1.0.0 (47f2276c8c10) | ✓ |
+| `measurement` | 17 | 1.0.0 (ec54375f8605) | ✓ |
+
+`measurement` pins its dependencies (`core@1.0.0`, `quantity@1.0.0`) in its release. All curated content rows are tagged `included_in_release`.
+
+### Bug found during the QUDT import
+
+**Mapping_id collision across classes** — QUDT units and quantity kinds share local names (e.g. `SpeedOfLight`), so `quantity:map_<localname>` collided on the second class. Fixed by namespacing the mapping id from the term id (`quantity:map_unit_*` / `map_qk_*` / `map_dim_*`).
+
 ## 5. Current state and next expected slice
 
-Chunks A and B are complete and live-validated. Next: **chunk C** — core 4a module content (`core`, `document-authority`, `measurement` authored as data; the full QUDT catalog imported into `quantity`), released and activated through the compiler (the DR1 data-install property). The QUDT import (a TTL→DB generator) is the long pole and should have its data sourcing started early.
+Chunks A, B, and C are complete and live-validated. The four core 4a modules are installed as active, released data. Next: **chunk D** — the `semid` canonicalization kernel (normalizers, candidate generation, scoring, adjudication, merge/split with tombstones, `never_merge`, decision log; `kb.semid_*` tables; `object_nodes.merged_into`/`scope_key`), with ontology terms as its first (governed) instantiation and kernel merge/split fixtures (ADR tests 18–21, 23).
