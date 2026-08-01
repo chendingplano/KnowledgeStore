@@ -6,6 +6,12 @@ Date: July 31, 2026
 > processors are now implemented and live-validated; see P4 checkpoint
 > `2026080104-devdoc-semos-p4-foundation-checkpoint.md`. The remaining P4 boundary is the
 > authority-confirmed pilot data fixture, not generic runtime code.
+>
+> **Post-handoff update (2026-08-01, continued):** the ADR §8.2 `extract_metrics` structured
+> output — the "single highest-leverage change for the application" — is now implemented and
+> committed (OpenSpec change `extract-metrics-structured-output`), closing P3 log §8 items 10
+> (structured output) and 13 (unit-term resolution). See the post-handoff update near the end of
+> this document.
 
 ## Scope
 
@@ -272,6 +278,41 @@ running the real mechanism against real Postgres and real data.
 **P3 Track A is complete.** **Next:** Track B (the keyword lexicon — design is done, code is not),
 then P4 (profiles, the pilot 4b domain module, and ontology-aware metric review).
 
+## Post-handoff update (2026-08-01, continued — `extract_metrics` structured output closed)
+
+The ADR §8.2 `extract_metrics` structured-output change — deferred through P3 (log §8 item 10) and
+again through P4, called "the single highest-leverage change for the application" — is now
+implemented and committed via the OpenSpec change
+`ChenWeb/openspec/changes/extract-metrics-structured-output/`, closing P3 log §8 items 10 and 13:
+
+- `kb.metrics` gained `value_min`/`value_max`/`condition` (migration
+  `20260801000014_add_kb_metrics_structured_value_fields.sql`); `prompt-enrich-metrics-v5.md` emits
+  them and the save handler persists them (nullable, so v4-era output still imports unchanged).
+- `MetricNormalizer` now consumes the structured columns (`value_range_type`, `value_class`,
+  `metric_value`, `metric_unit`) deterministically; `parseThresholdOrTarget` is demoted to a legacy
+  fallback used only when `value_range_type` is empty. A row that declares structured values is
+  never free-text parsed — removing review finding 2b's fabrication class structurally (design
+  D1/D5).
+- `associate_semantics.processMetric` resolves the raw unit to QUDT `quantity` module terms
+  (`unit_term_id`/`quantity_kind_term_id`, verified against the live catalog) and carries the
+  `condition` qualifier onto accepted assertions.
+
+**Gold-corpus reconciliation (important).** The P3 log §C2 claimed the text parser produced "6
+correctly-parsed structured assertions + 2 honest `unparsed`, never a fabricated value." The stored
+revision-1 candidates contradict this: all 8 rows of `input_record_id=2` were parsed, including
+`observed_value=1` fabricated from "1 m 距离处清晰辨识" (the exact row §C2 cited as an `unparsed`
+example) and truncating mis-parses (`1024` from "1024×600", `160` from "水平160°, 垂直140°").
+Structured-first produces 4 correct assertions (rows 1-4: `lower_bound_requirement` 250/1000,
+`upper_bound_requirement` 120 ×2) and 4 honest `unparsed` for rows 5-8, which carry v2-era
+`minimum`/`other` enums outside the v5 closed vocabulary. The 6+2 → 4+4 drift is the removal of 4
+mis-parses/fabrications, not a regression; rows 5-8 parse deterministically once re-extracted with
+`prompt-enrich-metrics-v5.md`. Full reconciliation in the P3 log §12.1 addendum.
+
+**Status implications for the handoff's earlier sections:** the "ontology runtime still not built"
+section's bullet that the metric normalizer "has to parse `threshold_or_target` free text" is now
+stale for the metric family — the structured-first path and the parser fallback coexist, with the
+free-text path reserved for pre-structured rows only.
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -282,5 +323,6 @@ then P4 (profiles, the pilot 4b domain module, and ontology-aware metric review)
 - P2 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073105-devdoc-semos-p2-implementation-log.md` — the running P2 build record.
 - DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — supersedes `2026072301` and `2026072703`; the keyword-lexicon design source of truth for whenever Track B's code is built.
 - P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
-- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation).
+- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
+- OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
