@@ -199,6 +199,10 @@ New package `ChenWeb/server/api/ontology/semid/`:
 - Kernel fixtures pass: normalizer determinism + versioned re-index (18); merge tombstone/stale-resolve/unmerge (19); no transitive closure over A→B, B→C (20); `never_merge` blocks automatic merge (21); governed-family resolve ends at `human_review` even on a perfect match. Object-node reconciliation tests pass unchanged (23).
 - **Live-Postgres validation** (`chenweb_test`, temp program deleted): a term candidate with label "metric definition" resolved through `TermFamily` to an exact `mea:metric_definition` @1.0 match with verdict `human_review`; `candidate_matches` persisted; a no-match candidate → `deferred`; decision log appended; never_merge + snapshot stores round-tripped; `object_nodes.merged_into`/`scope_key` columns present. **All checks passed.**
 
+## 3e. Chunk E — `kb.object_nodes` extension columns (complete)
+
+Migration `20260731000028` adds `ontological_level` (CHECK: individual/type/collection/occurrence/concept), `identity_scope`, `external_identifiers JSONB`, and `primary_class_term_id` (a DERIVED projection; maintained by classification assertions and `project_semantics` in P3 with the assertion store). Combined with chunk D's `merged_into`/`scope_key`, all six DR10/DR15.1 columns now exist. `ObjectNode` carries the corresponding fields. Existing reconciliation tests pass unchanged (test 23 parity).
+
 ## 5. Current state and next expected slice
 
-Chunks A–D are complete and live-validated. The canonicalization kernel is built with ontology terms as its first (governed) instantiation. Next: **chunk E** — the `kb.object_nodes` extension columns (`ontological_level`, `identity_scope`, `external_identifiers`, `primary_class_term_id`) — then **chunk F** (extension seams 1–4, spec §16.3 items 1–7 exit tests, and the documentation closeout).
+Chunks A–E are complete and live-validated. Remaining: **chunk F** — extension seams 1–4 (DR5 `ProcessorSpec`, `FacetProducerRegistry`, minimal `semrules` + `PredicateOperatorRegistry`, the chunk-B compiler loader), the spec §16.3 items 1–7 exit-criteria test consolidation, and the documentation closeout (ontology capsule, ADR annotations, handoff).
