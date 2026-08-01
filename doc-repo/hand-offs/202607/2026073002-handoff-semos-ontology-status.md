@@ -106,7 +106,7 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 
 **P2:** complete (as of 2026-08-01) — see the post-handoff update. The deferred-by-design boundary beyond P2 is documented in the P2 implementation log §5.
 
-**P3:** chunks 0–D complete (as of 2026-08-01) — see the post-handoff update. Chunk E, chunk F, and the keyword lexicon (Track B) remain; full detail in the P3 implementation log.
+**P3:** chunks 0–E complete (as of 2026-08-01) — see the post-handoff update. Chunk F and the keyword lexicon (Track B) remain; full detail in the P3 implementation log.
 
 **P4–P7:** not started in code.
 
@@ -199,6 +199,38 @@ specs, closing that documentation gap even though the keyword-lexicon code itsel
 **Next:** chunk E (`project_semantics`), chunk F (telemetry, backlog drain, exit-criteria suite), then
 Track B (keyword lexicon).
 
+## Post-handoff update (2026-08-01, continued — P3 chunk E complete)
+
+`project_semantics` (Phase D stage 3) is now **built and live-validated**, closing the item listed
+first in the "deferred by design" list immediately above. Delivered: `kb.projection_state` (every
+projection row references its authoritative source table/id/revision, per spec §10.8); the
+`ProjectionBuilderRegistry` (DR11 seam 7); and `kb.object_nodes.primary_class_term_id` maintenance
+from accepted `core:instance_of` assertions — closing the P2 chunk E deferral by name.
+
+Live validation (a second temporary `p3validate` program) proved the full corruption-detection-and-
+repair contract spec §16.2 item 6 asks for: a hand-edited (bypassing the projection mechanism
+entirely) `primary_class_term_id` value was detected and repaired back to the authoritative value,
+a repeat sweep on an already-correct projection made zero writes, and a decision-relevant revision
+of the source assertion correctly propagated to both the materialized column and `kb.projection_state`.
+
+One real gap the validation had to work around, recorded for whoever builds the next normalizer: **no
+normalizer anywhere in this workspace yet emits `core:instance_of` classification assertions** — the
+metric normalizer produces `measured_by` assertions, provisions defer entirely (§5 above) — so
+`project_semantics` has no real Phase D output to project from today. Validation authored classification
+assertions directly through `AssertionStore`, the same technique earlier chunks used before any
+normalizer existed. A future entity or inventory-item normalizer is the natural first real producer.
+
+Also fixed as a chunk-E prerequisite: `associate_semantics`'s evidence rows never populated
+`input_record_id` (harmless for chunks A–D, since nothing read it, but `project_semantics`'s
+per-record scoping depends on it).
+
+**Deferred by design beyond chunk E:** association-run telemetry and the deferred/ambiguous backlog
+drain (chunk F); the keyword lexicon code (Track B); object reconciliation for metrics; a governed
+deontic predicate for provisions; a real classification-assertion producer.
+
+**Next:** chunk F (telemetry, backlog drain, the consolidated exit-criteria suite), then Track B
+(keyword lexicon).
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -209,5 +241,5 @@ Track B (keyword lexicon).
 - P2 implementation log: `KnowledgeStore/doc-repo/devdocs/202607/2026073105-devdoc-semos-p2-implementation-log.md` — the running P2 build record.
 - DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — supersedes `2026072301` and `2026072703`; the keyword-lexicon design source of truth for whenever Track B's code is built.
 - P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
-- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–D build record (schema, code, real-data findings, live-Postgres validation).
+- P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–E build record (schema, code, real-data findings, live-Postgres validation).
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.

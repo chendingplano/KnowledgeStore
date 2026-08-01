@@ -1,11 +1,11 @@
-# SemOS P3 Implementation Log — Assertions, Evidence, and Phase D Association (chunks 0–D)
+# SemOS P3 Implementation Log — Assertions, Evidence, and Phase D Association (chunks 0–E)
 
 **Date:** 2026-08-01
-**Scope:** Execution log for the P3 slice built this session, following plan `2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`, in `ChenWeb`.
+**Scope:** Execution log for the P3 slice built this session, following plan `2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`, in `ChenWeb`. Chunks 0–D were recorded first (see the git history of this file); this revision adds chunk E.
 
 ## 0. Summary — what this slice is, and what it deliberately is not
 
-This slice covers **Track A, chunks 0–D** of the P3 plan: the DR9 assertion/evidence schema, the operational association-candidate lifecycle, the DR11 seam-5 normalizer registry with metric and provision instances, and the first two of the three DR8 Phase D stages (`normalize_assertions`, `associate_semantics`). It does **not** cover chunk E (`project_semantics`), chunk F (telemetry/backlog-drain surfaces/exit-criteria suite), or Track B (the keyword lexicon, design-complete per `2026080101-spec-keyword-canonicalization-merged.md` but not built). See §6 for the precise deferred boundary.
+This slice covers **Track A, chunks 0–E** of the P3 plan: the DR9 assertion/evidence schema, the operational association-candidate lifecycle, the DR11 seam-5 normalizer registry with metric and provision instances, and all three DR8 Phase D stages (`normalize_assertions`, `associate_semantics`, `project_semantics`). It does **not** cover chunk F (telemetry/backlog-drain surfaces/exit-criteria suite) or Track B (the keyword lexicon, design-complete per `2026080101-spec-keyword-canonicalization-merged.md` but not built). See §7 for the precise deferred boundary.
 
 Everything below is **unit-tested and live-validated against real Postgres** (`chenweb_test`), including against the actual gold ventilator-corpus data already present in that database from prior P0 benchmark runs — not only synthetic fixtures.
 
@@ -110,40 +110,70 @@ Live validation found `SELECT count(*) FROM kb.artifact_objects WHERE artifact_t
 
 Whether `MetricsProcessor` should call object reconciliation (mirroring `ProvisionsProcessor`'s `persistProvisionObjects`) is outside this slice's scope — it is upstream Phase B/C processor behavior, not Phase D — but it is the reason essentially all real metric assertions currently defer, and is recorded here so a future session does not mistake the defer rate for a Phase D bug.
 
-## 6. Deferred beyond this slice
+## 6. Chunk E — `project_semantics` and `kb.projection_state` (complete)
 
-Recorded here, in the same spirit as the P2 log's §5, so a later phase or handoff never mistakes chunks 0–D for all of P3:
+### E1 — Migration
+
+`20260801000005`: `kb.projection_state` — one row per `(projection_kind, projection_target_table, projection_target_id)`, recording the authoritative source (`authoritative_table`/`authoritative_id`/`authoritative_revision`) a projection was last built from, a `projection_version` build counter, and a `stale`/`stale_reason` pair. Rebuilding overwrites the row; the authoritative history lives in the source table's own revision chain, not here.
+
+### E2 — `ProjectionBuilderRegistry` (seam 7) and the classification projection
+
+`projection_registry.go` — `ProjectionBuilderRegistry`: `RegisterProjectionBuilder(kind, build, repair)`/`LookupProjectionBuilder`, plus `ProjectionStateStore` (`Upsert`/`Get`/`MarkStale`/`ListStale`). `repair` returns `(repaired bool, err error)` rather than just `error` — deliberately, so a sweep can report "found and fixed corruption" as a distinct, observable outcome from "already correct," per spec §16.2 item 6's "detected as stale."
+
+`classification_projection.go` — the DR10 projection this slice builds: `kb.object_nodes.primary_class_term_id`, closing the P2 chunk E deferral ("primary_class_term_id is a DERIVED projection... not yet populated: classification-as-assertion needs the assertion store"). `primaryClassificationFor` picks the deterministic "primary" classification as the earliest-accepted `core:instance_of` assertion for an object (an object may carry several simultaneous accepted classifications per research §5.2/CQ-I03; this column is a read-optimized convenience pointer to one of them, never the system of record). `buildPrimaryClassProjection` writes the column and the `projection_state` row (or clears both if no accepted classification exists); `repairPrimaryClassProjection` compares the materialized value against what the authoritative source currently implies and only writes if they differ, reporting whether a fix occurred.
+
+`project_semantics.go` — `ProjectSemantics.Run(ctx, inputRecordID)` finds the objects touched by this record's newly-accepted `core:instance_of` assertions (via `assertion_evidence.input_record_id`, joined to `semantic_assertions`) and rebuilds their projections; `RepairStaleProjections(ctx, db, kind)` is a standalone sweep (not scoped to one record) that unions every already-`stale`-flagged target with every *known* target for the kind — the latter is necessary because a direct hand-edit of `kb.object_nodes.primary_class_term_id` never touches `kb.projection_state.stale`, so a stale-only sweep would miss it.
+
+### E3 — A prerequisite fix: `associate_semantics` never populated `evidence.input_record_id`
+
+Chunks A–D's evidence rows all left `input_record_id` `NULL` — harmless for those chunks (nothing read it), but `project_semantics`'s per-record scoping depends on it. Fixed by threading `inputRecordID` through `processOne`/`processMetric` into the `AddEvidence` call. A real, if minor, correctness gap the chunk-D live validation didn't need to exercise but chunk E's did.
+
+### E4 — Phase D wiring
+
+`ChenWeb/server/api/doc-processing/project_semantics.go` — `ControlService.runProjectSemantics`, called from `control.go` immediately after `runAssociateSemantics`, gated by the same `SEMANTIC_ASSOCIATION_ENABLED` flag.
+
+### E5 — A real gap this chunk had to synthesize around: nothing produces classification assertions yet
+
+Neither the metric normalizer (produces `mea:measured_by` assertions) nor the provision normalizer (defers, per §5) emits `core:instance_of` assertions — no normalizer in this or any prior P3 slice classifies anything. `project_semantics` therefore has no real Phase D output to project from today; validating it required directly authoring `core:instance_of` assertions through `AssertionStore` (the same technique chunks A/B used before any normalizer existed), not driving it end-to-end from the gold corpus. This mirrors P2's own precedent for `object_nodes.merged_into`/`scope_key`: "the columns exist and stay unpopulated by existing paths... adopted incrementally." A future entity or inventory-item normalizer is the natural first real producer of classification assertions.
+
+### E6 — Live-Postgres validation
+
+Via a second temporary `server/cmd/p3validate` program (deleted after use): with zero classification assertions, a run correctly examines zero targets → author and accept a `core:instance_of` assertion for a real `kb.object_nodes` row → `project_semantics` builds the projection, `kb.object_nodes.primary_class_term_id` is set, `kb.projection_state` records the correct authoritative assertion id/revision → **directly hand-corrupt** the materialized column (bypassing the projection mechanism entirely) → `RepairStaleProjections` detects and repairs it, reporting `repaired=1` → re-running the sweep on an already-correct projection reports `repaired=0` (idempotent) → create a decision-relevant revision of the classification assertion (superseding the first) → `project_semantics` rebuilds, the materialized column and `projection_state` both follow the new authoritative assertion id and revision. **All checks passed.**
+
+## 7. Deferred beyond this slice
+
+Recorded here, in the same spirit as the P2 log's §5, so a later phase or handoff never mistakes chunks 0–E for all of P3:
 
 1. **`kb.artifact_semantic_links`** (the `about_term`/`describes_occurrence`/`aligns_to_term` table sketched in the plan's chunk D scope). Not created this slice: the only two normalized families (metric, provision) both produce `assertion`-kind candidates that persist to `kb.semantic_assertions`, not artifact-level "about" links — no in-scope family needs this table yet. It belongs with whichever future normalizer first needs it (entity/summary/topic/scene, per spec §10.10), rather than existing unused.
-1. **`project_semantics` (chunk E)** — `kb.projection_state`, the `ProjectionBuilderRegistry` (seam 7), and `kb.object_nodes.primary_class_term_id` maintenance from accepted `core:instance_of` assertions. Not started.
-2. **Chunk F** — association-run telemetry (spec §10.9), the deferred/ambiguous backlog drain (reusing the ADR `2026070701` DR5/DR6/DR7 pattern), and the consolidated spec §16.2/§16.3 exit-criteria test suite. Not started as a dedicated suite, though every acceptance item chunks A–D individually target has been live-verified inline (see §2–§5 above).
+2. **Chunk F** — association-run telemetry (spec §10.9) and the deferred/ambiguous backlog drain (reusing the ADR `2026070701` DR5/DR6/DR7 pattern) are not built as dedicated surfaces, though every acceptance item chunks A–E individually target has been live-verified inline (see §2–§6 above). The consolidated spec §16.2/§16.3 exit-criteria test suite (as a single runnable suite, rather than the inline checks this slice used) is also not built.
 3. **The keyword lexicon (Track B)** — design complete (`2026080101-spec-keyword-canonicalization-merged.md`); no code. `KEYWORD_RESOLVER_MODE` stays at its `off` default.
 4. **Object reconciliation for the metric artifact family.** `kb.artifact_objects` has zero rows for `artifact_type='metric'` anywhere in `chenweb_test` — a Phase B/C gap (§5, D2), not a Phase D one, but it is the reason nearly every real metric candidate currently defers.
 5. **A governed deontic predicate for provisions** (`core:required`/`core:prohibited`/`core:permitted` or equivalent). Without it, every provision-family candidate defers by design (§5). Authoring this is an ontology-content change (P2-style module authoring), not a Phase D code change.
-6. **Rewriting `extract_metrics`/`extract_provisions` to emit structured fields directly**, rather than the normalizer parsing free text. Unchanged from the plan's original deferral — still gated on a real (non-synthetic) worked example per the standing P0 deferral.
-7. **`extract_metric_definitions`** (DR23 metric-definition harvesting) — unchanged, explicitly P3–P4.
-8. **LLM-assisted adjudication in `associate_semantics`.** Deterministic-only this slice; additive to add later.
-9. **Unit-term resolution against the QUDT catalog** (`quantity_kind_term_id`/`unit_term_id` on accepted metric assertions are currently left empty; the raw unit string is preserved in the metric candidate's payload but not yet resolved to a `quantity:unit_*` term). A real, scoped follow-up — the 4151-term QUDT catalog P2 imported is exactly the target, but string-to-term matching (labels, symbols, aliases) is its own piece of work.
+6. **A real producer of classification (`core:instance_of`) assertions.** Chunk E's mechanism is complete and live-validated, but no normalizer in this workspace emits classification assertions yet (§E5) — a real gap for a future entity/inventory-item normalizer to close, not a Phase D bug.
+7. **Rewriting `extract_metrics`/`extract_provisions` to emit structured fields directly**, rather than the normalizer parsing free text. Unchanged from the plan's original deferral — still gated on a real (non-synthetic) worked example per the standing P0 deferral.
+8. **`extract_metric_definitions`** (DR23 metric-definition harvesting) — unchanged, explicitly P3–P4.
+9. **LLM-assisted adjudication in `associate_semantics`.** Deterministic-only this slice; additive to add later.
+10. **Unit-term resolution against the QUDT catalog** (`quantity_kind_term_id`/`unit_term_id` on accepted metric assertions are currently left empty; the raw unit string is preserved in the metric candidate's payload but not yet resolved to a `quantity:unit_*` term). A real, scoped follow-up — the 4151-term QUDT catalog P2 imported is exactly the target, but string-to-term matching (labels, symbols, aliases) is its own piece of work.
 
-## 7. Files touched
+## 8. Files touched
 
-- `ChenWeb/project_migrations/20260801000001..000004_*.sql` (4 migrations)
-- `ChenWeb/server/api/ontology/assertions/{state_machine,assertions_store,nullable,evidence_store,relations_store,decision_candidates_store,normalizer_registry,metric_normalizer,provision_normalizer,associate_semantics}.go` + corresponding `_test.go` files
-- `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics}.go` + `normalize_assertions_test.go`
-- `ChenWeb/server/api/doc-processing/control.go` (two-line Phase D wiring after Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED`)
+- `ChenWeb/project_migrations/20260801000001..000005_*.sql` (5 migrations)
+- `ChenWeb/server/api/ontology/assertions/{state_machine,assertions_store,nullable,evidence_store,relations_store,decision_candidates_store,normalizer_registry,metric_normalizer,provision_normalizer,associate_semantics,projection_registry,classification_projection,project_semantics}.go` + corresponding `_test.go` files
+- `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics,project_semantics}.go` + `normalize_assertions_test.go`
+- `ChenWeb/server/api/doc-processing/control.go` (three-line Phase D wiring after Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED`)
 - `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md`
 - `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md`
-- `KnowledgeStore/doc-repo/adrs/202607/2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (DR16 status annotation)
+- `KnowledgeStore/doc-repo/adrs/202607/2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (DR16 and P3 status annotations)
 
-## 8. Targeted tests
+## 9. Targeted tests
 
 ```bash
 go test ./server/api/ontology/assertions/... -count=1
 go test ./server/api/doc-processing/... -run 'TestSemanticAssociationEnabledFromEnv' -count=1
 ```
 
-Full `go build ./...` and `go vet ./server/api/ontology/... ./server/api/doc-processing/...` pass. `go test ./server/api/doc-processing/...` (full package) shows 21 pre-existing failures (summary/topic/connections/scene-block/metric-category tests) unrelated to this slice — spot-checked one (`TestBuildSummaryID`) and confirmed it is a plain string-format assertion mismatch in unrelated code with no DB dependency, not a P3 regression; none of the 21 failing test names touch any file this slice added or changed.
+Full `go build ./...` and `go vet ./server/api/ontology/... ./server/api/doc-processing/...` pass. `go test ./server/api/doc-processing/...` (full package) shows 21 pre-existing failures (summary/topic/connections/scene-block/metric-category tests) unrelated to this slice — spot-checked one (`TestBuildSummaryID`) and confirmed it is a plain string-format assertion mismatch in unrelated code with no DB dependency, not a P3 regression; none of the 21 failing test names touch any file this slice added or changed. Re-confirmed unchanged (still 21) after adding chunk E.
 
-## 9. Status
+## 10. Status
 
-**Chunks 0–D are complete against their stated scope and live-validated against real Postgres, including real gold-corpus data** (not only synthetic fixtures). Chunk E, chunk F, and Track B (keyword lexicon) remain — see §6.
+**Chunks 0–E are complete against their stated scope and live-validated against real Postgres, including real gold-corpus data** (not only synthetic fixtures). Chunk F and Track B (keyword lexicon) remain — see §7.

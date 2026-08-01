@@ -6,7 +6,7 @@
 **Authors:** Chen Ding \
 **Tags:** SemOS, ontology, domain modules, doc-processor, pipeline routing, profiles, assertions, phased plan
 
-## Change Logs
+## 1. Change Logs
 
 * 2026/07/29, ADR created. Consolidates research `2026072302-rsch-object-centric-ontology`,
   spec `2026072702-spec-ontology-canonical-artifacts`, ADR `2026072701-adr-ontology-identity-and-assertions`,
@@ -49,9 +49,9 @@
   writes immutable releases; versioning is by column, not by Git tag. See plan
   `2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md`.
 
-## Context
+## 2. Context
 
-### C1. Where SemOS actually is
+### 2.1 C1. Where SemOS actually is
 
 The implemented system is real and useful:
 
@@ -68,7 +68,7 @@ The implemented system is real and useful:
 Applications built on this deliver value today. They are, however, built on foundations that were
 assembled use case by use case. Three structural gaps limit how much further they can go.
 
-### C2. What the prior three documents settled
+### 2.2 C2. What the prior three documents settled
 
 Research `2026072302` established the vocabulary and the layered target; spec `2026072702`
 turned it into contracts (authoritative ownership, lifecycles, state machines, review decision
@@ -80,7 +80,7 @@ LLMs propose but do not activate, each accepted relationship has exactly one own
 **This ADR does not reopen any of that.** It treats ADR 2026072701 DR1–DR7 and spec
 2026072702 §8–§12 as the baseline contract.
 
-### C3. What they left open — the three problems this ADR closes
+### 2.3 C3. What they left open — the three problems this ADR closes
 
 **O1 — Layer 4 is ambiguous.** Research §5.4 enumerates Layer 4 as *artifact-family* modules
 (core, metrics, provision, inventory, document/authority, entity bridge). Spec §7 describes Layer 4
@@ -104,7 +104,7 @@ cost per chunk for near-empty output, and polluting the object graph with weak a
 an LLM per document "should metrics be extracted?" replaces a cheap wrong answer with an
 expensive unreliable one.
 
-### C4. Canonical identity is one recurring problem solved four separate times
+### 2.4 C4. Canonical identity is one recurring problem solved four separate times
 
 SemOS keeps rediscovering the same problem in different tables:
 
@@ -125,7 +125,7 @@ grew their own variants of it, and while ontology terms are about to grow a fift
 Building the keyword module as a fourth bespoke system would lock in the divergence. DR15
 extracts the kernel instead.
 
-### C5. Knowledge stores have partial membership wiring but no semantic or pipeline role
+### 2.5 C5. Knowledge stores have partial membership wiring but no semantic or pipeline role
 
 `kb.knowledge_store` (tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status) is created,
 has CRUD handlers, and has a default-store resolver. `kb.inputs.ks_store_id` already exists, uses
@@ -136,7 +136,7 @@ profiles. "Run pipeline A on knowledge store K1" is not expressible today, and n
 "in KS-Medical, *ML* means millilitre." DR18 completes and normalizes this partial wiring by
 making the store both a routing key and a scope key.
 
-### C6. The connecting insight
+### 2.6 C6. The connecting insight
 
 O3 looks like a pipeline problem and O1 looks like an ontology problem. They are the same
 problem asked twice:
@@ -155,12 +155,12 @@ reviews a document against pump requirements whose supporting metrics were never
 This ADR therefore builds **one applicability mechanism with two consumers**, and makes the
 document pipeline a first-class, planned, observable execution plane over it.
 
-## Decision
+## 3. Decision
 
 > Numbering note: DR14 and DR19 are retired numbers. The non-goals decision was renumbered twice
 > across revisions and is now DR24; no decision was deleted.
 
-### DR0 — Revised architecture: seven knowledge layers × three planes
+### 3.1 DR0 — Revised architecture: seven knowledge layers × three planes
 
 The seven layers of research §5 are **retained** with two corrections (DR1, DR3) and are
 re-expressed as one axis of a two-axis architecture. Layers describe what depends on what;
@@ -198,7 +198,7 @@ Rules:
 5. A cross-cutting mechanism is built once and instantiated per family or per scope; it is never
    forked per layer.
 
-### DR1 — Layer 4 splits into two tiers: core semantic modules (4a) and domain modules (4b)
+### 3.2 DR1 — Layer 4 splits into two tiers: core semantic modules (4a) and domain modules (4b)
 
 This resolves O1. The two readings of "Layer 4" are both correct and belong to different tiers.
 
@@ -232,7 +232,7 @@ processor, normalizer, evaluator, or API changes when `pump` or `tax-cn` is adde
 module cannot be expressed without a code change, that is a signal that 4a is missing something —
 which is exactly the feedback loop we want, because it is rare, visible, and reviewed.
 
-### DR2 — A domain module is a Git-authored source package compiled into an immutable database release
+### 3.3 DR2 — A domain module is a Git-authored source package compiled into an immutable database release
 
 > **2026-07-31 storage revision:** the Git-authoring half of this decision is **not implemented as
 > written**. Ontology content is authored and versioned directly in the database (`version`
@@ -273,7 +273,7 @@ Rationale:
 * an authoring UI can be added later and write back to the same source, or export approved
   candidates into it; the DB contract does not change.
 
-### DR3 — Applicability is one mechanism with two consumers
+### 3.4 DR3 — Applicability is one mechanism with two consumers
 
 A single predicate language and evaluator (`semrules`) is evaluated against a **fact set**:
 
@@ -301,7 +301,7 @@ proposals, but installing the module never changes the pipeline by itself. Routi
 effective only when included in an activated **pipeline policy** version (DR6). Ontology
 activation and pipeline activation are separate approvals with separate blast radii.
 
-### DR4 — Document facets: a governed, cheap-first classification of documents
+### 3.5 DR4 — Document facets: a governed, cheap-first classification of documents
 
 Routing and profile selection both need facts about the document. SemOS today has only
 `kb.inputs.title/doc_no/publish_date/authors/doc_metadata` — an LLM-shaped JSONB bag, unsuitable
@@ -329,7 +329,7 @@ an LLM a judgment question ("should metrics be extracted?"). We ask it a *classi
 over a governed vocabulary ("what kind of document is this?"), cache the answer as a fact, and let
 reviewed rules make the decision.
 
-### DR5 — The pipeline becomes a declarative stage DAG with gates; A/B/C is the degenerate case
+### 3.6 DR5 — The pipeline becomes a declarative stage DAG with gates; A/B/C is the degenerate case
 
 Processors gain an optional declaration (an optional interface, matching the existing
 `PostProcessIndexer` idiom, so non-declaring processors keep working unchanged):
@@ -360,7 +360,7 @@ branches, loops, and new stage families later, without another controller rewrit
 mechanism through which Phase D, review, and future stages join the pipeline and inherit its
 status reporting, stop handling, tracing, and per-processor logging for free.
 
-### DR6 — Two-tier routing: named pipelines selected by a versioned binding policy, then per-processor gates
+### 3.7 DR6 — Two-tier routing: named pipelines selected by a versioned binding policy, then per-processor gates
 
 Routing is two questions, not one. "Run pipeline A on knowledge store K1" is a *pipeline
 selection*; "skip `extract_metrics` on this particular document" is a *processor gate*. Collapsing
@@ -404,7 +404,7 @@ winning rule id, the reason, and the cost class. "Why did `extract_metrics` not 
 4711?" becomes an API call rather than log archaeology, and a run remains reproducible after the
 policy changes.
 
-### DR7 — Selection precedence; conflicts and undetermined decisions block, loudly
+### 3.8 DR7 — Selection precedence; conflicts and undetermined decisions block, loudly
 
 **Precedence for pipeline selection**, highest first:
 
@@ -450,7 +450,7 @@ silent implicit winner — but differs in consequence: review returns `indetermi
 whereas extraction stops, because producing artifacts under an ambiguous plan corrupts everything
 downstream of it.
 
-### DR8 — Semantic association is Phase D of the pipeline, not a separate service
+### 3.9 DR8 — Semantic association is Phase D of the pipeline, not a separate service
 
 The spec §10 association pipeline is realized as three declared stages that run after Phase C:
 
@@ -466,7 +466,7 @@ reconciliation (ADR 2026070701 DR5/DR6/DR7 — bulk endpoint, admin review page,
 LLM adjudication). Deferred candidates are retried only when their dependency fingerprint changes
 (spec §10.9).
 
-### DR9 — Physical representation of assertion references (closes spec §17 open decision 1)
+### 3.10 DR9 — Physical representation of assertion references (closes spec §17 open decision 1)
 
 Typed reference pairs with a fast path, not polymorphic foreign keys and not opaque text:
 
@@ -484,7 +484,7 @@ generic pair keeps the model open. Normalized value columns
 `unit_term_id`, `quantity_kind_term_id`, `raw_text`) live on the assertion per research §6.2;
 `raw_text` is never dropped.
 
-### DR10 — Object classification uses the general assertion model plus a derived convenience column (closes spec §17 open decision 2)
+### 3.11 DR10 — Object classification uses the general assertion model plus a derived convenience column (closes spec §17 open decision 2)
 
 Classification is an accepted assertion with predicate `core:instance_of`; roles use
 `core:plays_role`. `kb.object_nodes.primary_class_term_id` is added as a **derived projection**
@@ -492,7 +492,7 @@ maintained by `project_semantics` — read-optimized, never authored, rebuildabl
 not the system of record. This keeps multiple simultaneous classifications, their evidence, and
 their conflicts expressible (research §5.2) while keeping the common lookup cheap.
 
-### DR11 — Nine extension seams must exist before any domain content is authored
+### 3.12 DR11 — Nine extension seams must exist before any domain content is authored
 
 This is the ADR's answer to "embed the mechanisms so they can be developed incrementally,
 gradually, and independently." Each seam is a Go registry interface plus, where applicable, a
@@ -515,7 +515,7 @@ Seams 1–4 and 9 ship in P1–P2 and are what make the rest independently devel
 adds content through a seam is a data or registration change and can proceed in parallel with
 other phases.
 
-### DR12 — The pilot is one vertical slice: metrics, one domain module, one review question
+### 3.13 DR12 — The pilot is one vertical slice: metrics, one domain module, one review question
 
 **Metrics is the pilot artifact family**, confirmed: it is simultaneously the hardest test of the
 framework (it needs properties, quantity kinds, units, assertion kinds, conditions, and
@@ -533,7 +533,7 @@ Everything outside the pilot slice stays candidate-only: summaries, projections,
 and entity relations generate `SemanticDecisionCandidate` rows and nothing accepted, until P6
 measures per-method precision (spec §16.5.7).
 
-### DR13 — Adopt the semantic-web standards at four distinct levels, not as a package deal
+### 3.14 DR13 — Adopt the semantic-web standards at four distinct levels, not as a package deal
 
 SemOS uses **none** of RDF, OWL, SKOS, or SHACL today: no dependency, no serialization, no
 tooling, nothing in `go.mod`. Research §3.1 explains all four but does not say which to buy.
@@ -564,7 +564,299 @@ Postgres remains the system of record throughout (research §10.2 Option B, spec
 store or reasoner is reconsidered only if a competency question demonstrably cannot be answered in
 SQL/Go with materialized closure.
 
-#### Terminology implementation contract
+### 3.15 General Terms
+
+#### 3.15.1 Ontology
+
+An ontology is a governed model of the kinds of things SemOS recognizes, the properties that
+connect them, and the constraints on those meanings. In this ADR, it is the seven-layer semantic
+architecture, not merely a graph or a list of labels.
+
+#### 3.15.2 Stable term
+
+A stable term is a semantic identifier whose identity does not change when its label or
+description is revised. A material change in intended meaning requires a new term and preserves
+the history of the old one.
+
+#### 3.15.3 Definition
+
+A definition states the intended meaning and scope of a term. It is versioned and sourced so that
+readers can distinguish a governed meaning from an informal label or usage example.
+
+#### 3.15.4 Vocabulary / controlled vocabulary
+
+A vocabulary is an organized set of approved terms and their labels. A controlled vocabulary adds
+governance: terms, statuses, namespaces, versions, and permitted usage are managed explicitly.
+
+#### 3.15.5 Taxonomy
+
+A taxonomy arranges concepts in a hierarchy, usually from broader to narrower. A browsing
+hierarchy is not automatically a logical class-inheritance hierarchy.
+
+#### 3.15.6 Thesaurus
+
+A thesaurus records concepts, synonyms, broader and narrower relationships, related terms, and
+cross-scheme mappings to support consistent indexing and retrieval. It does not by itself assert
+that a concept is a real-world object or a formal class.
+
+#### 3.15.7 Subject heading system
+
+A subject heading system is a curated vocabulary used to describe the topics of documents for
+indexing and retrieval. Its headings can be imported or authored locally, but they become ontology
+classes only through a separate approval decision.
+
+#### 3.15.8 Classification scheme
+
+A classification scheme organizes concepts or objects into governed categories for a purpose. In
+SemOS, membership is an explicit, qualified assertion rather than an assumption about identity or
+ontology class inheritance.
+
+#### 3.15.9 Concept scheme
+
+A concept scheme is a named, versioned grouping of concepts and their relationships, such as a
+domain vocabulary or indexing system. Belonging to the same scheme does not make two concepts
+equivalent.
+
+#### 3.15.10 SKOS
+
+SKOS is a W3C model for publishing controlled vocabularies and concept schemes, including labels,
+hierarchies, related concepts, and mappings. SemOS adopts its useful modeling discipline and can
+import or export SKOS content without installing a SKOS runtime.
+
+#### 3.15.11 SKOS Concept / Concept
+
+A SKOS Concept is an identifiable unit of meaning used in a concept scheme. In SemOS it is a
+governed ontology term with labels, notes, hierarchy, and mappings; it is not automatically an
+individual object or an OWL class.
+
+#### 3.15.12 Preferred, alternative, hidden labels
+
+These are label roles for a term: the preferred human-facing name, an accepted alternative name,
+and a searchable variant that should normally be hidden from display. Each label is language- and
+scope-aware.
+
+#### 3.15.13 Synonym / acronym
+
+A synonym is an alternative lexical expression for a concept, while an acronym is an abbreviated
+form. Either may help resolve a mention, but lexical similarity alone does not prove semantic
+identity.
+
+#### 3.15.14 Mapping (`exact`, `close`, `broad`, `narrow`, `related`)
+
+A mapping relates terms across vocabularies with an explicit strength: equivalent, approximately
+aligned, broader, narrower, or merely related. The strength records the boundary of what can be
+inferred and is deliberately more cautious than identity propagation.
+
+#### 3.15.15 Knowledge graph
+
+A knowledge graph is a network of entities, concepts, properties, and assertions, ideally with
+provenance and qualification. SemOS implements the governed subset needed by its competency
+questions rather than operating a generic triple-store platform.
+
+#### 3.15.16 RDF
+
+RDF is a graph data model in which resources and values are connected by named properties. In
+SemOS it is a possible interchange projection; PostgreSQL remains the operational source of truth.
+
+#### 3.15.17 RDF triple
+
+An RDF triple is a subject–predicate–object statement. Qualified SemOS assertions may need a
+reified or n-ary representation because modality, time, status, and evidence cannot be preserved
+in one bare triple.
+
+#### 3.15.18 IRI / URI
+
+An IRI or URI is a globally structured identifier for a resource. SemOS uses stable identifiers
+for modules, terms, profiles, and releases, while making them dereferenceable is deferred.
+
+#### 3.15.19 RDFS class/property/subclass
+
+RDFS provides basic vocabulary constructs: classes, properties, and subclass relationships. SemOS
+represents approved versions of these constructs natively and can export them, but does not accept
+arbitrary executable RDFS expressions.
+
+#### 3.15.20 OWL
+
+OWL is a Web Ontology Language for expressing classes, properties, and logical axioms. SemOS uses
+selected modeling patterns and export forms, but does not use OWL as its runtime or storage engine.
+
+#### 3.15.21 Class
+
+A class is a governed category or type whose members share a defined meaning. In SemOS, an object
+belongs to a class through a qualified classification assertion; an extracted category is not a
+class by default.
+
+#### 3.15.22 Individual
+
+An individual is a canonical referent for one particular entity or instance, such as a specific
+device. Its identity is managed separately from the classes and properties asserted about it.
+
+#### 3.15.23 Collection / occurrence / type
+
+These are distinct ontological levels: a collection groups members, an occurrence denotes an event
+or happening, and a type denotes a kind rather than one instance. A referent may carry several
+class assertions while retaining one explicitly recorded level.
+
+#### 3.15.24 Object property
+
+An object property relates one referent or term to another referent or term, such as `part_of` or
+`issued_by`. Conditions, evidence, and other qualifiers belong to the assertion carrying the
+property, not to the property definition alone.
+
+#### 3.15.25 Datatype property
+
+A datatype property relates a referent to a literal value with a declared value form, such as a
+number, interval, date, or structured measurement. Metric values also require their unit and
+conditions to be represented explicitly.
+
+#### 3.15.26 Axiom
+
+An axiom is a governed statement about how terms, properties, or classes may relate. SemOS stores
+only compiler-approved axiom kinds so that every executable consequence is bounded and auditable.
+
+#### 3.15.27 Inference
+
+Inference is a derived conclusion computed from accepted terms, assertions, and rules. SemOS uses
+named, deterministic SQL/Go derivations with traces rather than unrestricted logical reasoning.
+
+#### 3.15.28 OWL reasoner / OWL 2 DL runtime
+
+An OWL reasoner is software that computes logical consequences from OWL ontologies; OWL 2 DL is a
+decidable expressive fragment with corresponding reasoning engines. SemOS does not plan to run one
+because open-world reasoning does not answer its scoped completeness-review questions.
+
+#### 3.15.29 `owl:sameAs`
+
+`owl:sameAs` asserts that two identifiers denote exactly the same thing, with strong identity
+propagation across all properties. SemOS does not apply it automatically; exact mappings and
+separately adjudicated merge decisions are safer for ambiguous terms and objects.
+
+#### 3.15.30 Extracted entity
+
+An extracted entity is an evidence-bearing mention found in a document, such as a product name or
+organization. It is a candidate artifact until governed reconciliation links it to a canonical
+referent or term.
+
+#### 3.15.31 Meaning of entities and relations
+
+This is the governed interpretation of what an extracted entity denotes and what a relation means.
+SemOS supplies that interpretation through class/property terms, qualified assertions, and
+evidence rather than raw labels or free-text predicates.
+
+#### 3.15.32 Relation / semantic assertion
+
+A semantic assertion is a first-class claim about a subject, predicate, and object or value. It
+also carries the qualifiers needed to interpret the claim, such as modality, time, status,
+confidence, and evidence.
+
+#### 3.15.33 Evidence / provenance
+
+Evidence is the source material supporting or contradicting an assertion. Provenance records where
+the evidence came from and who or what produced the claim, including model, prompt, run, and human
+review history.
+
+#### 3.15.34 Constraint / business rule
+
+A constraint or business rule states a condition that data must satisfy for a given scope or
+purpose. SemOS represents it as a typed profile rule evaluated with explicit, closed-world review
+semantics.
+
+#### 3.15.35 SHACL Shape
+
+A SHACL Shape describes the structure and validation conditions expected for RDF data. SemOS pairs
+each supported profile-rule kind with a SHACL export form, while the native rule remains the
+SQL/Go model.
+
+#### 3.15.36 SHACL validator/runtime
+
+A SHACL validator is software that checks RDF data against SHACL Shapes. SemOS may use one for CI,
+parity checks, or interoperability later, but production evaluation remains in SQL/Go.
+
+#### 3.15.37 Profile / application profile
+
+A profile is a scoped and versioned statement of what should be present or true for a review,
+class, jurisdiction, or operating context. It governs expectations and rules; it is not itself a
+class or a document artifact.
+
+#### 3.15.38 PROF profile metadata
+
+PROF is a vocabulary for describing profiles and their relationships to specifications,
+implementations, and artifacts. SemOS can publish this metadata, but its native profile records
+remain authoritative and no PROF runtime is required.
+
+#### 3.15.39 Open-world semantics
+
+Open-world semantics treats an unrecorded fact as unknown rather than false. SemOS preserves this
+meaning for ontology data, so absence becomes a finding only when a profile explicitly closes the
+relevant review dimension.
+
+#### 3.15.40 Closed-world validation
+
+Closed-world validation evaluates a frozen scope against explicit rules and treats the checked
+universe as complete for that review dimension. SemOS applies closure locally and intentionally,
+never as a global assumption about all knowledge.
+
+#### 3.15.41 Topic
+
+A topic is an existing document-processing artifact that summarizes or labels a subject discussed
+in a document. It may be linked to governed concepts, but a matching label does not make it an
+ontology concept.
+
+#### 3.15.42 Category
+
+A category is an existing retrieval or navigation concept used to organize artifacts. It may later
+receive a governed mapping, but category membership does not by itself mean RDF type or subclass
+membership.
+
+#### 3.15.43 Keyword
+
+A keyword is a surface expression found or assigned in text. SemOS resolves it through a governed
+lexicon and may align it to an ontology term, while keeping lexical concepts distinct from the
+terms that define domain meaning.
+
+#### 3.15.44 Search similarity / embedding
+
+Search similarity and embeddings estimate how closely two texts or representations resemble one
+another. They are useful for candidate generation, but never by themselves activate identity,
+classification, mappings, or axioms.
+
+#### 3.15.45 QUDT quantity kind/unit/dimension
+
+QUDT is an external vocabulary for quantity kinds, units, dimensions, and related measurement
+semantics. SemOS selectively imports its catalog into the `quantity` core module and releases the
+validated content through its compiler.
+
+#### 3.15.46 SOSA/SSN measurement pattern
+
+SOSA/SSN is a W3C modeling pattern for sensors and observations, including a feature of interest,
+observed property, procedure, and result. SemOS adopts the useful measurement distinctions without
+requiring a SOSA/SSN runtime dependency.
+
+#### 3.15.47 PROV-O
+
+PROV-O is an ontology for provenance centered on entities, activities, and agents. SemOS uses that
+pattern in native audit structures and may map it to RDF later; the native audit tables remain
+authoritative.
+
+#### 3.15.48 OWL-Time / temporal ontology
+
+OWL-Time is a vocabulary for describing temporal entities and relationships. SemOS adopts the
+interval concepts needed for valid, effective, and transaction time, but does not plan a general
+temporal reasoner.
+
+#### 3.15.49 SPARQL endpoint
+
+SPARQL is the query language and protocol commonly used for RDF graphs. SemOS serves operational
+queries through SQL and APIs; an endpoint would be reconsidered only if a competency question
+cannot be met otherwise.
+
+#### 3.15.50 Triple store
+
+A triple store is a database optimized for RDF subject–predicate–object data and graph queries.
+SemOS does not add one because it would duplicate PostgreSQL storage and lifecycle without a
+demonstrated need.
+
+### 3.16 Terminology implementation contract
 
 The support labels mean:
 
@@ -631,7 +923,7 @@ The support labels mean:
 Any ontology-related term not in this contract is unsupported until an ADR maps it to a SemOS
 construct, lifecycle phase, and semantic boundary.
 
-### DR15 — One canonicalization kernel, instantiated per identity family
+### 3.17 DR15 — One canonicalization kernel, instantiated per identity family
 
 This resolves C4. Rather than a fourth bespoke resolver, extract the shared machinery into one
 kernel (`semid`) with a family-parameterized contract, and instantiate it.
@@ -672,7 +964,7 @@ This keeps one governed vocabulary (spec §11.3: "canonical conceptual meaning b
 `kb.ontology_terms`") without forcing every one of a hundred thousand surface forms through a
 module release.
 
-### DR16 — The two keyword specs are merged, taking the identity layering from one and the storage from the other
+### 3.18 DR16 — The two keyword specs are merged, taking the identity layering from one and the storage from the other
 
 Specs `2026072301` and `2026072703` describe the same module and disagree in ways that matter.
 Neither is adopted whole. The merged design is the DR15 keyword instantiation, taking:
@@ -711,7 +1003,7 @@ The merged result is written as **one** spec superseding both, before implementa
 > The keyword-lexicon *code* it describes remains deferred — see the P3 implementation log — but the
 > design disagreement DR16 exists to resolve is closed.
 
-### DR17 — Ontology and policy data live in their own repository, versioned and pinned like a dependency
+### 3.19 DR17 — Ontology and policy data live in their own repository, versioned and pinned like a dependency
 
 > **2026-07-31 storage revision:** the dedicated repository is **not created**. Per the workspace
 > storage principle (data lives in the database; shareable code in `shared`; project-specific code
@@ -754,7 +1046,7 @@ This also settles OD3 from the first draft: pipeline policies are data in the sa
 compiled and activated by the same mechanism, so pipelines get versioning, review, and rollback
 for free rather than accumulating in `config.toml`.
 
-### DR18 — Knowledge stores are both a routing key and a scope key
+### 3.20 DR18 — Knowledge stores are both a routing key and a scope key
 
 `kb.knowledge_store` becomes load-bearing (C5):
 
@@ -784,7 +1076,7 @@ Purpose-oriented stores (`KB-Blogs`, `KB-Products`, `KB-Marketing-and-Sales`) an
 project-oriented stores (`KS-Project-A`) then differ by data, not by code: a different pipeline,
 a different module set, a different scope — all three expressed as bindings.
 
-### DR20 — Product-hood and part-hood are roles, not classes; the part hierarchy is first-class
+### 3.21 DR20 — Product-hood and part-hood are roles, not classes; the part hierarchy is first-class
 
 A nut is a component inside a machine and a product at the plant that makes it. If `Product` were
 an ontology class, that nut would need two incompatible classifications, and every downstream rule
@@ -811,7 +1103,7 @@ metric. Every assertion therefore records the level at which it was asserted, an
 return the asserted level alongside the value. Aggregation across levels is a display decision with
 provenance, never a silent merge — that distinction is what keeps "8 项指标" for a module honest.
 
-### DR21 — Requirement strictness is a computed partial order; verdicts are directional and distinct from recommendations
+### 3.22 DR21 — Requirement strictness is a computed partial order; verdicts are directional and distinct from recommendations
 
 The application's most valuable column is the verdict, and the six review result categories of
 spec §12.4 (`satisfied`, `missing`, `conflicting`, `nonconforming`, `inapplicable`,
@@ -908,7 +1200,7 @@ Two rules keep this honest:
    explicit statement that this authority family was searched exhaustively for this property. An
    incomplete corpus yields `indeterminate`, never `standard_absent`.
 
-### DR22 — The comparison matrix is a class-anchored application service, not a doc processor
+### 3.23 DR22 — The comparison matrix is a class-anchored application service, not a doc processor
 
 The existing review pipeline is document-anchored: review *this document* against selected
 profiles. The application is **class-anchored**: for this part class, across a whole corpus, show
@@ -940,7 +1232,7 @@ underlying assertions**. Supersession comes from the 4a `document-authority` mod
 that belongs to a document. It is computed on demand, cached against the pinned module releases and
 the assertion revision watermark, and invalidated when either moves.
 
-### DR23 — "Metric definition" and "profile" are different objects; the application's *Metric Profile* is the former
+### 3.24 DR23 — "Metric definition" and "profile" are different objects; the application's *Metric Profile* is the former
 
 The proposed application uses "Metric Profile" for the record holding a metric's canonical name,
 preferred name, alternative names, definition, description, value type, and range type. This ADR
@@ -963,7 +1255,7 @@ Decision:
   what lets 亮度 / 显示亮度 / luminance / brightness in 140 documents reach one row — and it is why
   the lexicon is not an optional side quest for this application but a prerequisite.
 
-### DR25 — Grounding is a substrate-agnostic locator over portable line spans
+### 3.25 DR25 — Grounding is a substrate-agnostic locator over portable line spans
 
 Every verdict in the target application must resolve to the source clause: open the document, go
 to the page, highlight the region. Two location substrates already exist and neither should leak
@@ -996,7 +1288,7 @@ therefore has exact grounding by construction and requires no PDF anywhere in th
 **grounding accuracy a scoreable outcome** — for the first time, "did the highlight land on the
 clause the metric came from?" is a measured number rather than a visual spot-check.
 
-### DR24 — Explicit non-goals of this ADR
+### 3.26 DR24 — Explicit non-goals of this ADR
 
 * No authoring GUI for ontology, lexicon, or pipeline content (the data repository is the
   P2–P4 authoring surface).
@@ -1008,22 +1300,22 @@ clause the metric came from?" is a measured number rather than a visual spot-che
 * No hard-deletion/retention policy for `unsupported` assertions (spec §10.12 keeps indefinite
   audited retention until a follow-up ADR).
 
-## Alternative Decisions
+## 4. Alternative Decisions
 
-### AD1 — Keep Layer 4 as one undifferentiated tier
+### 4.1 AD1 — Keep Layer 4 as one undifferentiated tier
 
 Rejected. Without the 4a/4b split, either every domain module may define its own assertion kinds
 (processors and normalizers fragment per domain, and cross-domain comparison dies), or no module
 may define anything (domains cannot be added without platform work). The split is what makes
 "install a domain module without a code change" a testable property.
 
-### AD2 — Author ontology content directly in the database through an admin UI first
+### 4.2 AD2 — Author ontology content directly in the database through an admin UI first
 
 Rejected for the first releases. It front-loads UI work before the model is proven, and it makes
 approval a mutable database state rather than a reviewable artifact. Git-first gives review,
 diff, history, and reproducibility on day one. A UI later writes to the same source.
 
-### AD3 — Let an LLM decide per document which processors to run
+### 4.3 AD3 — Let an LLM decide per document which processors to run
 
 Rejected as the primary mechanism, and this is the user-raised question answered directly.
 A per-document judgment call is unreviewable, unstable across model versions, produces no
@@ -1032,20 +1324,20 @@ where it is good (classifying a document into a governed vocabulary) and DR6 put
 reviewed, versioned rules. The LLM classification is cached as a fact, so the cost is paid once
 per document, not once per processor per document.
 
-### AD4 — Add per-processor `if` conditions to `config.toml`
+### 4.4 AD4 — Add per-processor `if` conditions to `config.toml`
 
 Rejected. It is the cheapest possible version of DR6 and would work briefly, but it has no
 versioning, no approval, no per-run freeze, no explanation, no shared evaluator with profile
 selection, and no path to domain-module-supplied rules. The rule *content* may start small; the
 *mechanism* must not.
 
-### AD5 — Build the ontology first, add pipeline routing later
+### 4.5 AD5 — Build the ontology first, add pipeline routing later
 
 Rejected as sequencing. P1 (pipeline plane) has no dependency on the ontology and delivers
 immediate, measurable value: cost reduction, an execution plan, and the facet vocabulary that
 Layer 6 later reuses. Making it wait for L3–L5 delays every benefit behind the longest pole.
 
-### AD6 — Build the keyword module as its own standalone, SQLite-backed service
+### 4.6 AD6 — Build the keyword module as its own standalone, SQLite-backed service
 
 Rejected (spec `2026072703` §3.3 storage note). SemOS has multiple writing services, one backup
 and migration story, and `pg_trgm` + `pgvector` already installed, which lets lexical and semantic
@@ -1054,7 +1346,7 @@ candidate generation, adjudication, merge safety, and audit — the exact duplic
 stop. The short-acronym trigram weakness that motivated the SQLite/FTS5 recommendation is real and
 is handled by routing short keys to the exact-key path, never to trigrams.
 
-### AD7 — One concept registry: make keyword concepts *be* ontology terms
+### 4.7 AD7 — One concept registry: make keyword concepts *be* ontology terms
 
 Rejected. It is attractive — one vocabulary, no alignment layer — but it forces every observed
 surface form through governance. Keyword concepts arrive by the hundred thousand, must resolve
@@ -1063,14 +1355,14 @@ defined, and released. Fusing them either paralyzes ingestion behind curation or
 governance. DR15.2 keeps both and connects them with an explicit alignment assertion, which is the
 same shape already used for object → class.
 
-### AD8 — Keep ontology content in the ChenWeb repository (or in KnowledgeStore)
+### 4.8 AD8 — Keep ontology content in the ChenWeb repository (or in KnowledgeStore)
 
 Rejected (DR17). The code repository couples ontology change to code release and gives curators
 too much access; `KnowledgeStore` is human prose with different validation, different consumers,
 and no compiler. A pinned data repository gives independent cadence, scoped access, its own CI, and
 reproducibility from a commit SHA.
 
-### AD9 — On a routing conflict, pick a winner and continue
+### 4.9 AD9 — On a routing conflict, pick a winner and continue
 
 Rejected for now (DR7). A silent winner hides a policy defect from the policy designers, and it
 produces artifacts under an ambiguous plan — which then propagate into objects, assertions, and
@@ -1078,14 +1370,14 @@ findings that nobody knows to distrust. Blocking is loud, cheap to diagnose, and
 escalation ladder is implemented at the same time, so maturing to `fallback` is a configuration
 change rather than a redesign.
 
-### AD10 — Treat association as a separate microservice
+### 4.10 AD10 — Treat association as a separate microservice
 
 Rejected for now. Phase D as pipeline stages inherits status reporting, stop handling, tracing,
 concurrency limits, and log/telemetry contracts that already exist and are hard to reproduce.
 Extraction to a service remains possible later because the stages are declared, idempotent, and
 independently re-runnable.
 
-## Database Migrations
+## 5. Database Migrations
 
 Grouped by the phase that introduces them (goose, `ChenWeb/project_migrations/`, per
 `shared/go/api/goose/goose.md`).
@@ -1177,9 +1469,9 @@ kb.recommendation_policies     (versioned policy mapping verdicts → advice; se
 `kb.scene_objects.object_id` → `scene_block_id` rename (spec §11.4) lands in P1 with the
 identifier-hygiene work.
 
-## Data Formats
+## 6. Data Formats
 
-### Module source package
+### 6.1 Module source package
 
 ```toml
 # modules/pump/0.1.0/module.toml
@@ -1216,7 +1508,7 @@ closed_dimensions = ["measurement:rated_quantities"]
   severity   = "error"
 ```
 
-### Applicability predicate (shared by DR3 consumers)
+### 6.2 Applicability predicate (shared by DR3 consumers)
 
 ```json
 { "all": [
@@ -1227,7 +1519,7 @@ closed_dimensions = ["measurement:rated_quantities"]
 ] }
 ```
 
-### Named pipeline and knowledge-store binding
+### 6.3 Named pipeline and knowledge-store binding
 
 ```toml
 # policies/pipelines/standards.toml
@@ -1262,7 +1554,7 @@ policy_version = "2026072901.3"
   pipeline   = "default@1"
 ```
 
-### Execution plan (frozen in `kb.doc_process_runs.plan`)
+### 6.4 Execution plan (frozen in `kb.doc_process_runs.plan`)
 
 ```json
 {
@@ -1285,7 +1577,7 @@ policy_version = "2026072901.3"
 }
 ```
 
-## Environment Variables
+## 7. Environment Variables
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -1302,9 +1594,9 @@ policy_version = "2026072901.3"
 Every toggle must preserve the boundaries in ADR 2026072701; none may grant an LLM activation
 authority.
 
-## Implementation
+## 8. Implementation
 
-### Code Changes
+### 8.1 Code Changes
 
 | Area | Location | Work |
 |---|---|---|
@@ -1323,7 +1615,7 @@ authority.
 | Comparison service | new `server/api/ontology/comparison/` | strictness comparator (DR21), cell assembly with precedence and equivalence grouping, comparison-run cache and invalidation (DR22) |
 | Frontend | `web/src/lib/components/home3/doc-processor-dashboard-view.svelte`, new ontology admin pages, product/part comparison pages | plan display ("why did/didn't X run"), module/release browser, candidate review queues, the part navigator and comparison matrix |
 
-### New and Changed Doc Processors
+### 8.2 New and Changed Doc Processors
 
 Extraction stays in doc processors; the new work is mostly *new processors* plus structured output
 from existing ones. Each new processor follows the capsule §12 checklist (spec file, impl file,
@@ -1348,12 +1640,12 @@ service), profile evaluation (L6), the certification-body registry (reference da
 extraction), and the product image hotspot map (application data binding an image region to an
 object node).
 
-### Phased Implementation Plan
+### 8.3 Phased Implementation Plan
 
 Phases are ordered by dependency, not by importance. **P1 and P2 are independent and may run in
 parallel.** Each phase ends with an exit criterion that is a test, not a judgment.
 
-#### P0 — Semantic audit, competency questions, corpus baseline *(no ontology/runtime implementation)*
+#### 8.3.1 P0 — Semantic audit, competency questions, corpus baseline *(no ontology/runtime implementation)*
 
 * Verify spec §13.5 current-state claims against the deployed database and current code:
   artifact-object cardinality, `kb.search_artifacts` partitions, `kb.artifact_connections`
@@ -1387,7 +1679,7 @@ parallel.** Each phase ends with an exit criterion that is a test, not a judgmen
   the numbers P1 and P5 are judged against.
 * Choose the pilot domain module and its authoritative source (OD1).
 
-#### P0 verified baseline — 2026-07-30
+#### 8.3.2 P0 verified baseline — 2026-07-30
 
 | Area | Verified schema/current data | Code lifecycle | P1/P2 consequence |
 |---|---|---|---|
@@ -1425,7 +1717,7 @@ P0 status after the 2026-07-31 closeout revision:
 * P0 is therefore complete as a bounded benchmark-led proof milestone.
 * Deferred beyond P0: authoritative medical-standard editions and a real-data worked example, the merged DR16 keyword spec, broader ambiguous/multilingual/unit/supersession/conflict fixtures, and the actual implementation of P1+ runtime behavior.
 
-#### P0 competency-question contract
+#### 8.3.3 P0 competency-question contract
 
 | ID | Expected answer contract | Expected result example | Positive fixture | Negative fixture | SQL test outline | P7 parity | Owner |
 |---|---|---|---|---|---|---|---|
@@ -1461,7 +1753,7 @@ Interpretation rules for the suite:
 *Exit:* domain and application owners agree on expected answers for the pilot questions; any spec
 mismatch is corrected in writing before migrations.
 
-#### P1 — Pipeline plane: declarations, facets, rules, plans *(no ontology dependency)*
+#### 8.3.4 P1 — Pipeline plane: declarations, facets, rules, plans *(no ontology dependency)*
 
 * `ProcessorSpec` declarations for all 13 processors; DAG planner; wave execution replacing the
   hard-coded A/B/C split with A/B/C as its degenerate output.
@@ -1481,7 +1773,7 @@ knowledge store K1" is expressible as one binding; a deliberately conflicting bi
 the run and raises exactly one alarm; shadow mode on the fixture corpus shows the intended skip
 decisions.
 
-#### P2 — Ontology core and the canonicalization kernel *(parallel with P1)*
+#### 8.3.5 P2 — Ontology core and the canonicalization kernel *(parallel with P1)*
 
 > **Status: implemented and validated (2026-08-01).** All six P2 bullets below are built and
 > live-validated (chunks 0, A–F), with the DB-native storage revision applied throughout. See the
@@ -1508,7 +1800,7 @@ compiler reaches production with no code change; a deliberately failed validatio
 previous active release untouched; kernel merge/split fixtures show no transitive closure and no
 loss of a merged id.
 
-#### P3 — Assertions, evidence, Phase D association, and the keyword lexicon *(needs P2)*
+#### 8.3.6 P3 — Assertions, evidence, Phase D association, and the keyword lexicon *(needs P2)*
 
 * Assertion and evidence schema (DR9); assertion relations for conflict and supersession.
 * Metric and provision normalizers; the normalizer registry (seam 5).
@@ -1522,21 +1814,24 @@ loss of a merged id.
   resolution affects retrieval.
 
 > **2026-08-01 status:** Assertion/evidence schema (DR9), the operational candidate lifecycle, the
-> normalizer registry (seam 5) with metric and provision instances, and Phase D stages 1–2
-> (`normalize_assertions`, `associate_semantics`) are **Built** — `ChenWeb/server/api/ontology/assertions/`
-> and `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics}.go`, gated by
-> `SEMANTIC_ASSOCIATION_ENABLED`. Live-validated against real Postgres including the actual gold
-> corpus already in `chenweb_test`, not only synthetic fixtures — see the P3 implementation log
-> `2026080103-devdoc-semos-p3-implementation-log.md`. **Not built:** `project_semantics` (stage 3),
-> association telemetry, the deferred/ambiguous backlog drain, and the keyword lexicon (design-only
-> per the DR16 merged spec `2026080101-spec-keyword-canonicalization-merged.md`).
+> normalizer registry (seam 5) with metric and provision instances, and all three Phase D stages
+> (`normalize_assertions`, `associate_semantics`, `project_semantics`) are **Built** —
+> `ChenWeb/server/api/ontology/assertions/` and
+> `ChenWeb/server/api/doc-processing/{normalize_assertions,associate_semantics,project_semantics}.go`,
+> gated by `SEMANTIC_ASSOCIATION_ENABLED`. `project_semantics` includes the `ProjectionBuilderRegistry`
+> (seam 7) and `kb.object_nodes.primary_class_term_id` maintenance (DR10), closing the P2 chunk E
+> deferral. Live-validated against real Postgres including the actual gold corpus already in
+> `chenweb_test`, not only synthetic fixtures — see the P3 implementation log
+> `2026080103-devdoc-semos-p3-implementation-log.md`. **Not built:** association telemetry, the
+> deferred/ambiguous backlog drain, and the keyword lexicon (design-only per the DR16 merged spec
+> `2026080101-spec-keyword-canonicalization-merged.md`).
 
 *Exit:* spec §16.2 and §16.3 acceptance suites pass, including conflicting assertions remaining
 separately queryable, corrupted projections detected and repaired, and evidence loss moving an
 assertion to `unsupported` and back; the lexicon resolves the gold set above its promotion gate
 with zero over-merges of `never_merge` pairs.
 
-#### P4 — Profiles, the first domain module, and ontology-aware metric review *(needs P3)*
+#### 8.3.7 P4 — Profiles, the first domain module, and ontology-aware metric review *(needs P3)*
 
 * Profile and rule schema; rule-kind registry with paired evaluator and SHACL emitter (seam 6).
 * The pilot 4b domain module authored end to end: classes, properties, profile, rules,
@@ -1555,7 +1850,7 @@ with zero over-merges of `never_merge` pairs.
 including `missing` only under a declared closed dimension, `indeterminate` on unresolved rule
 conflict, and SQL/Go versus SHACL parity on identical fixtures.
 
-#### P5 — Rule-driven routing enforced *(needs P1 + P4)*
+#### 8.3.8 P5 — Rule-driven routing enforced *(needs P1 + P4)*
 
 * Tier-3 `classify_document`, gated on required-but-undetermined facets.
 * Domain-module-supplied applicability rules promoted into a pipeline policy version.
@@ -1566,21 +1861,21 @@ conflict, and SQL/Go versus SHACL parity on identical fixtures.
 *Exit:* a documented, per-document-kind reduction in processor invocations with no measured loss
 of review recall on the benchmark corpus; every skip explainable from its plan.
 
-#### P6 — Remaining artifact families *(needs P3; independent of P5)*
+#### 8.3.9 P6 — Remaining artifact families *(needs P3; independent of P5)*
 
 Summaries, semantic projections, topics, and scene blocks per spec §15 Phase 5 and §16.5:
 grounded links, inherited candidates that never gain confidence through repeated derivation,
 occurrence identity, and a labeled evaluation corpus with per-method precision thresholds before
 any automatic acceptance.
 
-#### P7 — Publication and interoperability *(needs P2–P4)*
+#### 8.3.10 P7 — Publication and interoperability *(needs P2–P4)*
 
 Versioned RDF/OWL/SKOS/SHACL artifacts, persistent dereferenceable IRIs, round-trip and parity
 fixtures in CI (including the SQL-versus-SHACL parity gate moved here from spec §16.4.14 per
 DR13), external consistency checks, and — only if a competency question justifies it — a reasoner
 or triple-store projection.
 
-#### Mapping to the prior phase plans
+#### 8.3.11 Mapping to the prior phase plans
 
 | This ADR | Research §12 | Spec §15 | Keyword docs |
 |---|---|---|---|
@@ -1597,7 +1892,7 @@ The two genuinely new phases remain P1 and P5 — the execution plane that neith
 specified. The keyword work is not a separate track: it becomes the second instantiation of the
 P2 kernel.
 
-## Operational Behaviors
+## 9. Operational Behaviors
 
 * Pipeline runs compute a plan before executing; the plan is persisted whether or not routing is
   enforced.
@@ -1614,7 +1909,7 @@ P2 kernel.
 * Reviews freeze their scope; a re-run of a historical review against pinned releases reproduces
   its findings.
 
-## Consequences
+## 10. Consequences
 
 Positive:
 
@@ -1657,7 +1952,7 @@ Costs and risks:
   keywords. Mitigations are inherited from DR16: tombstones, `never_merge`, locked human
   assertions, no transitive closure, and per-family promotion gates on a gold set.
 
-## Tests
+## 11. Tests
 
 Beyond the inherited suites (spec §16.2–§16.5, research §13), this ADR adds:
 
@@ -1745,7 +2040,7 @@ Beyond the inherited suites (spec §16.2–§16.5, research §13), this ADR adds
 33. A comparison run pinned to module releases and an assertion watermark reproduces its matrix
     exactly on rerun.
 
-## Documentation Impact
+## 12. Documentation Impact
 
 **What knowledge changed.** Layer 4 is now two tiers with an enforced constraint between them;
 domain modules have a concrete authoring, validation, release, and activation mechanism, in a
@@ -1811,7 +2106,7 @@ superseded by DR1 and should keep pointing here.
 authoritative medical-standard source content itself, governance person assignments, and ontology
 repository hosting credentials remain for later phase documents and approvals.
 
-## Open Decisions
+## 13. Open Decisions
 
 | # | Decision | Recommendation |
 |---|---|---|
@@ -1826,7 +2121,7 @@ repository hosting credentials remain for later phase documents and approvals.
 | OD9 | Scope granularity for the lexicon: knowledge store only, or store + domain + document | Store + document-local overrides in P3 (document-local acronym definitions are strong evidence); add domain if measurement shows collisions |
 | OD10 | Whether category canonicalization retrofits onto the kernel in P4 or waits | P4, driven by the size of the `kb.category_alias_conflicts` backlog measured in P0 |
 
-## References
+## 14. References
 
 0. [2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel](/Users/cding/Workspace/KnowledgeStore/doc-repo/plan/202607/2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md) — P2 implementation plan (DB-native storage revision, chunks 0–F)
 1. [2026072302-rsch-object-centric-ontology](/Users/cding/Workspace/KnowledgeStore/doc-repo/research/202607/2026072302-rsch-object-centric-ontology.md)
