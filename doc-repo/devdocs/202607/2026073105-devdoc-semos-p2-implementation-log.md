@@ -173,6 +173,32 @@ All four core 4a modules are installed **as data** — released and activated th
 
 **Mapping_id collision across classes** — QUDT units and quantity kinds share local names (e.g. `SpeedOfLight`), so `quantity:map_<localname>` collided on the second class. Fixed by namespacing the mapping id from the term id (`quantity:map_unit_*` / `map_qk_*` / `map_dim_*`).
 
+## 3d. Chunk D — the `semid` canonicalization kernel (complete)
+
+### D1 — Migrations
+
+`20260731000026` (`kb.semid_decision_log`, `kb.semid_never_merge`, `kb.semid_snapshots` — shared across families) and `20260731000027` (`kb.object_nodes.merged_into` + `scope_key`, the DR15.1 contracts).
+
+### D2–D5 — Kernel
+
+New package `ChenWeb/server/api/ontology/semid/`:
+
+- `normalizer.go` — versioned `Normalizer` producing a `KeyBundle` (canonical + alternate keys). A version change re-indexes keys without losing surfaces or links (ADR test 18).
+- `merge.go` — `MergeGraph` with tombstones: `Merge` sets `merged_into`, keeps the losing row, refuses self/never-merge/already-merged; `Resolve` follows the chain; `Unmerge` restores. **No transitive closure** — pairwise decisions never fabricate a third (tests 19–21).
+- `score.go` / `adjudicate.go` — deterministic scoring (exact 1.0 / alternate 0.8 / prefix 0.5); `Adjudicate` → `auto_accepted | ambiguous | deferred | human_review` under a family `AutoAcceptPolicy`.
+- `kernel.go` — the shared mechanism (`FamilyAdapter` interface: family name, normalizer, auto-accept policy, scope, candidate generation). `Kernel.Resolve` = normalize → candidates → score → adjudicate.
+- `stores.go` — append-only `DecisionLogStore`, `NeverMergeStore` (unordered pairs, `ON CONFLICT DO NOTHING`), `SnapshotStore`.
+- `termfamily.go` — the ontology-term instantiation: surfaces `kb.ontology_candidates`, nodes `kb.ontology_terms`, scope = module, **governed → auto-accept disabled** (adjudication ends at a change set). `ResolveCandidate` runs the kernel over a candidate, persists `candidate_matches` (the chunk-A seam) and appends a decision-log row.
+
+### D6 — object_nodes contracts
+
+`ObjectNode` gains `MergedInto`/`ScopeKey` fields. The reconciler is **not** rewritten — the columns exist and stay unpopulated by existing paths (test 23 parity; the object family's kernel instantiation is incremental, per DR15.1).
+
+### D7 — Verification
+
+- Kernel fixtures pass: normalizer determinism + versioned re-index (18); merge tombstone/stale-resolve/unmerge (19); no transitive closure over A→B, B→C (20); `never_merge` blocks automatic merge (21); governed-family resolve ends at `human_review` even on a perfect match. Object-node reconciliation tests pass unchanged (23).
+- **Live-Postgres validation** (`chenweb_test`, temp program deleted): a term candidate with label "metric definition" resolved through `TermFamily` to an exact `mea:metric_definition` @1.0 match with verdict `human_review`; `candidate_matches` persisted; a no-match candidate → `deferred`; decision log appended; never_merge + snapshot stores round-tripped; `object_nodes.merged_into`/`scope_key` columns present. **All checks passed.**
+
 ## 5. Current state and next expected slice
 
-Chunks A, B, and C are complete and live-validated. The four core 4a modules are installed as active, released data. Next: **chunk D** — the `semid` canonicalization kernel (normalizers, candidate generation, scoring, adjudication, merge/split with tombstones, `never_merge`, decision log; `kb.semid_*` tables; `object_nodes.merged_into`/`scope_key`), with ontology terms as its first (governed) instantiation and kernel merge/split fixtures (ADR tests 18–21, 23).
+Chunks A–D are complete and live-validated. The canonicalization kernel is built with ontology terms as its first (governed) instantiation. Next: **chunk E** — the `kb.object_nodes` extension columns (`ontological_level`, `identity_scope`, `external_identifiers`, `primary_class_term_id`) — then **chunk F** (extension seams 1–4, spec §16.3 items 1–7 exit tests, and the documentation closeout).
