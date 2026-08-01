@@ -436,10 +436,12 @@ even when another observation is usable; malformed evidence is never silently ig
 one canonical value is `known` and uses the minimum confidence across agreeing observations;
 multiple distinct canonical values are `conflicting` and carry every value/confidence; no
 observations are `missing`. A lower-ranked observation never overwrites or conflicts with a
-higher-ranked one. Classifier writes are
-immutable/idempotent by `(record_id, path, source_fingerprint, classifier_version)` and never
-update earlier rows. Concurrent differing classifier results therefore reduce to `conflicting`
-rather than last-writer-wins. The initial plan pins the active vocabulary release; classifier
+higher-ranked one. Classifier observations are immutable and keyed by
+`(record_id, path, run_id, invocation_id)`. Retries of one invocation reuse its stable
+`invocation_id` and return the already-written observation; separate concurrent or later runs use
+different invocation ids even when source fingerprint and classifier version match. Concurrent
+differing classifier results can therefore coexist and reduce to `conflicting` rather than
+last-writer-wins. The initial plan pins the active vocabulary release; classifier
 values are validated against that release and the final pass uses the same pin.
 
 ## 8. Domain-module routing proposals
@@ -475,8 +477,11 @@ decision checksums, and run ids. Insufficient sample size or missing review trut
 decision in shadow.
 
 Clearance applies to every policy decision capable of suppressing a processor: a processor rule
-with effect `skip` or `defer`, and a conditional binding whose selected pipeline produces a strict
-subset of the baseline effective processor set. `require`/`enable`, explicit user/run overrides,
+with effect `skip` or `defer`, and a conditional binding whose selected pipeline removes any
+processor from the baseline effective processor set. The binding test is
+`baseline_effective_processors - selected_effective_processors` being non-empty; an incomparable
+pipeline that removes A while adding B is suppressive because its removed set contains A.
+`require`/`enable`, explicit user/run overrides,
 and pre-P5 `store_default` behavior do not need a new P5 clearance. An uncleared suppressive
 conditional binding may select a pipeline in the shadow plan, but enforced execution continues
 with the baseline/store-default pipeline.
@@ -487,16 +492,21 @@ Clearance uses three explicit tables:
   id/version, document kind, corpus manifest checksum, baseline/routed benchmark run ids, paired
   case and failure counts, baseline/routed recall and precision, approver/time, and rationale;
 - `kb.pipeline_routing_clearance_coverage`: one row per
-  `(policy version, subject_kind, subject_id, document_kind)`, where `subject_kind` is
-  `processor_rule` or `conditional_binding`; it stores the subject checksum, net plan-delta
-  checksum, and clearance id;
+  approval generation and subject slice, where `subject_kind` is `processor_rule` or
+  `conditional_binding`; it stores policy version, subject id/checksum, exact document kind, net
+  plan-delta checksum, clearance id, and optional superseded-clearance id;
 - `kb.pipeline_routing_clearance_revocations`: append-only revocation events naming a clearance,
   actor, time, and reason.
 
 There is no mutable draft/approved/revoked status. Approval inserts the immutable clearance and
-coverage rows transactionally. A clearance is effective only when no revocation exists. P5 v1
-requires exact document-kind coverage—no wildcard or overlapping range—and the coverage table's
-unique key prevents two effective mappings for the same subject slice. Processor-rule subject
+coverage rows transactionally. Coverage uniqueness is
+`(policy version, subject_kind, subject_id, document_kind, clearance_id)`, so later generations do
+not rewrite history. A replacement approval takes a transaction-scoped lock on the subject slice,
+inserts a revocation for the previously effective clearance, and inserts the new clearance and
+coverage before commit. A clearance is effective only when no revocation exists. Runtime lookup
+requires exactly one unrevoked generation for the exact subject slice; zero means shadow and more
+than one is a policy-integrity error that fails closed and raises the plan alarm. P5 v1 requires
+exact document-kind coverage—no wildcard or overlapping range. Processor-rule subject
 checksums include target, effect, predicate, and policy version. Conditional-binding subject
 checksums also include the selected pipeline definition checksum and baseline pipeline checksum;
 the derived net plan-delta checksum lists every suppressed processor. Approval requires:
