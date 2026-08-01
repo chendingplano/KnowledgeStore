@@ -81,6 +81,9 @@ profile. Sources: [GB 9706.1-2020](https://openstd.samr.gov.cn/bzgk/std/newGbInf
   Goose recorded version `20260801000011` and all three comparison tables exist. The first run
   exposed a bad foreign-key target (`kb.input_records`); repository evidence showed the canonical
   table is `kb.inputs`, the migration was corrected, and the rerun succeeded.
+- Both `ReviewScopeStore.Get` and `ComparisonStore.GetScope` now reload the original persisted
+  selection snapshots. Historical execution can therefore begin from pinned scope facts instead
+  of reconstructing selection from current module activation.
 
 ## Not yet complete
 
