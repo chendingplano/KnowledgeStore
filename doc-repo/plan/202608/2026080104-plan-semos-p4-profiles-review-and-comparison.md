@@ -114,13 +114,13 @@ runtime but omitted the ADR's explicit P4 processor obligations.
   candidate store; (4) runtime selection test confirms explicit routing includes static analysis
   and chunking; (5) run focused tests and commit. Candidate promotion remains a separate curator
   and module-release action.
-- [ ] `extract_metric_definitions`: add a routed processor that emits governed
+- [x] `extract_metric_definitions`: add a routed processor that emits governed
   `metric_definition` candidates (canonical label, aliases, value/range form) from chunks;
   register it in the production runtime and processor plan.
-- [ ] `extract_product_structure`: add a routed processor that emits evidence-bearing `part_of`
+- [x] `extract_product_structure`: add a routed processor that emits evidence-bearing `part_of`
   and `component_of` candidates from chunks/blocks; register it in the production runtime and
   processor plan.
-- [ ] Extend `extract_provisions` to preserve structured applicability/scope clauses, authority,
+- [x] Extend `extract_provisions` to preserve structured applicability/scope clauses, authority,
   and effective intervals needed by profile selection; do not infer missing values.
 - [ ] Add focused fake-extractor/store tests, production-plan dependency tests, and a live
   `chenweb_test` validation for each persisted output contract.
