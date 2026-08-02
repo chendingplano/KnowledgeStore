@@ -48,6 +48,16 @@
   a DB-native validator/releaser that validates staged content, computes the content checksum, and
   writes immutable releases; versioning is by column, not by Git tag. See plan
   `2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md`.
+* 2026/08/01, DR2 rewrite (verified against implementation). DR2 is rewritten to state the
+  **DB-native storage decision as the decision itself**, replacing the retired "author in Git,
+  compile into Postgres" framing and its annotation. The rewrite is verified against the P2–P4
+  implementation: versioned content stores (`kb.ontology_terms` etc., migrations `00014`–`00020`),
+  the DB-native module compiler/releases/activation (`00021`–`00025`), the four 4a modules and the
+  full QUDT catalog installed as data, the release-owned `included_in_release` transition, and the
+  P3/P4 governed content (assertions, profiles, rules, review/comparison) — all versioned in the
+  database, no data-only repository. Directly-coupled references updated to match: DR11 seam 4,
+  §6.1 (module content as data), §7 env vars (the compiler reads the DB, not a repo), §8.1
+  compiler row, §8.3.1 P0 bullet, and §10 consequences.
 
 ## 2. Context
 
@@ -232,46 +242,148 @@ processor, normalizer, evaluator, or API changes when `pump` or `tax-cn` is adde
 module cannot be expressed without a code change, that is a signal that 4a is missing something —
 which is exactly the feedback loop we want, because it is rare, visible, and reviewed.
 
-### 3.3 DR2 — A domain module is a Git-authored source package compiled into an immutable database release
-
-> **2026-07-31 storage revision:** the Git-authoring half of this decision is **not implemented as
-> written**. Ontology content is authored and versioned directly in the database (`version`
-> columns); the compiler validates DB-staged content, computes the deterministic content checksum,
-> and writes immutable releases. The properties "author in Git" bought — review discipline and a
-> structural barrier against LLM activation — are preserved in code: LLM output lands in
-> `kb.ontology_candidates`, and no LLM path can reach accepted content rows.
+### 3.3 DR2 — A domain module is versioned content in the database, released through a DB-native compiler
 
 Spec §9.7 requires module manifests, checksums, and immutable releases but not where the content
-is authored. Decision: **author in Git, compile into Postgres.** *(revised 2026-07-31 — see above)*
+is authored. Decision: **author, review, and version module content directly in the database; a
+DB-native compiler validates the staged approved content and writes immutable releases.** There is
+no data-only Git repository and no "author in Git, compile into Postgres" step — the same storage
+decision as DR17 (workspace principle: data lives in the database; shareable code in `shared`;
+project-specific code in `ChenWeb`).
 
-```text
-<ontology-repo>/                       # a dedicated repository — see DR17
-  modules/
-    core/1.0.0/          module.toml terms.toml axioms.toml mappings.toml
-    quantity/1.0.0/      module.toml terms.toml mappings.toml units.toml
-    document-authority/1.0.0/
-    measurement/1.0.0/
-    pump/0.1.0/          module.toml terms.toml axioms.toml profiles.toml
-                         applicability.toml competency.toml fixtures/*.yaml
-```
+**Where content lives — every module is content rows, versioned by column:**
 
-The compiler (`server/cmd/ontology-compiler`, plus a `mise` task) performs the spec §9.8
-validation set, computes a deterministic content checksum, and writes one immutable
-`kb.ontology_module_releases` row plus expanded term/axiom/mapping/profile/rule rows tagged with
-that release. **Activation** is a separate, audited act: an insert into
-`kb.ontology_active_releases` (one active release per module per environment). Rollback inserts a
-new activation row pointing at an older release; nothing is deleted.
+| Table | Holds | Versioning |
+|---|---|---|
+| `kb.ontology_terms` | governed terms (`term_kind`: class/property/individual/concept/metric_definition/quantity_kind/unit/dimension) | `UNIQUE(term_id, version)`; an accepted change inserts a new version row, never mutating a released row |
+| `kb.ontology_term_labels` | language labels (`label_role`: prefLabel/altLabel/hiddenLabel); one prefLabel per term+language | per-term version |
+| `kb.ontology_axioms` | compiler-approved axiom kinds over governed term refs | per-axiom version |
+| `kb.ontology_mappings` | mappings to governed terms or external IRIs (`relation`: exact/close/broad/narrow/related); exact requires approval | per-mapping version |
+| `kb.ontology_profiles` / `kb.ontology_profile_rules` | governed profile and rule content (DR4, DR23) | per-profile / per-rule version |
+| `kb.ontology_candidates` | proposals (LLM/import/discovery); spec §9.3 state machine | `fingerprint` UNIQUE (dedup) |
+
+`kb.ontology_modules` holds module identity plus declared dependencies; released snapshots and
+their versions live in `kb.ontology_module_releases`; activation is a pointer in
+`kb.ontology_active_releases`. A domain module such as `pump` is therefore not a directory of
+`.toml` files but a set of approved content rows under a `module_id`, released with pinned
+dependency releases (see §6.1 for the worked example).
+
+**The compiler is a DB-native validator/releaser** (`server/cmd/ontology-compiler`, plus the
+`mise run ontology-compiler` task). Its input is the module's staged approved content in the DB,
+not files. `release` runs one transaction: validate (module exists, ≥1 approved term, dependency
+graph acyclic and every dependency pinnable, dangling-reference guard over axiom/mapping/rule
+references) → snapshot the approved content → compute the deterministic content checksum → pin the
+dependency releases → insert one immutable `kb.ontology_module_releases` row carrying the full
+payload snapshot → tag the included content rows `included_in_release` +
+`released_in_release_id` → supersede the module's prior release. A failed validation rolls back
+and leaves the previous active release untouched. `validate` / `activate` / `rollback` /
+`modules` / `active` complete the CLI.
+
+**Activation is a separate, audited act:** an insert into `kb.ontology_active_releases` (at most
+one active release per module, enforced by a partial unique index). Rollback inserts a new
+activation row pointing at an older release; nothing is deleted.
+
+**The LLM-cannot-activate guarantee is code-enforced, not Git-enforced.** ADR 2026072701 DR6 ("an
+LLM may not activate ontology content") is structural in the state machine rather than a status
+column: LLM, import, and discovery output lands in `kb.ontology_candidates`; promotion to content
+requires a human-approved change set; and the `included_in_release` transition is owned by the
+module release path alone (`TransitionStatus` refuses it). No LLM path can reach accepted content
+rows.
+
+**Authoring surfaces.** Content is authored as data three ways: 
+1. direct authoring into the content tables (the curated 4a modules 
+   via `server/cmd/ontology-seed`; a future authoring GUI);
+2. candidate → promote, the only way LLM/import content enters; 
+3. external catalog import — `server/cmd/qudt-import` parses the published QUDT TTL 
+   as transient generator input and writes its output into the DB, after which the module is released normally (the DR13 "selective import" path).
+
+**Reproducibility.** A release is reproducible from the immutable payload snapshot, the
+deterministic content checksum, and the pinned dependency releases — without a commit SHA.
 
 Rationale:
 
-* it reuses the review discipline the team already has (jj/Git history, diffs, per-change review)
-  instead of blocking Phase 4 on an authoring GUI;
-* it makes ADR 2026072701 DR6 ("an LLM may not activate ontology content") *structural* rather
-  than a status column — LLM output lands in `kb.ontology_candidates`, and promotion requires a
-  human writing module source and committing it;
-* releases are reproducible from a commit hash plus a checksum;
-* an authoring UI can be added later and write back to the same source, or export approved
-  candidates into it; the DB contract does not change.
+* it honors the workspace storage principle (data lives in the database; no data-only repository)
+  and keeps the ontology lifecycle on the same operational stores the rest of SemOS uses;
+* installing a domain module stays **data, not code** (the DR1 property): a module is a release of
+  content rows, so no processor, normalizer, evaluator, or API changes when `pump` or `tax-cn` is
+  added;
+* the properties "author in Git" bought — review discipline and a structural barrier against LLM
+  activation — are preserved in code: governed content rows carry the spec §9.3 status lifecycle,
+  `source_candidate_id` provenance back to the proposing candidate, append-only release history,
+  and audit fields (`create_by`/`modify_by`/`released_by`); the content lifecycle *is* the review
+  trail;
+* versioning is by column, not by Git tag; an accepted change inserts a new version row and the
+  previous version stays readable;
+* an authoring UI can be added later and write to the same tables, or export approved candidates
+  into them; the DB contract does not change.
+
+#### 3.3.1 Evidence to Ontonogy Content
+Pipeline results (or evidences) do not become ontology terms, axioms, etc. Extracted 
+artifacts stay as evidence. They never auto-promote to governed ontology content. The ADR 
+is explicit about this (refer to `Authoring surfaces`): ontology content (terms, axioms, 
+mappings, profiles, rules) is authored through three separate surfaces:
+
+1. Direct authoring — ontology-seed writes the curated 4a core modules (`core`, 
+   `document-authority`, `measurement`) as content rows. It's the DB-native authoring surface 
+   for platform-owned vocabulary.
+2. Candidate → promote — the only way LLM/import/discovery content enters. It lands in 
+   `kb.ontology_candidates`, and promotion to content rows requires a human-approved change 
+   set. This is the code-enforced "LLM cannot activate" guarantee.
+3. External catalog import — qudt-import parses the published QUDT TTL as transient generator 
+   input, writes validated content into the DB, then the module is released normally.
+
+At most, pipeline output feeds the candidate path — and only via the §9.3 state machine with 
+human approval, never directly.
+
+#### 3.3.2 Direct Authoring
+Direct authoring writes straight into the content tables with `status = "approved"` — no
+candidate, no promote step:
+
+| Content | Table | Direct authoring surface |
+|---|---|---|
+| Terms — all 8 kinds (`class`, `property`, `individual`, `concept`, `metric_definition`, `quantity_kind`, `unit`, `dimension`) | `kb.ontology_terms` | `ontology-seed` (curated 4a: `core`, `document-authority`, `measurement`); `qudt-import` (`quantity` module); API `POST /kb/ontology/terms` |
+| Term labels | `kb.ontology_term_labels` | `ontology-seed`; `qudt-import`; API `POST /kb/ontology/terms/:term_id/labels` |
+| Mappings | `kb.ontology_mappings` | `qudt-import` only (QUDT catalog → `quantity` module) |
+| Profiles | `kb.ontology_profiles` | API `POST /kb/ontology/profiles` |
+| Profile rules | `kb.ontology_profile_rules` | API `POST /kb/ontology/profile-rules` |
+| Module registration | `kb.ontology_modules` | `ontology-seed`, `qudt-import` |
+
+Seed and catalog import write `status = "approved"` directly, bypassing the spec §9.3
+draft/in_review/approved state machine; they are the trusted platform/catalog paths.
+
+#### 3.3.3 Not Directly Authorable
+**Not directly authorable — only via candidate → promote (human-approved change set):**
+
+* **axioms** (`kb.ontology_axioms`) — no direct command or route; the only path is `promoteAxiom`
+  from candidate kind `axiom`;
+* **general-purpose mappings** — no route; `qudt-import`'s catalog path is the only direct one;
+* **any LLM/import/discovery proposal** — must land in `kb.ontology_candidates` and be promoted
+  (the code-enforced "LLM cannot activate" guarantee), even though a human may author the same
+  content directly;
+* candidate kinds `profile`, `profile_rule`, `module_change` are accepted as candidates but are
+  not promotable in the current chunk — profiles/rules reach production only via their direct API
+  routes.
+
+#### 3.3.4 The mise Command
+The mise command doesn't "create" domain modules. `mise run ontology-compiler release
+--module X --version Y` is a validation + release gate over content that already exists 
+and is already approved in the DB. It runs the seven-step transaction (validate → 
+snapshot → checksum → pin deps → insert immutable kb.ontology_module_releases row → 
+tag included_in_release → supersede prior release). It creates nothing; if the module 
+has no approved content rows, validation fails. Then activate re-points the active-release 
+pointer as a separate audited act.
+
+The correct flow
+```text
+1. Pipeline extracts artifacts  ──►  Layer 1 evidence (kb.*_artifacts), line-level provenance
+2. Ontology content is authored  ──►  ontology-seed (curated 4a)
+                                    └─► candidate→promote (LLM/import/discovery, human-approved)
+                                    └─► qudt-import (external catalogs)
+3. mise run ontology-compiler  ──►  validates + snapshots + checksums + releases
+   release --module X ...             the already-approved content rows (immutable release)
+4. activate                     ──►  re-point kb.ontology_active_releases pointer
+```
+The key mental model: the pipeline produces evidence; ontology content is governed — it needs an author and an approver before the compiler ever runs. The compiler is the release gate that makes that content immutable and installable, not a factory fed by extraction results.
 
 ### 3.4 DR3 — Applicability is one mechanism with two consumers
 
@@ -296,10 +408,11 @@ The predicate grammar, the operator registry, the evaluation trace, and the
 applicability is not a sub-feature of Layer 6; it is a cross-cutting service consumed by
 Layer 6 *and* Layer 1.
 
-**Guard against silent coupling:** a domain module may ship `applicability.toml` routing
-proposals, but installing the module never changes the pipeline by itself. Routing rules become
-effective only when included in an activated **pipeline policy** version (DR6). Ontology
-activation and pipeline activation are separate approvals with separate blast radii.
+**Guard against silent coupling:** a domain module may ship routing proposals as governed
+content rows (authoring them as data per DR2), but installing the module never changes the
+pipeline by itself. Routing rules become effective only when included in an activated
+**pipeline policy** version (DR6). Ontology activation and pipeline activation are separate
+approvals with separate blast radii.
 
 ### 3.5 DR4 — Document facets: a governed, cheap-first classification of documents
 
@@ -504,7 +617,7 @@ editing the mechanism.**
 | 1 | `ProcessorRegistry` (DR5 declarations) | register a processor with a spec | new extraction stages |
 | 2 | `FacetProducerRegistry` | register a producer + governed facet terms | new routing/profile signals |
 | 3 | `PredicateOperatorRegistry` | register an operator | richer applicability rules |
-| 4 | Module compiler + loader (DR2) | commit module source | new ontology and domain content |
+| 4 | Module compiler + loader (DR2) | author module content as data in the database, then release | new ontology and domain content |
 | 5 | `AssertionNormalizerRegistry` | register a per-artifact-family normalizer | new artifact families reaching L5 |
 | 6 | `ProfileRuleKindRegistry` (evaluator + SHACL emitter as a pair) | register a rule kind | new conformance semantics |
 | 7 | `ProjectionBuilderRegistry` | register a builder + repair function | new derived surfaces |
@@ -1471,42 +1584,35 @@ identifier-hygiene work.
 
 ## 6. Data Formats
 
-### 6.1 Module source package
+### 6.1 Module content as data (DR2)
 
-```toml
-# modules/pump/0.1.0/module.toml
-id = "pump"
-version = "0.1.0"
-title = "Centrifugal and positive-displacement pumps"
-owner = "domain:mechanical"
-depends_on = ["core@1.0.0", "quantity@1.0.0", "measurement@1.0.0",
-              "document-authority@1.0.0"]
+Under the DB-native storage decision, a module's source is its content rows, not a `.toml`
+package. Authoring the `pump` worked example means inserting governed rows under `module_id =
+pump` (via a seed tool, a future authoring GUI, or candidate → promote) and then releasing:
 
-# modules/pump/0.1.0/terms.toml
-[[term]]
-id         = "pump:centrifugal_pump"
-kind       = "class"
-parent     = "pump:pump"
-definition = "A rotodynamic pump that moves fluid by a rotating impeller."
-labels     = { en = "centrifugal pump", zh_cn = "离心泵" }
-mappings   = [{ iri = "http://…", relation = "close" }]
-
-# modules/pump/0.1.0/profiles.toml
-[[profile]]
-id = "pump:datasheet_completeness"
-version = "1"
-authority = { document = "GB/T …", edition = "2019", jurisdiction = "CN" }
-applies_to = "pump:centrifugal_pump"
-closed_dimensions = ["measurement:rated_quantities"]
-
-  [[profile.rule]]
-  id         = "pump:requires_rated_head"
-  kind       = "required_assertion_pattern"
-  quantifier = "exists_conforming"
-  property   = "pump:rated_head"
-  quantity_kind = "quantity:Length"
-  severity   = "error"
+```text
+kb.ontology_modules          pump  owner=domain:mechanical
+                             depends_on=[core@1.0.0, quantity@1.0.0,
+                                         measurement@1.0.0, document-authority@1.0.0]
+kb.ontology_terms            pump:pump              kind=class
+                             pump:centrifugal_pump  kind=class  parent=pump:pump
+                             definition="A rotodynamic pump that moves fluid by a rotating impeller."
+kb.ontology_term_labels      pump:centrifugal_pump  en="centrifugal pump"  zh_cn="离心泵"
+kb.ontology_mappings         pump:centrifugal_pump  iri="http://…"  relation=close
+kb.ontology_profiles         pump:datasheet_completeness  version=1
+                             authority={ document="GB/T …", edition="2019", jurisdiction="CN" }
+                             applies_to=pump:centrifugal_pump
+                             closed_dimensions=["measurement:rated_quantities"]
+kb.ontology_profile_rules    pump:requires_rated_head  version=1
+                             kind=required_assertion_pattern  quantifier=exists_conforming
+                             property=pump:rated_head  quantity_kind=quantity:Length
+                             severity=error
 ```
+
+`mise run ontology-compiler release --module pump --version 0.1.0` validates the approved rows,
+snapshots and checksums them, pins the dependency releases, and writes the immutable release (DR2).
+Content authored this way needs no TOML grammar and no repository checkout; the DR1 property —
+installing a domain module is data, not code — holds by construction.
 
 ### 6.2 Applicability predicate (shared by DR3 consumers)
 
@@ -1585,8 +1691,8 @@ policy_version = "2026072901.3"
 | `DOC_PIPELINE_PLAN_ONLY` | `false` | compute and persist the plan, then run the legacy set — shadow mode for validating rules before enforcement |
 | `DOC_FACET_CLASSIFIER_MODEL` | unset | model for tier-3 `classify_document`; unset disables tier 3 (tier 1–2 facets only) |
 | `DOC_PIPELINE_ON_CONFLICT` | `block` | `block` fails the run and raises an alarm on an unresolved binding conflict or undetermined gate; `fallback` walks the DR7 escalation ladder and warns |
-| `ONTOLOGY_REPO_REF` | unset | pinned commit/tag of the ontology data repository (DR17) |
-| `ONTOLOGY_MODULE_ROOT` | `./ontology/modules` | module source root for the compiler, within the checked-out data repository |
+| `PG_HOST` / `PG_PORT` / `PG_USER` / `PG_DB_NAME` | local socket, `5432`, `cding`, `chenweb_test` | database the ontology compiler reads and writes; content lives in the DB, not a repository (DR2) |
+| `COMPILER_ARGS` | — | arguments to `mise run ontology-compiler` (`validate`/`release`/`activate`/`rollback`) |
 | `SEMANTIC_ASSOCIATION_ENABLED` | `false` | enable Phase D stages |
 | `KEYWORD_RESOLVER_MODE` | `off` | `off` \| `observe` (record mentions and unresolved, resolve nothing) \| `on` |
 | `KEYWORD_NORMALIZER_VERSION` | `1` | bumping triggers a re-index, never data loss (DR16) |
@@ -1607,7 +1713,7 @@ authority.
 | Knowledge stores | `server/api/kbhandler/stores_handler.go`, ingestion handlers | `ks_id` and `requested_pipeline` on ingestion; store bindings CRUD |
 | Canonicalization kernel | new package `server/api/semid` | normalizer profiles, candidate generation, scoring, adjudication, merge/split, decision log; family adapters |
 | Keyword lexicon | new `server/api/semid/lexicon/` + a doc-processing mention collector | DR16 merged design as a kernel instantiation |
-| Module compiler | new `server/cmd/ontology-compiler`, `server/api/ontology/` | parse, validate, checksum, release, activate, rollback — for modules *and* pipeline policies |
+| Module compiler | new `server/cmd/ontology-compiler`, `server/api/ontology/` | validate DB-staged content, checksum, release, activate, rollback — for modules *and* pipeline policies |
 | Ontology stores | `server/api/ontology/` | terms, labels, axioms, mappings, candidates, releases |
 | Assertions | `server/api/ontology/assertions/` | assertion + evidence stores, normalizer registry, per-family normalizers |
 | Association | new doc-processing stages `normalize_assertions.go`, `associate_semantics.go`, `project_semantics.go` | spec §10 pipeline |
@@ -1661,8 +1767,9 @@ parallel.** Each phase ends with an exit criterion that is a test, not a judgmen
   artifact-object cardinality, `kb.search_artifacts` partitions, `kb.artifact_connections`
   uniqueness/replacement, scene identifier semantics, cascade/reprocessing behavior.
 * Freeze the competency-question suite (research §11.1) with expected answers.
-* Merge the two keyword specs into one superseding spec per DR16, and stand up the ontology data
-  repository (DR17) with its CI skeleton.
+* Merge the two keyword specs into one superseding spec per DR16, and confirm the storage model:
+  ontology content is authored and versioned in the database, with no data-only repository (DR2/DR17
+  storage decision, 2026-07-31).
 * Inventory the knowledge stores actually in use and the pipelines each one needs (DR18).
 * **Build the synthetic gold corpus and extend the existing benchmark** (ADR 2026071301) rather
   than waiting for a real-data example. Author the gold ontology for one part class first, then
@@ -1982,17 +2089,19 @@ Costs and risks:
   policy.
 * Facet quality bounds routing quality. Mitigation: deterministic tiers first, confidence recorded
   per facet, and rules able to require a minimum confidence.
-* Git-authored ontology requires curator discipline and does not scale to hundreds of contributors.
-  Accepted for now; a UI is additive.
+* DB-authored ontology requires curator discipline and does not scale to hundreds of contributors.
+  Accepted for now; the candidate → promote path and a future authoring UI are the additive
+  surfaces.
 * Layer 4a becomes a bottleneck if domains frequently need new assertion kinds. Accepted
   deliberately — that bottleneck is the signal that the core model is wrong, and it should be
   visible.
 * Blocking on routing conflicts stops ingestion when a policy is wrong. Mitigations: conflicts are
   detected at policy compile time in CI, not only at run time; the alarm names the offending ids;
   and `DOC_PIPELINE_ON_CONFLICT=fallback` is available without a redesign.
-* A second repository is one more thing to pin, check out, and keep in sync; a stale
-  `ONTOLOGY_REPO_REF` is a new failure mode. Mitigation: the active release records the source
-  commit SHA and the content checksum, and startup logs both.
+* Authoring governed content in the database removes the repository-pinning and stale-`ONTOLOGY_REPO_REF`
+  failure modes entirely. The residual risk — content edited in place outside the lifecycle — is
+  contained by the status state machine plus the immutable release: only the release path can reach
+  `included_in_release`, and every released snapshot is checksummed and immutable.
 * Over-merging in the kernel is the asymmetric risk across *all four* families now, not just
   keywords. Mitigations are inherited from DR16: tombstones, `never_merge`, locked human
   assertions, no transitive closure, and per-family promotion gates on a gold set.
@@ -2166,7 +2275,175 @@ repository hosting credentials remain for later phase documents and approvals.
 | OD9 | Scope granularity for the lexicon: knowledge store only, or store + domain + document | Store + document-local overrides in P3 (document-local acronym definitions are strong evidence); add domain if measurement shows collisions |
 | OD10 | Whether category canonicalization retrofits onto the kernel in P4 or waits | P4, driven by the size of the `kb.category_alias_conflicts` backlog measured in P0 |
 
-## 14. References
+## 14. Glossaries
+
+### 14.1 QUDT Mappings
+**QUDT mappings** refers to mappings defined in the **QUDT** ontology that relate units, 
+quantities, prefixes, or other measurement concepts to equivalent concepts in other standards 
+or vocabularies.
+
+QUDT is an ontology for representing scientific and engineering measurements in RDF/OWL. 
+It provides standardized definitions for:
+
+* Units (meter, second, kilogram, pascal, etc.)
+* Quantity kinds (length, mass, pressure, temperature, etc.)
+* Dimensions
+* Prefixes (kilo-, milli-, micro-, etc.)
+* Physical constants
+* Unit conversion rules
+
+For example, QUDT contains a concept like:
+
+```turtle
+qudt-unit:Meter
+```
+
+rather than merely the string `"m"`.
+
+#### 14.1.1 What Are Mappings?
+
+Many organizations have their own vocabularies for units and measurements. Examples include:
+
+* UCUM
+* OM
+* GS1
+* NASA internal vocabularies
+* industry-specific ontologies
+
+A **mapping** tells software that two identifiers refer to the same or closely related concept.
+
+For example
+
+```
+QUDT
+------
+qudt-unit:Meter
+
+UCUM
+------
+m
+
+Mapping
+-------
+qudt-unit:Meter
+    ↔
+UCUM "m"
+```
+
+Similarly
+
+```
+qudt-unit:DegreeCelsius
+    ↔
+UCUM "Cel"
+```
+
+or
+
+```
+qudt-unit:Kilogram
+    ↔
+UCUM "kg"
+```
+
+These mappings allow systems using different ontologies to interoperate.
+
+#### 14.1.2 Types of Mappings
+
+In RDF/OWL, mappings are often represented using properties from **SKOS**, such as:
+
+```
+skos:exactMatch
+skos:closeMatch
+skos:broadMatch
+skos:narrowMatch
+```
+
+or with QUDT-specific mapping properties.
+
+For example:
+
+```turtle
+qudt-unit:Meter
+    skos:exactMatch ucum:m .
+```
+
+meaning the QUDT Meter and UCUM "m" represent the same unit.
+
+#### 14.1.3 Why Mappings Important
+
+Suppose one dataset contains
+
+```
+height
+unit = "m"
+```
+
+while another contains
+
+```
+height
+unit = qudt-unit:Meter
+```
+
+Without a mapping, software may treat them as different.
+
+With a mapping,
+
+```
+"m"
+      ↓
+UCUM
+      ↓
+QUDT Meter
+```
+
+the two datasets can be merged and queried consistently.
+
+In **SemOS**, QUDT mappings could be very useful when extracting metrics from technical standards.
+For example, different documents may express the same unit in different ways:
+
+```
+ms
+millisecond
+msec
+milliseconds
+毫秒
+```
+
+The extraction pipeline could normalize all of these to a single canonical QUDT concept:
+
+```
+qudt-unit:MilliSecond
+```
+
+Similarly,
+
+```
+℃
+degree Celsius
+degrees C
+摄氏度
+```
+
+could all normalize to
+
+```
+qudt-unit:DegreeCelsius
+```
+
+Once normalized, we can:
+
+* perform unit-aware searches,
+* compare metrics across multilingual documents,
+* automatically convert compatible units (e.g., mm ↔ cm ↔ m),
+* and export data to other standards (such as UCUM) using the available mappings.
+
+In short, **QUDT mappings are crosswalks between QUDT's standardized measurement 
+ontology and other unit vocabularies or coding systems**, enabling interoperability 
+and consistent interpretation of measurements across different datasets and applications.
+
+## 15. References
 
 0. [2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel](/Users/cding/Workspace/KnowledgeStore/doc-repo/plan/202607/2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md) — P2 implementation plan (DB-native storage revision, chunks 0–F)
 1. [2026072302-rsch-object-centric-ontology](/Users/cding/Workspace/KnowledgeStore/doc-repo/research/202607/2026072302-rsch-object-centric-ontology.md)
@@ -2184,3 +2461,125 @@ repository hosting credentials remain for later phase documents and approvals.
 13. W3C SHACL, SKOS, PROV-O, OWL 2, OWL-Time; QUDT catalog; SOSA/SSN — as cited in research §18.
 14. UMLS concept/term/string identity layering (CUI/LUI/SUI/AUI) — as cited in research
     `2026072301` §1 and spec `2026072703` §3.1.
+
+## Appendix A. New Doc Processors
+
+**Purpose.** This appendix enumerates every doc processor this ADR adds or changes — what it does, whether it
+generates new persisted data (and which tables that data lands in), and whether it is LLM-driven. "New" means the
+processor did not exist in the pre-ADR 13-processor roster; "changed" means an existing processor's output
+contract is extended. Each processor declares a DR5 `ProcessorSpec` (class, cost, `OnUndetermined`); a `routed`
+processor runs only when the selected pipeline policy and its per-processor gates resolve to run.
+
+**"LLM-driven" values.** `expensive_llm` = per-chunk LLM extraction (normal Phase B cost); `cheap_llm` = one LLM
+call per document (tier-3 classification); `none` = deterministic code, no model invocation. Where a processor's
+adjudication is currently deterministic-only, that is noted.
+
+### A.1 New processors
+
+| Processor | Build (2026-08-01) | Class | LLM-driven | What it does | New persisted data → table | Phase | Why |
+|---|---|---|---|---|---|---|---|
+| `classify_document` | planned (P1 declaration; tier-3 invocation P5; not yet in the live roster) | mandatory (gated) | `cheap_llm`, tier 3 only — one call over the first N pages, only when tiers 1–2 leave a required facet undetermined and a rule needs it | Classifies a document into the governed facet vocabulary: `doc_kind`, `domain`, `normative_status`, `jurisdiction` | **Yes** — governed document facets, one row per `(record_id, facet_key)` → `kb.doc_facets` | P1 (tier 3: P5) | DR4 routing + profile applicability |
+| `normalize_assertions` | built (P3) | routed (Phase C) | `none` — deterministic per-family normalizers (metric, provision) | Turns each artifact family's output (metrics, provisions, later inventory/entity/scene) into candidate qualified assertions with evidence | **Yes** — candidate assertions → `kb.semantic_decision_candidates` (`candidate_kind='assertion'`); never writes assertions directly | P3 | DR8 Phase D stage 1; the step that makes free-text claims comparable |
+| `associate_semantics` | built (P3) | routed (Phase C) | `none` in the current slice — deterministic-only adjudication; a future LLM-scored path can only *feed* candidates, never write | Spec §10.3–§10.7: resolve, validate, adjudicate, persist stage-1 candidates as accepted assertions; resolves units against the `quantity` module | **Yes** — accepted assertions → `kb.semantic_assertions` (DR9 typed refs + normalized value columns); evidence → `kb.assertion_evidence`; conflict/supersession → `kb.assertion_relations` | P3 | DR8 Phase D stage 2; the one authoritative-owner persist step |
+| `project_semantics` | built (P3) | routed (Phase C) | `none` — deterministic SQL/Go derivations | Spec §10.8: build derived edges, search payloads, convenience classifications from accepted assertions; mark and repair stale projections | **Yes** — derived projection `kb.object_nodes.primary_class_term_id` (never authored); build state → `kb.projection_state`; future `kb.artifact_semantic_links` when a family needs `about`/`aligns` links | P3 | DR8 Phase D stage 3; DR10 |
+| `extract_metric_definitions` | built (routed Phase B harvester) | routed | `expensive_llm` | Harvests the *definition* of a metric — canonical name, aliases, value type, range type — from 术语与定义 and requirement clauses, distinct from a metric *value* | **Yes, candidates only** — `kb.ontology_candidates` (`candidate_kind='term'` / `metric_definition`) with source spans; never writes content rows | P3–P4 | DR23; the main feeder of metric-definition rows and 4b module content via candidate → promote |
+| `extract_test_methods` | built (routed Phase B harvester) | routed | `expensive_llm` | Extracts test/measurement procedures and explicit metric↔procedure (`mea:measured_by`) links | **Yes, candidates only** — procedure terms → `kb.ontology_candidates`; metric↔procedure links → `kb.semantic_decision_candidates`, with source spans | P4 | the 检测方法 panel; a metric's procedure is part of its comparability key (research §6.3) |
+| `extract_product_structure` | built (routed post-process) | routed | `none` — no additional LLM; converts only explicit `part_of`/`component_of` relations with reconciled object endpoints from entity/relation output | Converts explicit structural relations into part-of / component-of structural candidates | **Yes, candidates only** — `kb.semantic_decision_candidates` (structural candidates, reconciled endpoints, source spans) | P4–P5 | DR20 hierarchy; drives module/sub-part navigation and image hotspot bindings |
+
+### A.2 Changed processors
+
+| Processor | Build (2026-08-01) | Class | LLM-driven | What it does | New persisted data → table | Phase | Why |
+|---|---|---|---|---|---|---|---|
+| `extract_metrics` | changed; structured output built 2026-08-01 | routed | `expensive_llm` | Emits structured value fields — value form, comparator, normalized value, unit, condition, assertion kind — instead of `threshold_or_target` free text | **Yes** — `kb.metrics` gains `value_min`/`value_max`/`condition` (migration `20260801000014`) plus structured fields `value_range_type`/`value_class`/`metric_value`/`metric_unit` (prompt v5); normalizer consumes them deterministically; `parseThresholdOrTarget` demoted to a legacy fallback | P3 | today `threshold_or_target` free text prevents any verdict; the single highest-leverage change for the application (DR21) |
+| `extract_provisions` | changed | routed | `expensive_llm` | Retains any explicit applicability/scope clauses, authority, and effective interval; never infers missing values | **Yes** — `kb.provisions` extended with structured `public_info` evidence fields | P3–P4 | profile rules are sourced from provisions; the 范围/适用于 clause decides applicability |
+| `extract_doc_metadata` | changed | mandatory | `expensive_llm` | Adds standard identity: doc number, edition, issuer, jurisdiction, supersedes | **Yes** — `kb.inputs.doc_metadata` (extended JSONB); feeds `kb.doc_facets` tier 2 | P1 | column assignment and precedence inside a comparison column both depend on standard identity (DR21/DR22) |
+
+### A.3 Explicitly not doc processors
+
+The comparison matrix and verdict computation (DR22, an L7 application service), profile evaluation (L6), the
+certification-body registry (reference data, not extraction), and the product image hotspot map (application data
+binding an image region to an object node).
+
+### A.4 Unchanged processors
+
+The pre-ADR 13-processor core — `blocking`, `structure_analyzer`/`static_analyzer`, `chunking`,
+`extract_metadata`, `extract_metrics`, `extract_provisions`, `extract_semantic_projections`, `generate_summaries`,
+`generate_topics`, `generate_scene_blocks`, `extract_entity_relation`, `extract_inventory_items`, `review_document`
+— keeps its behavior; it only gains the DR5 `ProcessorSpec` declaration in P1. With no policy activated, the
+planner reproduces today's set byte-identically (DR6/DR7).
+
+## Appendix B. Ontology Content
+
+**Purpose.** This appendix enumerates all ontology content the architecture governs — terms, labels, axioms,
+mappings, profiles, profile rules, modules, releases, candidates, and the related governed content (document
+facets, pipeline policies, knowledge-store bindings, keyword lexicon, comparison policies) — the tables that store
+them, what they hold, and how they are generated or from which source they are imported.
+
+**Governing principle (DR2/DR17).** Ontology content is authored and versioned **in the database** with `version`
+columns; there is no data-only Git repository. Extracted pipeline artifacts are evidence and never auto-promote to
+ontology content (ADR §3.3.1).
+
+### B.1 Content stores
+
+| Content | Table | Holds | Versioning / identity | Authoring / generation surface | Phase |
+|---|---|---|---|---|---|
+| Terms | `kb.ontology_terms` | governed terms, `term_kind` = class/property/individual/concept/metric_definition/quantity_kind/unit/dimension | `UNIQUE(term_id, version)`; an accepted change inserts a new version row | `ontology-seed` (curated 4a); `qudt-import` (quantity); candidate → promote; API `POST /kb/ontology/terms` | P2 |
+| Term labels | `kb.ontology_term_labels` | language labels, `label_role` = prefLabel/altLabel/hiddenLabel; one prefLabel per term+language | per-term version | `ontology-seed`; `qudt-import`; API `POST /kb/ontology/terms/:term_id/labels`; promotion | P2 |
+| Axioms | `kb.ontology_axioms` | compiler-approved axiom kinds over governed term refs | per-axiom version | **only** candidate → promote (`promoteAxiom`); no direct route | P2 |
+| Mappings | `kb.ontology_mappings` | mappings to governed terms or external IRIs, `relation` = exact/close/broad/narrow/related; exact requires approval | per-mapping version | `qudt-import` is the only direct path; general mappings via promotion | P2 |
+| Candidates | `kb.ontology_candidates` | proposals (LLM/import/discovery); spec §9.3 state machine `discovered → draft → in_review → approved → included_in_release` (+ rejected/deferred/superseded); `candidate_kind` = term/label/mapping/axiom/profile/profile_rule/module_change | `fingerprint` UNIQUE (dedup) | LLM/import/discovery output; promotion requires a human-approved change set | P2 |
+| Modules | `kb.ontology_modules` | module identity + declared dependencies | one row per module | `ontology-seed`; `qudt-import`; API registration | P2 |
+| Module releases | `kb.ontology_module_releases` | immutable payload snapshot + deterministic content checksum + pinned dependency releases | `UNIQUE(module_id, version)` | DB-native compiler `release` (validate → snapshot → checksum → pin deps → insert → tag `included_in_release` → supersede prior) | P2 |
+| Active releases | `kb.ontology_active_releases` | activation pointer; at most one active release per module (partial unique index) | — | `activate` / `rollback` (audited; nothing deleted) | P2 |
+| Profiles | `kb.ontology_profiles` | scoped, versioned conformance expectations ("for this class, in this jurisdiction, these metrics are required") | per-profile version | direct API `POST /kb/ontology/profiles`; drafts inactive until included in a release | P4 |
+| Profile rules | `kb.ontology_profile_rules` | typed rule kinds (e.g. `required_assertion_pattern`) with a paired SHACL emitter (seam 6) | per-rule version | direct API `POST /kb/ontology/profile-rules` | P4 |
+| Review scopes | `kb.ontology_review_scopes` | immutable frozen scope (pinned releases, closed dimensions, applicability facts) | immutable | review-scope freeze | P4 |
+| Comparison scopes / runs / cells | `kb.comparison_scopes`, `kb.comparison_runs`, `kb.comparison_cells` | class-anchored comparison matrix (DR22): scope, run with assertion watermark, cells as lists with representative/remainder/verdict/rationale | immutable scopes; cached runs invalidated when watermark or releases move | DR22 application service (not a doc processor) | P4 |
+| Recommendation policies | `kb.recommendation_policies` | versioned verdict→advice policy, stored separately from verdicts (DR21 rule 1) | versioned | authoring | P4 |
+| Document facets | `kb.doc_facets` | one row per `(record_id, facet_key)`; keys and permitted values are governed `document-authority` terms | per record; three tiers cheapest-first | facet producers (tier 1 deterministic; tier 2 from `extract_doc_metadata`; tier 3 `classify_document`) | P1 |
+| Pipeline policies | `kb.pipelines`, `kb.pipeline_policies`, `kb.pipeline_bindings`, `kb.pipeline_rules` | named pipelines, versioned binding policy, per-processor gates (DR6) | versioned; compiled and activated by the same mechanism as ontology modules | policy authoring + compiler | P1 |
+| Knowledge-store bindings | `kb.knowledge_store_bindings` | default pipeline, bound module releases, default review profiles per store (DR18) | — | store-binding CRUD | P1 |
+| Keyword lexicon | `kb.keyword_concepts`, `kb.keyword_surfaces`, `kb.keyword_surface_keys`, `kb.keyword_mentions`, `kb.keyword_unresolved`, `kb.keyword_rewrite_rules` | ungoverned canonical *lexical* identity (DR15.2/DR16): occurrence → surface → lexform → concept | versioned normalizer (bump = re-index, never data loss) | curated seed terms + `never_merge` assertions; pipeline mention collection; reconciliation; `aligns_to_term` to governed terms | P3 (design-only; `KEYWORD_RESOLVER_MODE=observe` first) |
+
+### B.2 Core 4a modules — installed as data (P2)
+
+| Module | Owns | Terms installed | Release / active | Source |
+|---|---|---|---|---|
+| `core` | referent, information artifact, assertion, evidence, agent, role, occurrence, value, part; predicates `instance_of`, `plays_role`, the DR20 hierarchy (`part_of`/`component_of`/`variant_of`), `about`, `has_evidence`, `asserted_by`, `has_polarity`, `has_confidence` | 19 | 1.0.0 (checksum c983fa57d239), active | `ontology-seed` |
+| `document-authority` | document kind, issuer/authority, jurisdiction, edition/version, normative vs informative, effective interval, supersedes/amends/cites; **DR4 facet vocabulary** (facet keys `doc_kind`/`domain`/`normative`/`jurisdiction_facet`/`language`; permitted values `standard`/`specification`/`regulation`/`report`/`manual`/`normative`/`informative`) | 22 | 1.0.0 (d8691f5210c7), active | `ontology-seed` |
+| `quantity` | QUDT catalog: quantity kinds, units, dimension vectors; conversion; value forms + comparators; exact mappings back to source IRIs | 4151 (`quantity:unit_*` / `qk_*` / `dim_*`) | 1.0.0 (47f2276c8c10), active | `qudt-import` (published QUDT TTL as transient generator input) |
+| `measurement` | `metric_definition` (DR23), metric assertion vs definition, observable property, feature of interest, procedure, condition, aggregation window; metric **assertion kinds** `lower_bound_requirement`/`upper_bound_requirement`/`interval_requirement`/`observed_value`/`target`/`reference`/`capability`; `has_quantity_kind`/`has_unit`/`measured_by` | 17 | 1.0.0 (ec54375f8605), active; pins `core@1.0.0`, `quantity@1.0.0` | `ontology-seed` |
+
+### B.3 Domain 4b modules — planned, none authored
+
+`pump`, `pressure-vessel`, `tax-cn`, `medical-device`, … Each contains: domain classes and subclasses, domain
+properties bound to 4a quantity kinds, domain axioms, **domain profiles and profile rules**, applicability rules,
+competency questions, and conformance fixtures. A 4b module may **not** introduce new assertion kinds, predicates,
+value forms, or qualifier dimensions (DR1 binding constraint); it is authored as content rows under a `module_id`,
+released through the DB-native compiler, and installing it is **data, not code**.
+
+The pilot module is **呼吸机 / 医疗器械** (OD1). It remains **un-authored** until a domain owner supplies a
+traceable worked example and approved source values (P4 deferred data gate); the worked `pump` example (DR2 §6.1)
+is illustrative, not installed.
+
+### B.4 Generation and import sources
+
+1. **`ontology-seed`** — `go run ./server/cmd/ontology-seed` authors the curated 4a modules (`core`,
+   `document-authority`, `measurement`) directly as approved content rows (bypassing the candidate state machine);
+   `--author-only` skips release.
+2. **`qudt-import`** — `go run ./server/cmd/qudt-import` parses the published QUDT TTL
+   (`src/main/rdf/vocab/{unit,quantitykinds,dimensionvectors}/`) as transient generator input, writes validated
+   content (terms + labels + exact mappings) into the DB under the `quantity` module, after which the module is
+   released normally (the DR13 "selective import" path).
+3. **Candidate → promote** — the only way LLM/import/discovery content enters production content rows: it lands in
+   `kb.ontology_candidates` and promotion requires a human-approved change set (`POST /kb/ontology/candidates/:id/promote`);
+   `included_in_release` is owned by the module release path alone. This is the code-enforced "LLM cannot activate"
+   guarantee.
+4. **Direct API authoring** — `POST /kb/ontology/terms`, `/terms/:term_id/labels`, `/profiles`, `/profile-rules`
+   write approved content directly. Axioms and general-purpose mappings have **no** direct route.
+5. **Pipeline policy authoring** — named pipelines, binding policies, and processor rules are authored as data and
+   compiled/activated by the same DB-native mechanism as ontology modules (DR6/DR17).
+6. **Lexicon seeding** — curated seed terms and `never_merge` assertions seed the keyword lexicon (DR16).
+
+**Not a source.** Pipeline extraction output never becomes ontology content. Extracted artifacts stay as Layer-1
+evidence; at most they feed the candidate path via the spec §9.3 state machine with human approval (ADR §3.3.1).
