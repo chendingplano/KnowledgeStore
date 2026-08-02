@@ -12,6 +12,12 @@ Date: July 31, 2026
 > committed (OpenSpec change `extract-metrics-structured-output`), closing P3 log §8 items 10
 > (structured output) and 13 (unit-term resolution). See the post-handoff update near the end of
 > this document.
+>
+> **Post-handoff update (2026-08-02):** P5 rule-driven routing is implemented through E2
+> (plan tasks A1–E2). Routing policy compilation and atomic activation are complete, and the
+> execution planner now persists immutable processor-gate decisions in shadow mode. P5 is not
+> complete: the approved next task is E3, which turns the proven shadow decisions into enforced
+> runtime behavior. See the detailed P5 checkpoint near the end of this document.
 
 ## Scope
 
@@ -313,6 +319,55 @@ section's bullet that the metric normalizer "has to parse `threshold_or_target` 
 stale for the metric family — the structured-first path and the parser fallback coexist, with the
 free-text path reserved for pre-structured rows only.
 
+## Post-handoff update (2026-08-02 — P5 complete through E2)
+
+The current P5 sources of truth are spec
+`KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` and plan
+`KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md`. Plan tasks
+A1–A4, B1–B3, C1–C2, D1–D2, E1, and E2 are implemented and checked off. The user explicitly set
+the present stop boundary at E2; **the next implementation task is E3**.
+
+What now exists:
+
+- A shared `semrules` evaluator supplies the production predicate and routing-rule semantics used
+  by policy evaluation, overlap analysis, compilation, and runtime planning.
+- Facts, routing-policy versions, bindings, processor gates, clearance evidence, and revocations
+  have durable schema and APIs. Clearance approval, replacement, and revocation reload immutable
+  benchmark evidence and recompute the decision server-side; owner/admin authorization and the
+  authenticated actor identity are enforced.
+- The clearance analyzer applies the paired manifest, repetition, case, failure, and recall gates
+  from the P5 contract rather than trusting a caller-supplied verdict.
+- E1 added the pure processor-gate resolver with precedence
+  `require > defer > skip > enable`, mandatory-processor immunity, explicit/run overrides,
+  indeterminate handling, and stable defer fingerprints. Shadow plans record what would run, skip,
+  or defer without changing the effective processor set.
+- Each persisted P5 plan snapshots its facts, policy identity and checksum, selected and baseline
+  pipeline checksums, binding/gate trace, and rule checksums. Reloading a stored plan therefore does
+  not reinterpret it under a later activation.
+- E2 added compile-time validation for predicates, targets, checksums, legacy-adapter parity,
+  clearance references, and binding overlap. Analyzable same-rank bindings that overlap while
+  selecting different pipelines are rejected; equivalent selections are allowed; cases that
+  cannot be analyzed statically require a runtime conflict check. Gate overlap remains valid
+  because effect precedence is deterministic.
+- Policy activation accepts an empty request body only, derives the actor from authenticated
+  `UserName`, requires owner/admin authority, compiles before the transaction, then locks and
+  recompiles against the transactional view before atomically archiving the old policy and
+  activating the new one.
+
+Verification at this boundary passed the `semrules` suite, focused document-processing compiler,
+gate, binding, and snapshot tests, focused `kbhandler` routing-policy and authorization tests, and
+`go vet` for the three affected packages. The key implementation commits are `ba00` (E1 execution
+snapshot), `6385` (E2 compile/activate), and `2c00` (clearance authorization); KnowledgeStore plan
+progress through E2 is recorded in `ba73`. Package-wide final verification remains an I3 closeout
+task; unrelated legacy full-suite failures discovered during focused P5 work have not been
+misrepresented as P5 regressions.
+
+**Remaining P5 boundary:** E3 must enforce the already-snapshotted routing and gate outcomes at
+runtime. F through I then cover audit/review flows, classifier/module integration, live proof,
+documentation, and final acceptance verification. Until those tasks pass, P5 as a whole remains
+in progress and suppressive decisions remain observable shadow behavior rather than enforced
+execution behavior.
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -325,4 +380,6 @@ free-text path reserved for pre-structured rows only.
 - P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
 - P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
 - OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
+- P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
+- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–E2 are complete and E3 is next.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
