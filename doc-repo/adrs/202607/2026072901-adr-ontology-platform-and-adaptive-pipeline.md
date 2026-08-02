@@ -48,6 +48,10 @@
   a DB-native validator/releaser that validates staged content, computes the content checksum, and
   writes immutable releases; versioning is by column, not by Git tag. See plan
   `2026073104-plan-semos-p2-ontology-core-and-canonicalization-kernel.md`.
+* 2026/08/02, Appendix C added. Enumerates all database tables the ontology framework creates
+  (36 new tables across P1–P4), alters (8 existing tables), or references (16 pre-existing
+  tables), grouped by phase with descriptions, key columns, ADR references, and authoring or
+  generation surfaces.
 * 2026/08/01, DR2 rewrite (verified against implementation). DR2 is rewritten to state the
   **DB-native storage decision as the decision itself**, replacing the retired "author in Git,
   compile into Postgres" framing and its annotation. The rewrite is verified against the P2–P4
@@ -2583,3 +2587,114 @@ is illustrative, not installed.
 
 **Not a source.** Pipeline extraction output never becomes ontology content. Extracted artifacts stay as Layer-1
 evidence; at most they feed the candidate path via the spec §9.3 state machine with human approval (ADR §3.3.1).
+
+## Appendix C. List of Database Tables
+
+**Purpose.** This appendix enumerates every database table the SemOS ontology framework creates or
+alters, grouped by the phase that introduces them. For each table it gives a description, the key
+columns, the ADR decision or layer it belongs to, and its authoring or generation surface. Tables
+that predate this ADR and are only referenced (not created or altered) are listed separately at the
+end.
+
+### C.1 New tables — P1 (pipeline plane)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.doc_facets` | Governed document facets produced by the three-tier cheapest-first classifier (DR4). One row per `(record_id, facet_key)`; keys and permitted values are ontology terms in the `document-authority` module. | `record_id`, `facet_key`, `facet_value`, `value_kind`, `confidence`, `method`, `evidence`, `policy_version`, `run_id` | DR4, L1/L6 | Tier 1 deterministic producers; tier 2 from `extract_doc_metadata`; tier 3 `classify_document` |
+| `kb.pipelines` | Named, versioned, declarative pipeline plans: an ordered processor set, optional per-processor parameters, and optional refinement gates (DR6 tier 1). | `pipeline_id`, `name`, `version`, `title`, `description`, `status`, `definition JSONB`, `source_ref`, `checksum`, `created_at` | DR6 | Policy authoring + DB-native compiler |
+| `kb.pipeline_policies` | Versioned binding policies that decide which pipeline applies to a given scope (DR6 tier 2). | `policy_id`, `version`, `status`, `source_ref`, `checksum`, `activated_at`, `activated_by` | DR6 | Policy authoring + compiler activation |
+| `kb.pipeline_bindings` | Pipeline-to-scope bindings within a policy. Each binding maps a scope (system, tenant, knowledge store, user, or document) to a specific pipeline version. | `binding_id`, `policy_id`, `priority`, `scope_kind`, `scope_key`, `predicate JSONB`, `pipeline_id`, `pipeline_version`, `reason_template`, `source`, `approved_by` | DR6, DR7 | Policy authoring |
+| `kb.pipeline_rules` | Per-processor gate rules within a policy. Each rule targets a specific processor with an effect (`require`, `enable`, `skip`, `defer`) and a predicate. | `rule_id`, `policy_id`, `priority`, `target_processor`, `effect`, `predicate JSONB`, `required_facets`, `reason_template`, `source`, `source_module_release_id`, `approval_status`, `approved_by` | DR6, DR7 | Policy authoring; module-supplied rules |
+| `kb.knowledge_store_bindings` | Default pipeline, bound module releases, and default review profiles per knowledge store (DR18). Makes the store both a routing key and a scope key. | store reference, default pipeline, bound releases, default profiles | DR18 | Store-binding CRUD |
+
+### C.2 New tables — P2 (ontology terms, modules, and canonicalization kernel)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.ontology_modules` | Module identity and declared dependencies. One row per module (e.g. `core`, `quantity`, `document-authority`, `measurement`, `pump`). | `module_id`, `owner`, `depends_on`, `created_at` | DR1, DR2 | `ontology-seed`; `qudt-import`; API registration |
+| `kb.ontology_module_releases` | Immutable release snapshots. Each release carries the full payload snapshot of approved content, a deterministic content checksum, and pinned dependency releases. | `release_id`, `module_id`, `version`, `payload JSONB`, `content_checksum`, `pinned_deps JSONB`, `released_at`, `released_by` | DR2 | DB-native compiler `release` (validate → snapshot → checksum → pin deps → insert → tag `included_in_release` → supersede prior) |
+| `kb.ontology_active_releases` | Activation pointer: at most one active release per module, enforced by a partial unique index. Rollback inserts a new row pointing at an older release; nothing is deleted. | `module_id`, `release_id`, `activated_at`, `activated_by` | DR2 | `activate` / `rollback` (audited) |
+| `kb.ontology_terms` | Governed ontology terms. Each term has a `term_kind` (class, property, individual, concept, metric_definition, quantity_kind, unit, dimension) and is versioned; an accepted change inserts a new version row, never mutating a released row. | `term_id`, `module_id`, `term_kind`, `definition`, `version`, `status`, `source_candidate_id`, `included_in_release`, `released_in_release_id`, `create_by`, `modify_by` | DR2, L3 | `ontology-seed` (curated 4a); `qudt-import` (quantity); candidate → promote; API `POST /kb/ontology/terms` |
+| `kb.ontology_term_labels` | Language labels for governed terms. `label_role` = prefLabel/altLabel/hiddenLabel; one prefLabel per term+language. | `term_id`, `version`, `lang`, `label_role`, `label_text` | DR2, L3 | `ontology-seed`; `qudt-import`; API; promotion |
+| `kb.ontology_axioms` | Compiler-approved axiom kinds over governed term refs. Each axiom is versioned. The only authoring path is candidate → promote (`promoteAxiom`); there is no direct route. | `axiom_id`, `module_id`, `axiom_kind`, `term_refs`, `version`, `status`, `source_candidate_id` | DR2, L3 | **Only** candidate → promote |
+| `kb.ontology_mappings` | Mappings to governed terms or external IRIs. `relation` = exact/close/broad/narrow/related; exact mappings require approval. | `mapping_id`, `module_id`, `source_term_id`, `target_iri`, `relation`, `version`, `status`, `evidence` | DR2, L3 | `qudt-import` (only direct path); general mappings via promotion |
+| `kb.ontology_candidates` | Proposals from LLM, import, or discovery. Follows the spec §9.3 state machine: `discovered → draft → in_review → approved → included_in_release` (+ rejected/deferred/superseded). `candidate_kind` = term/label/mapping/axiom/profile/profile_rule/module_change. | `candidate_id`, `candidate_kind`, `fingerprint` (UNIQUE, dedup), `status`, `module_id`, `proposed_content JSONB`, `source`, `created_at` | DR2, L3 | LLM/import/discovery output; promotion requires human-approved change set |
+| `kb.semid_decision_log` | Shared canonicalization decision log across all identity families (objects, keywords, categories, ontology terms). Append-only audit of every normalization, candidate-generation, scoring, and adjudication decision. | `input`, `output`, `verdict`, `model`, `prompt_version`, `actor`, `tokens`, `created_at` | DR15, DR17 | `semid` kernel (all families) |
+| `kb.semid_never_merge` | Negative merge assertions: explicit declarations that two nodes must never be merged, across any identity family. | `family`, `node_a`, `node_b`, `reason`, `actor` | DR15, DR16 | Curated seed; human assertion |
+| `kb.semid_snapshots` | Normalizer version snapshots. Records the state of each family's normalizer at a given version so that a normalizer bump triggers a re-index, never data loss. | `family`, `normalizer_version`, `counts`, `promoted_at` | DR15, DR16 | Kernel on normalizer version bump |
+
+### C.3 New tables — P3 (assertions and semantic association)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.semantic_assertions` | First-class qualified assertions with typed subject/object references (DR9) and normalized value columns. Carries modality, time, status, confidence, and evidence. The one authoritative owner store for accepted semantic claims. | `assertion_id`, `subject_ref_kind`, `subject_ref_id`, `subject_object_id`, `object_ref_kind`, `object_ref_id`, `object_object_id`, `predicate_term_id`, `value_form`, `numeric_value`, `lower_value`, `upper_value`, `comparator`, `unit_term_id`, `quantity_kind_term_id`, `raw_text`, `assertion_kind`, `status` | DR8, DR9, L5 | `associate_semantics` processor (Phase D stage 2) |
+| `kb.assertion_evidence` | One-to-many evidence records supporting or contradicting an assertion. Each evidence row cites the source artifact, line span, chunk, and producing run. | `evidence_id`, `assertion_id`, `source_record_id`, `artifact_type`, `artifact_id`, `source_line_spans`, `evidence_kind`, `run_id` | DR8, L5 | `normalize_assertions` / `associate_semantics` |
+| `kb.assertion_relations` | Conflict and supersession relations between assertions. Records when one assertion supersedes or conflicts with another, with the governing reason. | `relation_id`, `assertion_a_id`, `assertion_b_id`, `relation_kind` (conflict/supersedes), `reason`, `governing_release_id` | DR8, L5 | `associate_semantics` / `project_semantics` |
+| `kb.semantic_decision_candidates` | Candidate semantic decisions awaiting adjudication. Used by `normalize_assertions` (candidate_kind=`assertion`), structural candidates, and metric↔procedure links. Follows deferral and retry semantics (spec §10.9). | `candidate_id`, `candidate_kind`, `status`, `dependency_fingerprint`, `proposed_content JSONB`, `created_at`, `attempts` | DR8, L5 | `normalize_assertions`, `extract_product_structure`, `extract_test_methods` |
+| `kb.artifact_semantic_links` | Links from extracted artifacts to governed ontology terms: `about_term` (the artifact is about this term), `describes_occurrence` (the artifact describes this occurrence), `aligns_to_term` (a keyword concept aligns to this governed term). | `link_id`, `artifact_type`, `artifact_id`, `link_kind`, `term_id`, `confidence`, `evidence` | DR8, L5 | `project_semantics` |
+| `kb.projection_state` | Tracks the authoritative reference, projection version, and stale flag for each derived projection (e.g. `kb.object_nodes.primary_class_term_id`). Enables mark-and-repair of stale projections. | `projection_kind`, `authoritative_ref`, `projection_version`, `stale`, `last_computed_at` | DR8, DR10, L5 | `project_semantics` |
+
+### C.4 New tables — P3 (keyword lexicon, DR15/DR16 instantiation)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.keyword_concepts` | Ungoverned canonical *lexical* identity (DR15.2). Fast, high-volume, auto-mergeable under guardrails. Connected to governed ontology terms by `aligns_to_term`. Merges are tombstones (`merged_into`), never deletes. | `concept_id`, `pref_label`, `gloss`, `scope`, `status`, `merged_into`, `gloss_source` | DR15, DR16, L3 | Curated seed; pipeline reconciliation; `aligns_to_term` to governed terms |
+| `kb.keyword_surfaces` | Surface forms linked to keyword concepts. Each surface has a normalized key (`norm_key`) for O(1) lookup, a `label_role` (prefLabel/altLabel/hiddenLabel), an `alias_type` driving mechanical validation, and provenance. | `surface_id`, `concept_id`, `surface`, `norm_key`, `norm_version`, `label_role`, `alias_type`, `lang`, `scope`, `confidence`, `provenance`, `locked`, `evidence` | DR15, DR16, L3 | Pipeline mention collection; reconciliation |
+| `kb.keyword_surface_keys` | Normalized lookup keys for surfaces. Multiple key kinds (exact, trigram, vector) per surface, versioned by `norm_version` so a normalizer bump triggers re-index, not data loss. | `surface_id`, `key_kind`, `key_value`, `norm_version` | DR15, DR16, L3 | Derived from `kb.keyword_surfaces` on normalization |
+| `kb.keyword_mentions` | Observation records: each time a surface form is found in a document artifact, with the artifact reference, chunk, context, and knowledge store. | `mention_id`, `artifact_type`, `artifact_id`, `chunk_id`, `context`, `ks_id`, `surface_id`, `observed_at` | DR15, DR16, L3 | Pipeline mention collector |
+| `kb.keyword_unresolved` | Unresolved surface forms that could not be linked to a concept. Tracks hit count, attempts, and priority for batch adjudication. Negative-cached: an unchanged item is never re-sent to a model. | `norm_key`, `scope`, `surfaces`, `contexts`, `hits`, `status`, `attempts`, `last_attempt`, `priority` | DR15, DR16, L3 | Reconciliation (items that fail to resolve) |
+| `kb.keyword_rewrite_rules` | Pattern-based rewrite rules for surface normalization. Disabled by default (`enabled=false`); enabled per scope after validation. | `rule_id`, `pattern`, `replacement`, `scope`, `enabled` | DR16, L3 | Curated authoring |
+
+### C.5 New tables — P4 (profiles and review)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.ontology_profiles` | Scoped, versioned conformance expectations: "for this class, in this jurisdiction, these metrics are required." Drafts are inactive until included in a release. | `profile_id`, `module_id`, `version`, `title`, `applies_to_class_term_id`, `authority JSONB`, `closed_dimensions JSONB`, `status`, `included_in_release` | DR3, L6 | Direct API `POST /kb/ontology/profiles` |
+| `kb.ontology_profile_rules` | Typed rule kinds (e.g. `required_assertion_pattern`) with a paired SHACL emitter (DR11 seam 6). Each rule belongs to a profile and is versioned. | `rule_id`, `profile_id`, `version`, `rule_kind`, `quantifier`, `property_term_id`, `quantity_kind_term_id`, `severity`, `predicate JSONB`, `status` | DR3, DR11, L6 | Direct API `POST /kb/ontology/profile-rules` |
+| `kb.ontology_review_scopes` | Immutable frozen review scope: pinned module releases, closed dimensions, applicability facts, and the as-of date. Once written, never mutated. | `scope_id`, `profile_id`, `profile_version`, `pinned_releases JSONB`, `closed_dimensions JSONB`, `applicability_facts JSONB`, `as_of_date`, `frozen_at` | DR3, L7 | Review-scope freeze (L7 governance plane) |
+
+### C.6 New tables — P4 (target application, DR21–DR22)
+
+| Table | Description | Key columns | ADR ref | Authoring / generation |
+|---|---|---|---|---|
+| `kb.comparison_scopes` | Immutable comparison matrix scope: target class or object, metric definition set (the row universe), authority families (the columns), subject organization, as-of date, closed dimensions, precedence policy, and pinned module releases. | `scope_id`, `target_class_term_id`, `target_object_id`, `metric_definition_set JSONB`, `authority_families JSONB`, `subject_organization_id`, `as_of_date`, `closed_dimensions JSONB`, `precedence_policy JSONB`, `pinned_releases JSONB` | DR22, L7 | DR22 application service |
+| `kb.comparison_runs` | Cached comparison run: one execution of a scope against the current assertion watermark. Invalidated when the watermark or pinned releases move. | `run_id`, `scope_id`, `assertion_watermark`, `status`, `cached_at` | DR22, L7 | DR22 application service |
+| `kb.comparison_cells` | One cell in the comparison matrix. A cell is a **list** (not a value): matched assertion IDs with citation and line-span evidence, a display representative, a remainder count, and a verdict with direction and rationale. | `run_id`, `metric_definition_term_id`, `authority_family`, `assertion_ids JSONB`, `representative_assertion_id`, `remainder_count`, `verdict`, `direction`, `rationale` | DR21, DR22, L7 | DR22 application service |
+| `kb.recommendation_policies` | Versioned policy mapping verdicts to advice (DR21 rule 1). Stored separately from verdicts: verdicts are computed comparison facts; recommendations are configured policy over verdicts. | `policy_id`, `version`, `rules JSONB`, `status`, `created_at` | DR21, L7 | Policy authoring |
+
+### C.7 Altered existing tables
+
+| Table | Alteration | Phase | ADR ref | Purpose |
+|---|---|---|---|---|
+| `kb.doc_process_runs` | ADD `plan JSONB`, `policy_version TEXT` | P1 | DR6, DR7 | Immutable execution plan: the policy version, selected pipeline and why, facet snapshot, and per-processor decision with winning rule id and reason |
+| `kb.inputs` | ADD `ks_id BIGINT REFERENCES kb.knowledge_store(id)`, `requested_pipeline TEXT`, `facet_summary JSONB` (derived, trigger-maintained) | P1 | DR18, DR6 | Knowledge-store referential integrity, user-requested pipeline override, and derived facet summary for routing |
+| `kb.object_nodes` | ADD `merged_into TEXT`, `scope_key TEXT` | P2 | DR15.1 | Tombstone merge tracking and explicit identity scope (DR15 kernel contracts adopted incrementally) |
+| `kb.object_nodes` | ADD `ontological_level`, `identity_scope`, `external_identifiers JSONB`, `primary_class_term_id` (derived projection) | P2 | DR10, DR15 | Governed ontological level (individual/type/collection/occurrence), identity scope, external identifier bag, and derived class projection (never authored, rebuildable) |
+| `kb.metrics` | ADD `value_min`, `value_max`, `condition`, `value_range_type`, `value_class`, `metric_value`, `metric_unit` | P3 | DR21 | Structured metric output: value form, comparator, normalized value, unit, and condition replace the legacy `threshold_or_target` free text |
+| `kb.provisions` | Extended `public_info` with structured evidence fields | P3–P4 | DR21 | Applicability/scope clauses, authority, and effective interval for profile-rule sourcing |
+| `kb.doc_review_findings` | ADD `review_scope_id`, `profile_rule_id`, `assertion_id` | P4 | DR3, L7 | Links each finding to its frozen review scope, the governing profile rule, and the relevant assertion |
+| `kb.scene_objects` | Column rename: `object_id` → `scene_block_id` | P1 | spec §11.4 | Identifier hygiene: the column carries occurrence identifiers, not canonical object references |
+
+### C.8 Pre-existing tables referenced but not created or altered by this ADR
+
+These tables are part of the deployed SemOS system and are referenced by this ADR for context.
+They are not created or structurally changed by the ontology framework.
+
+| Table | Role in this ADR |
+|---|---|
+| `kb.artifact_objects` | Layer 1 evidence: per-record artifact-to-object mentions. The `semid` kernel adopts its contracts incrementally (DR15.1). |
+| `kb.object_nodes` | Layer 2 referent identity: canonical referents with reconciliation, merge audit, and ambiguous-tie handling (ADR 2026070701). Gains extension columns (C.7). |
+| `kb.search_artifacts` | Layer 1 evidence: LIST-partitioned search index over extracted artifacts. Not renamed or re-partitioned (DR24). |
+| `kb.artifact_connections` | Layer 1 evidence: LIST-partitioned navigation graph. Not renamed or re-partitioned (DR24). |
+| `kb.artifact_categories` | Existing retrieval/navigation categories. Retrofit to `semid` kernel planned P4+ (DR15). |
+| `kb.knowledge_store` | Tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status. Gains binding semantics via `kb.knowledge_store_bindings` (C.1). |
+| `kb.inputs` | Ingestion records. Gains `ks_id`, `requested_pipeline`, `facet_summary` (C.7). |
+| `kb.doc_process_runs` | Pipeline run records. Gains `plan`, `policy_version` (C.7). |
+| `kb.doc_review_findings` | Review findings. Gains `review_scope_id`, `profile_rule_id`, `assertion_id` (C.7). |
+| `kb.metrics` | Extracted metric artifacts. Gains structured value fields (C.7). |
+| `kb.provisions` | Extracted provision artifacts. Gains structured evidence fields (C.7). |
+| `kb.scene_objects` | Scene-block occurrences. Column renamed (C.7). |
+| `kb.category_alias_conflicts` | Existing category alias conflict records. Referenced in C4 analysis (§2.4). |
+| `alarms_errors` | Existing alarm/error records. DR7 writes pipeline-conflict alarms here. |
+| `kb.scheduled_jobs` | Existing scheduled-job infrastructure. DR8 reuses it for periodic deferred-candidate drains. |
+| `kb.cdm_anchors` | Existing CDM anchor map (page + x/y/w/h per line-file unit). DR25 grounding locator dispatches to it. |

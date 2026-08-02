@@ -18,6 +18,13 @@ Date: July 31, 2026
 > execution planner now persists immutable processor-gate decisions in shadow mode. P5 is not
 > complete: the approved next task is E3, which turns the proven shadow decisions into enforced
 > runtime behavior. See the detailed P5 checkpoint near the end of this document.
+>
+> **Post-handoff update (2026-08-02, continued):** P5 is now implemented through E3 and Chunk F
+> (plan tasks E3, F1, F2): clearance-aware runtime enforcement, run/record-scoped alarms,
+> policy-audit events, the P5 review-scope schema, the pinned released-profile loader, and the
+> deterministic review-profile selector with rule-level applicability. Chunks G
+> (`classify_document`), H (module proposals/promotion), and I (exit suite, live proof, docs
+> closeout) remain. See the detailed P5 update near the end of this document.
 
 ## Scope
 
@@ -128,7 +135,9 @@ P3–P7 have **not started in code**. The deferred-by-design boundary (what P2 d
 **P4:** generic profiles/rules, deterministic review scopes/findings, and comparison
 scope/run/cell persistence are now implemented as of 2026-08-01; the normative ventilator
 pilot remains blocked on a confirmed, traceable worked example and domain-owner approval.
-**P5–P7:** not started in code.
+**P5:** implemented through E3 and Chunk F as of 2026-08-02 (enforcement, alarms, audit events,
+P5 review-scope schema, deterministic selection) — see the post-handoff update near the end of
+this document; **P6–P7:** not started in code.
 
 ## Open decisions (from the ADR's own table)
 
@@ -368,6 +377,70 @@ documentation, and final acceptance verification. Until those tasks pass, P5 as 
 in progress and suppressive decisions remain observable shadow behavior rather than enforced
 execution behavior.
 
+## Post-handoff update (2026-08-02, continued — P5 E3 and Chunk F complete)
+
+E3 and Chunk F are now implemented and merged to `main` (commit `7e778891`, 13 commits
+`63854f48..7e778891`, local fast-forward via `jj`; `origin/main` not yet pushed). This closes the
+approved E3-through-F scope of plan `2026080103`. The previous update's "Remaining P5 boundary"
+line is superseded: suppressive decisions are no longer shadow-only.
+
+**E3 — clearance-aware atomic enforcement, alarms, and audit events** (`doc-processing`):
+
+- `FinalizeRoutingPlan` is the single enforcement boundary: explicit bypass, conditional binding
+  evaluation with clearance or store-default fallback, pipeline allowlist filtering, per-processor
+  gate enforcement with clearance, and mandatory-processor restoration, returning both shadow and
+  effective plans with provenance on every exclusion.
+- Routing-operator alarms persist to `alarms_errors` under partial unique indexes keyed on
+  `(run_id, kind)` and `(record_id, kind)` (migration `20260801000019`), so exactly one alarm per
+  run/record is emitted before processor execution; a later fix restored the `kind` column in the
+  no-correlator insert.
+- Block-mode decision-relevant conflicts fail before dispatch; conflict and fallback events are
+  emitted. A neutral `policyaudit` package (dependency-free, avoiding import cycles) writes
+  append-only events to `kb.pipeline_policy_events` (migration `20260801000018`) for authoring,
+  activation, conflicts, fallback, clearance approval/revocation, and enforced/shadow decisions.
+
+**Chunk F — deterministic review-profile selection** (`ontology/profiles` + `kbhandler`):
+
+- F1: migration `20260801000020` extends `kb.ontology_review_scopes` with five P5 columns
+  (`knowledge_store_id`, `selection_attempt_id`, `selection_status`, `fact_snapshot`,
+  `selection_snapshot`); `ProfileStore.LoadReleasedProfiles` pins the active releases and their
+  `included_in_release` profiles in one repeatable-read transaction; `DeriveKnowledgeStore`
+  resolves the single store from `kb.inputs.ks_store_id` (duplicate document ids are deduplicated
+  rather than miscounted as unresolvable).
+- F2: the deterministic selector (`select.go`) evaluates each released profile once per
+  document×target subject against merged review/document/deployment facts, freezes every profile
+  with ≥1 true subject (release id/checksum, exact subjects, predicate checksum, outcome, trace),
+  records false/indeterminate subjects with traces, and marks the scope `indeterminate` when an
+  indeterminate candidate profile's closed dimensions intersect the request's; the scope is still
+  created and executable. One warning per indeterminate scope id persists to `alarms_errors` via a
+  `scope_id`-keyed partial unique index (migration `20260801000021`); alarm-write failures are
+  logged and never block scope creation.
+- Rule-level applicability (`review_service.go`) evaluates each pinned rule's `applicability`
+  against the scope's frozen per-subject fact snapshot: `false` excludes only that rule,
+  decision-relevant `indeterminate` emits a finding, and no unpinned profile/release is ever
+  loaded. The kbhandler deterministic path is gated on `selection_mode = deterministic_rule`;
+  explicit mode stays byte-compatible. The B3 cross-consumer fixture (created here because B3
+  never delivered it) asserts identical values/truth/trace through both extraction and review fact
+  builders (spec acceptance criterion 9).
+
+Verification: the profiles package (69 tests) and all of `ontology/...` and `doc-benchmark` pass;
+`kbhandler` (14) and `doc-processing` (15) pre-existing baseline failures are unchanged; build,
+`go vet`, and `gofmt` are clean. Review posture: task-scoped reviews plus a final whole-branch
+review (most-capable model) returned no Critical/Important findings; the 12 ledgered residuals
+were adjudicated (11 acceptable, one trivial fix applied).
+
+**Remaining P5 boundary:** Chunks G (`classify_document` mandatory-gated classifier: G1
+contract/registration, G2 two-pass extraction/review resolvers), H (governed proposal lifecycle
+and automatic release→draft-policy promotion), and I (named acceptance-criteria tests,
+live-Postgres and synthetic-corpus proof, docs/capsule/ADR/handoff closeout). Documented
+carry-forward gaps that G/H wiring is expected to close: the deterministic wiring passes an empty
+deployment context (`deployment.*` predicates are indeterminate) and `VocabularyRelease = 0` (no
+resolver exists), and unconditional profiles carry an empty predicate checksum.
+
+**Working-copy note:** after merging P5 to `main`, the local jj working copy (the Doc Facets CRUD
+page) was joined with `main` via `jj new @ main`; the current working copy is the merge commit and
+carries both lines.
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -381,5 +454,5 @@ execution behavior.
 - P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
 - OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
 - P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
-- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–E2 are complete and E3 is next.
+- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–E2 and E3, F1, F2 are complete and G is next.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
