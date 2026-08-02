@@ -226,11 +226,11 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/kbhandler/pipeline_policies_handler.go`
 - Test: `ChenWeb/server/api/kbhandler/pipeline_policies_handler_test.go`
 
-- [ ] Write failing compiler tests for predicate validation, legacy-adapter parity, canonical checksums, unknown processors/pipelines, invalid clearance references, overlapping conditional bindings selecting different pipelines, overlapping bindings agreeing on one pipeline, and overlapping processor gates whose differing effects resolve deterministically by `require > defer > skip > enable`.
-- [ ] Consume `semrules.AnalyzeOverlap`: reject only overlapping same-rank binding candidates that can select different pipelines or otherwise remain unresolved under DR7. Do not reject overlapping gate effects when the effect order determines one winner. Predicates outside the analyzable subset rely on runtime conflict handling and receive `runtime_conflict_check_required`.
-- [ ] Write failing activation tests proving anonymous/body-supplied actor rejection, authenticated non-admin rejection, compiler failure leaves the prior active row untouched, transaction failure rolls back archival, and successful activation uses D2's owner/admin authorizer and derives actor from `UserName`.
-- [ ] Compile before opening the activation transaction, lock policy rows, recheck the compiled checksum inside the transaction, then archive/activate atomically.
-- [ ] Run policy compiler/handler tests; commit.
+- [x] Write failing compiler tests for predicate validation, legacy-adapter parity, canonical checksums, unknown processors/pipelines, invalid clearance references, overlapping conditional bindings selecting different pipelines, overlapping bindings agreeing on one pipeline, and overlapping processor gates whose differing effects resolve deterministically by `require > defer > skip > enable`.
+- [x] Consume `semrules.AnalyzeOverlap`: reject only overlapping same-rank binding candidates that can select different pipelines or otherwise remain unresolved under DR7. Do not reject overlapping gate effects when the effect order determines one winner. Predicates outside the analyzable subset rely on runtime conflict handling and receive `runtime_conflict_check_required`.
+- [x] Write failing activation tests proving anonymous/body-supplied actor rejection, authenticated non-admin rejection, compiler failure leaves the prior active row untouched, transaction failure rolls back archival, and successful activation uses D2's owner/admin authorizer and derives actor from `UserName`.
+- [x] Compile before opening the activation transaction, lock policy rows, recheck the compiled checksum inside the transaction, then archive/activate atomically.
+- [x] Run policy compiler/handler tests; commit.
 
 ### Task E3: Clearance-aware atomic enforcement, alarms, and audit events
 
