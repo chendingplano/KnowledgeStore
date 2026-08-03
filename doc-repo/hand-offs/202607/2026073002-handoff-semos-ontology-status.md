@@ -441,6 +441,50 @@ resolver exists), and unconditional profiles carry an empty predicate checksum.
 page) was joined with `main` via `jj new @ main`; the current working copy is the merge commit and
 carries both lines.
 
+## Post-handoff update: P5 Chunks G, H, I (2026-08-02)
+
+**Chunk G — mandatory-gated `classify_document` classifier:**
+
+- G1: versioned prompt at `prompts/prompt-classify-document-v1.md` (never embedded in Go);
+  `DocumentClassifier` with governed vocabulary validation, bounded sample extraction, stable retry
+  with invocation id, content-safe audit events, and LLM failure preservation (nil error,
+  indeterminate result); registered as `mandatory_gated` class in `productionProcessorSpecs`;
+  excluded from optional processor list.
+- G2: `ApplicabilityResolver` implements two-pass evaluation with optional tier-3 classification
+  between passes; `decisionRelevantTier3Paths()` collects unique paths from
+  `DecisionRelevantMissingPaths`; classifier observations enrich facts without overwriting known
+  values; one invocation per record/extraction-run; classifier failure detected via empty
+  observations with unresolved paths.
+
+**Chunk H — governed proposal lifecycle and draft-policy promotion:**
+
+- H1: migration `20260801000022` creates `kb.ontology_applicability_proposals` with status
+  lifecycle (draft → in_review → approved → included_in_release); `ProposalStore` validates
+  predicates through `semrules.Validate()` before insertion; deterministic predicate checksums;
+  `ListApprovedProposals` for H2 promotion.
+- H2: `PolicyPromotionStore` implements `DraftPolicyPromoter` interface to create draft
+  pipeline-policy versions from approved module proposals; idempotent per release (no duplicate
+  drafts); materializes proposals as conditional bindings under the draft policy using the default
+  pipeline; emits content-safe audit events; never activates routing (separate authenticated
+  endpoint required). Interface defined in `docprocessing` to avoid import cycles
+  (modules → profiles → docprocessing).
+
+**Chunk I — acceptance-criteria tests and verification:**
+
+- I1: `p5_exit_test.go` files in `doc-processing` and `profiles` map spec section 12's 16
+  acceptance criteria to named tests across semrules, doc-processing, profiles, and doc-benchmark
+  packages; consolidated coverage test fails if any criterion lacks at least one named test pointer.
+- I2: skipped (requires live PostgreSQL and synthetic corpus; deferred to operational validation).
+- I3: comprehensive test suite passes (semrules, profiles, modules); `go vet` clean; ontology-compiler
+  builds successfully; pre-existing doc-processing baseline failures unchanged.
+
+**Verification:** semrules (all tests), profiles (all tests), modules (all tests) pass; `go vet`
+clean on all affected packages; ontology-compiler builds; doc-processing pre-existing baseline
+failures unchanged (not related to P5 work).
+
+**Remaining P5 boundary:** I2 (live PostgreSQL and synthetic-corpus proof) requires operational
+validation with a live database. All code-level P5 work (G, H, I1, I3) is complete.
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
