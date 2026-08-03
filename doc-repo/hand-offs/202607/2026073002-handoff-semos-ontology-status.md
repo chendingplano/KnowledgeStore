@@ -429,13 +429,14 @@ Verification: the profiles package (69 tests) and all of `ontology/...` and `doc
 review (most-capable model) returned no Critical/Important findings; the 12 ledgered residuals
 were adjudicated (11 acceptable, one trivial fix applied).
 
-**Remaining P5 boundary:** Chunks G (`classify_document` mandatory-gated classifier: G1
-contract/registration, G2 two-pass extraction/review resolvers), H (governed proposal lifecycle
-and automatic release→draft-policy promotion), and I (named acceptance-criteria tests,
-live-Postgres and synthetic-corpus proof, docs/capsule/ADR/handoff closeout). Documented
-carry-forward gaps that G/H wiring is expected to close: the deterministic wiring passes an empty
-deployment context (`deployment.*` predicates are indeterminate) and `VocabularyRelease = 0` (no
-resolver exists), and unconditional profiles carry an empty predicate checksum.
+**Remaining P5 boundary:** All code-level P5 work (Chunks G, H, I1, I3) is complete as of
+2026-08-02. The only remaining item is I2 (live PostgreSQL and synthetic-corpus proof), which
+requires operational validation with a live database. Documented carry-forward gaps that G/H
+wiring closed: the deterministic wiring now includes the `classify_document` mandatory-gated
+classifier and two-pass applicability resolver; governed proposal lifecycle and draft-policy
+promotion are implemented. Known limitations: the deterministic wiring passes an empty deployment
+context (`deployment.*` predicates are indeterminate) and `VocabularyRelease = 0` (no resolver
+exists), and unconditional profiles carry an empty predicate checksum.
 
 **Working-copy note:** after merging P5 to `main`, the local jj working copy (the Doc Facets CRUD
 page) was joined with `main` via `jj new @ main`; the current working copy is the merge commit and
@@ -498,5 +499,6 @@ validation with a live database. All code-level P5 work (G, H, I1, I3) is comple
 - P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
 - OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
 - P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
-- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–E2 and E3, F1, F2 are complete and G is next.
+- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–F2 complete; G, H, I1, I3 complete as of 2026-08-02; I2 (live PostgreSQL proof) deferred to operational validation.
+- P5 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md` — the P5 G/H/I build record (classifier, resolver, proposals, policy promotion, acceptance-criteria tests, verification).
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
