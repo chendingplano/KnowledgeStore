@@ -1,10 +1,21 @@
 # Bug: SemOS P5 rule-driven routing declared complete but is not finished (wiring gaps, correctness bugs, unmerged work)
 
 Date: 2026-08-03\
-Status: open\
+Status: resolved (superseded by `2026080302`; remediation in `2026080303`, log `2026080304`)\
 System: `SemOS` / `ChenWeb`\
 Component: P5 rule-driven routing — `server/api/ontology/semrules`, `server/api/doc-processing` (bindings/gates/enforcement/clearance/alarm/compile/classify/resolver/promotion), `server/api/ontology/profiles` (deterministic selection), `server/api/ontology/modules` (proposals), `server/api/ontology/policyaudit`, `server/api/kbhandler`, `server/cmd/ontology-compiler`, migrations `20260801000015`–`20260801000022`\
 Model: n/a (code-review audit; the tier-3 classifier would use `CLASSIFY_DOCUMENT_MODEL_NAME`, default `deepseek-chat`, but it is not wired)
+
+> **Resolution notice (2026-08-03).** This bug report is **superseded by** the consolidated review
+> `2026080302-devdoc-semos-p5-implementation-review.md` and **resolved by** the remediation plan
+> `2026080303-plan-semos-p5-completion.md` (Chunks A–H, executed and merged to `main`; build record
+> in `2026080304-devdoc-semos-p5-completion-implementation-log.md`). Every correctness finding in
+> Section B was addressed: the resolver is now supplied its predicates, wired flag-gated into the
+> runtime, and review-side; promotion is transactional and canonical-checksum-correct; clearance
+> coverage keys on `document.doc_kind`; the exit criteria point at real tests; and the work is on
+> `main`. The only outstanding item is I2 (live PostgreSQL + synthetic-corpus proof), which this
+> audit itself confirmed is genuinely deferred. The findings below remain the accurate record of
+> what was wrong as of 2026-08-03.
 
 ## Summary
 
@@ -134,6 +145,10 @@ Key: **✓ = verified directly by the reviewer against the code**; unmarked item
 
 No code, schema, or documentation changes were made as part of this audit. The review is a read-only inspection of the working tree as of 2026-08-03 (working copy `pmtv`, clean; `main` at `otpr`).
 
+**2026-08-03 (resolution):** superseded by review `2026080302`, resolved by plan `2026080303`
+(Chunks A–H, merged to `main` and pushed), documented in log `2026080304`. This file's status was
+updated and this resolution notice added; the audit findings are unchanged.
+
 ## Documentation Impact
 
 What knowledge changed:
@@ -153,3 +168,8 @@ Which docs are now stale: the three documents above, until P5 reaches a state wh
 What was intentionally left undocumented:
 - No fix was applied; the six-step remediation list is a proposal, not a commitment.
 - Authority-owned pilot values and editions remain out of scope (unchanged from the spec's own non-goals).
+
+Post-resolution addendum (2026-08-03): the stale-doc list above is itself now resolved — ADR
+`2026072901` (status entry retracted), handoff `2026073002` (retraction added), and impl log
+`2026080107` (superseded by `2026080304`) were all corrected in the H2 documentation pass; plan
+`2026080103` checkboxes were reconciled in the same pass.

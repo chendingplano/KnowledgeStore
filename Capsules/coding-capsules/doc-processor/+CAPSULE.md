@@ -324,6 +324,58 @@ Operationally, this turns category creation into a two-stage flow:
 This model preserves Phase B processor concurrency and scales cleanly when the
 system runs multiple pipelines at once.
 
+## 7.6 P5 Rule-Driven Routing and Tier-3 Classification
+
+P5 (spec `2026080102-spec-semos-p5-rule-driven-routing.md`, completion plan
+`2026080303-plan-semos-p5-completion.md`) makes pipeline execution policy-driven and adds a
+tier-3 `classify_document` processor. The pipeline's effective processor set for a record is now
+the outcome of `semrules` predicate evaluation over routing facts, not just the configured
+`required_processors` list.
+
+**Rule-driven routing.** At plan time the controller:
+
+- builds routing facts from document facets, object classes, review/deployment context, and any
+  tier-3 classifier observations (`BuildPipelineBindingFactSet` + the two-pass resolver);
+- resolves the pipeline through conditional bindings (store-default fallback respects the record's
+  knowledge store) and applies processor gates (`require`/`enable`/`skip`/`defer` with precedence
+  `require > defer > skip > enable`), with mandatory processors immune (`isMandatoryProcessor`;
+  `restoreMandatoryProcessors` re-adds them as a safety net);
+- applies clearance: a suppressive decision (a `skip`/`defer` gate or a binding whose selected
+  pipeline removes a baseline processor) stays shadow-only unless it has an approved, unrevoked
+  clearance row keyed on the governed `document.doc_kind`;
+- on conflict, either blocks (`DOC_PIPELINE_ON_CONFLICT=block`, the default, failing before
+  dispatch) or falls back (`fallback`), raising exactly one routing alarm per record/run and
+  emitting a content-safe `policyaudit` event.
+
+Gate-shadow planning and the persisted execution plan are the audit record; activation reloads the
+in-process binding/gate set immediately after commit (no restart).
+
+**Tier-3 `classify_document`.** A `mandatory_gated`-class processor (registered in
+`productionProcessorSpecs`, excluded from the optional list) invoked by
+`ApplicabilityResolver` between the initial and final applicability passes, only for
+decision-relevant tier-3 paths the base facts leave unresolved. It classifies the governed
+vocabulary (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`) from a bounded sample
+of the already-parsed line file, validates values against the pinned `document-authority`
+vocabulary release, and persists only facet observations. It is inert in production unless
+`CLASSIFY_DOCUMENT_ENABLED=true` (default off — D4); `ClassifyResult.Failed` distinguishes an LLM
+failure from a well-formed empty response, and the stable invocation identity guarantees at most
+one LLM call per (record, attempt). Review-time scope selection uses the same resolver via
+`profiles.ReviewFactEnricher`.
+
+**Env and config surface:**
+
+| Setting | Effect |
+|---|---|
+| `CLASSIFY_DOCUMENT_ENABLED` | `true` wires the tier-3 resolver into the production runtime (default `false`). |
+| `CLASSIFY_DOCUMENT_MODEL_NAME` + `MODEL_DEF_FILE` | Model profile for the classifier (resolved through the same model-config path as every other LLM extractor). |
+| `DOC_PIPELINE_ON_CONFLICT` | `block` (default) or `fallback` for binding/gate conflicts. |
+| `DOC_PIPELINE_MODE` | `plan_only` (default) / `enforced` (the pre-P5 shadow/enforce control). |
+
+Code lives in `ChenWeb/server/api/doc-processing/` (`applicability_resolver.go`,
+`classify-document.go`, `pipeline_bindings.go`, `pipeline_gates.go`, `routing_enforcement.go`,
+`policy_promotion.go`) and `ChenWeb/server/api/ontology/profiles/select.go`. Recurring routing
+warnings and alarms persist to `kb.pipeline_policy_events` and `alarms_errors`.
+
 ## 8. JetStream Request
 
 JetStream request payload may have an `operation` or `doc-processors` attribute. If present, it specifies the doc

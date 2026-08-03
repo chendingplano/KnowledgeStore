@@ -13,22 +13,19 @@ reaches a terminal state.
 
 ## Open
 
+## Resolved (2026-08-03)
+
 - [2026080301 — SemOS P5 rule-driven routing declared complete but is not finished](202608/2026080301-bug-semos-p5-rule-driven-routing-not-finished.md)
-  — `open`. Full-completion and correctness audit of P5 against ADR 2026072901 / spec
-  2026080102 / plan 2026080103. Structural gaps: only chunks A–F are on `main` (G/H/I plus a
-  large "fixing P5 implementation bugs" commit are unmerged floating commits); Chunk G
-  (`classify_document`) is dead code in production (`ControlService.Resolver` never set, zero
-  non-test callers, `runID=0` + empty sample at the one call site, `VocabularyReleaseID=0`);
-  Chunk H promotion is non-operational (runs after `CreateRelease` commits, never on activation,
-  targets a release id no proposal can reference, non-canonical predicate checksums). Correctness
-  defects in wired code: legacy migrated binding checksum is md5 at runtime vs SHA-256 at compile
-  so such bindings can never be cleared (criterion 16); `semrules` all/any masking is
-  order-dependent and over-reports decision-relevant missing paths (spurious classifier calls);
-  `frozenSubjectFacts` matches by DocumentID only (multi-target scopes gate against the wrong
-  target); indeterminate-only profiles are never pinned so their closed dimensions silently
-  produce no findings; gate block mode and run-scoped overrides are unreachable/dead. P5-specific
-  tests all pass; I2 (live Postgres proof) genuinely deferred. Six-step remediation list in the
-  doc.
+  — `resolved (superseded by 2026080302; remediation 2026080303, log 2026080304)`.
+  Removed from Open: the full-completion/correctness audit of P5 was consolidated into review
+  `2026080302`, and every finding was addressed by the completion plan `2026080303` (Chunks A–H,
+  merged to `main` and pushed): the resolver is wired and flag-gated, promotion is transactional
+  with canonical checksums, clearance keys on `document.doc_kind`, exit criteria point at real
+  tests. The only remaining item is I2 (live Postgres proof), which the audit itself confirmed is
+  genuinely deferred — tracked in plan `2026080303`, not as an open bug.
+
+## Open
+
 - [2026073003 — extract_metrics recall investigation wrap-up: final state and disposition](202607/2026073003-bug-extract-metrics-recall-investigation-wrapup.md)
   — `open, paused by decision`. Closes out the three-stage investigation started in
   2026073001/2026073002. One root cause fixed with high confidence (scope-language

@@ -1,9 +1,25 @@
 # SemOS P5 Implementation Log
 
 **Date:** 2026-08-02  
-**Status:** Code-level work complete; operational validation pending  
+**Status:** ~~Code-level work complete; operational validation pending~~ **SUPERSEDED — see below**  
 **Spec:** `2026080102-spec-semos-p5-rule-driven-routing.md`  
 **Plan:** `2026080103-plan-semos-p5-rule-driven-routing.md`
+
+> **Supersession notice (2026-08-03).** This log's completion claims are **retracted**. An
+> independent audit — bug `2026080301`, consolidated into review
+> `2026080302-devdoc-semos-p5-implementation-review.md` (defects P5-1…P5-30) — found the work
+> described here was not operational: the tier-3 resolver was inert by construction (never
+> populated its predicates) and unwired, promotion never ran in practice, every promoted binding
+> failed compilation, clearance coverage keyed on the wrong dimension, and the exit tests wore
+> criterion names without testing the criteria. In particular, the "gofmt clean" claim in the
+> original I3 section below was false for `routing_alarm.go`, and the commit list below is not the
+> repository state that carries the fixes.
+>
+> The remediation — plan `2026080303-plan-semos-p5-completion.md`, Chunks A–H — has since been
+> executed. The authoritative build record for that remediation is the fresh log
+> `2026080304-devdoc-semos-p5-completion-implementation-log.md`; this document is retained only as
+> the historical G/H/I record it originally was. The only remaining P5 item is I2 (live PostgreSQL
+> and synthetic-corpus proof).
 
 ## Overview
 

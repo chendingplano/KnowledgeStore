@@ -52,13 +52,19 @@
   (36 new tables across P1–P4), alters (8 existing tables), or references (16 pre-existing
   tables), grouped by phase with descriptions, key columns, ADR references, and authoring or
   generation surfaces.
-* 2026/08/03, P5 implementation status revision. P5 (rule-driven routing) is implemented and
-  wired: `semrules` three-valued evaluator with typed operators and decision-relevance traces,
-  pipeline bindings (conditional/store_default) and processor gates (require/enable/skip/defer),
-  two-pass `classify_document` resolver with tier-3 facets, governed proposal lifecycle
-  (`draft → in_review → approved → included_in_release`), draft-policy promotion from module
-  releases, benchmark clearance gate (suppressive decisions stay shadow unless cleared), and
-  exit-test suite with `go/parser`-verified name resolution. See plan
+* 2026/08/03, P5 implementation status revision. The prior "P5 is implemented and wired" claim is
+  **retracted**: an independent audit (bug `2026080301`, consolidated into review
+  `2026080302-devdoc-semos-p5-implementation-review.md`, defects P5-1…P5-30) found the tier-3
+  resolver was inert by construction and unwired, promotion never ran in practice, every promoted
+  binding failed compilation, clearance coverage keyed on the wrong dimension, and the exit tests
+  wore criterion names without testing the criteria. The remediation plan
+  `2026080303-plan-semos-p5-completion.md` (Chunks A–H) has since been executed and merged to
+  `main`: the `classify_document`/two-pass resolver is real and flag-gated
+  (`CLASSIFY_DOCUMENT_ENABLED`, default off) with review-side classification wired into scope
+  selection, clearance keys on governed `document.doc_kind`, promotion is transactional and
+  canonical-checksum-correct, and the exit criteria now point at real tests. What this revision
+  does **not** yet claim: P5 is complete — I2 (live PostgreSQL + synthetic-corpus proof) remains,
+  and this ADR's completion entry will be added only after Chunk I passes. See plan
   `2026080103-plan-semos-p5-rule-driven-routing.md`, spec `2026080102-spec-semos-p5-rule-driven-routing.md`,
   and the ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md` (P5 section).
 * 2026/08/01, DR2 rewrite (verified against implementation). DR2 is rewritten to state the

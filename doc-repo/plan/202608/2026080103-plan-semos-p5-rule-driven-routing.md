@@ -1,5 +1,15 @@
 # SemOS P5 Rule-Driven Routing Implementation Plan
 
+> **Status (2026-08-03): superseded for status by `2026080303-plan-semos-p5-completion.md`.** The
+> checkboxes below were reconciled on 2026-08-03 to reflect implemented-and-verified-after-
+> remediation work. An independent audit (bug `2026080301`, review
+> `2026080302-devdoc-semos-p5-implementation-review.md`) found several of these tasks were not
+> operational as first implemented; the completion plan's Chunks A–H fixed them (resolver wired,
+> promotion transactional, checksums canonical, clearance keyed on `document.doc_kind`, exit
+> criteria corrected), and the boxes are checked only where that work is verified. The four I2
+> boxes (live PostgreSQL + synthetic-corpus proof) remain unchecked — that is the only outstanding
+> P5 item.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement ADR `2026072901` P5 and spec `2026080102`: one three-valued applicability evaluator shared by extraction routing and deterministic review-profile selection, with bounded document classification and benchmark-cleared enforcement.
@@ -43,12 +53,12 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/ontology/semrules/types_test.go`
 - Test: `ChenWeb/server/api/ontology/semrules/facts_test.go`
 
-- [ ] Write failing tests for `TruthTrue|TruthFalse|TruthIndeterminate`, JSON grammar v1, fact states, registered paths/types, duplicate path rejection, and immutable registry snapshots.
-- [ ] Run `go test ./server/api/ontology/semrules -run 'Test(Truth|PredicateJSON|FactRegistry)' -count=1`; verify failures identify missing types/registry.
-- [ ] Add `Document{Version,Expression}`, `Predicate{Kind,Path,Op,Value,MinConfidence,Items}`, `Truth`, `Fact`, `FactState`, `FactType`, and `PathSpec`.
-- [ ] Register the exact initial paths/types/operators from spec §3.3, including legacy `document.knowledge_store_binding_state` and tier-3 metadata.
-- [ ] Preserve `RegisterOperator` as extension seam 3, but change operator inputs to typed known values; keep a compatibility `Evaluate(Predicate,map[string]any)` wrapper until consumers migrate.
-- [ ] Run the focused tests and commit with `jj commit -m "feat(semrules): add typed facts and three-valued grammar"`.
+- [x] Write failing tests for `TruthTrue|TruthFalse|TruthIndeterminate`, JSON grammar v1, fact states, registered paths/types, duplicate path rejection, and immutable registry snapshots.
+- [x] Run `go test ./server/api/ontology/semrules -run 'Test(Truth|PredicateJSON|FactRegistry)' -count=1`; verify failures identify missing types/registry.
+- [x] Add `Document{Version,Expression}`, `Predicate{Kind,Path,Op,Value,MinConfidence,Items}`, `Truth`, `Fact`, `FactState`, `FactType`, and `PathSpec`.
+- [x] Register the exact initial paths/types/operators from spec §3.3, including legacy `document.knowledge_store_binding_state` and tier-3 metadata.
+- [x] Preserve `RegisterOperator` as extension seam 3, but change operator inputs to typed known values; keep a compatibility `Evaluate(Predicate,map[string]any)` wrapper until consumers migrate.
+- [x] Run the focused tests and commit with `jj commit -m "feat(semrules): add typed facts and three-valued grammar"`.
 
 ### Task A2: Validation, static analysis, and canonical checksum
 
@@ -58,11 +68,11 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/ontology/semrules/validate_test.go`
 - Test: `ChenWeb/server/api/ontology/semrules/canonical_test.go`
 
-- [ ] Write table-driven failing tests for unknown versions/kinds/paths/operators, invalid node arity, heterogeneous `in`, illegal operator/type pairs, confidence outside `[0,1]`, stable required paths/facets, specificity, and canonical checksum independent of object-key order.
-- [ ] Verify red with `go test ./server/api/ontology/semrules -run 'Test(Validate|Analyze|Canonical)' -count=1`.
-- [ ] Implement `Validate(Document) error`, `Analyze(Document) Analysis`, and `Canonicalize(Document) ([]byte,string,error)`; canonical child order remains authored order because logical trace/order is auditable.
-- [ ] Return path-local validation errors such as `expression.items[1].op`.
-- [ ] Run all semrules tests and commit with `jj commit -m "feat(semrules): validate and checksum predicates"`.
+- [x] Write table-driven failing tests for unknown versions/kinds/paths/operators, invalid node arity, heterogeneous `in`, illegal operator/type pairs, confidence outside `[0,1]`, stable required paths/facets, specificity, and canonical checksum independent of object-key order.
+- [x] Verify red with `go test ./server/api/ontology/semrules -run 'Test(Validate|Analyze|Canonical)' -count=1`.
+- [x] Implement `Validate(Document) error`, `Analyze(Document) Analysis`, and `Canonicalize(Document) ([]byte,string,error)`; canonical child order remains authored order because logical trace/order is auditable.
+- [x] Return path-local validation errors such as `expression.items[1].op`.
+- [x] Run all semrules tests and commit with `jj commit -m "feat(semrules): validate and checksum predicates"`.
 
 ### Task A3: Structured evaluator and decision-relevance traces
 
@@ -72,12 +82,12 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/ontology/semrules/evaluate_test.go`
 - Update: `ChenWeb/server/api/ontology/semrules/semrules_test.go`
 
-- [ ] Write failing truth-table tests for `all|any|not`, `exists`, every typed operator, low-confidence/conflicting/invalid facts, and decision-relevance marking of logically masked children.
-- [ ] Verify red with `go test ./server/api/ontology/semrules -run TestEvaluate -count=1`.
-- [ ] Implement `EvaluateDocument(Document,FactSet) Result` returning structured `TraceNode` trees and stable reason codes.
-- [ ] Ensure all children appear in traces, while missing paths from masked children are excluded from `Result.DecisionRelevantMissingPaths`.
-- [ ] Make the old wrapper produce legacy Boolean behavior only for existing callers/tests; all new consumers call `EvaluateDocument`.
-- [ ] Run `go test ./server/api/ontology/semrules -count=1` and `go vet ./server/api/ontology/semrules`; commit.
+- [x] Write failing truth-table tests for `all|any|not`, `exists`, every typed operator, low-confidence/conflicting/invalid facts, and decision-relevance marking of logically masked children.
+- [x] Verify red with `go test ./server/api/ontology/semrules -run TestEvaluate -count=1`.
+- [x] Implement `EvaluateDocument(Document,FactSet) Result` returning structured `TraceNode` trees and stable reason codes.
+- [x] Ensure all children appear in traces, while missing paths from masked children are excluded from `Result.DecisionRelevantMissingPaths`.
+- [x] Make the old wrapper produce legacy Boolean behavior only for existing callers/tests; all new consumers call `EvaluateDocument`.
+- [x] Run `go test ./server/api/ontology/semrules -count=1` and `go vet ./server/api/ontology/semrules`; commit.
 
 ### Task A4: Neutral bounded predicate-overlap analyzer
 
@@ -85,9 +95,9 @@ Existing files changed surgically:
 - Create: `ChenWeb/server/api/ontology/semrules/overlap.go`
 - Test: `ChenWeb/server/api/ontology/semrules/overlap_test.go`
 
-- [ ] Write failing tests for equal/disjoint/intersecting conjunctions of scalar `eq|in`, unconstrained paths, agreeing targets, and predicates outside the analyzable subset.
-- [ ] Implement `AnalyzeOverlap(left,right) {MayOverlap,Analyzable,Reason}` in `semrules`, keeping policy meaning out of this neutral mechanism.
-- [ ] Run focused overlap tests and commit; policy compilation and module validation both consume this package without importing each other.
+- [x] Write failing tests for equal/disjoint/intersecting conjunctions of scalar `eq|in`, unconstrained paths, agreeing targets, and predicates outside the analyzable subset.
+- [x] Implement `AnalyzeOverlap(left,right) {MayOverlap,Analyzable,Reason}` in `semrules`, keeping policy meaning out of this neutral mechanism.
+- [x] Run focused overlap tests and commit; policy compilation and module validation both consume this package without importing each other.
 
 ## Chunk B — P5 storage and fact observations
 
@@ -97,10 +107,10 @@ Existing files changed surgically:
 - Create: `ChenWeb/project_migrations/20260801000015_add_p5_pipeline_predicates.sql`
 - Test: `ChenWeb/server/api/doc-processing/p5_migration_contract_test.go`
 
-- [ ] Write a failing migration contract test that reads the SQL and asserts: generalized binding scope, `binding_kind`, canonical predicate/checksum, `legacy_rule_id`, processor gate fields, required facets, module provenance, approval metadata, and constraints preventing mixed new authorship.
-- [ ] Add the Goose migration. Tag existing bindings `store_default`; copy P1 selector rows into `conditional` bindings with deterministic version-1 JSON; retain old selector rows for read-only API compatibility; make P5 processor-rule fields nullable only where old selector rows require it.
-- [ ] Add indexes for active policy + binding rank and policy + target processor + gate rank.
-- [ ] Verify migration SQL contract and `go test ./server/api/doc-processing -run TestP5MigrationContract -count=1`; commit.
+- [x] Write a failing migration contract test that reads the SQL and asserts: generalized binding scope, `binding_kind`, canonical predicate/checksum, `legacy_rule_id`, processor gate fields, required facets, module provenance, approval metadata, and constraints preventing mixed new authorship.
+- [x] Add the Goose migration. Tag existing bindings `store_default`; copy P1 selector rows into `conditional` bindings with deterministic version-1 JSON; retain old selector rows for read-only API compatibility; make P5 processor-rule fields nullable only where old selector rows require it.
+- [x] Add indexes for active policy + binding rank and policy + target processor + gate rank.
+- [x] Verify migration SQL contract and `go test ./server/api/doc-processing -run TestP5MigrationContract -count=1`; commit.
 
 ### Task B2: Immutable facet observations and deterministic reduction
 
@@ -111,11 +121,11 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/doc-processing/applicability_facts_test.go`
 - Test: `ChenWeb/server/api/doc-processing/doc_facet_store_test.go`
 
-- [ ] Write failing pure tests for `deterministic > metadata > classifier`, same-rank minimum confidence, conflicting values, malformed-plus-usable becoming invalid, lower-rank non-interference, and fact-set namespaces.
-- [ ] Write failing SQL-store tests for immutable insert/idempotent retry using `(record,path,decision_attempt_id,invocation_id)` and list-by-record/release pins.
-- [ ] Add `kb.doc_facet_values` with typed JSON value, method/tier, confidence, evidence, source fingerprint, decision-attempt/invocation ids, vocabulary release, and timestamps.
-- [ ] Implement `FacetObservationStore`, `ReduceFacetObservations`, and `BuildApplicabilityFactSet`; continue updating the P1 `kb.doc_facets` projection for legacy APIs.
-- [ ] Run focused tests, then `go test ./server/api/doc-processing -run 'Test(Facet|ApplicabilityFact)' -count=1`; commit.
+- [x] Write failing pure tests for `deterministic > metadata > classifier`, same-rank minimum confidence, conflicting values, malformed-plus-usable becoming invalid, lower-rank non-interference, and fact-set namespaces.
+- [x] Write failing SQL-store tests for immutable insert/idempotent retry using `(record,path,decision_attempt_id,invocation_id)` and list-by-record/release pins.
+- [x] Add `kb.doc_facet_values` with typed JSON value, method/tier, confidence, evidence, source fingerprint, decision-attempt/invocation ids, vocabulary release, and timestamps.
+- [x] Implement `FacetObservationStore`, `ReduceFacetObservations`, and `BuildApplicabilityFactSet`; continue updating the P1 `kb.doc_facets` projection for legacy APIs.
+- [x] Run focused tests, then `go test ./server/api/doc-processing -run 'Test(Facet|ApplicabilityFact)' -count=1`; commit.
 
 ### Task B3: Complete fact-set adapters
 
@@ -126,10 +136,10 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/ontology/profiles/applicability_context_test.go`
 - Modify: `ChenWeb/server/api/doc-processing/applicability_facts.go`
 
-- [ ] Write separate failing tests for accepted `core:instance_of` classification loading into `object.class`, canonical `review.*` request facts, authenticated/runtime `deployment.*` facts, missing/conflicting states, and vocabulary/release pins on every governed value.
-- [ ] Implement focused adapters: `ClassificationFactLoader`, `BuildReviewContextFacts`, and `BuildDeploymentFacts`; merge them with facet observations through one `semrules.FactSetBuilder` that rejects duplicate known producers rather than silently overwriting.
-- [ ] Run one shared predicate fixture through extraction and review fact builders and assert identical values, truth result, trace, and pinned provenance.
-- [ ] Run `go test ./server/api/doc-processing ./server/api/ontology/profiles -run 'Test(Applicability|ClassificationFact|ReviewContext|DeploymentFact)' -count=1`; commit.
+- [x] Write separate failing tests for accepted `core:instance_of` classification loading into `object.class`, canonical `review.*` request facts, authenticated/runtime `deployment.*` facts, missing/conflicting states, and vocabulary/release pins on every governed value.
+- [x] Implement focused adapters: `ClassificationFactLoader`, `BuildReviewContextFacts`, and `BuildDeploymentFacts`; merge them with facet observations through one `semrules.FactSetBuilder` that rejects duplicate known producers rather than silently overwriting.
+- [x] Run one shared predicate fixture through extraction and review fact builders and assert identical values, truth result, trace, and pinned provenance.
+- [x] Run `go test ./server/api/doc-processing ./server/api/ontology/profiles -run 'Test(Applicability|ClassificationFact|ReviewContext|DeploymentFact)' -count=1`; commit.
 
 ## Chunk C — Conditional bindings and legacy API parity
 
@@ -148,12 +158,12 @@ Existing files changed surgically:
 - Update: `ChenWeb/server/api/doc-processing/runtime_selection_test.go`
 - Update: `ChenWeb/server/api/doc-processing/handle_event_run_test.go`
 
-- [ ] Write failing tests for legacy adapter canonical paths/order/checksum and exact match/miss/wildcard/normalization/conflict parity.
-- [ ] Write failing binding-rank tests for true/false/indeterminate combinations, same-pipeline indeterminate agreement, higher-rank indeterminate blocking, lower-rank irrelevance, block/fallback, and migrated conditional-before-store-default behavior.
-- [ ] Add failing precedence fixtures proving `LineFileGeneratedEvent.Operations` bypasses policy processor selection, persisted requested pipelines outrank conditional bindings, and new run-scoped `pipeline_override`/processor overrides parsed from the event outrank policy bindings/gates without losing their audit annotation.
-- [ ] Implement canonical `PipelineBinding`, load conditional/store-default rows from the active policy, evaluate with `semrules`, and return structured selection traces.
-- [ ] Retire the in-memory flat matcher from runtime resolution while keeping a test-only parity function until P5 closeout.
-- [ ] Run the focused filter, then the full package `go test ./server/api/doc-processing -count=1` so runtime/event override tests cannot be skipped; commit.
+- [x] Write failing tests for legacy adapter canonical paths/order/checksum and exact match/miss/wildcard/normalization/conflict parity.
+- [x] Write failing binding-rank tests for true/false/indeterminate combinations, same-pipeline indeterminate agreement, higher-rank indeterminate blocking, lower-rank irrelevance, block/fallback, and migrated conditional-before-store-default behavior.
+- [x] Add failing precedence fixtures proving `LineFileGeneratedEvent.Operations` bypasses policy processor selection, persisted requested pipelines outrank conditional bindings, and new run-scoped `pipeline_override`/processor overrides parsed from the event outrank policy bindings/gates without losing their audit annotation.
+- [x] Implement canonical `PipelineBinding`, load conditional/store-default rows from the active policy, evaluate with `semrules`, and return structured selection traces.
+- [x] Retire the in-memory flat matcher from runtime resolution while keeping a test-only parity function until P5 closeout.
+- [x] Run the focused filter, then the full package `go test ./server/api/doc-processing -count=1` so runtime/event override tests cannot be skipped; commit.
 
 ### Task C2: Compatibility CRUD without dual writes
 
@@ -248,13 +258,13 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/kbhandler/pipeline_policies_handler.go`
 - Modify: `ChenWeb/server/api/kbhandler/pipeline_routing_clearances_handler.go`
 
-- [ ] Write failing enforcement-order tests for: explicit list bypass; explicit/run override; conditional binding evaluation; conditional-binding clearance or store-default fallback; pipeline allowlist; processor gate evaluation; gate clearance; mandatory restoration; final effective set. Test partial clearance and incomparable pipelines.
-- [ ] Implement one `FinalizeRoutingPlan` boundary that receives pure decisions plus clearance lookups and returns both shadow and effective plans; D2 is now available, so no temporary clearance seam is needed.
-- [ ] Write failing alarm tests for binding/gate conflict, decision-relevant operator failure, policy load/integrity failure, fallback warning, and exactly-one dedupe per run before processor execution.
-- [ ] Add append-only `kb.pipeline_policy_events` and neutral `policyaudit.Writer`/SQL store so doc-processing, ontology modules, and handlers can emit events without import cycles.
-- [ ] Wire and test content-safe stable-id events now for binding/rule authoring, policy activation, conflicts, fallback, clearance approval/revocation, and enforced/shadow decisions. Later G/H tasks explicitly wire classifier and module promotion events through the same writer.
-- [ ] Verify irrelevant evaluator errors remain trace-only.
-- [ ] Run doc-processing and affected handler tests; commit.
+- [x] Write failing enforcement-order tests for: explicit list bypass; explicit/run override; conditional binding evaluation; conditional-binding clearance or store-default fallback; pipeline allowlist; processor gate evaluation; gate clearance; mandatory restoration; final effective set. Test partial clearance and incomparable pipelines.
+- [x] Implement one `FinalizeRoutingPlan` boundary that receives pure decisions plus clearance lookups and returns both shadow and effective plans; D2 is now available, so no temporary clearance seam is needed.
+- [x] Write failing alarm tests for binding/gate conflict, decision-relevant operator failure, policy load/integrity failure, fallback warning, and exactly-one dedupe per run before processor execution.
+- [x] Add append-only `kb.pipeline_policy_events` and neutral `policyaudit.Writer`/SQL store so doc-processing, ontology modules, and handlers can emit events without import cycles.
+- [x] Wire and test content-safe stable-id events now for binding/rule authoring, policy activation, conflicts, fallback, clearance approval/revocation, and enforced/shadow decisions. Later G/H tasks explicitly wire classifier and module promotion events through the same writer.
+- [x] Verify irrelevant evaluator errors remain trace-only.
+- [x] Run doc-processing and affected handler tests; commit.
 
 ## Chunk F — Deterministic review-profile selection
 
@@ -267,9 +277,9 @@ Existing files changed surgically:
 - Test: `ChenWeb/server/api/ontology/profiles/profiles_store_test.go`
 - Test: `ChenWeb/server/api/ontology/profiles/review_scopes_store_test.go`
 
-- [ ] Write separate failing tests for nullable-compatible columns, one-store derivation, stable attempt id, exact release pins/checksums, visibility, short repeatable-read transaction, and historical reload after activation changes.
-- [ ] Add the five P5 scope columns with explicit-mode-compatible defaults; implement the pinned loader and scope scan/create changes.
-- [ ] Run focused profile store tests; commit.
+- [x] Write separate failing tests for nullable-compatible columns, one-store derivation, stable attempt id, exact release pins/checksums, visibility, short repeatable-read transaction, and historical reload after activation changes.
+- [x] Add the five P5 scope columns with explicit-mode-compatible defaults; implement the pinned loader and scope scan/create changes.
+- [x] Run focused profile store tests; commit.
 
 ### Task F2: Profile and profile-rule applicability
 
@@ -283,12 +293,12 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/kbhandler/ontology_review_scopes_handler.go`
 - Test: `ChenWeb/server/api/kbhandler/ontology_review_scopes_handler_test.go`
 
-- [ ] Write individual failing tests for per-document/target subjects, overlapping true profiles, false/indeterminate snapshots, closed-dimension continuation, mixed-store/client-profile rejection, and one warning per indeterminate scope.
-- [ ] Run the shared cross-consumer predicate fixture from B3 and assert identical truth/trace.
-- [ ] Add failing review-service tests that evaluate each pinned profile rule's `applicability`, exclude only that rule on `false`, emit indeterminate applicability on decision-relevant `indeterminate`, and never add an unpinned profile/release.
-- [ ] Write a failing alarm test for exactly one warning row per indeterminate scope id, independent of run-id routing alarms; implement an injected `SelectionAlarmWriter` with a production `alarms_errors` store.
-- [ ] Implement selector, immutable snapshot, rule-level applicability, and scope-deduplicated warning while preserving explicit mode exactly.
-- [ ] Run profile and scope handler tests; commit.
+- [x] Write individual failing tests for per-document/target subjects, overlapping true profiles, false/indeterminate snapshots, closed-dimension continuation, mixed-store/client-profile rejection, and one warning per indeterminate scope.
+- [x] Run the shared cross-consumer predicate fixture from B3 and assert identical truth/trace.
+- [x] Add failing review-service tests that evaluate each pinned profile rule's `applicability`, exclude only that rule on `false`, emit indeterminate applicability on decision-relevant `indeterminate`, and never add an unpinned profile/release.
+- [x] Write a failing alarm test for exactly one warning row per indeterminate scope id, independent of run-id routing alarms; implement an injected `SelectionAlarmWriter` with a production `alarms_errors` store.
+- [x] Implement selector, immutable snapshot, rule-level applicability, and scope-deduplicated warning while preserving explicit mode exactly.
+- [x] Run profile and scope handler tests; commit.
 
 ## Chunk G — Mandatory-gated `classify_document`
 
@@ -387,7 +397,7 @@ Existing files changed surgically:
 - [x] Run `go test ./server/api/ontology/semrules ./server/api/doc-processing ./server/api/ontology/profiles ./server/api/ontology/modules ./server/api/doc-benchmark ./server/api/kbhandler -count=1`.
 - [x] Run `go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/api/doc-benchmark/...` and build `./server/cmd/ontology-compiler` and `./server/cmd/doc-benchmark`.
 - [x] Document what knowledge changed, affected/updated/stale docs, and intentionally undocumented authority fixture values.
-- [ ] Commit ChenWeb and KnowledgeStore separately with `jj`; commit only P5 paths around the pre-existing ADR work, then verify linear `jj log` and clean expected status in both repositories.
+- [x] Commit ChenWeb and KnowledgeStore separately with `jj`; commit only P5 paths around the pre-existing ADR work, then verify linear `jj log` and clean expected status in both repositories.
 
 ## Verification boundary
 
