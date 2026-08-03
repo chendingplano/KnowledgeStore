@@ -52,6 +52,15 @@
   (36 new tables across P1–P4), alters (8 existing tables), or references (16 pre-existing
   tables), grouped by phase with descriptions, key columns, ADR references, and authoring or
   generation surfaces.
+* 2026/08/03, P5 implementation status revision. P5 (rule-driven routing) is implemented and
+  wired: `semrules` three-valued evaluator with typed operators and decision-relevance traces,
+  pipeline bindings (conditional/store_default) and processor gates (require/enable/skip/defer),
+  two-pass `classify_document` resolver with tier-3 facets, governed proposal lifecycle
+  (`draft → in_review → approved → included_in_release`), draft-policy promotion from module
+  releases, benchmark clearance gate (suppressive decisions stay shadow unless cleared), and
+  exit-test suite with `go/parser`-verified name resolution. See plan
+  `2026080103-plan-semos-p5-rule-driven-routing.md`, spec `2026080102-spec-semos-p5-rule-driven-routing.md`,
+  and the ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md` (P5 section).
 * 2026/08/01, DR2 rewrite (verified against implementation). DR2 is rewritten to state the
   **DB-native storage decision as the decision itself**, replacing the retired "author in Git,
   compile into Postgres" framing and its annotation. The rewrite is verified against the P2–P4

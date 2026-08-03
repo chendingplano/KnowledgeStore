@@ -302,9 +302,9 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/doc-processing/runtime.go`
 - Update: `ChenWeb/server/api/doc-processing/registries_test.go`
 
-- [ ] Write one failing test per contract: requested governed keys only, bounded sample, unknown value rejection, confidence/evidence, stable retry, content-safe audit event, and `mandatory_gated` immunity.
-- [ ] Implement injected-client classifier and versioned prompt; inject E3's `policyaudit.Writer` for invocation/result events and register outside ordinary Phase A/B/C waves.
-- [ ] Run focused tests; commit.
+- [x] Write one failing test per contract: requested governed keys only, bounded sample, unknown value rejection, confidence/evidence, stable retry, content-safe audit event, and `mandatory_gated` immunity.
+- [x] Implement injected-client classifier and versioned prompt; inject E3's `policyaudit.Writer` for invocation/result events and register outside ordinary Phase A/B/C waves.
+- [x] Run focused tests; commit.
 
 ### Task G2: Two-pass extraction and review resolvers
 
@@ -316,9 +316,9 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/ontology/profiles/select.go`
 - Test: `ChenWeb/server/api/ontology/profiles/select_test.go`
 
-- [ ] Write separate failing tests for decision-relevant versus masked missing paths, one invocation per record/extraction run, one per record/review attempt, partially failed retry, multi-document review, classifier failure, concurrent invocation observations, and activation change between release pin/final scope.
-- [ ] Implement shared two-pass orchestration with consumer-specific decision relevance; review-time calls write only facets and never run extraction/Phase D.
-- [ ] Run the exact test files above and commit.
+- [x] Write separate failing tests for decision-relevant versus masked missing paths, one invocation per record/extraction run, one per record/review attempt, partially failed retry, multi-document review, classifier failure, concurrent invocation observations, and activation change between release pin/final scope.
+- [x] Implement shared two-pass orchestration with consumer-specific decision relevance; review-time calls write only facets and never run extraction/Phase D.
+- [x] Run the exact test files above and commit.
 
 ## Chunk H — Module proposals and separate promotion
 
@@ -334,10 +334,10 @@ Existing files changed surgically:
 - Modify: `ChenWeb/server/api/ontology/modules/releases_store.go`
 - Modify: `ChenWeb/server/api/routes.go`
 
-- [ ] Write failing store/handler tests for `draft -> in_review -> approved -> included_in_release`, invalid transitions, unauthenticated/unauthorized rejection, owner/admin/`k_engineer` curator authorization through D2's helper, actor derivation, predicate/checksum validation, source release pinning, and failed release preserving activation.
-- [ ] Add append-only/versioned proposal rows and create/read/transition APIs; derive curator identity from request context, emit E3 policy-audit events, and include only approved proposals in the immutable module snapshot.
-- [ ] Reuse only neutral `semrules.AnalyzeOverlap` to annotate proposal pairs as disjoint/may-overlap/unanalyzable. Do not make policy-level conflict decisions in the modules package; H2 passes proposals to E2's policy compiler, which owns binding/gate interpretation.
-- [ ] Run module/handler/compiler tests; commit.
+- [x] Write failing store/handler tests for `draft -> in_review -> approved -> included_in_release`, invalid transitions, unauthenticated/unauthorized rejection, owner/admin/`k_engineer` curator authorization through D2's helper, actor derivation, predicate/checksum validation, source release pinning, and failed release preserving activation.
+- [x] Add append-only/versioned proposal rows and create/read/transition APIs; derive curator identity from request context, emit E3 policy-audit events, and include only approved proposals in the immutable module snapshot.
+- [x] Reuse only neutral `semrules.AnalyzeOverlap` to annotate proposal pairs as disjoint/may-overlap/unanalyzable. Do not make policy-level conflict decisions in the modules package; H2 passes proposals to E2's policy compiler, which owns binding/gate interpretation.
+- [x] Run module/handler/compiler tests; commit.
 
 ### Task H2: Automatically materialize release proposals as a draft policy only
 
@@ -348,10 +348,10 @@ Existing files changed surgically:
 - Create: `ChenWeb/server/api/ontology/modules/releases_store_test.go`
 - Modify: `ChenWeb/server/cmd/ontology-compiler/main.go`
 
-- [ ] Write failing tests proving both release creation (the DB-native import boundary) and later activation call `EnsureDraftFromModuleRelease` inside their transactions; verify exact release provenance, same-release idempotency, a new draft policy version for a distinct immutable release, compiler reuse, rollback on promotion failure, and unchanged active routing policy.
-- [ ] Define the minimal `modules.DraftPolicyPromoter` transaction interface required to make those tests green, implemented by `docprocessing.PolicyPromotionStore`; dependency direction stays `command -> modules/docprocessing`.
-- [ ] Wire the production promoter and E3 `policyaudit.Writer` in `ontology-compiler`; module release/activation automatically ensures the source release's draft policy exists, while routing activation remains E2's separate authenticated endpoint.
-- [ ] Run focused tests; commit.
+- [x] Write failing tests proving both release creation (the DB-native import boundary) and later activation call `EnsureDraftFromModuleRelease` inside their transactions; verify exact release provenance, same-release idempotency, a new draft policy version for a distinct immutable release, compiler reuse, rollback on promotion failure, and unchanged active routing policy.
+- [x] Define the minimal `modules.DraftPolicyPromoter` transaction interface required to make those tests green, implemented by `docprocessing.PolicyPromotionStore`; dependency direction stays `command -> modules/docprocessing`.
+- [x] Wire the production promoter and E3 `policyaudit.Writer` in `ontology-compiler`; module release/activation automatically ensures the source release's draft policy exists, while routing activation remains E2's separate authenticated endpoint.
+- [x] Run focused tests; commit.
 
 ## Chunk I — Exit suite, live proof, and documentation closeout
 
@@ -361,9 +361,9 @@ Existing files changed surgically:
 - Create: `ChenWeb/server/api/doc-processing/p5_exit_test.go`
 - Create: `ChenWeb/server/api/ontology/profiles/p5_exit_test.go`
 
-- [ ] Add named mappings: criteria 1–4 → `semrules` tests; 5–6 → legacy/binding tests; 7–8 → gate/enforcement/alarm tests; 9–10 → shared fixture/scope tests; 11 → two-pass classifier tests; 12–13 → proposal/policy compiler activation tests; 14 → `TestPersistedP5PlanReloadIgnoresLaterActivation` plus review reload; 15–16 → benchmark/clearance tests.
-- [ ] Add a consolidated test that fails if any criterion lacks at least one named test/live-proof pointer, matching the P2/P3 exit-test convention.
-- [ ] Run all focused suites and commit.
+- [x] Add named mappings: criteria 1–4 → `semrules` tests; 5–6 → legacy/binding tests; 7–8 → gate/enforcement/alarm tests; 9–10 → shared fixture/scope tests; 11 → two-pass classifier tests; 12–13 → proposal/policy compiler activation tests; 14 → `TestPersistedP5PlanReloadIgnoresLaterActivation` plus review reload; 15–16 → benchmark/clearance tests.
+- [x] Add a consolidated test that fails if any criterion lacks at least one named test/live-proof pointer, matching the P2/P3 exit-test convention.
+- [x] Run all focused suites and commit.
 
 ### Task I2: Live PostgreSQL and synthetic-corpus proof
 
@@ -384,9 +384,9 @@ Existing files changed surgically:
 - Modify: `KnowledgeStore/doc-repo/hand-offs/202607/2026073002-handoff-semos-ontology-status.md`
 - Modify: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md`
 
-- [ ] Run `go test ./server/api/ontology/semrules ./server/api/doc-processing ./server/api/ontology/profiles ./server/api/ontology/modules ./server/api/doc-benchmark ./server/api/kbhandler -count=1`.
-- [ ] Run `go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/api/doc-benchmark/...` and build `./server/cmd/ontology-compiler` and `./server/cmd/doc-benchmark`.
-- [ ] Document what knowledge changed, affected/updated/stale docs, and intentionally undocumented authority fixture values.
+- [x] Run `go test ./server/api/ontology/semrules ./server/api/doc-processing ./server/api/ontology/profiles ./server/api/ontology/modules ./server/api/doc-benchmark ./server/api/kbhandler -count=1`.
+- [x] Run `go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/api/doc-benchmark/...` and build `./server/cmd/ontology-compiler` and `./server/cmd/doc-benchmark`.
+- [x] Document what knowledge changed, affected/updated/stale docs, and intentionally undocumented authority fixture values.
 - [ ] Commit ChenWeb and KnowledgeStore separately with `jj`; commit only P5 paths around the pre-existing ADR work, then verify linear `jj log` and clean expected status in both repositories.
 
 ## Verification boundary

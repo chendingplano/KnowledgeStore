@@ -63,6 +63,35 @@ Installing a domain module never requires a processor, normalizer, or API change
   methods, and explicit product structure retain source spans; provision applicability, authority,
   and effective interval remain structured `public_info` evidence.
 
+## P5 rule-driven routing
+
+P5 adds a three-valued applicability evaluator (`semrules`) shared by extraction routing and
+deterministic review-profile selection, with bounded document classification and
+benchmark-cleared enforcement (spec `2026080102`).
+
+- **semrules evaluator** (`server/api/ontology/semrules/`): predicate grammar v1 with typed
+  operators, three-valued truth tables (`true`/`false`/`indeterminate`), decision-relevance
+  traces for logically masked paths, and canonical checksums independent of object-key order.
+- **Pipeline bindings**: conditional bindings outrank store defaults; `system_default` is the
+  fallback. On conflict, the resolver blocks before processors run (fail closed).
+- **Processor gates** (`require`/`enable`/`skip`/`defer`): alter enforced execution with
+  shadow-only planning for suppressive decisions.
+- **Two-pass resolver** (`applicability_resolver.go`): evaluates predicates with base facts,
+  identifies decision-relevant missing tier-3 paths, invokes the classifier at most once per
+  (record, decision_attempt_id, invocation_id), rebuilds facts, and re-evaluates. Nil-safe:
+  when the resolver is nil, behavior is unchanged (base facts only).
+- **classify_document** (`classify-document.go`): mandatory-gated pre-decision classifier for
+  tier-3 facets. Classifier failure preserves indeterminate; does not overwrite prior known facts.
+- **Governed proposal lifecycle** (`applicability_proposals.go`): `draft → in_review → approved
+  → included_in_release` (plus rejected). Predicates validated through semrules before approval.
+  HTTP endpoints at `/kb/ontology/applicability-proposals`.
+- **Draft-policy promotion** (`policy_promotion.go`): at module release time, approved proposals
+  are materialized as conditional bindings under a new draft pipeline-policy version. Promotion
+  never activates routing — that remains a separate authenticated endpoint.
+- **Benchmark clearance gate**: suppressive routing decisions stay shadow-only unless an
+  append-only clearance covers their exact policy/document-kind/checksum slice. Clearance
+  revocation is append-only (returns to shadow, never mutates the original approval).
+
 ## Related documents
 
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (DR1–DR25, P0–P7)
