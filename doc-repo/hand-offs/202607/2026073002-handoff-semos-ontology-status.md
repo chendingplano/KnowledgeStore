@@ -486,6 +486,72 @@ failures unchanged (not related to P5 work).
 **Remaining P5 boundary:** I2 (live PostgreSQL and synthetic-corpus proof) requires operational
 validation with a live database. All code-level P5 work (G, H, I1, I3) is complete.
 
+## Post-handoff update (2026-08-03 — P5 completion plan executed; earlier "P5 complete" claims retracted)
+
+**Retraction.** The 2026-08-02 updates' repeated "All code-level P5 work (G, H, I1, I3) is
+complete" claim was **wrong**. An independent audit (bug `2026080301`, consolidated into review
+devdoc `2026080302-devdoc-semos-p5-implementation-review.md`, defect register P5-1…P5-30) found
+that, among other things: the tier-3 resolver was inert by construction (never populated its
+predicates, so the classifier could never be reached) and unwired (no construction anywhere);
+promotion never ran in practice (fresh release id, outside the transaction, warn-on-failure,
+`runActivate` omitted); every promoted binding failed compilation (raw-bytes hash vs canonical
+checksum); clearance coverage was keyed on the file format, not the governed document kind; and the
+exit tests wore criterion names without testing the criteria. Impl log `2026080107` overstated
+completion.
+
+The completion plan `2026080303-plan-semos-p5-completion.md` has now been **executed (Chunks A–H)**,
+committed via `jj`, merged to `main` and pushed to `origin/main` (14 commits on top of the prior P5
+work). What is actually true now:
+
+- **The classifier/resolver is real and wired.** `ResolveExtractionFacts` supplies the active
+  policy's binding/gate predicates, attempt-unique invocation identity (stable across redelivery so
+  the classifier's stable-retry dedupes), a bounded document sample from the already-parsed line
+  file, and the active `document-authority` release id. It is constructed in the production runtime
+  behind `CLASSIFY_DOCUMENT_ENABLED` (default off — D4), and `ClassifyResult.Failed` now
+  distinguishes an LLM failure from a well-formed empty response. Review-time classification is
+  wired into deterministic scope selection via `profiles.ReviewFactEnricher`
+  (`ApplicabilityResolver.ResolveReviewFacts`), at most one LLM call per (record,
+  scope-selection-attempt).
+- **Clearance/policy correctness.** Clearance coverage keys on governed `document.doc_kind` (was
+  `input_doc_type`, the file format). Binding/gate load failures fail runtime construction loudly;
+  activation reloads the in-process policy immediately after commit; the gate-shadow set now covers
+  the baseline fallback; store-default fallback respects the knowledge store;
+  `DOC_PIPELINE_ON_CONFLICT` drives both bindings and gates with run-scoped gate overrides.
+- **Review selection.** Per-target frozen facts are OR-combined at the applicability gate; a
+  profile indeterminate on a requested closed dimension is pinned with `Outcome=indeterminate`
+  rather than silently dropped, and its rules route to explicit indeterminate findings.
+- **Proposals and promotion.** Proposal checksums are canonical (`semrules.Canonicalize`), so
+  create → approve → promote → compile works for any input. Promotion joins the release transaction
+  (`ReleaseStore.Promote` hook; `DraftPolicyPromoter` takes `*sql.Tx`), is idempotent across draft
+  and activated states, and the version race / discarded scan error / nil-lister panic are fixed
+  (unique index on `kb.pipeline_policies(version)`, migration `20260801000023`).
+  `included_in_release` is now a consequence of the release transaction; the manual
+  approved → included_in_release HTTP transition is removed. `TransitionProposal` is guarded
+  against concurrent double-transition.
+- **Exit criteria.** Criteria 9/13/15 point at real tests; the cross-consumer fixture uses the real
+  extraction builder `BuildPipelineBindingFactSet` (was two review-side builders); the
+  cross-package parser-check loophole is closed (names resolve against the target package's own
+  test files; `I2:` pointers must be explicit live-proof pointers). The previously untested
+  proposals handler now has 8 tests (401/403, owner/admin/k_engineer, actor derivation, canonical
+  checksum + source-release pinning, invalid predicate/transition, 404).
+- **Hygiene.** `routing_alarm.go` is gofmt-clean (I3's "gofmt clean" claim was false for it);
+  `json.Number` fact values canonicalize so a JSONB `2.0` and a Go `2` do not conflict; the
+  mandatory-processor safety net derives from `isMandatoryProcessor` over the registry instead of a
+  hardcoded `static_analyzer`/`chunking` pair.
+
+**Verification.** `go build ./...`, `go vet`, and `gofmt -l` are clean on all touched files. The
+full suite matches the pre-existing baseline exactly: 15 `doc-processing` + 14 `kbhandler` legacy
+failures (summaries / topics / metrics / products / graphs / connections / search-registry), all
+structurally unrelated to P5; every `ontology/...` subpackage and `doc-benchmark` are green, and all
+P5-focused tests (semrules, resolver, classifier, promotion, proposals, exit criteria, migration
+contracts) pass.
+
+**Remaining P5 boundary.** I2 (live PostgreSQL and synthetic-corpus proof) is the only P5 item left;
+it needs a live database. The KnowledgeStore-side documentation corrections from plan H2 remain to be
+written (they were intentionally left out of the ChenWeb commit): the ADR `2026072901` status entry,
+this retraction, impl log `2026080107` corrections, bug `2026080301` supersession, `bugs/OPEN.md`,
+and the `Capsules/coding-capsules/doc-processor/+CAPSULE.md` P5 section.
+
 ## Related documents
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
@@ -499,6 +565,8 @@ validation with a live database. All code-level P5 work (G, H, I1, I3) is comple
 - P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
 - OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
 - P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
-- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — authoritative task checklist; A1–F2 complete; G, H, I1, I3 complete as of 2026-08-02; I2 (live PostgreSQL proof) deferred to operational validation.
-- P5 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md` — the P5 G/H/I build record (classifier, resolver, proposals, policy promotion, acceptance-criteria tests, verification).
+- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — the original P5 task checklist; superseded for status by the completion plan below.
+- P5 completion plan: `KnowledgeStore/doc-repo/plan/202608/2026080303-plan-semos-p5-completion.md` — the defect-driven remediation plan (Chunks A–H) executed 2026-08-03; the authoritative current status is the 2026-08-03 post-handoff update above, not the impl log's completion claim.
+- P5 audit: `KnowledgeStore/doc-repo/bugs/202608/2026080301-bug-semos-p5-rule-driven-routing-not-finished.md` and its consolidated review `KnowledgeStore/doc-repo/devdocs/202608/2026080302-devdoc-semos-p5-implementation-review.md` — found the resolver inert/unwired, promotion non-operational, checksum/clearance/conflict defects, and mis-mapped exit tests; the basis for the retraction above.
+- P5 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md` — the P5 G/H/I build record (classifier, resolver, proposals, policy promotion, acceptance-criteria tests, verification); its "complete" claim is overstated (see the 2026-08-03 retraction) and its corrections remain a plan-H2 follow-up.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.
