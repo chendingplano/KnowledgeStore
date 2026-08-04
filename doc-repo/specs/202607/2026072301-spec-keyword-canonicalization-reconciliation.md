@@ -7,6 +7,10 @@
 - **Authors:** Chen Ding, Codex
 - **Tags:** keyword-resolution, canonicalization, aliases, acronyms, entity-resolution, reconciliation, llm
 
+## Important Note
+This document is superseded by `2026080403-spec-keyword-canonicalization-and-reconciliation.md`.
+It exists for archiving only.
+
 ---
 
 ## Overview

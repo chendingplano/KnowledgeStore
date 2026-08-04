@@ -2,6 +2,10 @@
 
 **Status:** proposal · **Version:** 0.1
 
+## Important Note
+This document is superseded by `2026080403-spec-keyword-canonicalization-and-reconciliation.md`.
+It exists for archiving only.
+
 ---
 
 ## 1. Problem

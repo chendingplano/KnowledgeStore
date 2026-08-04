@@ -8,7 +8,7 @@
 - **Supersedes:** `2026080101-spec-keyword-canonicalization-merged.md`, `2026072703-spec-keyword-canonicalization-reconciliation-2.md`, `2026072301-spec-keyword-canonicalization-reconciliation.md`
 - **Design authority:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md`, DR15 (shared canonicalization kernel) and DR16 (merged keyword design)
 - **Implementation record:** P3 Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`, implementation log `2026080402-devdoc-semos-p3-trackb-implementation-log.md`
-- **Implementation status:** observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`) **with verified defects**. Read §17.2 before trusting any ✅ badge — several shipped components do not behave as this design specifies.
+- **Implementation status:** observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`) **with verified defects**. "Observe mode" is working mode with its output disconnected — defined in §3 D9, specified in §7.4. Read §17.2 before trusting any ✅ badge: several shipped components do not behave as this design specifies.
 
 ---
 
@@ -150,14 +150,30 @@ The schema honours this; the shipped write paths do not. `POST /kb/keyword-surfa
 
 Reconciliation runs the seven-stage ladder `harvest → prune → block → batch → decide → validate → apply`, with every stage before the model existing to shrink the model's job, and every stage after it existing to stop the model from corrupting the database. Only the data structures that support it are built today (§11).
 
-### D9. Two modes of operation — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
+### D9. Two modes of operation, on two independent axes — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
+
+The word "mode" is used for two different things in this design, and they are **not** three peers. Reading them as one list is the single most common misunderstanding of this module, so both axes are defined here, before either term is used again.
+
+**Axis 1 — what kind of work runs.** These are the two operating modes proper:
 
 | Mode | Trigger | LLM? | Latency | Job |
 |---|---|---|---|---|
 | **Working mode** | every resolve call | never | µs–ms | answer from the database; record what it can't answer |
 | **Reconciliation mode** | scheduled / on-demand batch | yes | minutes | drain the unresolved backlog, grow the database |
 
-Working mode is further gated by `KEYWORD_RESOLVER_MODE` (`off` / `observe` / `on`, §7.4 — where two defects in that gate are recorded).
+**Axis 2 — how far working mode's answers are allowed to travel.** This is a deployment gate, `KEYWORD_RESOLVER_MODE`, and it has three settings:
+
+| Setting | Working mode runs? | Results reach retrieval/search? |
+|---|---|---|
+| `off` (default) | no | — |
+| **`observe`** | yes, and records everything | **no** |
+| `on` | yes | yes |
+
+**`observe` is therefore a state of working mode, not a third mode.** It is the *evaluation* setting: resolution runs for real, every side effect is written (mentions, surfaces, decision log, unresolved backlog), and the answer is then thrown away rather than handed to any consumer. It exists so the pipeline can be exercised against real volume — how many mentions, how many hits, how big the backlog grows — without a wrong resolution being able to affect a live retrieval path. It is what P3 Track B shipped, and it is why this document's implementation status reads "observe mode built".
+
+Reconciliation mode is orthogonal to all three settings: it is a batch job over the backlog, and it is unbuilt regardless of how the gate is set.
+
+Throughout this document, **"observe mode"** is shorthand for "working mode running under `KEYWORD_RESOLVER_MODE=observe`". §7.4 gives the concrete behaviour of each setting and records two defects in the gate itself.
 
 ### D10. Bias toward under-merging — ✅ **Adopted as policy**
 
@@ -398,7 +414,20 @@ Now suppose a `Kubernetes` concept with surface `Kubernetes` is authored via the
 
 ⚠️ **`on` is not "identical to observe" (§17.2 K7).** The mention collector gates on `keywords.IsObserveMode()`, which is true *only* for `observe`. Setting the mode to `on` — the intended graduation step — therefore turns mention collection **off** while leaving direct resolve calls enabled. Graduating `observe → on` today loses functionality instead of adding it.
 
-Two distinct "mode" axes exist and are easy to conflate: §3 D9's **working vs. reconciliation mode** describes *what runs* (online resolution vs. batch growth), while `KEYWORD_RESOLVER_MODE` gates how working-mode resolution *behaves*. Graduation from `observe` to `on` is intended to be a config flip, not a code change; today it is neither — the `on`-mode consumer wiring is missing and the `on` gate is wrong.
+#### What `observe` means concretely
+
+Per D9, `observe` is not a third operating mode — it is working mode with its output disconnected. Concretely, in `observe`:
+
+- the doc-processing **mention collector runs** and writes `kb.keyword_mentions` for every artifact-bearing chunk it sees (§9 — as a standalone call today, not yet pipeline-wired);
+- **surfaces are derived and written** to `kb.keyword_surfaces` when a mention matches an existing concept deterministically at tiers 0–4 — but see K1: the derived-key rows in `kb.keyword_surface_keys` are not written, so tiers 2 and 4 never fire;
+- **every resolution is appended** to the shared `kb.semid_decision_log` with `family='keyword'`, so the pipeline's behaviour is auditable before it is trusted;
+- **`kb.keyword_unresolved` accumulates the backlog** exactly as it would in `on` mode, so the reconciliation pipeline (§11) can be sized and evaluated against real volume before any resolution is allowed to affect a live path;
+- **no resolution result is attached** to retrieval, search payloads, or any downstream consumer — the answer is computed, recorded, and dropped;
+- **no `aligns_to_term` assertion** (§14) is created or consumed.
+
+The purpose is measurement without risk: `observe` tells you the mention volume, the tier hit-rate, the ambiguity rate, and the backlog growth curve — the numbers §16 asks for — while a wrong resolution can reach nothing. `on` is the same pipeline with the last two bullets reversed.
+
+**Graduation.** From `observe` to `on` is intended to be a config flip, not a code change. Today it is neither: the `on`-mode consumer wiring does not exist (§17.1), and the `on` gate is wrong (K7 above). Both must land before the flip means anything.
 
 ---
 
@@ -837,3 +866,12 @@ These pass today and prove very little — see §16.4. Nothing in the suite woul
 **What was intentionally left undocumented?** Exact reconciliation prompt text, exact Go package/API signatures beyond those shipped, and the mention collector's precise hook point in the doc-processing pipeline — the first is deferred with the reconciliation build, the last two are implementation decisions, not design decisions.
 
 **What should happen next?** Fix §17.2 in the suggested order, add the tests in §16.4, then re-run this review. Until K6 lands, do not deploy a server with `KEYWORD_RESOLVER_MODE` unset expecting the module to be inert.
+
+## 20. Open Questions
+### 20.1 Open-Source Resources
+There should be some resources in the Internet, such as open-source 'dictionaries', 
+'thesaurus', or open-source projects that resolve keyword ambiguity, reconciliation, 
+etc. Shall we consider them?
+
+How about Wikipedia (possibly locally hosted)? Will it help resolve keyword ambiguity or 
+reconcile keywords?

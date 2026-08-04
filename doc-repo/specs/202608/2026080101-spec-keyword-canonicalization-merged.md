@@ -8,6 +8,10 @@
 - **Authored per:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` DR16
 - **Implementation status:** Partially implemented — observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`). Deferred: fuzzy tiers 5-6, reconciliation pipeline, `aligns_to_term` bridge, `on` mode, curated seed content, I2 live proof. See the Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` for the complete build record and deferred boundary.
 
+## Important Note
+This document is superseded by `2026080403-spec-keyword-canonicalization-and-reconciliation.md`.
+It exists for archiving only.
+
 ## 1. Why this document exists
 
 DR16 found that [2] and [1] describe the same module and disagree in ways that matter: identity layering ([2] has none; [1] has four layers), storage engine ([2] assumes Postgres; [1] recommends SQLite-first), and reconciliation ownership (both specs assume the keyword module owns its own resolver engine; DR15 replaces that with the shared `semid` kernel built in P2). Neither is adopted whole. This document is the one merged design DR16 calls for, written before any keyword-lexicon code is implemented.
