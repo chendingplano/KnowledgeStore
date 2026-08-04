@@ -8,6 +8,7 @@
 - **Supersedes:** `2026080101-spec-keyword-canonicalization-merged.md`, `2026072703-spec-keyword-canonicalization-reconciliation-2.md`, `2026072301-spec-keyword-canonicalization-reconciliation.md`
 - **Design authority:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md`, DR15 (shared canonicalization kernel) and DR16 (merged keyword design)
 - **Implementation record:** P3 Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`, implementation log `2026080402-devdoc-semos-p3-trackb-implementation-log.md`
+- **Implementation status:** observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`) **with verified defects**. Read §17.2 before trusting any ✅ badge — several shipped components do not behave as this design specifies.
 
 ---
 
@@ -18,15 +19,18 @@ This is the **single self-contained reference** for the keyword canonicalization
 - **why** the module exists and what problem it solves (§1–§2),
 - **which design decisions were made and why** (§3),
 - **how the system works** — identity model, normalization, the shared resolution kernel, working mode, reconciliation mode (§4–§11),
-- **exactly what is implemented today** and what is deferred (§17), so you can tell design from reality at a glance.
+- **exactly what is implemented today**, what is deferred, and where the code diverges from this design (§17), so you can tell design from reality at a glance.
 
 Every section that has been implemented marks its status with a badge:
 
 | Badge | Meaning |
 |---|---|
-| ✅ **Built** | implemented and tested as of 2026-08-04 |
-| 🚧 **Partial** | implemented with known limitations |
+| ✅ **Built** | code exists and does what this document says (see §16.4 for what "tested" actually covers) |
+| 🚧 **Partial** | built with a known limitation, stated inline |
+| ⚠️ **Defect** | built, but verified *not* to behave as specified — listed in §17.2 |
 | ⏳ **Deferred** | designed, deliberately not built yet |
+
+**A badge describes whether code exists, never whether it is correct.** Track B was built fast and its behaviour was never exercised against a live PostgreSQL instance (§17.1, I2). A code read on 2026-08-04 found eleven defects where the shipped behaviour contradicts this design; they are enumerated in §17.2 and cross-referenced from the sections they affect. Design statements in §1–§15 remain the intended contract — where the code disagrees, the code is wrong, not the design.
 
 The prior specs are retained on disk as historical inputs to the design lineage but are no longer authoritative; where they disagree, this document and the ADR govern.
 
@@ -129,16 +133,18 @@ Every surface carries a role: `pref` (the canonical display label), `alt` (synon
 
 When a key maps to multiple concepts and scope does not disambiguate, the result is **`ambiguous` with ranked candidates** — never a forced pick, and never a silent coin flip. Silently picking the most frequent candidate produces an error invisible to both caller and metrics.
 
-### D6. Store surfaces; derive keys; version the normalizer — ✅ **Built**
+### D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect** (rule not enforced)
 
 Every normalization key is recomputable from `surface + norm_version`. A normalizer change is therefore a **re-index job, never data loss**. Bumping `norm_version` invalidates the derived-key layer; the original surfaces are always preserved.
 
-### D7. Merges are tombstones; no transitive closure; `never_merge`; `locked` — ✅ **Built**
+The schema honours this; the shipped write paths do not. `POST /kb/keyword-surfaces` accepts a caller-supplied `norm_key` verbatim and never derives or validates it, and no write path populates `kb.keyword_surface_keys` at all. Keys are therefore *asserted*, not derived — see D6 defects in §17.2.
 
-- Merges set `merged_into` and move the concept to `merged`; the row is **never deleted**, so stale ids still resolve.
-- Merges are **not transitive**: `A→B` and `B→C` do not imply `A→C`. Connected-component clustering is explicitly rejected (one bad edge chains two unrelated clusters together).
-- **`never_merge`** assertions (`kb.semid_never_merge`, shared kernel table) block specific pairs forever.
-- **`locked`** surfaces are human-asserted; the reconciler may propose changes to them but never apply them.
+### D7. Merges are tombstones; no transitive closure; `never_merge`; `locked` — 🚧 **Partial** (tombstones built, guardrails unenforced)
+
+- Merges set `merged_into` and move the concept to `merged`; the row is **never deleted**, so stale ids still resolve. ✅ Built.
+- Merges are **not transitive**: `A→B` and `B→C` do not imply `A→C`. Connected-component clustering is explicitly rejected (one bad edge chains two unrelated clusters together). ✅ Built by omission — nothing computes a closure.
+- **`never_merge`** assertions (`kb.semid_never_merge`, shared kernel table) block specific pairs forever. ⚠️ **Storage only.** The table and `NeverMergeStore` exist from P2, but no keyword code path reads them: `ConceptStore.MergeConcept` performs no never-merge check (§12.2).
+- **`locked`** surfaces are human-asserted; the reconciler may propose changes to them but never apply them. ✅ The flag and its toggle are built; ⏳ the reconciler that must honour it does not exist yet, so the guarantee is currently vacuous.
 
 ### D8. Token-economics discipline — ⏳ **Deferred** (reconciliation not built)
 
@@ -151,7 +157,7 @@ Reconciliation runs the seven-stage ladder `harvest → prune → block → batc
 | **Working mode** | every resolve call | never | µs–ms | answer from the database; record what it can't answer |
 | **Reconciliation mode** | scheduled / on-demand batch | yes | minutes | drain the unresolved backlog, grow the database |
 
-Working mode is further gated by `KEYWORD_RESOLVER_MODE` (`off` / `observe` / `on`, §8.3).
+Working mode is further gated by `KEYWORD_RESOLVER_MODE` (`off` / `observe` / `on`, §7.4 — where two defects in that gate are recorded).
 
 ### D10. Bias toward under-merging — ✅ **Adopted as policy**
 
@@ -173,7 +179,7 @@ lexform      normalization-equivalence class                  (norm_key — the 
 concept      unit of meaning: canonical label + gloss         (kb.keyword_concepts)
 ```
 
-Note: `kb.keyword_mentions` records *where* an occurrence was seen (artifact, chunk, context, knowledge store) — it does **not** store the raw surface string. The surface text travels on the resolve call and, when a resolve misses, accumulates in `kb.keyword_unresolved.surfaces`.
+Note on the occurrence layer: `kb.keyword_mentions` is meant to record *where* an occurrence was seen (artifact, chunk, context, knowledge store). It does **not** store the raw surface string, so as built it cannot say *what* was seen — a gap that makes the table unusable for reconciliation until the schema changes (§8.4). The surface text travels on the resolve call and, when a resolve misses, accumulates in `kb.keyword_unresolved.surfaces`; that backlog is currently the only place occurrence evidence actually lands.
 
 ### 4.2 Cardinal rules (binding)
 
@@ -185,57 +191,79 @@ Note: `kb.keyword_mentions` records *where* an occurrence was seen (artifact, ch
 
 ### 4.3 Homonymy
 
-`lexform → concept` is many-to-many on purpose. `ML` maps to both `machine learning` and `millilitre`. The schema does **not** make `norm_key` globally unique — the same key may map to different concepts in different scopes — so homonyms are representable without a hack. In practice scope is the knowledge-store id (`ks_id`) or the global `'_'`, chosen by the caller; when scope does not disambiguate, the deferred context-token disambiguation (§17) would be the fallback.
+`lexform → concept` is many-to-many on purpose. `ML` maps to both `machine learning` and `millilitre`. The schema does **not** make `norm_key` globally unique — the same key may map to different concepts in different scopes — so homonyms are representable without a hack. Scope is intended to be the knowledge-store id (`ks_id`) or the global `'_'`, chosen by the caller; when scope does not disambiguate, the deferred context-token disambiguation (§17.1) is the fallback.
+
+⚠️ In the shipped resolver, scope disambiguation does not happen: every lookup is hard-coded to `'_'` regardless of what the caller passes (§6.1, defect K2). Two concepts sharing a `norm_key` in the global scope therefore tie at the top score and — with `MaxCandidates: 1` — return `ambiguous`, which is the safe outcome but not the designed one. Homonymy is representable in the schema and unresolvable in the code.
 
 ---
 
-## 5. Normalization — ✅ **Built**
+## 5. Normalization — ⚠️ **Defect** (built; over-normalizes)
 
-The normalizer is the most dangerous component in the system: it is fast, invisible, and every over-aggressive rule silently collapses distinct concepts forever. The implemented pipeline is deliberately conservative.
+The normalizer is the most dangerous component in the system: it is fast, invisible, and every over-aggressive rule silently collapses distinct concepts forever. The design is deliberately conservative. **The shipped implementation is not** — see §5.5.
 
 ### 5.1 The pipeline (implemented, in order)
 
-| # | Step | Example | Notes |
+| # | Step | Example (verified against the code) | Notes |
 |---|---|---|---|
 | 1 | Unicode NFKC | `ﬁle` → `file` | `golang.org/x/text/unicode/norm` |
-| 2 | Strip zero-width chars / BOM / LTR/RTL marks | | ZWSP, ZWNJ, ZWJ, BOM, LRM, RLM |
+| 2 | Strip zero-width chars / BOM / LTR/RTL marks | | ZWSP, ZWNJ, ZWJ, BOM, LRM, RLM. Soft hyphen (U+00AD) is **not** stripped |
 | 3 | Normalize dashes to ASCII `-` | `e–mail` → `e-mail` | em/en/figure/horizontal bar |
 | 4 | Normalize quotes to ASCII | `“x”` → `"x"` | curly single/double |
 | 5 | Collapse and trim whitespace | | runs → one space |
-| 6 | Collapse dotted initialisms (before case-fold) | `U.S.A.` → `usa` | only letter-dot-letter patterns |
+| 6 | Collapse dotted initialisms (before case-fold) | `U.S.A.` → `usa` | only `A.B.C` uppercase letter-dot patterns |
 | 7 | Case-fold (full Unicode lowercase) | | CJK unaffected (no case) |
-| 8 | Drop possessive `'s` | `AWS's` → `aws` | trailing `'s ` |
+| 8 | Drop possessive `'s` | `AWS's cloud` → `aws cloud`; **`AWS's` → `aws'`** | matches the literal `'s ` — a *word-final* possessive is missed (§5.5 N2) |
 | 9 | Strip leading articles | `the cloud` → `cloud` | English `the`/`an`/`a` |
-| 10 | Exception-list-aware singularization | `pods` → `pod`, `indices` → `index` | **never a Porter/Snowball stemmer** |
+| 10 | Exception-list-aware singularization | `indices` → `index`; **`AIDS` → `aid`**, **`SaaS` → `saa`** | intended as "never a Porter/Snowball stemmer"; as shipped it reproduces stemmer failures (§5.5 N1) |
 
-Singularization uses an explicit irregular-plural exception list (21 entries) plus safe suffix rules (`ies`→`y`, `ves`→`f`, `es`→`e` for `ses/zes/ches/shes/xes`, plain `s`→`∅` except `ss`). It is applied per-word to English text; CJK tokens are untouched throughout.
+Singularization uses an explicit irregular-plural exception list (21 entries) plus suffix rules (`ies`→`y`, `ves`→`f`, `es`→`e` for `ses/zes/ches/shes/xes`, plain `s`→`∅` except `ss`, only for words longer than 3 characters). It is applied per-word; CJK tokens have no matching suffix and pass through untouched.
 
-### 5.2 The key bundle — ✅ **Built**
+### 5.2 The key bundle — 🚧 **Partial** (computed in memory; never persisted)
 
-Each surface produces **six deterministic keys**, materialized at write time:
+Each surface produces **six deterministic keys**. The design calls for them to be materialized at write time; the shipped code computes them per resolve call and writes none of them (§17.2 K1).
 
-| Key | Definition | Purpose |
-|---|---|---|
-| `exact` | verbatim surface (trimmed) | tier 0 |
-| `norm` | output of the §5.1 pipeline | **primary index** — tier 1 |
-| `alnum` | `norm` keeping only a-z, 0-9, CJK | tolerates punctuation — tier 2 |
-| `sorted` | tokens of `norm` sorted | word-order variants — tier 2 |
-| `phonetic` | **stub**: first char + first 4 consonants | tier 4 placeholder |
-| `initials` | first rune of each token, uppercased | acronym↔expansion bridge — tier 4 |
+| Key | Definition | Intended purpose | As shipped |
+|---|---|---|---|
+| `exact` | verbatim surface (trimmed) | tier 0 | tier 0 matches the `surface` column directly; the `exact` key itself is unused |
+| `norm` | output of the §5.1 pipeline | **primary index** — tier 1 | ✅ used |
+| `alnum` | `norm` keeping only a-z, 0-9, and runes ≥ U+2E80 (CJK) | tolerates punctuation — tier 2 | 🚧 queried, never written |
+| `sorted` | tokens of `norm` sorted | word-order variants — tier 2 | 🚧 queried, never written |
+| `phonetic` | **stub**: first char, then the first 4 consonants of the whole string | reserved | ⚠️ **queried by no tier at all** — dead |
+| `initials` | first rune of each token, **uppercased** | acronym↔expansion bridge — tier 4 | ⚠️ cannot bridge as designed (§5.5 N3) |
 
-`initials` is the key that makes `machine learning → ML` collide with the acronym `ML` deterministically, without fuzzy matching or a model. The phonetic key is a deterministic stub (🚧 **Partial** — a full Double Metaphone is a P3 follow-up).
+The design intent for `initials` is that `machine learning` and the acronym `ML` collide deterministically without fuzzy matching or a model. **As implemented this cannot happen** — see §5.5 N3. The phonetic key is a deterministic stub whose leading consonant is also counted among the four (`ml` → `mml`); a full Double Metaphone is a P3 follow-up, but no tier reads the key, so replacing it changes nothing today.
 
-Where the keys live: `exact` and `norm` are **columns on the surface row** (`surface`, `norm_key`), while the four alternate keys are **rows in `kb.keyword_surface_keys`** — which is why that table's `key_kind` CHECK admits only `alnum`, `sorted`, `phonetic`, `initials`. This split matters because of the limitation in §7.3: the resolver writes the surface row but not its alternate-key rows, so tiers 2/4 currently have no data to match against in the observe flow.
+Where the keys live: `exact` and `norm` are **columns on the surface row** (`surface`, `norm_key`), while the four alternate keys are **rows in `kb.keyword_surface_keys`** — which is why that table's `key_kind` CHECK admits only `alnum`, `sorted`, `phonetic`, `initials`. No shipped code path writes that table (neither the resolver nor the REST surface handler), so tiers 2 and 4 have nothing to match against.
 
-The bundle maps onto the kernel's `KeyBundle` as `CanonicalKey = norm`, `AlternateKeys = [alnum, sorted, phonetic, initials]`. This mapping is what makes the kernel's generic `Score()` produce the correct tier scores with no family-specific scoring code.
+The bundle maps onto the kernel's `KeyBundle` as `CanonicalKey = norm`, `AlternateKeys = [alnum, sorted, phonetic, initials]` (empty keys and a `sorted` that duplicates `alnum` are dropped). This mapping is what makes the kernel's generic `Score()` produce the correct tier scores with no family-specific scoring code.
 
 ### 5.3 Versioning — ✅ **Schema built**, re-index flow ⏳ **Deferred**
 
 Every derived key stores `norm_version`. Bumping it is a full re-index — recompute all keys from stored surfaces — never a migration and never data loss. The re-index *flow* (a re-index job + snapshot promotion) is not built; the schema supports it.
 
-### 5.4 CJK handling — ✅ **Built**
+### 5.4 CJK handling — ✅ **Built** (normalizer), 🚧 **Partial** (tokenizer)
 
-CJK characters pass through the pipeline with no case folding, are retained by the `alnum` key (threshold `0x2E80`), and are handled rune-wise in `initials`/tokenization. This matters because the SemOS pilot corpus (呼吸机/医疗器械) is predominantly Chinese.
+CJK characters pass through the pipeline with no case folding, are retained by the `alnum` key (threshold `0x2E80`), and are handled rune-wise in `initials`. This matters because the SemOS pilot corpus (呼吸机/医疗器械) is predominantly Chinese. The *mention collector's* tokenizer is a separate matter and does not segment CJK — see §9.
+
+### 5.5 Verified normalizer defects — ⚠️
+
+All four were reproduced by running `KeywordNormalizer.Normalize` on 2026-08-04. They are written out here, rather than only listed in §17.2, because they change what the normalizer *means* — every `norm_key` already stored is affected.
+
+**N1 — singularization runs after case-folding, so the ALLCAPS guard both source specs demanded is absent.** The design says "never a Porter/Snowball stemmer" precisely to avoid `AIDS → aid`, `SaaS → saa`, `business → busi`. Because step 7 (case-fold) precedes step 10, the plain `s`→`∅` rule cannot tell an acronym from a plural. Observed:
+
+```
+AIDS        → aid          SaaS        → saa
+Kubernetes  → kubernete    Postgres    → postgre
+analysis    → analysi      status      → statu
+```
+
+`Kubernetes` and `kubernets` (the misspelling) both normalize to `kubernet`, which by luck is the behaviour the design wants — but by the wrong mechanism, and `PostgreSQL`/`Postgres` do not collide. The `len > 3` floor is the only protection, and it protects only `gas`, `bus`, and other 3-letter words. **Fix:** carry the casing signal that §5.1 step 7 was supposed to record, and refuse to singularize a token whose original form was ALLCAPS or that appears in the exception list's reverse direction. The existing test (`TestSingularization`) exercises only the irregular-plural exception list and therefore passes while the general rule is broken.
+
+**N2 — the possessive rule requires a trailing space.** It is `strings.ReplaceAll(s, "'s ", " ")`, so `AWS's` at end-of-string is not stripped; singularization then turns it into `aws'`. Any single-token possessive surface — the common case for an extracted keyword — is mis-keyed.
+
+**N3 — the `initials` bridge cannot bridge.** Two independent reasons: (a) the key is uppercased while every other key is lower-cased, so `initials` values can never equal a `norm`/`alnum` value; (b) tier 4 looks up `keyBundle.Initials` *of the query*, and a single-token query has one initial — `ML` yields `M`, not `ML`. Populating `kb.keyword_surface_keys` (§17.2 K1) is therefore necessary but not sufficient: tier 4 would then match every single-token surface beginning with `m`, which is worse than matching nothing. **Fix:** tier 4 must look up the query's *normalized form* (`ml`) against stored `initials` values that are also lower-cased, and must be scope- and length-gated.
+
+**N4 — `norm_version` is carried but never consulted.** The tier-1 lookup filters on `(norm_key, scope)` only; `kb.keyword_surface_keys` has a `(key_kind, key_value, norm_version)` index but the query does not filter on `norm_version`. Two normalizer versions in the same table would serve reads simultaneously — the condition the source design explicitly forbids. Harmless while only version 1 exists; it must be fixed before the first version bump.
 
 ---
 
@@ -255,7 +283,9 @@ type FamilyAdapter interface {
 }
 ```
 
-The keyword family (`ChenWeb/server/api/ontology/keywords/keywordfamily.go`) implements this: `FamilyName() = "keyword"`, a normalizer whose `NormFunc` delegates to the §5 pipeline, `AutoAcceptPolicy{Enabled: true, MinScore: 0.8, MaxCandidates: 1}`, `Scope()` → `"_"` (system scope; knowledge-store scoping via `ks_id`), and a multi-tier `CandidateNodes`.
+The keyword family (`ChenWeb/server/api/ontology/keywords/keywordfamily.go`) implements this: `FamilyName() = "keyword"`, a normalizer whose `NormFunc` delegates to the §5 pipeline, `AutoAcceptPolicy{Enabled: true, MinScore: 0.8, MaxCandidates: 1}`, `Scope()` → the constant `"_"`, and a multi-tier `CandidateNodes`.
+
+⚠️ **Scope defect (§17.2 K2).** `Kernel.Resolve` derives the scope it passes to `CandidateNodes` from `Family.Scope(surface)` — which is hard-coded to `"_"` — and *ignores* the `scope` argument the caller gave `ResolveSurface`. Every tier lookup therefore filters `scope = '_'`, while the surfaces and backlog rows written by the same call are stamped with the caller's scope (a `ks_id`). A knowledge-store-scoped surface can be written and can then never be found again. Until this is fixed, the module is effectively single-scope, and §4.3's homonym-by-scope story does not hold in the running code.
 
 ### 6.2 The resolve flow
 
@@ -279,7 +309,9 @@ normalize(surface) → key bundle
 
 `Adjudicate()` maps scored matches to a verdict: no candidates → `deferred`; top score tied across more than `MaxCandidates` → `ambiguous`; policy disabled or top below `MinScore` → `human_review`; else → `auto_accepted`.
 
-Note: the 0.5 prefix score is part of the generic kernel contract but is **not reachable** in the keyword family's current tier ladder — keyword `CandidateNodes` never returns a candidate whose key would trigger it. It exists for families that do prefix matching; for keywords it is dead code today.
+Note on the 0.5 prefix score: it is part of the generic kernel contract and is *intended* to be unreachable for keywords, because every candidate a keyword tier returns carries a key that should score 1.0 or 0.8. That holds only while stored `norm_key` values agree with the normalizer. Since `POST /kb/keyword-surfaces` accepts a caller-supplied `norm_key` without deriving or validating it (§10, §17.2 K3), a tier-0 hit on a row with an inconsistent `norm_key` can score 0.5 — below `MinScore`, so it degrades to `human_review` rather than a wrong link. It is a latent path, not dead code.
+
+Also note: matches scoring 0 are dropped before adjudication, so a tier that returns only non-scoring candidates is indistinguishable from a miss and yields `deferred`.
 
 ### 6.3 Verdicts — ✅ **Built**
 
@@ -312,55 +344,61 @@ Each tier is tried in order and returns candidates or falls through to the next.
 |---|---|---|---|
 | 0 | exact surface match | 1.0 | ✅ **Built** |
 | 1 | `norm_key` match | 1.0 | ✅ **Built** |
-| 2 | `alnum`/`sorted` key match | 0.8 | 🚧 **Partial** |
+| 2 | `alnum`/`sorted` key match | 0.8 | 🚧 **Partial** — query built, no data |
 | 3 | enabled rewrite rules, then retry tiers 0–1 | 1.0/0.8 | ✅ **Built** |
-| 4 | `initials` bridge within scope | 0.8 | 🚧 **Partial** |
+| 4 | `initials` bridge within scope | 0.8 | ⚠️ **Defect** — see §5.5 N3 |
 | 5 | fuzzy (trigram + edit distance, with guardrails) | candidate-only | ⏳ **Deferred** |
 | 6 | embedding similarity (ANN) | candidate-only | ⏳ **Deferred** |
 | 7 | miss → record to `kb.keyword_unresolved` | — | ✅ **Built** (via `deferred`) |
 
 `CandidateNodes` exits at the **first tier that produces candidates** — it does not accumulate across tiers. This keeps lookups O(1) for the overwhelmingly common exact/norm hits.
 
-**Why tiers 2 and 4 are only "Partial":** the *query* path is built (the SQL that joins `kb.keyword_surface_keys`), but the rows it reads are **not populated by the observe-mode resolver** — `ResolveSurface` writes the surface but never calls `SurfaceKeyStore.UpsertSurfaceKeys` (§7.3). Until that follow-up lands, tiers 2/4 match nothing, including the `ML` ↔ machine-learning initials collision that motivates them. Tier 3 likewise only fires if someone has authored rewrite rules through the API (none exist by default).
+**Why tiers 2 and 4 do not work.** The *query* path is built (the SQL that joins `kb.keyword_surface_keys`), but nothing ever writes that table: neither `ResolveSurface` nor `POST /kb/keyword-surfaces` calls `SurfaceKeyStore.UpsertSurfaceKeys`, and there is no REST route for it. Tier 2 is therefore a correct query starved of data — populating the table fixes it. Tier 4 is not: even fully populated it would match the wrong things, for the two reasons in §5.5 N3. **Tier 2 is a data gap; tier 4 is a logic defect.** Conflating the two was the main inaccuracy in the earlier draft of this spec.
+
+Tier 3 likewise only fires if someone has authored rewrite rules through the API (none exist by default), and it matches the **raw, un-normalized** surface against `pattern` with Go string equality — so a rule `K8S → Kubernetes` does not fire for `k8s`. One rule fires at most (first match wins, then `break`), and the retry covers tiers 0–1 only, not 0–2 as the migration comment claims.
 
 ### 7.2 The `KeywordFamily` adapter — ✅ **Built**
 
 `KeywordFamily` wires six stores (concept, surface, surface_keys, mention, unresolved, rewrite rule) plus a normalizer and resolver mode. `CandidateNodes` implements the tier ladder directly against Postgres (`kb.keyword_surfaces`, `kb.keyword_surface_keys`), returning `NodeCandidate`s whose key bundles are set so the generic `Score()` yields the tier's score.
 
-### 7.3 ResolveSurface side effects (observe mode) — ✅ **Built**
+### 7.3 ResolveSurface side effects (observe mode) — 🚧 **Partial**
 
 `ResolveSurface(surface, scope, artifactRef, contextText)` runs the kernel and records the outcome:
 
-1. writes a mention row to `kb.keyword_mentions` (append-only) — records artifact/chunk/context/ks provenance; the surface string itself is not stored on the mention (§4.1);
-2. runs `Kernel.Resolve` → verdict + scored matches;
-3. appends the decision to `kb.semid_decision_log`;
-4. if `auto_accepted` (or `human_review` with a resolved node): best-effort idempotent write of the surface row to `kb.keyword_surfaces` (`label_role='alt'`, `alias_type='synonym'`, `provenance='llm:observe'`, `confidence=0.8`) if not already present;
-5. if `deferred`/`ambiguous`: upsert into `kb.keyword_unresolved` (surfaces deduped and capped, hits incremented).
+1. writes a mention row to `kb.keyword_mentions` (append-only) — ⚠️ **only `artifact_ref` and `context_text` are passed; `chunk_ref` and `ks_id` are left NULL** (§17.2 K4), and no column identifies *which* surface the mention was for (§4.1);
+2. runs `Kernel.Resolve` → verdict + scored matches (with the scope caveat in §6.1);
+3. appends the decision to `kb.semid_decision_log` with `family='keyword'`, `actor='keyword_family'`, and the caller's scope;
+4. if `auto_accepted`: best-effort write of the surface row to `kb.keyword_surfaces` (`label_role='alt'`, `alias_type='synonym'`, `provenance='llm:observe'`, `confidence=0.8`) if a matching row is not already present. Derived keys are **not** written (§7.1). The code also lists `human_review` in this branch, but `Kernel.Resolve` only sets `ResolvedNodeID` on `auto_accepted`, so that arm is unreachable;
+5. if `deferred`/`ambiguous`: upsert into `kb.keyword_unresolved` — ⚠️ **the raw surface is passed where the primary key expects `norm_key`** (§17.2 K5), so the backlog is keyed on un-normalized text and `Kubernetes`/`kubernetes`/`KUBERNETES` each get their own row.
 
-🚧 **Known limitation (tiers 2/4 data):** step 4 writes the surface row but **does not populate `kb.keyword_surface_keys`** via `SurfaceKeyStore.UpsertSurfaceKeys`. The alternate-key rows that power tiers 2 and 4 are therefore empty in the current observe-mode flow unless populated out-of-band — so an `ML` query today resolves only if a surface with `norm_key='ml'` exists, not via the initials bridge. The store is built and unit-tested; the resolver path just does not call it yet. This is a small, concrete follow-up, not a design change.
+⚠️ **The mention table cannot serve as an evidence queue as written.** §8.4 calls it "the first-class evidence queue that feeds reconciliation", but a mention row records only *that* some token was seen in some artifact — not which token. Reconciliation (R1 harvest, R4 context assembly) needs surface + context, and can only get them from `kb.keyword_unresolved.contexts`, which the collector currently populates with the empty string. Either `kb.keyword_mentions` needs `surface`/`norm_key` columns, or the table should be dropped and the backlog treated as the only evidence store. This is a design gap, not just a wiring gap, and it blocks R1/R4.
 
-🚧 **Known wart (provenance label):** the observe resolver stamps `provenance='llm:observe'`. No LLM runs in observe mode — the label is a misnomer, and it also deviates from the `llm:<model>@<prompt_version>` convention of §4.2. Flagged here so it is not mistaken for a design choice.
+🚧 **Known wart (provenance label):** the observe resolver stamps `provenance='llm:observe'`. No LLM runs in observe mode — the label is a misnomer, and it deviates from the `llm:<model>@<prompt_version>` convention of §4.2. It should be `rule:observe_resolver` or similar. Flagged here so it is not mistaken for a design choice.
 
-**Worked example (observe mode, empty `surface_keys`):** a document mentions `kubernets` (a misspelling). The collector tokenizes it and calls `ResolveSurface("kubernets", ks)`.
-1. a mention row is written (`artifact_ref`/`chunk_ref` set);
-2. `Kernel.Resolve` normalizes → key bundle; `CandidateNodes` tries tier 0 (no exact surface row), tier 1 (no `norm_key` row), tiers 2/4 (empty keys), tier 3 (no enabled rules) → no candidates → `deferred`;
-3. the decision log gains a `family='keyword'`, `verdict='deferred'` row;
-4. (skipped — verdict is `deferred`, not `auto_accepted`);
-5. `kb.keyword_unresolved` gets a `('kubernets', ks)` row with `surfaces=["kubernets"]`, `hits=1`.
+**Worked example (observe mode, as the code actually behaves).** A document mentions `kubernets` (a misspelling). The collector tokenizes it and calls `ResolveSurface("kubernets", ks)`.
+1. a mention row is written with `artifact_ref` set, `chunk_ref`/`ks_id`/`context_text` NULL;
+2. `Kernel.Resolve` normalizes `kubernets` → `norm='kubernet'`; `CandidateNodes` runs against **scope `'_'`, not `ks`** (§6.1) — tier 0 (no exact surface row), tier 1 (no `norm_key='kubernet'` row), tier 2 (`keyword_surface_keys` empty), tier 3 (no enabled rules), tier 4 (empty) → no candidates → `deferred`;
+3. the decision log gains a `family='keyword'`, `verdict='deferred'`, `scope=ks` row;
+4. skipped — verdict is `deferred`;
+5. `kb.keyword_unresolved` gets a **`('kubernets', ks)`** row — note the primary key holds the raw surface, not the `kubernet` norm key the schema comment promises — with `surfaces=["kubernets"]`, `hits=1`, `contexts=[]`.
 
-Now suppose a `Kubernetes` concept with surface `Kubernetes` (and `norm_key='kubernetes'`) is later authored via the API. A fresh `ResolveSurface("Kubernetes", ks)` then hits **tier 1** (`norm_key` match) → `auto_accepted`, and step 4 writes the surface row if it is not already present. `kubernets` remains in the backlog until reconciliation resolves it — exactly the intended flow.
+Now suppose a `Kubernetes` concept with surface `Kubernetes` is authored via the API. Whether a later `ResolveSurface("Kubernetes", ks)` hits tier 1 depends on two things the design does not intend: the caller must have stored the surface with `scope='_'` (because lookups ignore `ks`), and must have supplied `norm_key='kubernete'` by hand — the value this normalizer actually produces (§5.5 N1) — since the API does not derive it. Get either wrong and the concept is invisible to the resolver. With both right, the call returns `auto_accepted` and step 4 writes the alias row. `kubernets` remains in the backlog until reconciliation resolves it.
 
-### 7.4 Resolver modes — ✅ **Built**
+### 7.4 Resolver modes — ⚠️ **Defect** (the default is not honoured)
 
-`KEYWORD_RESOLVER_MODE` (env var, read at startup via `sync.Once`):
+`KEYWORD_RESOLVER_MODE` (env var):
 
-| Mode | Behavior |
-|---|---|
-| `off` (default) | `CandidateNodes` returns nil, `ResolveSurface` no-ops. Zero production impact. |
-| `observe` | resolution runs and **records**: mentions, surfaces, decision log, unresolved backlog. **No result reaches any downstream consumer.** This is measurement. |
-| `on` | accepted by the env reader but **currently identical to observe** — a placeholder; the retrieval/search wiring is not built (§17). |
+| Mode | Intended behavior | As shipped |
+|---|---|---|
+| `off` (default) | `CandidateNodes` returns nil, `ResolveSurface` no-ops. Zero production impact. | ⚠️ **only if the variable is literally set to `off`** — see below |
+| `observe` | resolution runs and **records**: mentions, surfaces, decision log, unresolved backlog. **No result reaches any downstream consumer.** This is measurement. | ✅ |
+| `on` | same pipeline with the downstream gate removed | ⚠️ **silently disables mention collection** — see below |
 
-Two distinct "mode" axes exist and are easy to conflate: §3 D9's **working vs. reconciliation mode** describes *what runs* (online resolution vs. batch growth), while `KEYWORD_RESOLVER_MODE` gates how working-mode resolution *behaves* (`off`/`observe`/`on`). Graduation from `observe` to `on` is intended to be a config flip, not a code change; the `on`-mode consumer wiring is the missing piece.
+⚠️ **The default is open, not closed (§17.2 K6).** `keywords.ResolverMode()` correctly defaults an unset variable to `off`, but `ResolveKeywordSurface` — the REST handler — bypasses it and reads `os.Getenv("KEYWORD_RESOLVER_MODE")` directly. An unset variable therefore yields `""`, and every gate in the family is `if mode == "off"`, which `""` fails. On a server with the variable unset, `POST /api/v1/kb/keyword-resolve` resolves and writes mention, decision-log, and backlog rows. This inverts the fail-safe the whole mode design exists to provide, and it is a one-line fix (call `keywords.ResolverMode()`).
+
+⚠️ **`on` is not "identical to observe" (§17.2 K7).** The mention collector gates on `keywords.IsObserveMode()`, which is true *only* for `observe`. Setting the mode to `on` — the intended graduation step — therefore turns mention collection **off** while leaving direct resolve calls enabled. Graduating `observe → on` today loses functionality instead of adding it.
+
+Two distinct "mode" axes exist and are easy to conflate: §3 D9's **working vs. reconciliation mode** describes *what runs* (online resolution vs. batch growth), while `KEYWORD_RESOLVER_MODE` gates how working-mode resolution *behaves*. Graduation from `observe` to `on` is intended to be a config flip, not a code change; today it is neither — the `on`-mode consumer wiring is missing and the `on` gate is wrong.
 
 ---
 
@@ -381,16 +419,18 @@ Two distinct "mode" axes exist and are easy to conflate: §3 D9's **working vs. 
 
 Indexes: `(scope, status)`, `(pref_label)`.
 
-**Lifecycle (ungoverned):** `active → provisional → merged → deprecated`; `provisional → active` is allowed; `merged` and `deprecated` are terminal. `MergeConcept(from, to)` sets `from.merged_into = to` and moves `from` to `merged`; self-merge is refused.
+**Lifecycle (ungoverned).** The transition matrix, not a linear chain: `active → {provisional, merged, deprecated}`, `provisional → {active, merged, deprecated}`; `merged` and `deprecated` are terminal. A no-op transition to the current status is allowed.
+
+⚠️ `MergeConcept(from, to)` does **not** go through `TransitionStatus` — it issues a direct `UPDATE` setting `status='merged'` and `merged_into=to`. Consequences: a `deprecated` or already-`merged` concept can be re-merged (the state machine and the "unmerge first" rule are bypassed), chains and cycles are unchecked, and the source concept's existence is never verified — merging a non-existent id updates zero rows and returns success. It does verify the target exists and refuses self-merge. See §12.1.
 
 ### 8.2 `kb.keyword_surfaces`
 
 | Column | Type | Notes |
 |---|---|---|
-| `surface_id` | TEXT PK | content-derived: `kws_<sha256[:12] of concept_id|surface|label_role>` |
+| `surface_id` | TEXT PK | content-derived: `kws_` + first 6 bytes of `sha256(concept_id\|surface\|label_role)` as 12 hex chars. Note the id is computed *before* `label_role` defaults to `pref`, so a surface created with an empty role hashes `""` but stores `pref` |
 | `concept_id` | TEXT NOT NULL FK | |
 | `surface` | TEXT NOT NULL | verbatim — never only a derived key |
-| `norm_key` | TEXT NOT NULL | working-mode index key |
+| `norm_key` | TEXT NOT NULL | working-mode index key. ⚠️ supplied by the API caller, never derived or checked against the normalizer (§17.2 K3) |
 | `norm_version` | INT NOT NULL | |
 | `label_role` | TEXT CHECK | `pref` \| `alt` \| `hidden` |
 | `alias_type` | TEXT | expansion \| acronym \| initialism \| abbreviation \| synonym \| near_synonym \| misspelling \| plural \| inflection \| translation \| legacy \| brand \| code |
@@ -414,6 +454,8 @@ Unique index on `(norm_key, concept_id, scope, label_role)` — one surface form
 
 PK `(surface_id, key_kind)`; lookup index `(key_kind, key_value, norm_version)`. Keys are **derived data** — always written alongside the surface, never authored independently.
 
+⚠️ **This table is empty in every shipped code path.** `SurfaceKeyStore.UpsertSurfaceKeys` exists and is unit-tested, but nothing calls it: not `ResolveSurface`, not `CreateKeywordSurface`, and there is no REST route. The PK `(surface_id, key_kind)` also permits only one value per kind per surface, which is right for the four current kinds but forecloses multi-valued keys later.
+
 ### 8.4 `kb.keyword_mentions` — the evidence queue
 
 | Column | Type | Notes |
@@ -425,7 +467,9 @@ PK `(surface_id, key_kind)`; lookup index `(key_kind, key_value, norm_version)`.
 | `ks_id` | TEXT | knowledge-store scope |
 | `create_time` | TIMESTAMPTZ | |
 
-Append-only. Indexes on `(artifact_ref, chunk_ref)` and `(ks_id)`. This is the first-class evidence queue that feeds reconciliation.
+Append-only. Indexes on `(artifact_ref, chunk_ref)` and `(ks_id)`.
+
+⚠️ **This table cannot feed reconciliation in its current shape.** It has no column naming the surface or norm key the mention was for, and the observe-mode writer populates only `artifact_ref` (§7.3). Every indexed column except `artifact_ref` is therefore NULL in practice, and a row carries no information reconciliation can use. Either add `surface` + `norm_key` (and have `ResolveSurface` pass `chunk_ref`, `ks_id`, and real context), or retire the table and treat `kb.keyword_unresolved` as the sole evidence store. Decide before R1/R4 is built.
 
 ### 8.5 `kb.keyword_unresolved` — the backlog
 
@@ -442,21 +486,31 @@ Append-only. Indexes on `(artifact_ref, chunk_ref)` and `(ks_id)`. This is the f
 | `priority` | DOUBLE PRECISION DEFAULT 0 | |
 | `first_seen` / `last_seen` | TIMESTAMPTZ | |
 
-PK `(norm_key, scope)`; work index `(status, last_seen)`. `UpsertUnresolved` merges surfaces (dedupe + cap), reservoir-samples contexts, and increments `hits`. `UpdateUnresolvedStatus` transitions status and increments `attempts` — the state machinery reconciliation will drive.
+PK `(norm_key, scope)`; work index `(status, last_seen)`. `UpsertUnresolved` merges surfaces (dedupe + cap at 10), appends contexts, and increments `hits`. `UpdateUnresolvedStatus` transitions status and increments `attempts` — the state machinery reconciliation will drive.
+
+Three deviations from the design in the shipped store:
+
+- ⚠️ the caller (`ResolveSurface`) passes the **raw surface** as `norm_key` (§17.2 K5), so the PK does not dedupe case or punctuation variants — precisely the job it exists to do;
+- 🚧 `contexts` is a **keep-the-last-5 window**, not a reservoir sample. For a Zipfian stream that biases the sample toward recent occurrences; a real reservoir needs the running count, which `hits` already provides;
+- ⚠️ the 200-character cap is applied as a **byte** slice (`contextText[:200]`), which can cut a multi-byte character in half and store invalid UTF-8. The pilot corpus is predominantly Chinese, so this will fire. Slice by runes.
+
+The read path also requires both `scope` and `status` (`WHERE scope = $1 AND status = $2`), so there is no "all pending across scopes" query — the reconciliation driver will need one.
 
 ### 8.6 `kb.keyword_rewrite_rules`
 
 | Column | Type | Notes |
 |---|---|---|
 | `rule_id` | TEXT PK | |
-| `pattern` | TEXT NOT NULL | **constrained**: simple literal, no capture groups / backreferences / backslashes (validated in code) |
+| `pattern` | TEXT NOT NULL | **constrained**: simple literal, no capture groups / backreferences / backslashes (validated in the create handler) |
 | `replacement` | TEXT NOT NULL | |
 | `scope` | TEXT DEFAULT `'_'` | |
 | `enabled` | BOOLEAN DEFAULT FALSE | default off; a human enables |
 | `provenance` | TEXT DEFAULT `'human:'` | |
 | `create_time` / `modify_time` | TIMESTAMPTZ | |
 
-Rules are applied in **tier 3** as a pre-normalization rewrite: if the **raw surface** equals a rule's `pattern` (exact literal match, before any normalization), the surface is rewritten to `replacement` and tiers 0–1 retry with the rewritten form.
+Index on `(enabled, scope)`. Rules are applied in **tier 3** as a pre-normalization rewrite: if the **raw surface** equals a rule's `pattern` (exact, case-sensitive, byte-for-byte, before any normalization), the surface is rewritten to `replacement` and tiers 0–1 retry with the rewritten form. At most one rule fires per resolve.
+
+🚧 Because the match is on the raw surface, a rule is one-string-to-one-string — it cannot express the family-level generalization ("`<name>-svc` → `<name> service`") that makes rule promotion the cost-bending lever in §11. Matching the *normalized* surface, or supporting a prefix/suffix template, is the minimum needed before R7 rule promotion is worth building.
 
 ### 8.7 Why these tables, not the earlier specs' shapes
 
@@ -468,10 +522,15 @@ The earlier specs proposed concept/variant/variant_links and concept/alias/alias
 
 `KeywordMentionCollector` (`ChenWeb/server/api/doc-processing/keyword_mention_collector.go`) extracts candidate keyword mentions from document text and resolves each through the keyword family. It runs **only in observe mode** (`IsObserveMode()`).
 
-- **Tokenization:** splits text on non-letter/digit runes; keeps tokens of 2–50 runes; supports ASCII, CJK, and mixed scripts.
-- **Stopwords:** a ~50-word English stopword list is skipped (not full NLP).
-- **Scope:** from the knowledge-store id (`ks_id`), else `'_'`.
+- **Tokenization:** splits on any non-letter/non-digit rune; keeps tokens of 2–50 runes.
+- **Stopwords:** a 59-word English stopword list is skipped (not full NLP).
+- **Scope:** from the knowledge-store id (`ks_id`), else `'_'` — but the resolver ignores it (§6.1).
 - **Resolution:** each unique token is passed to `KeywordFamily.ResolveSurface`, which writes the mention, runs the kernel, and records the outcome. Errors are swallowed (best-effort — a collector failure must not fail a batch).
+- **Context:** ⚠️ the collector passes `""` for `contextText`, so no snippet ever reaches `kb.keyword_unresolved.contexts`. R1 harvesting and context disambiguation both depend on those snippets; both are dead until the collector passes a real window.
+
+⚠️ **"Supports CJK" overstates it.** CJK characters are letters, so an unpunctuated Chinese run becomes **one token** of up to 50 runes — there is no word segmentation. On the 呼吸机/医疗器械 corpus the collector will emit clause-length pseudo-tokens that resolve to nothing and fill the backlog with junk. Either segment (jieba or equivalent) or restrict the collector to Latin-script tokens until segmentation exists.
+
+🚧 **Single-token only.** The unit of collection is one whitespace/punctuation-delimited token, so no multi-word surface (`machine learning`, `heating ventilation and air conditioning`) can ever be observed. That removes the entire class of surfaces the `sorted` and `initials` keys were designed for, and means the acronym↔expansion problem — the module's headline case — cannot arise from collected data. N-gram candidate generation is a prerequisite for the module to be useful on real text.
 
 🚧 **Not integrated:** the collector is a standalone `CollectFromText` function. It is **not registered** as a `PostProcessIndexer` in the doc-processing pipeline. This is deliberate for observe mode (measure volume without changing production behavior), but it means mentions are not being produced from real documents yet. Until pipeline integration ships, the data model can be exercised via the REST API and seeded manually.
 
@@ -479,7 +538,7 @@ The earlier specs proposed concept/variant/variant_links and concept/alias/alias
 
 ## 10. REST API — ✅ **Built** (14 endpoints under `/api/v1/kb/keyword-*`)
 
-Handlers in `ChenWeb/server/api/kbhandler/keyword_handlers.go`; routes in `routes.go`.
+Handlers in `ChenWeb/server/api/kbhandler/keyword_handlers.go`; routes registered in `ChenWeb/server/api/routes.go` (lines 461–474).
 
 | Method | Path | Handler | Purpose |
 |---|---|---|---|
@@ -498,7 +557,14 @@ Handlers in `ChenWeb/server/api/kbhandler/keyword_handlers.go`; routes in `route
 | PUT | `/kb/keyword-rewrite-rules/:rule_id/enabled` | `ToggleKeywordRewriteRule` | enable/disable a rule |
 | POST | `/kb/keyword-resolve` | `ResolveKeywordSurface` | resolve one surface (observe) |
 
-The resolve endpoint returns the kernel `Resolution` (verdict, scored matches, resolved node id) and, when the resolver is `off`, a `resolved: false` response. Returning the verdict to the API caller is an admin/diagnostic surface — observe mode's "no downstream consumer" means no *retrieval/search* path consumes the result, not that the API hides it. Note there is currently **no REST surface for `kb.keyword_surface_keys` or the unresolved backlog** — those are store-level only today.
+The resolve endpoint returns the kernel `Resolution` (verdict, scored matches, resolved node id) and, when the resolver is `off`, a `resolved: false` response. Returning the verdict to the API caller is an admin/diagnostic surface — observe mode's "no downstream consumer" means no *retrieval/search* path consumes the result, not that the API hides it.
+
+Gaps in the API surface:
+
+- ⚠️ `POST /kb/keyword-surfaces` takes `norm_key` from the request body and stores it unmodified. Nothing derives it from `surface`, nothing checks it against the normalizer, and no derived keys are written. Cardinal rule 2 (§4.2) is unenforced at the only human-facing write path, so the tier-1 index can silently disagree with the normalizer. The handler should compute the bundle itself and ignore any caller-supplied key.
+- ⚠️ `ResolveKeywordSurface` reads `os.Getenv` instead of `keywords.ResolverMode()` — the open-by-default defect in §7.4.
+- 🚧 There is **no REST surface for `kb.keyword_surface_keys`, `kb.keyword_mentions`, or the unresolved backlog**. The backlog in particular has no list, no status transition, and no admin view, so in observe mode it can be written but not read or drained through the API.
+- 🚧 No endpoint retracts a surface, deletes a rule, or records a `never_merge` pair for the keyword family.
 
 ---
 
@@ -552,19 +618,25 @@ Backlog draining reuses the DR5/DR6/DR7 pattern already built for ambiguous obje
 
 ---
 
-## 12. Merge, split, and identity lifecycle — ✅ **Built** (merge), ⏳ **Deferred** (split)
+## 12. Merge, split, and identity lifecycle — 🚧 **Partial** (merge), ⏳ **Deferred** (split)
 
 ### 12.1 Merges
 
-`MergeConcept(from, to)` is a tombstone: `from.status = 'merged'`, `from.merged_into = to`. The row survives, so stale ids keep resolving. Self-merge is refused. Surfaces are not physically moved; they resolve through the surviving concept.
+`MergeConcept(from, to)` is a tombstone: `from.status = 'merged'`, `from.merged_into = to`. The row survives, so stale ids keep resolving. Self-merge is refused and the target's existence is verified. Surfaces are not physically moved; they resolve through the surviving concept.
 
-### 12.2 Never-merge
+⚠️ **This is a keyword-family method, not the kernel's.** The `semid` kernel does have a `MergeGraph` with the full guardrail set — never-merge refusal, already-merged refusal, cycle-guarded chain resolution, `Unmerge` — but it is an **in-memory structure with no persistence**, it is exercised only by kernel unit tests, and no keyword code path uses it. What ships for keywords is a direct `UPDATE` with none of those checks (§8.1). Consequences: a merged concept can be re-merged, chains and cycles are unchecked, `never_merge` is not consulted, and nothing follows `merged_into` at read time — a resolve that lands on a tombstoned concept returns the tombstone's id, not the survivor's.
 
-`kb.semid_never_merge` (kernel table, `family = 'keyword'`) records unordered pairs that must never merge, even if a future reconciler pass would propose it. `NeverMergeStore.Add/IsNeverMerge/List` are built.
+Two things must happen before merge is safe to expose to a reconciler: persist the kernel merge semantics (or replicate the checks in `MergeConcept`), and make resolution follow `merged_into` to the surviving concept.
+
+### 12.2 Never-merge — ⚠️ **Storage only**
+
+`kb.semid_never_merge` (kernel table, `family = 'keyword'`) is designed to record unordered pairs that must never merge, even if a future reconciler pass would propose it. `NeverMergeStore.Add/IsNeverMerge/List` exist from P2.
+
+**No keyword code path calls any of them.** There is no keyword endpoint to add a pair, and `MergeConcept` does not check for one. The guardrail is currently a table, not a guarantee. Because the only merge caller today is a human hitting an admin endpoint the risk is contained — but the gate must be closed before R7 can apply a merge.
 
 ### 12.3 Locked surfaces
 
-A `locked` surface is human-asserted; the reconciler may propose changes but never apply them. The lock is toggled via `PUT /kb/keyword-surfaces/:surface_id/lock`.
+A `locked` surface is human-asserted; the reconciler may propose changes but never apply them. The lock is toggled via `PUT /kb/keyword-surfaces/:surface_id/lock`. The flag is stored and toggleable; since no reconciler exists, nothing yet honours or violates it.
 
 ### 12.4 Splits
 
@@ -607,16 +679,18 @@ The design biases toward under-merging everywhere (D10).
 
 ### 15.2 Other failure modes and their mitigations
 
-| Failure | Mitigation |
-|---|---|
-| Canonical label churn | opaque immutable ids; labels are display attributes |
-| Normalizer drift | `norm_version` + full re-index; never mutate stored surfaces |
-| LLM self-confirmation | tag unreviewed LLM glosses in prompts (reconciliation design) |
-| Hallucinated concept ids | referential gate (reconciliation design) |
-| Homonym collapse | scope-qualified uniqueness; `ambiguous` as a real verdict |
-| Queue starvation | junk filter + negative caching + priority (reconciliation design) |
-| Multi-writer races | single-writer reconciliation |
-| Caller pollution | input validation at the API boundary |
+The third column is the honest one: most of these mitigations belong to the unbuilt reconciler.
+
+| Failure | Mitigation | In force today? |
+|---|---|---|
+| Canonical label churn | opaque immutable ids; labels are display attributes | ✅ yes |
+| Normalizer drift | `norm_version` + full re-index; never mutate stored surfaces | ⚠️ column stored but never filtered on (§5.5 N4); and the normalizer has already drifted wrong (N1) |
+| LLM self-confirmation | tag unreviewed LLM glosses in prompts | ⏳ reconciliation design only |
+| Hallucinated concept ids | referential gate | ⏳ reconciliation design only |
+| Homonym collapse | scope-qualified uniqueness; `ambiguous` as a real verdict | 🚧 the verdict is real; scope qualification does not work (§6.1 K2) |
+| Queue starvation | junk filter + negative caching + priority | ⏳ columns exist, no logic; `priority` is always 0 |
+| Multi-writer races | single-writer reconciliation | ⏳ no reconciler exists |
+| Caller pollution | input validation at the API boundary | 🚧 the resolve endpoint checks non-empty only; the collector's 2–50-rune filter is the only real gate, and it admits whole CJK clauses (§9) |
 
 ### 15.3 Where a human must be in the loop
 
@@ -642,13 +716,29 @@ Merges of two established clusters, any change to a `locked` surface, enabling a
 
 - blocking recall/precision (pair completeness, pairs quality) and reduction ratio.
 
-### 16.4 Test coverage today
+### 16.4 Test coverage today — 🚧 **thinner than the counts suggest**
 
-The keyword package ships `keyword_exit_test.go` (9 exit-criteria test pointers) plus sqlmock tests for the stores, normalizer tests (12), and keyword-family tests (8). The P3 Track B handoff records `go build ./...`, `go vet`, `gofmt -l`, and the keyword + semid test suites as clean.
+The keyword package ships 51 test functions across five files. `go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/...` passes, and the P3 Track B handoff records `go build ./...`, `go vet`, and `gofmt -l` as clean. That is all true and all weaker evidence than it looks:
+
+| File | Funcs | What it actually verifies |
+|---|---|---|
+| `normalizer_test.go` | 14 | individual pipeline steps and key-kind shape. **No test asserts an acronym survives singularization**, which is why §5.5 N1 shipped. `TestSingularization` covers only the 21-entry exception list. |
+| `concepts_store_test.go` | 11 | sqlmock CRUD — SQL shape, not semantics |
+| `surfaces_store_test.go` | 6 | sqlmock CRUD |
+| `keywordfamily_test.go` | 9 | `FamilyName`, policy constants, key-bundle mapping, and the `off` / nil-DB early returns. **Not one test drives a tier against a database**, real or mocked — tiers 0–4 have zero behavioural coverage. |
+| `keyword_exit_test.go` | 11 | ⚠️ **assertion-free.** Nine of the functions have empty bodies containing only a comment naming other tests. `TestExitCoverageComplete` builds a 9-entry literal map and asserts `len(map) == 9`. The file cannot fail for any reason related to the keyword lexicon. |
+
+Its E4 entry claims tiers 0–2 and the deferred path are "covered by" `TestKeywordFamilyName`, `TestKeywordFamilyAutoAcceptPolicy`, `TestKeywordFamilyNormalizer`, and `TestKeywordNormalizerToSemidKeyBundleMapping` — none of which touch a tier. **Exit criteria E4, E6, E7, and E8 are unmet**, and the file's structure disguises that. It should either be deleted or replaced with real tests.
+
+The minimum credible test set before this module is trusted: sqlmock (or live-DB) coverage of each tier's query and score, a normalizer table test containing `AIDS`/`SaaS`/`Kubernetes`/`AWS's`, a scope round-trip test (write at `ks`, read at `ks`), and a resolver-mode test asserting that an **unset** `KEYWORD_RESOLVER_MODE` writes nothing.
 
 ---
 
-## 17. Deferred boundary — exact, as of 2026-08-04
+## 17. What is not done — exact, as of 2026-08-04
+
+Two different things get confused when a partially built module is described, so they are separated here. **§17.1 is deferred work**: designed, deliberately unbuilt, no code claims otherwise. **§17.2 is defects**: code that exists and does something other than what this document specifies. Deferred work is a plan; a defect is a bug.
+
+### 17.1 Deferred — deliberately unbuilt
 
 Everything below is deliberately deferred. None of it is a hard blocker; it is the sequenced-slice strategy that ships the `observe` contract first and extends later.
 
@@ -662,12 +752,38 @@ Everything below is deliberately deferred. None of it is a hard blocker; it is t
 | **Context-token disambiguation** (IDF-weighted overlap for homonyms) | the collector currently passes empty context | later |
 | **Full Double Metaphone phonetic key** | current `phonetic` key is a deterministic stub; a real implementation needs a dependency | P3 follow-up |
 | **Curated seed content / artifact backfill** | content authoring + a seed module, not code | manual / follow-up |
-| **`surface_keys` auto-population in `ResolveSurface`** | resolver writes the surface row but not its derived alternate keys yet | small follow-up |
-| **Batch adjudication UI / unresolved-backlog admin** | admin surfaces not built | P3 follow-up |
+| **Multi-word (n-gram) mention candidates** | collector emits single tokens only, so no multi-word surface can be observed (§9) | P3 follow-up |
+| **CJK word segmentation in the collector** | no segmenter; unpunctuated Chinese becomes one pseudo-token (§9) | P3 follow-up |
+| **Batch adjudication UI / unresolved-backlog admin** | admin surfaces not built; the backlog has no read API at all (§10) | P3 follow-up |
 | **Rewrite-rule auto-promotion** | rules authored manually; no promotion from validated decisions | P3 follow-up |
-| **I2 live PostgreSQL proof** | `chenweb_test` was not rebuilt with the new migrations; no live resolution exercised against real text | validation gap |
+| **`merged_into` chase at resolve time** | resolution returns a tombstoned concept id rather than the survivor (§12.1) | P3 follow-up |
+| **I2 live PostgreSQL proof** | `chenweb_test` was not rebuilt with the new migrations; no live resolution exercised against real text | validation gap — the reason §17.2 was found by code read rather than by a failing test |
 
-**Operational consequence:** with `KEYWORD_RESOLVER_MODE=off` (default), the module is inert. With `observe`, mentions, surfaces, decision-log rows, and the unresolved backlog are written — but `kb.keyword_unresolved` accumulates indefinitely, because nothing drains it until R1–R7 ships.
+### 17.2 Defects — built, but not as specified
+
+All eleven were verified by reading the code on 2026-08-04; N1–N3 were additionally reproduced by execution. Ordered by blast radius.
+
+| # | Defect | Where | Effect | Fix size |
+|---|---|---|---|---|
+| **K6** | resolve endpoint reads `os.Getenv` instead of `keywords.ResolverMode()`, so an **unset** `KEYWORD_RESOLVER_MODE` is not `off` | `kbhandler/keyword_handlers.go:371` | the fail-safe default is open; the endpoint resolves and writes on any server that hasn't set the variable | one line |
+| **N1** | singularization runs after case-folding — no ALLCAPS guard | `keywords/normalizer.go` §5.5 | `AIDS→aid`, `SaaS→saa`, `Kubernetes→kubernete`; distinct concepts collide, and every stored `norm_key` is wrong in a way a re-index will change | small, but a `norm_version` bump |
+| **K2** | `Kernel.Resolve` uses `Family.Scope()` (constant `"_"`) for lookups while writes use the caller's scope | `semid/kernel.go:65`, `keywords/keywordfamily.go:69` | ks-scoped surfaces are written and then unfindable; the module is single-scope in practice | small — thread the caller's scope |
+| **K5** | raw surface passed where `UpsertUnresolved` expects `norm_key` | `keywords/keywordfamily.go:308` | backlog PK does not dedupe variants; one concept occupies many rows; negative caching is per-spelling | one line |
+| **K1** | nothing writes `kb.keyword_surface_keys` | resolver + `CreateKeywordSurface` | tiers 2 and 4 match nothing | small |
+| **N3** | `initials` key is uppercase and tier 4 looks up the *query's* initials | §5.5 | tier 4 cannot bridge acronym↔expansion; populating K1 alone would make it match wrongly | design + small code |
+| **K3** | `POST /kb/keyword-surfaces` stores a caller-supplied `norm_key` unvalidated | `kbhandler/keyword_handlers.go:194` | cardinal rule 2 unenforced; tier-1 index can disagree with the normalizer | small |
+| **K8** | `MergeConcept` bypasses the status machine and consults no guardrail | `keywords/concepts_store.go:218` | already-merged/deprecated concepts re-mergeable; `never_merge` never checked; merging a non-existent id succeeds silently | small |
+| **K4** | mention rows carry no surface, and `chunk_ref`/`ks_id`/`context_text` are never populated | `keywords/keywordfamily.go:253` | `kb.keyword_mentions` holds no reconcilable information; blocks R1/R4 | schema + wiring |
+| **K7** | collector gates on `IsObserveMode()`, false in `on` mode | `doc-processing/keyword_mention_collector.go:43` | graduating `observe → on` turns mention collection off | one line |
+| **N2** | possessive rule requires a trailing space | §5.5 | word-final `AWS's` → `aws'` | one line |
+
+Lower-severity items recorded inline rather than in this table: context truncation by bytes not runes (§8.5), keep-last-5 in place of a reservoir sample (§8.5), `norm_version` never used as a filter (§5.5 N4), `surface_id` hashed before `label_role` defaulting (§8.2), the unreachable `human_review` arm in `ResolveSurface` (§7.3), the dead `phonetic` key (§5.2), and the assertion-free exit-criteria tests (§16.4).
+
+**Suggested order.** K6 first — it is one line and it is the only defect with a live blast radius on a running server. Then K2 and K5, which corrupt data that a later fix cannot reconstruct: rows written under the wrong scope or the wrong key stay wrong. N1 next, since it forces a `norm_version` bump and a re-index, and every day of observe-mode data written before it lands is data that must be recomputed. K1/N3/K3 together, as one "derived keys are actually derived" change. K8 before any reconciler work begins. K4 before R1/R4 is designed.
+
+### 17.3 Operational consequence
+
+With `KEYWORD_RESOLVER_MODE` **explicitly set to `off`**, the module is inert. With the variable **unset** it is inert for the collector but not for the REST resolve endpoint (K6). With `observe`, mentions, surfaces, decision-log rows, and the unresolved backlog are written — but the backlog is keyed on raw surfaces (K5), scoped inconsistently (K2), context-free (§9), and drained by nothing until R1–R7 ships. **Data collected in observe mode before K1/K2/K5/N1 are fixed should be treated as disposable**, not as a corpus to migrate: `kb.keyword_unresolved` and any `provenance='llm:observe'` surface rows should be truncated after the fixes land.
 
 ---
 
@@ -675,9 +791,11 @@ Everything below is deliberately deferred. None of it is a hard blocker; it is t
 
 ### 18.1 What shipped (P3 Track B, 2026-08-04, 7 commits on `main`)
 
+`641b73b6` (chunk A, concept store) · `2355449a` (B, surface + surface_keys stores) · `8e709aaa` (C, mention/unresolved/rewrite-rule stores) · `c6c4a1a3` (D, normalizer) · `5e746c96` (E, `KeywordFamily` + `semid.Normalizer` extension) · `e6b8fb55` (F, REST handlers + routes) · `b5ffb554` (F+G+H, resolver mode, collector, exit criteria).
+
 - Package `ChenWeb/server/api/ontology/keywords/` — normalizer, 6 stores, `KeywordFamily`, mode reader, tests.
 - `semid.Normalizer.NormFunc` extension (backward-compatible; `TermFamily` unchanged).
-- 14 REST handlers in `kbhandler/keyword_handlers.go` + routes.
+- 14 REST handlers in `kbhandler/keyword_handlers.go`, routed in `server/api/routes.go:461-474`.
 - Standalone collector `ChenWeb/server/api/doc-processing/keyword_mention_collector.go`.
 - 6 goose migrations `20260803000001`–`00006`.
 
@@ -688,6 +806,8 @@ cd ChenWeb
 go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/...
 go build ./... && go vet ./...
 ```
+
+These pass today and prove very little — see §16.4. Nothing in the suite would fail if any defect in §17.2 were introduced, which is why they were all found by reading rather than by running.
 
 ### 18.3 Document lineage
 
@@ -703,10 +823,17 @@ go build ./... && go vet ./...
 
 ## 19. Documentation impact
 
-**What knowledge changed?** The keyword canonicalization module is now fully specified and partially implemented (observe mode). This document is the single self-contained reference; the three prior keyword specs are superseded.
+**What knowledge changed?** The keyword canonicalization module is now fully specified and partially implemented (observe mode). This document is the single self-contained reference; the three prior keyword specs are superseded. A 2026-08-04 code review additionally established that **the shipped Track B slice does not match the design in eleven verified respects** (§17.2) — that gap is new knowledge, and it is the reason §0 distinguishes "code exists" from "code is correct".
 
 **Which docs/specs/ADRs/tests are affected?** ADR `2026072901` (DR15/DR16) is the design authority; the P3 Track B handoff and implementation log are the implementation record; this document supersedes `2026080101`, `2026072703`, and `2026072301` as the reference to read.
 
-**Which docs are now stale?** The three superseded keyword specs remain on disk as historical inputs but are no longer authoritative. Any future ad hoc keyword-alias logic should be folded into this design.
+**Which docs are now stale?**
+
+- The three superseded keyword specs remain on disk as historical inputs but are no longer authoritative.
+- `2026080101-spec-keyword-canonicalization-merged.md` §7 is **wrong**, not merely superseded: it states that the keyword family's merge calls are the kernel's `MergeGraph`. They are not (§12.1). Anyone reading it for merge semantics will be misled.
+- The Track B handoff `2026080401` and implementation log `2026080402` record the slice as complete against its exit criteria. Given §16.4, those exit criteria were self-certified by assertion-free tests; both documents should carry a pointer to §17.2.
+- The `-- +goose Up` comments in `20260803000005` ("keyed on (norm_key, scope) — the natural dedup unit") and `20260803000006` ("tiers 0-2 retry") describe behaviour the code does not implement (K5, §8.6).
 
 **What was intentionally left undocumented?** Exact reconciliation prompt text, exact Go package/API signatures beyond those shipped, and the mention collector's precise hook point in the doc-processing pipeline — the first is deferred with the reconciliation build, the last two are implementation decisions, not design decisions.
+
+**What should happen next?** Fix §17.2 in the suggested order, add the tests in §16.4, then re-run this review. Until K6 lands, do not deploy a server with `KEYWORD_RESOLVER_MODE` unset expecting the module to be inert.
