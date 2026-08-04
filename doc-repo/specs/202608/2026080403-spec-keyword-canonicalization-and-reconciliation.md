@@ -163,13 +163,17 @@ The word "mode" is used for two different things in this design, and they are **
 
 **Axis 2 — how far working mode's answers are allowed to travel.** This is a deployment gate, `KEYWORD_RESOLVER_MODE`, and it has three settings:
 
-| Setting | Working mode runs? | Results reach retrieval/search? |
-|---|---|---|
-| `off` (default) | no | — |
-| **`observe`** | yes, and records everything | **no** |
-| `on` | yes | yes |
+| Setting | Working mode runs? | Side effects recorded? | Results reach retrieval/search? |
+|---|---|---|---|
+| `off` (default) | no | no | — |
+| **`observe`** | yes | **yes** | **no** |
+| `on` | yes | yes | yes |
 
-**`observe` is therefore a state of working mode, not a third mode.** It is the *evaluation* setting: resolution runs for real, every side effect is written (mentions, surfaces, decision log, unresolved backlog), and the answer is then thrown away rather than handed to any consumer. It exists so the pipeline can be exercised against real volume — how many mentions, how many hits, how big the backlog grows — without a wrong resolution being able to affect a live retrieval path. It is what P3 Track B shipped, and it is why this document's implementation status reads "observe mode built".
+**`off` — the module does nothing.** `CandidateNodes` returns no candidates and `ResolveSurface` no-ops before touching the database. No mention is written, no surface is derived, nothing is logged. This is the safe, do-nothing state a keyword-unaware deployment sits in, and it is meant to be the default whenever the variable is unset (§7.4 records a defect where one code path fails to honour this).
+
+**`observe` — the module runs for real but is not trusted yet.** Resolution executes exactly as it would in `on`: the normalizer runs, the kernel scores candidates, tiers 0–4 are tried, and every side effect is written — a mention row, a decision-log entry, and either a new surface (on a match) or a backlog entry (on a miss). The *only* thing withheld is the answer itself: nothing downstream — search, retrieval, faceting — ever sees the resolution. This is the evaluation setting: it exists so the pipeline can be exercised against real document volume and its numbers inspected (mention counts, hit rate, ambiguity rate, backlog growth — §16) before a wrong resolution is allowed to reach a live path. It is what P3 Track B shipped, and it is why this document's implementation status reads "observe mode built". **`observe` is therefore a state of working mode, not a third mode** — same computation as `on`, with the last step removed.
+
+**`on` — the module is live.** Same pipeline as `observe`, with the downstream gate removed: an `auto_accepted` resolution becomes available to retrieval and search, and an accepted result can produce an `aligns_to_term` assertion (§14). Graduating from `observe` to `on` is designed to be a config flip, not a code change — the pipeline underneath is identical, only the last step differs. **This mode is not yet meaningfully usable**: no retrieval or search consumer exists to receive a resolution (§17.1), and §7.4 records a defect where flipping to `on` actually turns mention collection *off* rather than adding the retrieval connection.
 
 Reconciliation mode is orthogonal to all three settings: it is a batch job over the backlog, and it is unbuilt regardless of how the gate is set.
 
