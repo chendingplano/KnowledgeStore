@@ -695,6 +695,30 @@ A keyword concept is an **ungoverned canonical lexical identity**: fast, high-vo
 
 None of this is built: there is no `AssociationResolver` for keywords, no `aligns_to_term` column or assertion producer, and observe mode explicitly creates no such assertions.
 
+### 14.1 `extract_metrics` vs. `extract_metric_definitions` — two processors, no relationship between them
+
+Both are real, both run in Phase B of the same pipeline (`processor_plan.go`), both read the same documents, and today **neither knows the other exists**.
+
+| | `extract_metrics` | `extract_metric_definitions` |
+|---|---|---|
+| File | `doc-processing/extract-metrics.go` | `doc-processing/extract-metric-definitions.go` |
+| Question it answers | "What did *this document* assert?" | "What metric *concepts* does this domain have?" |
+| Output | a per-document **observation**: a value, unit, condition, comparator, tied to a specific subject in this document | a candidate **governed term**: `{canonical_name, aliases, definition, value_type, range_type}` — independent of any observed value |
+| Destination | `kb.metrics`, then (via `normalize_assertions` → `associate_semantics`, Phase C) `kb.semantic_assertions` | `kb.ontology_candidates` (`candidate_kind='term'`), pending human promotion to `kb.ontology_terms` (`term_kind='metric_definition'`) |
+| Where the metric's *name* ends up | a free-text string in `Assertion.Qualifiers.metric_name` — carried through, never resolved against anything (§ associate_semantics.go:226) | the candidate's `canonical_name`/`aliases` fields — likewise carried through unresolved |
+
+**They are meant to converge and don't.** `extract_metrics`' `metric_name` ("luminance", "亮度", "显示亮度" — however a given document happens to phrase it) is exactly the kind of surface variation the keyword lexicon exists to collapse; `extract_metric_definitions`' `canonical_name`/`aliases`, once promoted to a term, are exactly what DR23 calls "the DR15/DR16 keyword lexicon instantiated over metric terms, aligned by `aligns_to_term`." Verified in the code: `processor_plan.go` declares no dependency edge between the two processors, `associate_semantics.processMetric` never looks up `kb.ontology_terms`/`kb.ontology_candidates` for anything but the fixed predicate/assertion-kind terms (`mea:measured_by`, `mea:<assertion_kind>` — the kind of claim, not which metric), and there is no column or join anywhere linking `kb.metrics.metric_name` to `kb.ontology_terms`. Two documents asserting "luminance is 450 cd/m²" and "亮度为450cd/m²" today produce two `kb.metrics` rows with no way to know they're the same metric, and a `kb.ontology_candidates` proposal (if `extract_metric_definitions` happened to catch either as an explicit definition) that never learns it could resolve either one.
+
+### 14.2 `kb.ontology_candidates` — what it is and what happens to what lands in it
+
+`kb.ontology_candidates` is the single proposal channel for **all** governed ontology content — terms, labels, mappings, axioms, profiles, profile rules, module changes (`candidate_kind` CHECK). Nothing reaches `kb.ontology_terms` / `kb.ontology_term_labels` / `kb.ontology_mappings` except through this table and its state machine; the migration comment calls this "the code-enforced form of the 'no LLM activates ontology content' guarantee."
+
+**Lifecycle** (`candidates/state_machine.go`): `discovered → draft → in_review → approved → included_in_release`, with `rejected`/`deferred` branches off the first three states, and `deferred → draft` reachable only through `RetryDeferred` when the candidate's `dependency_fingerprint` has actually changed. `approved` and `included_in_release` are reached only by a human action through `kbhandler/ontology_candidates_handler.go` (`TransitionOntologyCandidate`, `PromoteOntologyCandidate`) — there is no automatic promotion path. **This is a genuine, by-design blocker**, not an arbitrary defer: it is why zero `metric_definition` instance-terms exist today (`kb.ontology_terms` has exactly one `metric_definition`-kind row, and it is the meta-term describing what a metric definition *is* — `mea:metric_definition` — not an actual metric like luminance).
+
+**Deduplication is exact-match only.** `Fingerprint()` hashes the canonicalized payload + source + module; `UNIQUE(fingerprint)` means an identical re-extraction reuses the existing candidate rather than opening a duplicate review item (`candidates/fingerprint.go`). It does **not** catch near-duplicates: "luminance", "亮度", and "显示亮度" extracted from three different documents produce three different fingerprints and three separate review items, with nothing telling the reviewer they are the same proposal in three spellings.
+
+**This is precisely the gap `candidate_matches` was left in the schema to fill, and precisely where it stays empty.** The `candidate_matches JSONB` column exists on `kb.ontology_candidates` for exactly the signal a reviewer needs — "this proposal looks like it matches existing candidate/term X" — but nothing computes it. Verified: `CreateOntologyCandidate` only accepts it as an optional caller-supplied field; `ontology_candidate_harvest.go` (which builds `extract_metric_definitions`' candidates) never sets it; no code reads it back for display. Resolving a candidate's `canonical_name`/`aliases` through `KeywordFamily` at harvest time — before the candidate is written — is the natural place to populate this field: an `auto_accepted` or `ambiguous` keyword resolution against an existing keyword concept (and, transitively, any term it already `aligns_to`) is exactly a "this looks like something you've seen" signal, surfaced to the human reviewer instead of left for them to notice by eye across unrelated review items.
+
 ---
 
 ## 15. Failure modes and guardrails
