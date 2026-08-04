@@ -103,7 +103,7 @@ The KnowledgeStore already reconciles objects and entities with an exact/alias/a
 
 The decisions below are the reason the module looks the way it does. They were settled in the ADR (DR15, DR16) by merging two earlier, partially conflicting specs — one proposing a Postgres-centric concept/variant/link model, the other a UMLS/SKOS-inspired four-layer model with SQLite-first storage. What follows is the resolution.
 
-### D1. Four identity layers, UMLS-style — ✅ **Built** (in the schema)
+### D1. Four identity layers, UMLS-style — 🚧 **Partial** (two of four layers are real entities; two are not)
 
 Every keyword passes through four layers of abstraction:
 
@@ -111,12 +111,22 @@ Every keyword passes through four layers of abstraction:
 occurrence   →   surface   →   lexform   →   concept
 ```
 
-- **occurrence** — a raw string as observed in a document chunk, plus where it came from (≈ UMLS AUI);
-- **surface** — one exact distinct string, stored verbatim (≈ SUI);
-- **lexform** — a normalization-equivalence class; the working-mode index key (≈ LUI);
-- **concept** — a unit of meaning with a canonical label and gloss (≈ CUI).
+This is the design's central model, borrowed from UMLS. The rest of this entry is more concrete than the other D-items, because the gap between what these four words mean and what actually exists in the running system is the most common source of confusion in this module — worth closing here once, rather than leaving it to be reconstructed per-reader from six different files.
 
-`surface → lexform` is many-to-one and **computed** (by the normalizer). `lexform → concept` is **many-to-many** — this is where homonyms live (`ML` → machine learning *or* millilitre) — disambiguated by scope, and failing that by context. The `lexform` layer is the one that earns its keep: it is what makes deterministic O(1) lookup possible, and it is the layer invalidated by a normalizer-version bump.
+**What each layer means, and what it actually is in code:**
+
+- **occurrence** — a raw string as observed in one specific place (one document chunk), plus where it came from (≈ UMLS AUI). **Not a stored entity.** `kb.keyword_mentions` (§8.4) was designed to be this layer's table, but as shipped it never receives the observed string — `ResolveSurface` writes `artifact_ref` and `context_text` only, and not even `chunk_ref`/`ks_id` (§17.2 K4). The raw surface exists only as a function argument for the duration of one resolve call. Nothing today can answer "what did document X actually say" for a resolved keyword by querying `kb.keyword_mentions`.
+- **surface** — one exact, distinct string, stored verbatim, tagged with a role (`pref`/`alt`/`hidden`) and an alias type (≈ SUI). **A real entity.** `kb.keyword_surfaces` + `SurfaceStore` (§8.2) — fully CRUD'd, unit-tested. This layer is solid.
+- **lexform** — a normalization-equivalence class; the working-mode index key (≈ LUI). **Not an entity — a derived value.** There is no `kb.keyword_lexforms` table and no `lexform_id`. A lexform is realized purely as the string in a `norm_key` column, computed once by the normalizer and copied onto every row that needs to be found by it. This matches the original design intent — the phrase "the working-mode index key" already says "key," not "governed record" — so having no dedicated table is not itself a gap. What *is* a gap: `kb.keyword_unresolved.norm_key` is supposed to hold this value too, but currently holds the raw, un-normalized surface instead (§17.2 K5) — so the one place a lexform is supposed to do its deduplication job, the backlog, is the one place it currently doesn't.
+- **concept** — a unit of meaning with a canonical label and gloss (≈ CUI). **A real entity.** `kb.keyword_concepts` + `ConceptStore` (§8.1), with a genuine lifecycle (`active → provisional → merged → deprecated`). Solid, though `MergeConcept` bypasses its own guardrails (§12.1, §17.2 K8). Concepts are created only through the REST API today; there is no automated "propose a new concept" path, because that path (reconciliation's R5 `new_concept` decision, §11) is unbuilt.
+
+**How the transitions actually happen, mechanically:**
+
+- **occurrence → surface** — conceptually many-to-one (the same raw string, seen many times, is one surface). In practice this transition is unobservable today: since occurrence isn't stored, the code goes straight from a raw string to either a `kb.keyword_surfaces` row (on a hit) or `kb.keyword_unresolved` (on a miss), with no record of how many times or where along the way the string was actually seen.
+- **surface → lexform** — many-to-one, computed at write time by `KeywordNormalizer.Normalize(surface)`, the function that produces `norm_key`. This is where cardinal rule 2 (§4.2, "store surfaces, derive keys") is actually exercised: `kb.keyword_surfaces.norm_key` is set once, from the surface, and never edited directly — a normalizer-version bump means recomputing it, not migrating it.
+- **lexform → concept** — many-to-many, but there is no join table for it; it's an emergent property of how the surface table is shaped. `kb.keyword_surfaces.concept_id` is `NOT NULL`, so every surface belongs to exactly one concept. When two surfaces share a `norm_key` but point at different `concept_id`s — a surface row `ML` under a `machine learning` concept, and a separate surface row `ML` under a `millilitre` concept — that pair of rows *is* the many-to-many relationship, with nothing else modeling it. The tier-1 lookup (`SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.norm_key = $1 AND s.scope = $2`, §7.2) is this relationship being queried directly: one distinct `concept_id` in the result set → auto-accept; two or more tied at the top score → `ambiguous` (`Adjudicate`, §6.2). This single query *is* the entire mechanism behind D5 (ambiguity is first-class) and §4.3 (homonymy) — there is no separate disambiguation subsystem; ambiguity detection is a side effect of how the surface table happens to be shaped.
+
+**How this connects to production, concretely.** No doc processor reaches any of these four layers today — true for pre-ontology processors (`extract_metrics`, unmodified) and equally true for processors built as part of this same program (`extract_metric_definitions`, which extracts `canonical_name`/`aliases` and never calls `KeywordFamily`) — see §14.1. The proposed integration (`2026080404`-addendum §6) is: a metric's raw name (an occurrence, ephemerally) is handed to `KeywordFamily.ResolveSurface`, which runs it through exactly the surface→lexform→concept chain above and returns a concept if one matches; a separate, human-confirmed `aligns_to_term` assertion (§14) then connects that concept to a governed `metric_definition` term, which is the identity DR23's comparison matrix actually keys on. The pilot domain this is meant to work on is 呼吸机/医疗器械 — ventilators and medical devices, ADR OD1, resolved 2026-07-29 — still un-authored as domain content. Whatever review or verdict layer eventually consumes that comparison matrix never touches the keyword layer directly; it consumes governed terms, several hops downstream of everything described here.
 
 ### D2. One shared resolution kernel, not a bespoke engine — ✅ **Built**
 
@@ -189,6 +199,8 @@ A missed alias is a self-reporting, self-healing condition — it lands in the u
 ## 4. Identity model
 
 ### 4.1 The four layers
+
+*For the full per-layer walkthrough — what each layer means, which two are real database entities and which two are only derived values, and how the transitions between them are actually implemented — see D1 in §3. This subsection is the compact schema-level summary.*
 
 ```
 occurrence   raw surface as observed, + where it came from   (where it came from → kb.keyword_mentions)
