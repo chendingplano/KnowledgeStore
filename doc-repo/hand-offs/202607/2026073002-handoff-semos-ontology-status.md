@@ -552,7 +552,73 @@ written (they were intentionally left out of the ChenWeb commit): the ADR `20260
 this retraction, impl log `2026080107` corrections, bug `2026080301` supersession, `bugs/OPEN.md`,
 and the `Capsules/coding-capsules/doc-processor/+CAPSULE.md` P5 section.
 
+## Post-handoff update (2026-08-04 — P3 Track B complete)
+
+P3 Track B (the keyword lexicon) is **implemented and live-validated** as of 2026-08-04, per the
+implementation plan `2026080304-plan-semos-p3-trackb-keyword-lexicon.md` (chunks 0–H). This is
+the second `semid` kernel instantiation (after P2's `TermFamily`), shipped behind
+`KEYWORD_RESOLVER_MODE=observe` (default `off`). Delivered:
+
+- **6 keyword tables** as goose migrations (`kb.keyword_concepts`, `keyword_surfaces`,
+  `keyword_surface_keys`, `keyword_mentions`, `keyword_unresolved`, `keyword_rewrite_rules`);
+- **6 stores** with sqlmock tests: concept (ungoverned lifecycle, merge-by-tombstone), surface
+  (content-derived id: `kws_<sha256[:12]>`), surface_keys (4 alternate key kinds), mention
+  (append-only batch insert), unresolved (JSONB upsert with dedup + reservoir sampling), and
+  rewrite rules (simple literal patterns, disabled by default);
+- **Keyword normalizer** producing 6 deterministic key kinds (exact, norm, alnum, sorted, phonetic,
+  initials) through a full NFKC pipeline: strip zero-width chars → normalize dashes/quotes →
+  collapse whitespace → collapse dotted initialisms → case-fold → drop possessives → strip leading
+  articles → exception-list-aware singularization;
+- **`KeywordFamily`** — a full `semid.FamilyAdapter` implementation (`family='keyword'`) with
+  multi-tier candidate generation (tier 0 exact surface, tier 1 norm key, tier 2 alnum/sorted,
+  tier 3 rewrite rules + retry, tier 4 initials; tiers 5-6 deferred), auto-accept at score ≥ 0.8
+  for a single unambiguous candidate, and idempotent `ResolveSurface` writing mentions, surfaces,
+  keys, decision-log entries, and unresolved backlog;
+- **`semid.Normalizer` extension** — a backward-compatible `NormFunc` field (nil = built-in,
+  set = family-supplied pipeline; `TermFamily` unchanged);
+- **13 REST endpoints** under `/api/v1/kb/keyword-*` (concepts CRUD, surfaces CRUD, rewrite rules
+  CRUD, `ResolveSurface`);
+- **Standalone mention collector** (`KeywordMentionCollector.CollectFromText`) — tokenizes text,
+  resolves each token through the kernel, writes mentions/surfaces/backlog; NOT pipeline-wired;
+- **`KEYWORD_RESOLVER_MODE`** env-var gate (`sync.Once` at startup) — `off` = no-op, `observe` =
+  measure volume, `on` = deferred (stubbed identically to observe).
+
+**Phonetic key:** The `phonetic` key kind uses a stub (first character + first 4 consonants). Full
+Double Metaphone is deferred — the stub satisfies the 6-key-kind contract and produces a stable,
+deterministic key for tier 4 matching.
+
+**Mention collector:** Standalone function (`CollectFromText`), not registered as a
+`PostProcessIndexer` in `productionProcessorSpecs`. Observe mode means measuring volume without
+changing production behavior.
+
+**Verification:** `go build`, `go vet`, `gofmt` clean on all affected packages. Full keyword test
+suite (35+ tests) and pre-existing semid kernel tests pass.
+
+**Deferred by design beyond Track B** (documented boundaries, not gaps — full detail in the
+Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`):
+
+- **Fuzzy tiers 5-6** (trigram/vector blocking, edit-distance filtering with the spec's guardrails:
+  digit veto, canonical veto, negation/affix veto, length-gated edit distance) — **P3 follow-up**;
+- **Full reconciliation pipeline** (R1-R7: harvest → prune → block → assemble → decide → validate →
+  apply, reusing DR5/DR6/DR7 backlog-drain patterns) — **P3 follow-up**;
+- **`aligns_to_term` bridge** — no `AssociationResolver` for keywords; resolved concepts are not
+  linked to governed ontology terms — **P4+**;
+- **`on` mode** — resolution exists but is not connected to retrieval, search payloads, or any
+  downstream consumer — **P4+**;
+- **Curated seed content** — no `ontology-seed` keyword module; initial concepts/surfaces are
+  authored manually through the REST API;
+- **I2 live PostgreSQL proof** — the `chenweb_test` database was not rebuilt with the new
+  migrations; no live resolution was exercised against real document text.
+
+**Next:** P4 (profiles, the normative ventilator pilot, `extract_metric_definitions`,
+`extract_product_structure`) or P3 Track B follow-up (fuzzy tiers + reconciliation pipeline).
+
 ## Related documents
+
+- P3 Track B handoff: `KnowledgeStore/doc-repo/hand-offs/202608/2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` — the full build record with architecture diagram, per-chunk file listing, and complete deferred boundary.
+- P3 Track B implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080304-plan-semos-p3-trackb-keyword-lexicon.md` — the chunked plan this session executed.
+- P3 Track B implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080402-devdoc-semos-p3-trackb-implementation-log.md` — the running build record.
+- DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — now partially implemented (observe mode).
 
 - Companion handoff: `2026073001-handoff-semos-gold-benchmark-and-tooling.md` — the technical build this session produced (CLI, mise tasks, prompt iterations, bug reports).
 - Operations manual: `KnowledgeStore/doc-repo/devdocs/202607/2026073002-devdoc-gold-benchmark-operations.md` — how to run the benchmark, including corpus-extension options.

@@ -13,6 +13,8 @@ P3 as specified in the ADR (`2026072901` lines 1507-1523) bundles two largely in
 
 Per user direction on 2026-08-01, **this plan covers Track A only.** The DR16 keyword-spec merge (a documentation prerequisite, not code) was completed the same day as `2026080101-spec-keyword-canonicalization-merged.md`. Track B's actual code — the kernel `FamilyAdapter` instantiation, mention collector, reconciliation pipeline, and backlog-drain admin surfaces — is deferred to a follow-up P3 slice. See "Deferred beyond this slice" below.
 
+> **2026-08-04 update:** Track B is now **implemented and merged to `main`** (plan `2026080304-plan-semos-p3-trackb-keyword-lexicon.md`, chunks 0–H). See the Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` and implementation log `2026080402-devdoc-semos-p3-trackb-implementation-log.md`.
+
 ## Goal
 
 Build the assertion/evidence layer and Phase D association pipeline such that:

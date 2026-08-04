@@ -67,6 +67,17 @@
   and this ADR's completion entry will be added only after Chunk I passes. See plan
   `2026080103-plan-semos-p5-rule-driven-routing.md`, spec `2026080102-spec-semos-p5-rule-driven-routing.md`,
   and the ontology capsule `Capsules/coding-capsules/ontology/+CAPSULE.md` (P5 section).
+* 2026/08/04, P3 Track B (keyword lexicon) status entry. The keyword lexicon is implemented as the
+  second `semid` kernel instantiation (7 commits, chunks 0–H, merged to `main` and pushed): 6
+  `kb.keyword_*` tables, CRUD stores with sqlmock tests, a keyword normalizer producing 6
+  deterministic key kinds through a full NFKC pipeline, a `KeywordFamily` implementing
+  `semid.FamilyAdapter` (`family='keyword'`) with multi-tier candidate generation (tiers 0-4
+  auto-accept, tiers 5-6 deferred), a backward-compatible `semid.Normalizer.NormFunc` extension,
+  13 REST endpoints, a standalone mention collector, and `KEYWORD_RESOLVER_MODE` env-var gating.
+  Shipped behind observe mode with no downstream consumers connected. The deferred boundary
+  (fuzzy tiers, reconciliation pipeline, `aligns_to_term` bridge, `on` mode, curated seed
+  content, I2 live proof) is recorded in the Track B handoff
+  `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`.
 * 2026/08/01, DR2 rewrite (verified against implementation). DR2 is rewritten to state the
   **DB-native storage decision as the decision itself**, replacing the retired "author in Git,
   compile into Postgres" framing and its annotation. The rewrite is verified against the P2–P4
@@ -1961,9 +1972,24 @@ loss of a merged id.
 > `chenweb_test`, not only synthetic fixtures — see the P3 implementation log
 > `2026080103-devdoc-semos-p3-implementation-log.md`, which also records two real correctness bugs
 > live validation found and fixed (a revision-supersession gap and an `in_review` resumability gap).
-> **Not built:** the keyword lexicon (design-only per the DR16 merged spec
-> `2026080101-spec-keyword-canonicalization-merged.md`) and the DR6/DR7 halves of the backlog drain
-> (admin review page; LLM auto-resolution).
+> **Not built:** the DR6/DR7 halves of the backlog drain (admin review page; LLM auto-resolution).
+>
+> **2026-08-04 — P3 Track B (keyword lexicon) complete:** The keyword lexicon is **built and
+> validated** as of 2026-08-04 — the second `semid` kernel instantiation (after P2's `TermFamily`),
+> shipped behind `KEYWORD_RESOLVER_MODE=observe` (default `off`). Delivered: 6 `kb.keyword_*`
+> tables, CRUD stores with sqlmock tests, a keyword normalizer producing 6 deterministic key kinds
+> (exact/norm/alnum/sorted/phonetic/initials) through a full NFKC pipeline, a `KeywordFamily`
+> implementing `semid.FamilyAdapter` (`family='keyword'`) with multi-tier candidate generation
+> (tiers 0-4 auto-accept at score ≥ 0.8; tiers 5-6 deferred), a `semid.Normalizer.NormFunc`
+> extension (backward-compatible; `TermFamily` unchanged), 13 REST endpoints, a standalone mention
+> collector (`CollectFromText`, not pipeline-wired), and `KEYWORD_RESOLVER_MODE` env-var gating
+> (`sync.Once` at startup). Full test suite passes; `go build`/`go vet`/`gofmt` clean.
+>
+> **Deferred by design:** fuzzy tiers 5-6 (trigram/vector blocking), the full reconciliation
+> pipeline (R1-R7), `aligns_to_term` bridge to governed terms, `on` mode (retrieval connection),
+> curated seed content, the phonetic-key stub → Double Metaphone upgrade, and I2 live PostgreSQL
+> proof. See the Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` for the
+> complete build record and deferred boundary.
 >
 > **2026-08-01 correction (post-review):** A same-day implementation review
 > (`2026080106-devdoc-semos-p3-implementation-review.md`) found the "Built and complete" framing

@@ -6,7 +6,7 @@
 - **Component:** SemOS / ChenWeb — keyword lexicon, the DR15 keyword identity family
 - **Supersedes:** `2026072301-spec-keyword-canonicalization-reconciliation.md` (File 6), `2026072703-spec-keyword-canonicalization-reconciliation-2.md` (File 7)
 - **Authored per:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` DR16
-- **Implementation status:** Design only. Code lands in P3 behind `KEYWORD_RESOLVER_MODE=observe`; deferred by explicit scope decision on 2026-08-01 (see the P3 implementation log). This document exists so that later work has a single source of truth instead of two disagreeing specs.
+- **Implementation status:** Partially implemented — observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`). Deferred: fuzzy tiers 5-6, reconciliation pipeline, `aligns_to_term` bridge, `on` mode, curated seed content, I2 live proof. See the Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` for the complete build record and deferred boundary.
 
 ## 1. Why this document exists
 
