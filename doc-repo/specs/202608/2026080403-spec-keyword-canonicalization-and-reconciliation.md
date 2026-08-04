@@ -123,6 +123,24 @@ where "name" is whatever raw string a producer supplies — a metric name, an en
 
 The rest of this entry is more concrete than the other D-items, because the gap between what these four words mean and what actually happens in the running code is the most common source of confusion in this module.
 
+**Read this table before anything else in this entry — it is the single authoritative map from each layer to exactly where it lives, and it corrects the most common misreading of the diagram above: that each arrow is a separate table being looked up and handed to the next. It isn't.** Mechanically, there are exactly two real tables (`kb.keyword_surfaces`, `kb.keyword_concepts`); surface, lexform, and concept are three *columns on one row* of the first table for the common case, not three tables chained by joins.
+
+| Layer | Is it a table? | Where it actually lives | Which column(s) | How a *consumer* (a metric, an entity, anything) connects to it |
+|---|---|---|---|---|
+| **name** | no — not part of this module | the producer's own table (e.g. `kb.metrics.metric_name`) | — | this *is* the consumer's own field; the keyword module never stores a copy of it under this name |
+| **occurrence** | a table exists, but is incomplete | `kb.keyword_mentions` | `artifact_ref`, `context_text` (written); `chunk_ref`, `ks_id` (always null); **no column holds the name itself** — this is a schema gap, not a missing assignment (§17.2 K4) | nothing — no foreign key in either direction |
+| **surface** | ✅ real, fully built | `kb.keyword_surfaces` | `surface_id` (PK), `concept_id` (FK, `NOT NULL`), `surface` (verbatim text), `norm_key`, `norm_version`, `label_role`, `alias_type`, ... | nothing directly — a consumer never stores a `surface_id` |
+| **lexform** | ❌ not a table — a derived value | lives *as a column* on `kb.keyword_surfaces` (correctly) and on `kb.keyword_unresolved` (currently broken, K5) | `norm_key` (TEXT) | nothing directly |
+| **concept** | ✅ real, fully built | `kb.keyword_concepts` | `concept_id` (PK, opaque), `pref_label`, `gloss`, `scope`, `status`, `merged_into`, ... | **the only thing a consumer ever references.** A proposed column like `kb.metrics.keyword_concept_id` would hold a *copy* of a `concept_id` value — a foreign key into this separate, shared table, never a duplicate of the concept's own data |
+
+**Which tier queries what, precisely — matching is always `name` directly against `kb.keyword_surfaces` (or its child table), never against "occurrence":**
+
+- **Tier 0**: `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces s WHERE s.surface = $1` — `$1` is the raw `name`/`surface` string handed to `ResolveSurface`, compared byte-for-byte against the `surface` column.
+- **Tier 1**: same table, `WHERE s.norm_key = $1` — `$1` is `name`, *after* normalization, compared against the `norm_key` column.
+- **Tiers 2/4**: query `kb.keyword_surface_keys` (FK'd to `surface_id`), joined back to `kb.keyword_surfaces` for `concept_id`.
+
+`kb.keyword_mentions` is never queried by any tier. It has no role in resolution at all — it is a (currently broken) audit side-effect, written once per call and never read back by anything in the resolve path.
+
 **Who generates an occurrence — literally, who calls the function.** An occurrence comes into existence when something calls `KeywordFamily.ResolveSurface(surface, scope, artifactRef, contextText)`. As of this writing there are exactly **two** callers anywhere in the codebase:
 
 1. `KeywordMentionCollector.CollectFromText` (§9) — for every token it pulls out of raw document-chunk text. This is currently unwired into the pipeline, so in production today it never runs.
@@ -759,6 +777,36 @@ Reconciliation must never take the transitive closure over pairwise merge decisi
 
 Backlog draining reuses the DR5/DR6/DR7 pattern already built for ambiguous object reconciliation (ADR `2026070701`): a bulk backfill endpoint, a human-review admin page, and an optional confidence-gated LLM adjudication path — not a bespoke queue mechanism. Of these, P3 Track A built the DR5 bulk-backfill pattern; the DR6 (admin review) and DR7 (LLM adjudication) halves remain unbuilt.
 
+### 11.4 Implementation plan: tiers 5–6 and R3–R5
+
+This is a **design and sequencing plan, not code** — nothing in this subsection is built. It exists because "candidate-only by design" (tiers 5–6 never auto-accept, per §6.1's guardrails) makes these worth building even in a small, contained form, and because getting to that contained form surfaces one real architectural gap that isn't obvious from the stage descriptions in §11.1 alone.
+
+**Do not start this before the prerequisites land.** Tiers 5–6 and R3 all generate candidates by querying derived keys and embeddings computed from surfaces — building them on top of K1 (no code path writes `kb.keyword_surface_keys`), N1 (the normalizer over-collapses `AIDS`/`SaaS`-style tokens), or K2 (scope is ignored in lookups) means shipping fuzzy/semantic matching over data already known to be wrong. Fix those first (§17.2's suggested order already puts them early).
+
+**A gap this plan surfaces that no other section names: the kernel's `Score()` function cannot represent a fuzzy or embedding similarity score today, at all.** `semid/score.go`'s `Score()` is a fixed, four-way discrete function — exact key match (1.0), alternate key match (0.8), prefix match (0.5), or 0 — with no notion of a continuous similarity value. Worse: `Kernel.Resolve` filters out any candidate scoring exactly 0 *before* it reaches `Adjudicate()` (`if s > 0 { matches = append(...) }`, `semid/kernel.go`). A trigram or embedding candidate that doesn't happen to satisfy one of `Score()`'s four discrete conditions wouldn't fall through to `human_review` as a visible "candidate, needs review" outcome — it would be silently dropped, indistinguishable from `CandidateNodes` finding nothing at all. **This must be resolved as an explicit kernel change before tier 5 or 6 can work at all**, not discovered as a bug after they're built. The two candidate shapes worth weighing: (a) extend `Score()` itself to accept a continuous similarity input, capped so it can never reach a family's `MinScore`; or (b) let `NodeCandidate` carry an optional pre-computed score that bypasses `Score()` entirely, with the same cap. Neither is decided here — this is exactly the kind of kernel-level decision that should be made deliberately, once, since both existing families (`TermFamily`, `KeywordFamily`) depend on `Score()`'s current behavior being unchanged for tiers 0–4.
+
+**Tier 5 (fuzzy: trigram + edit distance).**
+
+- Requires the `pg_trgm` extension (`CREATE EXTENSION IF NOT EXISTS pg_trgm;` — an infrastructure change, needs the same sign-off any extension install would).
+- A GIN trigram index on `kb.keyword_surfaces.norm_key`.
+- A new `tier5FuzzyMatch` candidate function in `keywordfamily.go`, applying the length/digit/canonical/negation guardrails already specified and binding (§6.1) — those guardrails are design-complete; only the query and the scoring-gap resolution above are new work.
+- Candidates from this tier must never reach `auto_accepted` — enforced by whichever scoring resolution above is chosen, not by anything specific to tier 5.
+
+**Tier 6 (embedding / ANN similarity).**
+
+- Requires the `pgvector` extension, and a new table (`kb.keyword_surface_embeddings` or similar) holding a vector column per surface.
+- **Open, needs a decision before any code is written: which embedding model or provider.** Given the pilot corpus is bilingual (呼吸机/医疗器械 is predominantly Chinese, per §5.4), the model needs multilingual competence — an English-only embedding would not place "luminance" and "亮度" near each other, defeating the entire point of this tier for the case that motivates it (`2026080404`-addendum §5.2). Not specified here; a product/infra decision.
+- A candidate function querying by cosine similarity (or whatever `pgvector` operator is chosen) within a scope, subject to the same scoring-gap resolution as tier 5.
+
+**R3 (blocking) is not new infrastructure once 5–6 exist — it's the same indexes, queried the other direction:** lexical blocking reuses the tier-5 trigram index (querying backlog items against surfaces, and against each other, instead of one surface at a time); semantic blocking reuses the tier-6 embedding table the same way. Building R3 before tiers 5–6 exist would mean building the indexes twice.
+
+**R4 (assemble) and R5 (decide) require product decisions this document cannot make unilaterally:**
+
+- R4's prompt (batching unknowns against candidates into a compact pipe-row format, §11.1) must be written to a file under `prompts/`, named `prompt-<slug>-v1.md`, per this workspace's `ChenWeb/CLAUDE.md` — **never hardcoded in Go**, and its actual content (what instructions, what examples, how glosses get tagged `[llm-gloss, unreviewed]`) is a real design task, not a mechanical one.
+- R5 needs an explicit choice of cheap-tier and strong-tier models for the escalation ladder (§11.1), and the structured-output schema for a decision record — both open.
+
+**Sequencing, in one line:** fix §17.2 first; resolve the `Score()` gap once, deliberately, as a kernel change; build tier 5 and its guardrail tests; build tier 6 once an embedding model is chosen; build R3 reusing both tiers' indexes; write and iterate the R4 prompt as its own file before writing the code that calls it; choose R5's models last, since escalation-ladder tuning is the one part of this that benefits from having real tier-5/6 candidate volume to tune against.
+
 ---
 
 ## 12. Merge, split, and identity lifecycle — 🚧 **Partial** (merge), ⏳ **Deferred** (split)
@@ -911,8 +959,8 @@ Everything below is deliberately deferred. None of it is a hard blocker; it is t
 
 | Item | Why deferred | Where it lands |
 |---|---|---|
-| **Fuzzy tiers 5–6** (trigram/vector blocking, edit-distance filtering, ANN) | requires `pg_trgm` + `pgvector` extensions and significant candidate-scoring code; the deterministic tiers 0–4 prove the kernel integration | P3 follow-up / P4 |
-| **Reconciliation pipeline (R1–R7)** | stores and kernel exist; the batch CLI/workflow is not built. Reuses DR5/DR6/DR7 backlog-drain patterns from Track A. R3's blocking additionally depends on the `pg_trgm`/`pgvector` extensions that ship with the fuzzy tiers (also deferred), so R1–R7 inherits that infra timing — a sequencing dependency, not a hard blocker | P3 follow-up |
+| **Fuzzy tiers 5–6** (trigram/vector blocking, edit-distance filtering, ANN) | requires `pg_trgm` + `pgvector` extensions, an embedding model decision, and a kernel `Score()` change that doesn't exist as a concept yet — the deterministic tiers 0–4 prove the kernel integration; §11.4 has the concrete build plan and names the `Score()` gap explicitly | P3 follow-up / P4 |
+| **Reconciliation pipeline (R1–R7)** | stores and kernel exist; the batch CLI/workflow is not built. Reuses DR5/DR6/DR7 backlog-drain patterns from Track A. R3's blocking additionally depends on the `pg_trgm`/`pgvector` extensions that ship with the fuzzy tiers (also deferred), so R1–R7 inherits that infra timing — a sequencing dependency, not a hard blocker. R4/R5 additionally need a prompt file (per `ChenWeb/CLAUDE.md`) and a model choice — real design tasks, not just code (§11.4) | P3 follow-up |
 | **`aligns_to_term` bridge** | no `AssociationResolver` for keywords exists | P4+ |
 | **`on` mode** (wiring into retrieval/search payloads) | no downstream consumer exists yet; observe mode measures volume first | P4+ |
 | **Mention collector pipeline wiring** | coupled to the missing `on`-mode retrieval consumer (§9.1) — it serves corpus-wide recall for search/retrieval expansion, which has no consumer yet; targeted uses like metrics don't need it (§14.1) | revisit together with retrieval wiring, not before |
@@ -1013,3 +1061,15 @@ etc. Shall we consider them?
 
 How about Wikipedia (possibly locally hosted)? Will it help resolve keyword ambiguity or 
 reconcile keywords?
+
+**Response (2026-08-04):** Worth considering, and it connects directly to §5.2 of the addendum (`2026080404`) — this is exactly the "concept-level unification at scale" gap that section names as unbuilt. Different resources fit different parts of the design, though, and one distinction matters more than which resource to pick: **raw Wikipedia and Wikidata are different things, and only one of them fits this module directly.**
+
+- **Wikidata, not Wikipedia prose, is the strong fit.** Wikidata (Wikipedia's structured sister project, CC0-licensed, downloadable as a filterable dump, hostable locally with no live-API dependency) models `item → {labels in N languages, aliases, description}` — which is almost exactly this module's `concept → surfaces` shape. A Wikidata item for luminance carries an English label, a Chinese label ("亮度"), and aliases, already curated by a large community, for free. This is a far better fit than parsing Wikipedia article prose for synonym mentions, which would require its own extraction pipeline and produce much noisier candidates.
+- **Two different places it could plug in, and they're not the same decision:**
+  1. **Seed content (§13).** Import a filtered slice of Wikidata (e.g., items tagged as physical quantities, or medical-device-adjacent concepts) directly as pre-authored `kb.keyword_concepts`/`kb.keyword_surfaces` rows before any document is ever processed. This would convert some fraction of what would otherwise be Case C misses (`2026080404`-addendum §5.1) into Case A/B hits from day one — genuinely useful, and cheaper than anything else discussed in §11.4, since it requires no query-time infrastructure at all.
+  2. **An R1 harvest source (§11.1).** A local Wikidata lookup at reconciliation time, alongside the existing Schwartz–Hearst/definitional-pattern extractors — zero LLM tokens, and *cheaper than tier 5 or 6* (no trigram index, no embedding computation), so it belongs earlier in the candidate-generation waterfall than either, not alongside them.
+- **CC-CEDICT** (a small, actively-maintained, CC-BY-SA Chinese–English dictionary) is a more targeted option specifically for the EN↔ZH lexical-translation case this pilot corpus needs — narrower than Wikidata, but easier to host and query, and likely to have better coverage of common technical vocabulary than Wikidata's more encyclopedic scope.
+- **A caution that applies to WordNet/thesaurus-style resources specifically, not to Wikidata/CC-CEDICT:** a thesaurus gives *synonym-strength* relationships, which are not always the same as identity — "brightness" and "luminance" are, in some photometric contexts, technically different quantities, even though they're near-synonyms in casual use. Importing a thesaurus pair as if it were an exact equivalence risks exactly the over-merge D10 exists to prevent. This is not a new problem — the ADR already establishes the discipline this needs: mapping strength is `exact | close | broad | narrow | related`, and "lexical similarity can never be recorded as equivalence" (ADR §3.14, DR13). Any dictionary/thesaurus-sourced pair should enter as an R1 **candidate** carrying an appropriate strength, gated through the same R6 validation gates as everything else — never auto-accepted just because an external resource asserts a relationship.
+- **The honest limitation, for this pilot specifically:** general-purpose resources (Wikidata, CC-CEDICT, WordNet) are strong for common vocabulary and weak for narrow regulatory/technical jargon. A specific compliance metric name from an IEC 60601-series or ISO 80601-series ventilator standard is unlikely to be in Wikidata at all. **The higher-yield resource for this particular pilot domain is probably the standards themselves** — IEC 60601 and ISO 80601 series terminology sections/glossaries, if available in a machine-readable form, would very likely cover the pilot's actual vocabulary far better than any general open resource. General resources help the broad, incidental-vocabulary case (§9.1's "corpus-wide recall" job); domain standards glossaries would help the pilot's actual metric names far more directly.
+
+None of this is built; it's a real enrichment to §11.1/§13/§11.4, not a replacement for tier 6 or reconciliation — free harvesters reduce how much reaches the expensive tiers, they don't eliminate the need for them.
