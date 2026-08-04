@@ -567,6 +567,19 @@ The earlier specs proposed concept/variant/variant_links and concept/alias/alias
 
 🚧 **Not integrated:** the collector is a standalone `CollectFromText` function. It is **not registered** as a `PostProcessIndexer` in the doc-processing pipeline. This is deliberate for observe mode (measure volume without changing production behavior), but it means mentions are not being produced from real documents yet. Until pipeline integration ships, the data model can be exercised via the REST API and seeded manually.
 
+### 9.1 What this collector is for — and what it isn't for
+
+The prior paragraphs describe *build status*. This paragraph is the piece that was missing from every document that touches the collector (this spec's earlier revision, the Track B handoff, the implementation log): **why it exists as a separate mechanism at all**, and specifically why its being unwired is not simply an omission.
+
+There are two different jobs a "something produces keyword surfaces" mechanism can do, and the collector is built for only one of them:
+
+1. **Targeted enrichment.** A processor already knows, structurally, that a given string is a keyword — `extract_metrics`' `metric_name`, `extract_metric_definitions`' `canonical_name`/`aliases`, an entity's alias field. Resolving *that specific field* through `KeywordFamily.ResolveSurface` is a direct call: high precision, no ambiguity about what's being resolved, no need for tokenization or stopword heuristics at all. §14.1/§14.2 describe this path for metrics. **The collector is not needed for this job**, and using it here would be strictly worse than a direct call — it would rediscover the same string by blind tokenization instead of being handed it.
+2. **Corpus-wide recall.** Vocabulary that appears in document prose but never becomes any structured field — an incidental competitor-product mention, an abbreviation used only in passing, a term relevant to future search but not itself a metric/provision/entity. No structured extractor produces this; the only way to catch it is to scan the raw text generically, which is exactly what the collector does: chunk-blind, tokenizing everything, aware of no processor's semantics. This is a real, legitimate goal — but it is a **search/retrieval-expansion** goal, not an extraction-quality goal.
+
+The collector was built for job 2, and job 2 currently has **no consumer**: `on`-mode retrieval/search wiring does not exist (§7.4, §17.1). Wiring the collector into production today would generate mentions, surfaces, and backlog rows that nothing downstream ever reads — measurement with no one reading the measurement. Its idle state is therefore **coupled to** a second, separately deferred item (retrieval consumption of resolved keywords), not an independent, unexplained gap. The two should be revisited together, when corpus-wide search-query expansion becomes a concrete near-term goal — not before, and not by defaulting to "wire it in because it's already built." Until then, even a version of the collector with its CJK-segmentation and single-token defects (above) fixed would have nothing to feed.
+
+None of this bears on metric-name canonicalization, or on any other targeted-enrichment use: those go through job 1, need no consumer beyond the processor doing the resolving, and are not blocked on this.
+
 ---
 
 ## 10. REST API — ✅ **Built** (14 endpoints under `/api/v1/kb/keyword-*`)
@@ -805,7 +818,7 @@ Everything below is deliberately deferred. None of it is a hard blocker; it is t
 | **Reconciliation pipeline (R1–R7)** | stores and kernel exist; the batch CLI/workflow is not built. Reuses DR5/DR6/DR7 backlog-drain patterns from Track A. R3's blocking additionally depends on the `pg_trgm`/`pgvector` extensions that ship with the fuzzy tiers (also deferred), so R1–R7 inherits that infra timing — a sequencing dependency, not a hard blocker | P3 follow-up |
 | **`aligns_to_term` bridge** | no `AssociationResolver` for keywords exists | P4+ |
 | **`on` mode** (wiring into retrieval/search payloads) | no downstream consumer exists yet; observe mode measures volume first | P4+ |
-| **Mention collector pipeline wiring** | collector exists standalone; observe mode means not changing production behavior | P3 follow-up |
+| **Mention collector pipeline wiring** | coupled to the missing `on`-mode retrieval consumer (§9.1) — it serves corpus-wide recall for search/retrieval expansion, which has no consumer yet; targeted uses like metrics don't need it (§14.1) | revisit together with retrieval wiring, not before |
 | **Context-token disambiguation** (IDF-weighted overlap for homonyms) | the collector currently passes empty context | later |
 | **Full Double Metaphone phonetic key** | current `phonetic` key is a deterministic stub; a real implementation needs a dependency | P3 follow-up |
 | **Curated seed content / artifact backfill** | content authoring + a seed module, not code | manual / follow-up |
