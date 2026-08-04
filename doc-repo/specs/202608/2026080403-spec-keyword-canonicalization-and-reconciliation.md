@@ -8,6 +8,7 @@
 - **Supersedes:** `2026080101-spec-keyword-canonicalization-merged.md`, `2026072703-spec-keyword-canonicalization-reconciliation-2.md`, `2026072301-spec-keyword-canonicalization-reconciliation.md`
 - **Design authority:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md`, DR15 (shared canonicalization kernel) and DR16 (merged keyword design)
 - **Implementation record:** P3 Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`, implementation log `2026080402-devdoc-semos-p3-trackb-implementation-log.md`
+- **Addendum:** `2026080404-spec-metric-name-canonicalization-addendum.md` — how a consumer (metric extraction) is meant to use this module; the association-layer integration decision; the proposed `keyword_concept_id` / `metric_definition_term_id` design. Design only, not yet built.
 - **Implementation status:** observe mode built 2026-08-04 (P3 Track B, chunks 0–H, 7 commits on `main`) **with verified defects**. "Observe mode" is working mode with its output disconnected — defined in §3 D9, specified in §7.4. Read §17.2 before trusting any ✅ badge: several shipped components do not behave as this design specifies.
 
 ---
