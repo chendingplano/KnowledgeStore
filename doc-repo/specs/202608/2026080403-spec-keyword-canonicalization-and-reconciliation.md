@@ -61,9 +61,28 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 | **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ⚠️ tiers 0–1 only; cross-lingual unification unbuilt |
 | **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ⏳ nothing built; blocked by a schema CHECK |
 | **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ⏳ nothing built |
-| **REQ-4** | The comparison matrix keys rows on **term id**, never on a label string | DR23/DR22 — the matrix's own design | ✅ by design in P4 |
+| **REQ-4** | The comparison matrix's row key is **derived from that term id** | ⚠️ **unspecified — see §2.4** | ⚠️ **gap** |
 
-**REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 is already correct.** The failure mode today is that REQ-1 partially works, REQ-2 and REQ-3 do not exist at all, so `metric_definition_term_id` would be null on every row and the matrix would fall back to grouping by raw string — four rows, not one.
+**REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 is a dependency on P4 that is currently unmet and unspecified.**
+
+⚠️ **Correction (2026-08-05).** An earlier revision of this table marked REQ-4 "✅ by design in P4" and claimed the matrix "falls back to grouping by raw string" when the term id is null. **Both statements were wrong**, and the second was invented — no such fallback exists in the code. See §2.4.
+
+### 2.4 The REQ-4 gap: `metric_key` is not `metric_definition_term_id`
+
+Verified against the P4 comparison code:
+
+- `kb.ontology_comparison_scopes.metric_keys` (JSONB) pins the row universe, and `kb.ontology_comparison_cells.metric_key` (**TEXT, no foreign key**) is part of each cell's uniqueness constraint — `UNIQUE (comparison_run_id, target_object_id, metric_key, subject_family, authority_family)`.
+- **`metric_definition_term_id` appears nowhere in the comparison package** (`comparison/store.go`, `compare.go`, `constraint.go`, `evaluate_cell.go`), and there is no `term_id` column on either comparison table.
+- Cell comparison itself is driven by `QuantityKind` / `Unit` / `Component` (`constraint.go`), not by any term identity.
+
+**So the matrix's row key is an opaque string (`metric_key`, e.g. `"time_to_alarm"`) with no defined relationship to the governed term id that REQ-3 produces.** Even a perfect REQ-1/REQ-2/REQ-3 implementation does not deliver "one row" until this is closed: the keyword module would correctly assign one term id to all 140 documents' metrics, and the matrix would still group by whatever populates `metric_key`.
+
+**This must be resolved before §2.2's acceptance test can pass.** Two candidate resolutions, undecided:
+
+1. **`metric_key` *is* the governed term id** — the comparison scope is populated with `metric_definition` term ids, and the column is simply named from an earlier design. Cheapest if true; needs confirmation from whoever owns P4, plus a documented constraint that scope authors may only use term ids.
+2. **An explicit mapping** — `metric_definition_term_id → metric_key`, owned by the comparison layer, so the matrix keeps its own key space while remaining derivable from governed identity.
+
+Until one is chosen and recorded, REQ-4 is a **known break in the chain**, not a satisfied requirement. It is the one part of §2 that this module cannot fix on its own.
 
 ### 2.2 The acceptance test
 
@@ -258,7 +277,20 @@ Beyond the defects in §20.2, normalization must gain before production use:
 
 ### 6.4 Verified normalizer defects
 
-**N1 — singularization runs after case-folding, so the ALLCAPS guard is absent.** Reproduced: `AIDS→aid`, `SaaS→saa`, `Kubernetes→kubernete`, `Postgres→postgre`, `analysis→analysi`. **Fix:** carry the casing signal step 7 was meant to record; never singularize an originally-ALLCAPS token.
+**N1 — singularization is unsafe in several independent ways.** Reproduced: `AIDS→aid`, `SaaS→saa`, `Kubernetes→kubernete`, `Postgres→postgre`, `analysis→analysi`.
+
+⚠️ **These are not one failure with one fix.** An earlier revision prescribed only "never singularize an originally-ALLCAPS token," which closes **exactly one of the five**:
+
+| Case | Shape | Closed by the ALLCAPS guard? |
+|---|---|---|
+| `AIDS→aid` | ALLCAPS acronym | ✅ yes |
+| `SaaS→saa` | mixed-case acronym | ❌ no |
+| `Kubernetes→kubernete`, `Postgres→postgre` | title-case proper nouns | ❌ no |
+| `analysis→analysi` | an all-lowercase **singular** ending in `s` | ❌ no |
+
+The last is the most instructive: no casing signal of any kind helps, because the word is already singular. The rule `HasSuffix("s") && !HasSuffix("ss") && len>3 → strip` is simply wrong as a general singularizer — English has a large class of singulars ending in a single `s` (`analysis`, `basis`, `status`, `bias`, `campus`, `virus`).
+
+**Fix:** the §6.3 rework, not a casing patch. Concretely: (a) run singularization only under a language profile, and only for a language whose profile defines it; (b) carry the casing signal from step 7 and skip any token whose original form was not all-lowercase; (c) replace the bare suffix rule with an exception-aware lemmatizer, keeping a hard stop-list for known singulars ending in `s`; and (d) treat singularization output as an **alternate** key, not the canonical one, so an over-aggressive rule degrades recall instead of destroying identity (§6.3 item 4). The ALLCAPS guard is a necessary part of (b), not a sufficient fix on its own.
 
 **N2 — the possessive rule requires a trailing space**, so word-final possessives are missed and then mangled.
 
@@ -549,7 +581,40 @@ Snapshot activation: build and validate a candidate release while readers stay o
 
 ## 14. Merge, split, lifecycle — 🚧 **Partial**
 
-`MergeConcept` tombstones; self-merge refused; target existence verified. See D7 for the missing guardrails and the consolidation decision. `locked` surfaces are built but the guarantee is vacuous with no reconciler. `never_merge` is storage-only — no keyword path consults it. `split_concept` is not built.
+`MergeConcept` tombstones; self-merge refused; target existence verified. See D7 for the missing guardrails and the consolidation decision. `locked` surfaces are built but the guarantee is vacuous with no reconciler. `never_merge` is storage-only — no keyword path consults it.
+
+### 14.1 What a merge does to surfaces — ✅ **Decided** (was unspecified)
+
+⚠️ **Verified gap:** `ConceptStore.MergeConcept` updates only `kb.keyword_concepts`; it **does not touch `kb.keyword_surfaces`**. No tier query joins to `kb.keyword_concepts`, filters on `status`, or follows `merged_into`. **So after merging A → B, every surface still carries `concept_id = A`, and every subsequent resolve returns the tombstone A, not the survivor B.** REQ-1 silently regresses to two ids the moment a merge happens — which makes §13's reconciliation, whose entire job is merging, actively harmful in its current form.
+
+**Decision — both halves, because they solve different problems:**
+
+1. **Merge re-points surfaces.** `MergeConcept(A, B)` updates `kb.keyword_surfaces SET concept_id = B WHERE concept_id = A`, in the same transaction as the tombstone. Resolution then costs no extra join and returns B directly.
+2. **Each moved surface records `origin_concept = A`** (a new column). This is what makes a split reconstructible — without it, a merge is irreversible, and D11's reversibility requirement is unmet.
+3. **Resolution still chases `merged_into` for incoming ids.** A consumer that stored `keyword_concept_id = A` before the merge must still resolve to B. The chase applies when a *caller supplies a concept id*, not on the surface lookup path — cycle-guarded, since D7 forbids transitive closure but chains can still form.
+
+Re-pointing alone is not enough (stale consumer ids break); chasing alone is not enough (every surface lookup pays for it forever). Both, or REQ-1 does not hold across a merge.
+
+### 14.2 What a merge does to an `aligns_to_term` assertion — ✅ **Decided**
+
+If A has an accepted `aligns_to_term` and B does not, the alignment **follows to B** as part of the merge transaction. If A and B are aligned to **different** terms, that is a **conflict and the merge is refused** — two concepts aligned to two distinct governed terms are evidence they are not the same thing, and that evidence outranks whatever similarity proposed the merge. This is the §2.3 `brightness`/`luminance` case arriving from the other direction, and it is a deterministic R6 gate, not a judgement call.
+
+### 14.3 Which merges may be automatic — ✅ **Decided** (the D10 / §13.1 boundary)
+
+D10 says merging established concepts stays conservative; §13.1 item 4 says the same; Appendix A has reconciliation merge automatically. Both are correct, and the distinction that reconciles them is:
+
+| Merge | Automatic? |
+|---|---|
+| An **auto-created provisional** concept (D11) into an established one — the Appendix A case | ✅ **yes**, above threshold, with §14.2's conflict gate. The provisional concept exists only because nothing matched; it has no curated content to lose. |
+| Two **established** concepts (`status='active'`, human- or import-authored surfaces, or either side aligned to a term) | ❌ **no** — proposal only, per D10. Structural, and it invalidates assignments already made on both sides. |
+
+The test is the concept's own provenance and status, not the similarity score. A high score never promotes a merge from the second row to the first.
+
+### 14.4 Reversibility — ⏳ **Unbuilt, and required by D11**
+
+D11 calls reversibility non-optional, but there is no designed path today: `split_concept` does not exist, `ConceptStore` has no unmerge (only `MergeGraph.Unmerge`, which is in-memory and scheduled for deletion, D7), and §12 exposes no retraction endpoint.
+
+**Decision:** with §14.1's `origin_concept` recorded, un-merge is mechanical — move surfaces whose `origin_concept = A` back to A, clear A's tombstone. Build it **with** the merge guardrails (§19 step 6), not later: auto-merge (§14.3) must not ship before the thing that undoes it. Until then, reversal is manual database correction, and §13's reconciliation must not be enabled.
 
 ---
 
@@ -606,6 +671,10 @@ D11 and the ADR's "no LLM activates ontology content" only appear to conflict:
 
 ⚠️ **Blocked by a schema constraint:** `kb.semantic_assertions.subject_ref_kind` allows only `('object_node','ontology_term','assertion','artifact','literal')` — **no `keyword_concept`** — so a keyword concept cannot be an assertion subject until that CHECK is extended.
 
+⚠️ **The `aligns_to_term` predicate must itself be a released governed term.** Every assertion carries a `predicate_term_id`, and `associate_semantics` already defers any candidate whose predicate is not released (`termExists`). Verified: **`aligns_to_term` is not in `server/cmd/ontology-seed/` today.** It must be seeded into a 4a module — `core` is the natural home, since the relation is not measurement-specific — and released, before the first alignment assertion can be written. This is a small prerequisite, but it is a hard one: without it every alignment defers.
+
+**Governed-catalog bootstrap for the pilot.** REQ-2 also presumes released `metric_definition` terms exist to align *to*. §16.1's human path (hundreds of terms, reviewed once) and §13.2's standards-glossary import (IEC 60601 / ISO 80601) are both plausible, and the pilot's concrete path is **not yet chosen**. This is a sibling workstream, not keyword-module work — but it gates §2's acceptance test just as firmly as anything in §19, and someone must own it.
+
 ### 16.2 Why `extract_metrics` and `extract_metric_definitions` don't converge
 
 Both run in Phase B, both touch a metric's name, **neither resolves it**. No dependency edge between them, no shared identifier, no join from `kb.metrics.metric_name` to `kb.ontology_terms`. Two documents asserting "luminance is 450 cd/m²" and "亮度为450cd/m²" produce two unrelated rows — §2's failure, exactly.
@@ -624,6 +693,8 @@ Both run in Phase B, both touch a metric's name, **neither resolves it**. No dep
 **Why two and not one.** A keyword auto-accept is cheap and ungoverned; pinning a metric's *authoritative* identity to it alone would let a bad auto-merge silently misfile it with no review boundary. Routing authority through the governed term keeps that boundary while the raw name always remains as provenance.
 
 **Where the call goes:** in the consumer of `extract_metrics`' output, after parsing and validation, **before the metric row is persisted** — not inside `associate_semantics` (§17.1). `extract_metrics` itself is not modified: no prompt change, no extraction change.
+
+⚠️ **The exact call site is not yet fixed, and choosing it is part of step 12.** The seam is named but not located: metric rows are written by `MetricsSQLStore.SaveMetrics`/`UpsertMetrics` (`doc-processing/extract-metrics.go`), which is reached from `FinalizeChunkBatch` and from the enrichment path. Whether the resolver call belongs immediately before those writes, or in a small adapter that wraps them, is an implementation decision — but it must be **one** place, not one per write path, or the two paths will diverge exactly the way the two normalizers did (D3).
 
 ---
 
@@ -690,15 +761,18 @@ Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
 3. **N1 (+N2)** — forces a `norm_version` bump; observe-mode data before this must be recomputed.
 4. **One normalizer** (D3): delete `NormFunc` and the `semid` built-in, remove `Normalizer()` from `FamilyAdapter`, consolidate primitives — combined with `Kernel.Resolve(ctx, input, scope)` (§8.2), same files and call sites.
 5. **K1 + N3 + K3** — one "derived keys are actually derived" change.
-6. **K8 + K9 + K10** — merge guardrails per D7; delete `MergeGraph`; explicit `MaxCandidates`.
+6. **K8 + K9 + K10 + merge semantics (§14.1–§14.4)** — guardrails per D7; delete `MergeGraph`; explicit `MaxCandidates`; **and the merge behaviour §14 now specifies**: re-point surfaces with `origin_concept` (new column), chase `merged_into` for caller-supplied ids, the §14.2 alignment-conflict gate, and **un-merge, built in the same step as merge** — auto-merge must not ship before the thing that undoes it (D11 reversibility).
 7. **K4** — reshape the occurrence table, rename to `kb.keyword_occurrences`, link to the decision log. **Design §13.3's shapes in here** — retrofitting multi-source evidence later means migrating every surface row.
 8. **D11 auto-first** — top-1 on `ambiguous`, auto-create on targeted miss, method/score recorded, low-confidence and auto-created populations queryable as sets.
 9. **Dead-code deletions** (§20.4) and the §18.2 correctness tests.
 10. **`names.Resolver`** (§9.5) — the read-only contract plus `ObserveName`/`ResolveAndObserve`.
 11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations.
-12. **§2 REQ-2/REQ-3** — `subject_ref_kind` fix, the `aligns_to_term` producer, metric columns, and the consumer call.
+12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3).
+13. **§2 REQ-4 — resolve the `metric_key` gap (§2.4).** Not keyword-module work, and **not optional**: until `metric_key` is either confirmed to be the governed term id or given a specified mapping, steps 1–12 cannot produce "one row." Settle this with whoever owns P4 **before** step 12, since the answer may change what REQ-3 persists.
 
-Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 are what make §2's acceptance test pass.
+Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 make this module's half of §2 true. **Step 13 is outside this module and is currently the binding constraint on the whole requirement** — worth raising now rather than discovering it after step 12.
+
+**Two prerequisites owned elsewhere**, both gating §2 and neither scheduled here: the `aligns_to_term` predicate term must be seeded and released (§16.1), and released `metric_definition` terms must exist to align to — via the human catalog path or a standards-glossary import (§13.2). Someone must own both.
 
 ---
 
@@ -811,9 +885,13 @@ The other three do not: `亮度` → `亮度`, `显示亮度` → `显示亮度`
 
 **There are now two concepts for one meaning. This is the designed intermediate state, not a failure** — and it is strictly better than the alternative: the metric *has* an identity, is groupable and countable, and the duplication is a detectable condition rather than an absence.
 
-**Stage 5 — reconciliation unifies them (§13).** The batch job blocks `kwc_B` against existing concepts using multilingual embeddings (tier 6, §13.1): `亮度` and `luminance` sit close in vector space where edit distance sees nothing. R6's gates check unit compatibility (both `cd/m²`), scope, and `never_merge`. R7 merges `kwc_B` into `kwc_L` — a tombstone, reversible, recorded with method, score, and evidence.
+**Stage 5 — reconciliation unifies them (§13).** The batch job blocks `kwc_B` against existing concepts using multilingual embeddings (tier 6, §13.1): `亮度` and `luminance` sit close in vector space where edit distance sees nothing. R6's gates check unit compatibility (both `cd/m²`), scope, `never_merge`, and the §14.2 alignment-conflict check. `kwc_B` is an **auto-created provisional** concept, so §14.3 permits the merge to be automatic.
+
+R7 merges `kwc_B` into `kwc_L`, and — per §14.1 — **re-points `kwc_B`'s surfaces to `kwc_L` in the same transaction**, recording `origin_concept = kwc_B` on each so the merge stays reversible. Without that re-pointing the merge would be cosmetic: the surface `亮度` would still carry `concept_id = kwc_B`, and the next resolve would return the tombstone.
 
 `显示亮度` follows the same path. **Result: one concept, all seven strings.** REQ-1 of §2.1 is satisfied — by auto-creation plus reconciliation, not by normalization and not by a person.
+
+⚠️ **None of Stage 5 works today.** Tier 6 is unbuilt, reconciliation is unbuilt, and `MergeConcept` does not re-point surfaces (§14.1). This stage describes the design in §13–§14, not current behaviour.
 
 **Stage 6 — the governed term (§16).** A domain owner creates `mea:luminance` as a `metric_definition` term once, through the human-gated catalog path — hundreds of such terms, reviewed once each. An `aligns_to_term` assertion connects `kwc_L` to it, **auto-proposed and auto-accepted** above threshold, because assignment is not catalog creation (§16.1).
 
