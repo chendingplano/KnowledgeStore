@@ -24,8 +24,11 @@
 | **Broken** | 11 verified defects (§17.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
 | **Not built** | Tiers 5–6, the R1–R7 reconciliation pipeline, `aligns_to_term`, `on`-mode retrieval wiring, seed content, and the `names.Resolver` facade (`2026080404`). |
 | **Never validated live** | No run against a real PostgreSQL instance with real document text (I2). Every defect below was found by reading code, not by a failing test. |
+| **Design gap, newly stated** | **D11 (auto-first)** — the shipped design assumes a human drains queues and adjudicates suggestions. At 10⁷–10⁸ name occurrences nobody can. Several sections were revised on 2026-08-05 to remove that assumption; the corresponding code does not exist yet. |
 
 **Do not build new features on this module until §17.2's K1/K2/K3/K5 and N1 are fixed.** They silently corrupt data that a later fix cannot reconstruct.
+
+**And do not build the remaining features as originally specified** — read D11 first. Auto-first changes what tiers 5–6, the reconciliation pipeline, and `aligns_to_term` are each supposed to *do*, not merely when they get built.
 
 ### 0.1 Where this sits in the phase plan
 
@@ -78,7 +81,9 @@ If each form is an independent key, recall fragments and analytics count one con
 
 **Goals.** Resolve a surface to a concept with no LLM call; return variants by role; preserve ambiguity; grow the store through reconciliation; support aliases, acronyms, spellings, language variants; make every merge auditable and reversible; stay reusable across search, extraction, enrichment, faceting, analytics.
 
-**Non-goals.** Not full business-entity resolution. The online path never calls an LLM (fuzzy/ANN tiers, when built, are suggest-only). Not a taxonomy engine — hierarchy is out of scope for v1. Not a spell-checker — misspellings become `hidden` aliases.
+**Non-goals.** Not full business-entity resolution. **The online path never calls an LLM** — this remains absolute; a local embedding lookup (tier 6) is not an LLM call, and reconciliation's model use is offline and batched. Not a taxonomy engine — hierarchy is out of scope for v1. Not a spell-checker — misspellings become `hidden` aliases.
+
+*(The earlier "fuzzy/ANN tiers are suggest-only" non-goal is withdrawn — see D11 and §11.1. Suggest-only presumed a human adjudicator that cannot exist at this volume.)*
 
 ---
 
@@ -134,9 +139,11 @@ They duplicate each other outright: `semid.collapseSpace` and `keywords.collapse
 
 Every surface carries `pref` (canonical display), `alt` (synonyms, acronyms — user-visible), or `hidden` (misspellings — searchable, never displayed).
 
-### D5. Ambiguity is first-class — ✅ **Built**
+### D5. Ambiguity is first-class — ✅ **Built**, ⚠️ **semantics revised by D11**
 
-When a key maps to multiple concepts and scope does not disambiguate, the result is `ambiguous` with ranked candidates. Silently picking the most frequent candidate produces an error invisible to caller and metrics alike.
+When a key maps to multiple concepts and scope does not disambiguate, the result is `ambiguous` with ranked candidates. The original rationale stands: *silently* picking the most frequent candidate produces an error invisible to caller and metrics alike.
+
+**D11 changes what happens next, not that rationale.** Under auto-first, `ambiguous` is returned **together with the top-1 pick** — the caller gets both a usable id and an explicit signal that it was contested. Nothing is silent: the verdict, the tied candidates, the scores, and the method are all recorded, so ambiguous assignments are a findable, measurable, reversible set. What is rejected is *unrecorded* guessing, not *deciding*.
 
 ### D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect**
 
@@ -187,9 +194,43 @@ Reconciliation runs `harvest → prune → block → batch → decide → valida
 
 Reconciliation is orthogonal to all three settings.
 
-### D10. Bias toward under-merging — ✅ **Policy**
+### D10. Bias toward under-merging — ✅ **Policy, scoped to merges only**
 
-A missed alias is self-reporting and self-healing — it lands in the backlog and gets fixed. A wrong merge is invisible, permanent until noticed, and contaminates every consumer. Every conservative threshold follows from this asymmetry.
+A wrong **merge of two established concepts** is structural: it is invisible, permanent until noticed, and contaminates everything already assigned to either concept. Merges therefore stay conservative, and the §7.2 vetoes are hard.
+
+**This policy governs merges. It does not govern assignment** — deciding which concept a given occurrence refers to. Under D11, leaving an assignment undecided is *not* the safe option, and the older framing ("a missed alias is self-healing, so prefer to leave it") is withdrawn for that case. It was written assuming a human would drain the backlog; at production scale nobody will.
+
+### D11. Auto-first: every path terminates in a decision — 🆕 **Load-bearing, not yet implemented**
+
+**Scale forces this.** The corpus is 10⁵–10⁶ documents, each yielding on the order of 10² artifacts — 10⁷–10⁸ name occurrences. Human review of even 0.1% of that is not affordable. **Any design in which a routine path waits for a person is a design that stalls permanently at this volume**, and several parts of the earlier revision assumed exactly that.
+
+**The rule: no routine resolution path may block on a human.** Concretely:
+
+| Situation | Old behaviour | **Auto-first behaviour** |
+|---|---|---|
+| No concept matches a **targeted** name | `deferred` → backlog → wait | **Auto-create a provisional concept** and assign it |
+| Multiple concepts tie | `ambiguous` → return no id | **Return `ambiguous` *and* the top-1 pick**, flagged |
+| Fuzzy/embedding candidate | candidate-only, never accepted | **May auto-accept** above a tier-specific threshold (§11.1) |
+| Below any threshold | `human_review` → a queue nobody drains | Decide, record method + score, mark for **sampling** |
+
+**Why deciding beats deferring here.** An unresolved metric name is not a neutral outcome — it is a hole in the comparison matrix, and the Review Document app then answers a customer's question with silently incomplete data. A wrong-but-recorded assignment is visible, attributable, and cheap to reverse. An absent assignment is none of those. **Silence is not the safe default.**
+
+**What auto-first requires in exchange.** Because every decision is automatic, every decision must be:
+
+1. **Attributable** — which method resolved it (exact / norm / rewrite / initials / fuzzy / embedding / auto-created), what score, which normalizer version, which decision-log row.
+2. **Reversible** — retracting a bad assignment, alias, or auto-created concept must be a cheap, ordinary operation, not archaeology.
+3. **Sampleable** — low-confidence and auto-created outcomes must be *findable as a set*, so quality can be measured without reviewing everything.
+
+These three are the price of removing the human gate, and they are not optional: without them, auto-first degrades into unattributable guesswork.
+
+**Two exceptions where a human remains, both non-blocking:**
+
+- **Benchmark and gold-set curation** — deliberately manual, low volume, offline. Nothing in production waits on it.
+- **Exception repair** — when a specific document's review is found wrong (by a customer or internally), someone corrects the database directly (retract an alias, add a `never_merge`, fix a concept) and re-runs the app. This is a *repair* path, not a gate: it acts on outcomes after the fact, never before.
+
+**Where the human gate legitimately stays — and why it is not a scale problem.** The ADR's "no LLM activates ontology content" guarantee (`kb.ontology_candidates`, §14.2) governs **creating governed content**: terms, labels, mappings. That catalog is small — on the order of hundreds of metric definitions for a domain, not millions. Reviewing hundreds of items once is affordable. What must never be human-gated is the **assignment** of millions of artifacts to that small catalog. §14 states this split precisely.
+
+**Scope of auto-creation.** Auto-creating a concept on a miss applies to **targeted names** — a field a producer has asserted *is* a name (a metric name, an entity alias). It must **not** apply to the mention collector's output, which tokenizes all prose and would otherwise create a concept per junk token. Corpus-wide recall (§9.1 job 2) keeps the backlog-then-reconcile path.
 
 ---
 
@@ -281,11 +322,20 @@ normalize(input) → key bundle
 
 **Decision:** `Kernel.Resolve(ctx, input string, scope string)`. Scope becomes explicit; `Family.Scope()` leaves the interface.
 
-### 6.3 Verdicts
+### 6.3 Verdicts — ⚠️ **semantics revised by D11**
 
-`auto_accepted` · `ambiguous` · `deferred` · `human_review`.
+Four verdicts exist: `auto_accepted` · `ambiguous` · `deferred` · `human_review`. Their *meaning* changes under auto-first: a verdict is a **description of how confident the decision was**, not a branch that decides whether a decision happens. Every verdict except a hard-veto rejection now carries a resolved id.
 
-⚠️ `TermFamily` can produce only two of the four: its `AutoAcceptPolicy` leaves `MaxCandidates` at the zero value, which gates off `Adjudicate`'s tie-detection entirely, and `Enabled: false` blocks auto-accept. A five-way tie and a single clean match both return `human_review` (K10). Routing everything to a human may be correct for governed content, but it should be a stated choice, not a zero value.
+| Verdict | Means | Carries an id? |
+|---|---|---|
+| `auto_accepted` | one clean match above threshold | yes |
+| `ambiguous` | several candidates tied at the top | **yes — the top-1 pick**, plus the tied set |
+| `deferred` | no candidate found | **yes, for targeted names — a newly auto-created provisional concept** (D11); no id on the collector path, which keeps the backlog |
+| `human_review` | resolved below the confidence threshold | yes, flagged for sampling — **not** a queue that blocks |
+
+`human_review` is now a **label on an outcome**, not a routing destination. Nothing waits for the review it names; the flag exists so low-confidence decisions form a measurable, sampleable set (D11 requirement 3).
+
+⚠️ `TermFamily` can currently produce only two of the four: `MaxCandidates` at the zero value gates off tie-detection entirely, and `Enabled: false` blocks auto-accept (K10). Both must be set explicitly — under D11, "routes everything to a human" is not a viable configuration for any family whose output feeds production assignment.
 
 ### 6.4 Shared tables — ✅ **Built** (P2)
 
@@ -306,8 +356,8 @@ normalize(input) → key bundle
 | 2 | `alnum`/`sorted` key match | 0.8 | 🚧 query built, table empty (K1) |
 | 3 | rewrite rules, then retry tiers 0–1 | 1.0/0.8 | ✅ |
 | 4 | `initials` bridge | 0.8 | ⚠️ N3 |
-| 5 | fuzzy (trigram + edit distance) | candidate-only | ⏳ |
-| 6 | embedding similarity (ANN) | candidate-only | ⏳ |
+| 5 | fuzzy (trigram + edit distance) | continuous, higher threshold | ⏳ — may auto-accept (§11.1) |
+| 6 | embedding similarity (multilingual ANN) | continuous, higher threshold | ⏳ — may auto-accept (§11.1) |
 | 7 | miss → `kb.keyword_unresolved` | — | ✅ |
 
 `CandidateNodes` exits at the **first tier producing candidates**; it does not accumulate.
@@ -335,6 +385,11 @@ Called by the mention collector and the REST resolve handler. In order:
 5. On `deferred`/`ambiguous`: upsert the backlog — ⚠️ **passing the raw surface where the primary key expects `norm_key`** (K5).
 
 ⚠️ **This function conflates read and write.** No caller can ask "what does this resolve to" without also writing four rows. **Decision:** split into a pure `ResolveSurface` and an `ObserveSurface`, matching the `names.Resolver` read/write separation (`2026080404` §2.1) at every layer, not only at the facade.
+
+**Two changes D11 requires here, beyond the defects above:**
+
+- **Step 5 gains an auto-create branch for targeted names.** A miss on a name a producer asserted *is* a name creates a provisional concept and returns its id, rather than only recording a backlog row. Provenance must mark it auto-created and the confidence must reflect that it is unconfirmed, so the auto-created population stays sampleable. **Collector-sourced misses keep today's behaviour** — backlog only, no concept — because tokenized prose would otherwise generate a concept per junk token (D11, scope of auto-creation).
+- **Step 4 must return the top-1 id on `ambiguous`**, not only on `auto_accepted`. Today `Kernel.Resolve` sets `ResolvedNodeID` exclusively for `auto_accepted`; under D5-as-revised it must also populate it for `ambiguous`, alongside the tied candidate set.
 
 ### 7.4 Resolver modes — ⚠️ **Defect**
 
@@ -444,11 +499,20 @@ R7 apply      transactional write through the kernel; append to the decision log
 
 **The reconciler, not the model, owns every write.** Backlog draining reuses the DR5/DR6/DR7 pattern from P3 Track A; of those, DR5 (bulk backfill) is built, DR6 (admin review) and DR7 (LLM adjudication) are not.
 
-### 11.1 Prerequisite for tiers 5–6 and R3 — a kernel scoring change
+### 11.1 Kernel scoring change for tiers 5–6 and R3 — ✅ **Decided**
 
-`Score()` is a four-way discrete function with no way to express a continuous similarity, and `Kernel.Resolve` drops zero-scoring candidates **before** adjudication. A trigram or embedding candidate that satisfies none of the four discrete conditions would be silently discarded rather than surfacing as `human_review`. **This must be resolved as an explicit kernel change before tier 5 or 6 is written** — either extend `Score()` to accept a continuous value capped below `MinScore`, or let `NodeCandidate` carry a pre-computed capped score. Not decided here; both existing families depend on current behavior for tiers 0–4.
+`Score()` is today a four-way discrete function (1.0 / 0.8 / 0.5 / 0) with no way to express a continuous similarity, and `Kernel.Resolve` drops zero-scoring candidates **before** adjudication — so a trigram or embedding candidate satisfying none of the four discrete conditions would be silently discarded.
 
-Tiers 5–6 additionally need `pg_trgm` and `pgvector`, and tier 6 needs a **multilingual** embedding model — an English-only model would not place "luminance" near "亮度", defeating the case that motivates the tier. R4's prompt must live in `prompts/` per `ChenWeb/CLAUDE.md`, never hardcoded.
+**Decision, per D11:** extend `Score()` to accept a **continuous similarity value**, and **do not cap it below `MinScore`**. Fuzzy and embedding matches may auto-accept.
+
+This reverses the earlier "tiers 5–6 are candidate-only, never auto-accept" position, which was written under the assumption that a human would adjudicate what they proposed. At 10⁷–10⁸ occurrences nobody will, and a suggestion nobody acts on is indistinguishable from no answer — the outcome D11 exists to prevent. The safeguards move from *refusing to decide* to *deciding attributably*:
+
+1. **Tier-specific thresholds.** Fuzzy and embedding require a materially higher score to auto-accept than exact/normalized matches do. Exact key equality is evidence of a different kind than cosine proximity, and the thresholds must say so.
+2. **The §7.2 vetoes remain hard, and apply before any threshold** — length gate, digit veto, canonical veto, negation/affix veto. These are correctness rules, not confidence heuristics, and no score overrides them.
+3. **Method and score are recorded on every decision** (D11 requirement 1), so fuzzy- and embedding-derived assignments are a distinguishable, sampleable population — and can be re-run in bulk when a threshold or model changes.
+4. **Merging two established concepts is still not auto** (D10) — a high-similarity score proposes an assignment, never a structural merge.
+
+Tiers 5–6 additionally need `pg_trgm` and `pgvector`. **Tier 6's embedding model must be multilingual — confirmed requirement, not an open question.** An English-only model would not place "luminance" near "亮度", which is the case motivating the tier at all. R4's prompt must live in `prompts/` per `ChenWeb/CLAUDE.md`, never hardcoded.
 
 ---
 
@@ -470,7 +534,22 @@ No seed module and no backfill job exist; concepts are authored through the REST
 
 ## 14. The bridge to governed terms — ⏳ **Deferred**
 
-A keyword concept is an **ungoverned lexical identity**: fast, high-volume, auto-mergeable under guardrails. A governed ontology term is a **reviewed meaning** with a definition, owner, and release. They connect through an accepted `aligns_to_term` assertion — **never** by merging the keyword concept into the term space.
+A keyword concept is an **ungoverned lexical identity**: fast, high-volume, auto-mergeable under guardrails. A governed ontology term is a **reviewed meaning** with a definition, owner, and release. They connect through an `aligns_to_term` assertion — **never** by merging the keyword concept into the term space.
+
+### 14.0 Catalog vs. assignment — the split that makes governance survive scale
+
+D11 and the ADR's "no LLM activates ontology content" guarantee only appear to conflict. They do not, because they govern two different things with two very different volumes:
+
+| | **Governed content** (the catalog) | **Assignment** (pointing at the catalog) |
+|---|---|---|
+| Example | creating `luminance` as a `metric_definition` term, with its definition and owner | deciding that "显示亮度" in document #47,332 refers to that term |
+| Volume | **hundreds** per domain | **millions** |
+| Gate | **human review stays** (`kb.ontology_candidates`, §14.2) — affordable, and it is what the ADR's guarantee protects | **must be fully automatic** (D11) — a human gate here stalls permanently |
+| Reversible? | via the candidate lifecycle | must be cheap and bulk-reversible |
+
+**So: human-gate the small catalog; auto-assign the large volume to it.** This preserves the ADR's guarantee exactly as written — no LLM creates or activates a governed term — while removing the throughput gate that would otherwise leave `metric_definition_term_id` null on every row forever.
+
+Applied to `aligns_to_term` specifically: connecting a keyword concept to an already-released term is an **assignment**, not content creation. It is therefore auto-proposed and auto-accepted above a threshold, with method, score, and evidence recorded (D11), and with human involvement as sampling and repair rather than as a precondition.
 
 Nothing is built: no assertion type, no column, no producer. ⚠️ It is additionally blocked by a schema constraint: `kb.semantic_assertions.subject_ref_kind` allows only `('object_node','ontology_term','assertion','artifact','literal')` — **no `keyword_concept`** — so a keyword concept cannot be an assertion subject until that CHECK is extended.
 
@@ -482,7 +561,9 @@ DR23 states the intended fix directly: *"A metric definition's alias set is the 
 
 ### 14.2 `kb.ontology_candidates`
 
-The single proposal channel for all governed content. Nothing reaches `kb.ontology_terms` except through its lifecycle (`discovered → draft → in_review → approved → included_in_release`, with `rejected`/`deferred` branches), and `approved` is reachable only by human action. **This is a genuine by-design gate, not a gap** — it is why zero `metric_definition` instance-terms exist today.
+The single proposal channel for all governed content. Nothing reaches `kb.ontology_terms` except through its lifecycle (`discovered → draft → in_review → approved → included_in_release`, with `rejected`/`deferred` branches), and `approved` is reachable only by human action. **This is a genuine by-design gate, not a gap** — it is why zero `metric_definition` instance-terms exist today, and per §14.0 it stays, because the catalog it guards is small enough to review.
+
+⚠️ **But it must not be on the assignment path.** Today nothing distinguishes "propose a new term" from "point an artifact at an existing term," so the gate would apply to both. §14.0 requires that assignment bypasses it entirely; only content creation enters this lifecycle.
 
 Deduplication is exact-fingerprint only: "luminance", "亮度", and "显示亮度" produce three fingerprints and three separate review items with nothing linking them. The `candidate_matches` column exists for exactly that signal. `TermFamily.ResolveCandidate` computes and writes it correctly — **but has no caller** (§17.4), so it never runs. Two fixes, not one: wire a caller for term-duplicate detection, and add keyword resolution to the harvest step for the cross-lingual case.
 
@@ -512,9 +593,19 @@ Deduplication is exact-fingerprint only: "luminance", "亮度", and "显示亮�
 | Multi-writer races | single-writer reconciliation | ⏳ no reconciler |
 | Caller pollution | input validation at the boundary | 🚧 non-empty check only |
 
-### 15.3 Where a human must be in the loop
+### 15.3 Where a human is involved — all non-blocking (D11)
 
-Merges of two established clusters; any change to a `locked` surface; enabling a rewrite rule; any `never_merge` deletion.
+**Nothing in production waits for any of these.** Each acts on outcomes after the fact, or on the small governed catalog, never on the assignment path.
+
+| Activity | Volume | Blocking? |
+|---|---|---|
+| Creating/approving a governed term (`kb.ontology_candidates`) | hundreds per domain | Gates the **catalog** only, never assignment (§14.0) |
+| Benchmark and gold-set curation | low, offline | No — production never reads it |
+| **Exception repair** — a review result is found wrong, someone corrects the database (retract an alias, add a `never_merge`, fix a concept) and re-runs the app | rare, reactive | No — acts after the fact |
+| Merging two established concepts | rare, structural | Still conservative (D10) — the one place "don't decide automatically" survives |
+| Deleting a `never_merge`, unlocking a `locked` surface | rare | Yes, deliberately — these are the override mechanisms themselves |
+
+**Exception repair is a first-class supported workflow, not an admission of failure.** It is what D11's reversibility and attributability requirements exist to serve: when a customer reports a wrong review, someone must be able to find *which* decision caused it, correct it, and re-run — in minutes, not by archaeology. A design that makes repair expensive is a design that forces the human gate back in.
 
 ---
 
@@ -618,11 +709,12 @@ These pass and prove little (§16.1) — no test in the suite would fail if any 
 4. **One normalizer** (D3/F1): delete `NormFunc` and the `semid` built-in, remove `Normalizer()` from `FamilyAdapter`, consolidate primitives. Combine with `Kernel.Resolve(ctx, input, scope)` (§6.2) — same files, same call sites, one change.
 5. **K1 + N3 + K3** — one "derived keys are actually derived" change; wire `UpsertSurfaceKeys`.
 6. **K8 + K9 + K10** — merge guardrails consolidated per D7; delete `MergeGraph`; explicit `MaxCandidates`.
-7. **K4** — reshape the occurrence table, rename to `kb.keyword_occurrences`, link it to the decision log.
-8. **Dead-code deletions** (§17.4) and the tests in §16.1.
-9. Then the addendum's build list: `names.Resolver`, resource ingestion, reconciliation, `aligns_to_term`, the metrics pilot.
+7. **K4** — reshape the occurrence table, rename to `kb.keyword_occurrences`, link it to the decision log. **Design the §20.3 shapes into this same change** — multi-source evidence, external-id mapping, source/release registry. Retrofitting them later means migrating every surface row; adding them while the schema is already open costs almost nothing, and the planned data reset removes any migration burden.
+8. **D11 auto-first behaviour** — top-1 id on `ambiguous` (§6.3, §7.3), auto-create on targeted-name miss (§7.3), method/score/decision-id recorded on every outcome, and a way to query the low-confidence and auto-created populations as sets (D11 requirements 1–3). This is the change that makes the module usable at production scale; steps 1–7 make it correct enough to trust first.
+9. **Dead-code deletions** (§17.4) and the tests in §16.1 — including a test asserting an auto-created concept is distinguishable from a curated one.
+10. Then the addendum's build list: `names.Resolver`, resource ingestion, reconciliation, `aligns_to_term`, the metrics pilot.
 
-Steps 1–8 are contained inside `ontology/keywords` and `ontology/semid` and touch no other subsystem.
+Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid` and touch no other subsystem.
 
 ---
 
@@ -638,11 +730,25 @@ The system should not invent its own lexicon from scratch when curated multiling
 - **Caution for thesaurus-style sources:** a `related`/`broad`/`narrow` relationship must never be silently upgraded to `exact`. "Brightness" and "luminance" are near-synonyms in ordinary language and different governed quantities in photometry. ADR §3.14 (DR13) already binds this: mapping strength is `exact|close|broad|narrow|related`, and lexical similarity may never be recorded as equivalence.
 - **The honest limit for this pilot:** general resources cover common vocabulary and miss narrow regulatory jargon. A ventilator metric from IEC 60601 / ISO 80601 is unlikely to be in Wikidata. **The higher-yield source for the pilot is probably those standards' own terminology sections**, if obtainable machine-readably.
 
-### 20.2 Undecided
+### 20.2 Previously undecided — now resolved (2026-08-05)
 
-- **§11.1's kernel scoring change** — extend `Score()` or let candidates carry a pre-computed score. Must be settled before tier 5 or 6.
-- **Embedding model for tier 6** — must be multilingual.
-- **Whether manual curation covers the pilot domain.** Nobody has counted the synonym/translation clusters in 呼吸机/医疗器械. If the count is large, tier 6 plus reconciliation move from "later" to "prerequisite" (`2026080404` §5.2).
+- ~~**Kernel scoring change**~~ → **Decided (§11.1):** extend `Score()` to a continuous value, **uncapped**; fuzzy and embedding may auto-accept above tier-specific thresholds, with the §7.2 vetoes remaining hard and method+score recorded on every decision.
+- ~~**Embedding model**~~ → **Decided:** multilingual is a requirement, not an option. An English-only model cannot place "luminance" near "亮度", which is the case that motivates tier 6.
+- ~~**Whether manual curation covers the pilot domain**~~ → **Question withdrawn — D11 makes it moot.** It presupposed curation as the primary path, which auto-first rejects at production scale. Curation is now confined to the small governed catalog (§14.0), benchmarks, and exception repair. The cluster count is still worth knowing for *benchmark* design, but nothing in the production path depends on the answer.
+
+**Remaining open, and genuinely so:** the specific auto-accept thresholds per tier (§11.1 item 1). These cannot be chosen from first principles — they need measurement against a gold set, which is exactly what the benchmark curation in §15.3 is for. Ship with conservative defaults, measure, then tune.
+
+### 20.3 External vocabulary import — deferred to build, accommodated now
+
+**Confirmed important to the keyword module and to the ontology system generally.** Implementation is deferred; the *schema and interfaces should accommodate it now*, because retrofitting multi-source provenance later would mean migrating every surface row. Given the planned data reset, getting the shapes right now is nearly free; getting them wrong is a rebuild.
+
+Three shapes to design in from the start, none of which requires building the importer yet:
+
+1. **Multi-source evidence, not a single provenance string.** `kb.keyword_surfaces` today has one `provenance` TEXT and one `evidence` TEXT — it cannot represent "Wikidata *and* CC-CEDICT both assert this alias," and therefore cannot retract one source's support without destroying the other's. This needs a separate many-to-one evidence table. **This is the one that is expensive to retrofit** and cheap to include now.
+2. **External identity mapping.** `(source, external_concept_id, release) → local concept_id`, so re-import is idempotent and cross-source coalescing is possible. Without it, every refresh duplicates.
+3. **Source/release/license registry.** Which resource, which version, what license class, what redistribution limits — recorded before import, because some sources (UMLS) carry real restrictions that must survive into the data.
+
+The addendum's Appendix A (`2026080404`) works through the resource survey, the bootstrap sequence, and the multilingual policy in detail. Nothing there needs to be built for the metrics pilot; but items 1–3 above should shape the schema whenever §17.2's fixes touch it, rather than being deferred wholesale.
 
 ---
 
