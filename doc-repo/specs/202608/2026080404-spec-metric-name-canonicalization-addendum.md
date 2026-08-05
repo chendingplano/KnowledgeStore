@@ -2,9 +2,10 @@
 
 - **DocID:** `doc-2026080404`
 - **Status:** Proposed addendum — its decisions are unimplemented; underlying keyword tables, stores, REST APIs, and tier 0–4 code are partial existing implementation
-- **Date:** 2026-08-04
+- **Date:** 2026-08-04, **revised 2026-08-05** for D11 (auto-first)
 - **Component:** SemOS / ChenWeb — metric extraction, ontology candidates, keyword lexicon
-- **Extends:** `2026080403-spec-keyword-canonicalization-and-reconciliation.md` (the keyword module), particularly §14 (the `aligns_to_term` bridge), §14.1–§14.2 (added alongside this addendum), and §9.1 (the mention collector's scope)
+- **Subordinate to:** **`2026080403-spec` is the master document for the keyword module.** Where the two disagree, 403 governs. This addendum covers consumer-side integration and the metrics pilot; it does not restate or override the module's own design decisions (D1–D11), defect register (§17.2), or build order (§19).
+- **Extends:** `2026080403-spec-keyword-canonicalization-and-reconciliation.md`, particularly §14/§14.0 (the governed-term bridge and the catalog-vs-assignment split), §11.1 (scoring), and §9.1 (the collector's scope)
 - **Design authority:** ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md`, DR12 (metrics is the pilot vertical slice), DR23 (metric definition vs. profile; alternative names are lexicon, not term duplicates)
 - **Trigger:** a review conversation that asked, concretely, how `extract_metrics` should use the keyword module to canonicalize a metric name — and found that the ADR had already answered this in more detail than the running code reflects.
 
@@ -125,7 +126,11 @@ A name can land in one of five states, and all five are normal results, not erro
 | `unresolved` | no match |
 | `disabled` | the resolver is intentionally off (mirrors `KEYWORD_RESOLVER_MODE=off`, §7.4 of the keyword spec) |
 
-**The rule that matters: `TermID` is set only by one of two things—an unambiguous exact match against a released term's governed label after expected-kind/module filtering, or an accepted, reviewed `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`. If an exact governed label still names multiple released terms, the result remains ambiguous. This is the same governance boundary §14 of the keyword spec already draws between the ungoverned lexicon and governed terms.
+**The rule that matters: `TermID` is set only by one of two things — an unambiguous exact match against a released term's governed label after expected-kind/module filtering, or an accepted `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`: a keyword concept is an ungoverned lexical identity, and promoting it silently to a governed one would erase the distinction the two layers exist to keep.
+
+⚠️ **Revised 2026-08-05 (D11).** An earlier version of this rule said the alignment must be "accepted, **reviewed**" — human-confirmed before any `TermID` could be set. That is withdrawn. Per `2026080403-spec` §14.0, **creating a governed term is human-gated; assigning an artifact to an already-released term is not** — the catalog is hundreds of items, the assignments are millions. An `aligns_to_term` assertion is an assignment. It is therefore **auto-proposed and auto-accepted above a threshold**, with method, score, and evidence recorded so the population stays sampleable and reversible.
+
+What survives from the original rule is the *layer boundary*, not the human gate: a tier-0–4 lexical hit alone still cannot produce a `TermID`; it takes either an exact governed-label match or an actual alignment assertion. If an exact governed label still names multiple released terms, the verdict is `ambiguous` — and per D11 it now carries a top-1 pick alongside the tied set, rather than returning nothing.
 
 ### 2.3 What stays in `AssociateSemantics`, what moves out
 
@@ -161,7 +166,7 @@ The other adjacent question: if a metric's canonical identity is meant to land o
 
 **The current term store doesn't attempt to; the proposed facade must do so conservatively.** Verified in `ChenWeb/server/api/ontology/terms/terms_store.go`: there is no lookup-by-label function today. Terms are reached only by an already-known, namespaced `term_id` (`bio:apple` vs. `org:apple_inc`, for example). Two meanings become two term rows with separate `kb.ontology_term_labels` rows.
 
-The proposed exact governed-label path in §2.2 may return a `TermID` only when expected kind/module filters leave one released term. If two released terms still share the label, the result is `ambiguous`. The other path is an accepted `aligns_to_term` assertion: a human reviews the lexical concept-to-term decision once during candidate governance, and later lookups reuse it.
+The proposed exact governed-label path in §2.2 may return a `TermID` only when expected kind/module filters leave one released term. If two released terms still share the label, the result is `ambiguous` (carrying a top-1 pick, per D11). The other path is an accepted `aligns_to_term` assertion — **auto-proposed and auto-accepted above a threshold, not human-reviewed per instance** (§2.2, revised). The homonym protection does not come from a person inspecting each link; it comes from the two *terms* being separate governed rows, created once through the human-gated catalog path, so an alignment can only ever point at one of them.
 
 This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the keyword spec): the keyword layer is where automated, ambiguity-tolerant "string → concept" resolution happens. The term layer holds governed meanings. An exact unique governed label can resolve directly; every non-exact lexical link requires accepted alignment evidence. A metric's `metric_definition_term_id`, once set through either governed path, carries no unresolved homonymy from the lexical lookup.
 
@@ -229,9 +234,14 @@ The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface
 | Tier 0 | no exact match |
 | Tier 1 | "亮度"'s own `norm_key` (computed from "亮度" — a different string with no relationship to "luminance" or "显示亮度") matches **nothing stored** — normalizing "亮度" does not, and cannot, produce anything close to `"luminance"`'s or `"显示亮度"`'s `norm_key` |
 | Tiers 2–4 | also miss, for the same reason — every tier here operates on keys derived from *this one string*, and "亮度" shares no derived key with either existing surface |
-| Result | `deferred` — regardless of the fact that a human reading the document would immediately recognize "亮度" as luminance. The system has no way to know this until someone tells it. |
+| Result **today** | `deferred` — regardless of the fact that a human reading the document would immediately recognize "亮度" as luminance. The metric gets no id at all. |
+| Result **under D11** | **A new provisional concept is auto-created** (`kwc_<new>`) with "亮度" as its surface, and the metric is assigned to it — marked auto-created, unconfirmed. The metric is never left without an identity. |
 
-**Case B is the only one where the current resolver automatically attempts concept attachment for a new literal, and it only covers normalization-equivalent variants.** Case C—a different word, in any language, for the same meaning—is never resolved by the normalizer, no matter how often it is observed. Each successful unresolved upsert increments the backlog entry's `hits`; it never becomes a match on its own. **A human today, or reconciliation once built, has to accept `亮度` as a surface under `kwc_luminance` before Case C becomes Case A.** DR23's promise ("亮度/显示亮度/luminance/brightness... reach one row") is real, but every string has to cross from candidate to accepted surface before it holds.
+**This is the case D11 changes most, and the change is not cosmetic.** Today, a genuinely new word for a known meaning produces *nothing* — the metric carries no concept id, and the comparison matrix has a hole where that metric should be. Under auto-first it produces a **second concept for the same meaning**, which is a different and better failure: the metric is identified, groupable, and countable, and the duplication is now a *detectable, mergeable* condition rather than an absence.
+
+Resolving that duplication is reconciliation's job, not the resolver's: tier 6 (multilingual embedding) blocks `kwc_<new>`("亮度") against `kwc_luminance`, R6's gates check unit and scope compatibility, and R7 merges them — auto-accepting above threshold per §11.1, since this is an *assignment-class* decision. Note the ordering that makes this safe: merging two concepts *is* structural (D10 still applies), so the merge itself stays conservative — but it operates on two concrete, evidenced concepts rather than on a guess about a bare string.
+
+**Normalization still cannot do any of this.** Lexform collapses variants of one string; "亮度" and "luminance" share no derived key and never will. DR23's promise ("亮度/显示亮度/luminance/brightness... reach one row") is delivered at the concept layer — by auto-creation plus reconciliation-driven merge, not by the normalizer, and no longer by a human accepting each surface one at a time.
 
 **`lexform → concept`, precisely: the lookup works; the discovery doesn't exist.** Given an *existing* `norm_key`, finding which concept(s) it belongs to is built and correct (Case A/B above, tier 0/1 queries). Deciding, for the first time, that a *new* `norm_key` belongs to a given concept — the step Case C needs — has no automated form today; only a human, through the REST API, does it.
 
@@ -248,7 +258,7 @@ This follows directly from Case C above, and it's worth being explicit about rat
 **The design has an answer; none of it is built.**
 
 - **Tier 5 (fuzzy: trigram + edit distance)** doesn't help here — it catches misspellings of the *same* word, not different words. Edit distance between "luminance" and "亮度" is total.
-- **Tier 6 (embedding/ANN similarity)** is the actual candidate-generation mechanism for this — a multilingual embedding model would plausibly place "luminance" and "亮度" close in vector space, unlike edit distance. It is, by design, *candidate-only*: it would never auto-accept a link on its own, only propose one (§17.1, `2026080403-spec`) — a wrong embedding-driven merge is exactly the silent failure D10 (bias toward under-merging) exists to prevent.
+- **Tier 6 (embedding/ANN similarity)** is the mechanism for this — a multilingual embedding model places "luminance" and "亮度" close in vector space, where edit distance cannot. ⚠️ **Revised 2026-08-05:** an earlier version called this "candidate-only, never auto-accepts on its own." That is withdrawn — see `2026080403-spec` §11.1. Under D11 tier 6 **may auto-accept** above a tier-specific threshold, because a suggestion nobody adjudicates is indistinguishable from no answer at 10⁷–10⁸ occurrences. D10 is not violated: it now scopes to **merges** of established concepts, which stay conservative; tier 6 here drives *assignment*, which is cheap to reverse and must be automatic.
 - **Reconciliation R3 (semantic/`pgvector` blocking) + R4/R5 (LLM batch decisions)** is what would turn a tier-6 candidate into a confirmed link at scale, without a human reading every pair by hand.
 
 All three are entirely unbuilt (`2026080403-spec` §11, §17.1). Manual curation alone is not an acceptable bootstrap strategy: even a bounded pilot contains spelling noise, translations, and aliases that no curator can anticipate exhaustively. The adopted approach is the hybrid mutable lexicon in Appendix A: import a bounded slice of relevant resources, normalize every imported and observed surface, reconcile the remaining candidate clusters before activation, and continue draining new misses after activation. LLM calls are allowed in that batched growth path, not in every `ResolveName` call.
@@ -466,7 +476,7 @@ After A.3–A.4 publish the three surfaces, all normal calls are deterministic a
 2. The resolver preserves `RawName` and derives versioned keys using A.5.
 3. Tier 0 attempts exact `(surface, scope)` lookup; tier 1 attempts `(norm_key, scope)`; lower tiers may use populated alternate keys. Language may rank candidates. Expected term kind/module filters only the governed-term continuation unless explicit type evidence exists for a lexical concept.
 4. Candidate rows are deduplicated by concept id and merged concepts are followed to their survivor.
-5. Exactly one eligible top concept is auto-accepted. A tie returns `ambiguous`; no candidate returns `unresolved`.
+5. Exactly one eligible top concept is auto-accepted. ⚠️ **Revised per D11:** a tie returns `ambiguous` **carrying the top-1 pick**, not an empty result; and no candidate returns `unresolved` **only on the collector path** — for a targeted name (a metric name, an alias) it auto-creates a provisional concept and returns its id (`2026080403-spec` §7.3).
 6. The resolver loads the concept and chooses a localized preferred surface. All three calls return `ConceptID = kw:luminance`; their display labels may differ by requested language.
 7. `ResolveName` performs no write. A processing consumer normally follows it with `ObserveName`, or uses `ResolveAndObserve`, to preserve the occurrence and outcome for later learning.
 

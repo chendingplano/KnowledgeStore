@@ -6,6 +6,7 @@
 - **Component:** SemOS / ChenWeb — keyword lexicon, the DR15/DR16 keyword identity family
 - **Supersedes:** `2026080101-spec-keyword-canonicalization-merged.md`, `2026072703-spec-…-2.md`, `2026072301-spec-….md`
 - **Design authority:** ADR `2026072901`, DR15 (shared canonicalization kernel), DR16 (merged keyword design), DR23 (metric definitions and the lexicon)
+- **Role:** **Master document for the keyword module.** It owns the design decisions (D1–D11), the data model, the defect register (§17.2), the dead-code register (§17.4), and the build order (§19). Where any companion document disagrees with this one, this one governs.
 - **Companion documents:**
   - `2026080404-spec-metric-name-canonicalization-addendum.md` — how a consumer reaches this module (`names.Resolver`), and the metrics pilot integration. Design only.
   - `2026080501-bug-name-resolver-qutd.md` — the review that produced the `names.Resolver` design.
@@ -736,7 +737,10 @@ The system should not invent its own lexicon from scratch when curated multiling
 - ~~**Embedding model**~~ → **Decided:** multilingual is a requirement, not an option. An English-only model cannot place "luminance" near "亮度", which is the case that motivates tier 6.
 - ~~**Whether manual curation covers the pilot domain**~~ → **Question withdrawn — D11 makes it moot.** It presupposed curation as the primary path, which auto-first rejects at production scale. Curation is now confined to the small governed catalog (§14.0), benchmarks, and exception repair. The cluster count is still worth knowing for *benchmark* design, but nothing in the production path depends on the answer.
 
-**Remaining open, and genuinely so:** the specific auto-accept thresholds per tier (§11.1 item 1). These cannot be chosen from first principles — they need measurement against a gold set, which is exactly what the benchmark curation in §15.3 is for. Ship with conservative defaults, measure, then tune.
+**Remaining open, and genuinely so:**
+
+1. **The specific auto-accept thresholds per tier** (§11.1 item 1). These cannot be chosen from first principles — they need measurement against a gold set, which is what the benchmark curation in §15.3 is for. Ship with conservative defaults, measure, then tune.
+2. **Whether tier 6 belongs in the online path at all.** Deciding the model must be multilingual surfaces a tension not previously stated: tier 6 requires embedding *the query*, at resolve time. If the model is **locally hosted**, that is CPU work and consistent with §2.2's "the online path never calls an LLM." If it is a **hosted API**, tier 6 puts a network call on every miss — breaking both that non-goal and the latency budget, and making the module's availability depend on a third party. Two viable resolutions: host a small multilingual embedding model locally (keeps tier 6 online), or **restrict tier 6 to reconciliation only** (offline, batched — where embedding cost amortizes anyway) and let the online path stop at tier 5. The second is cheaper to build and loses little: a first-time-seen foreign-language name auto-creates a concept under D11 regardless, and reconciliation merges it shortly after. **Recommendation: reconciliation-only for tier 6 unless a local model is already in the stack**, revisited if measurement shows the merge latency matters.
 
 ### 20.3 External vocabulary import — deferred to build, accommodated now
 
