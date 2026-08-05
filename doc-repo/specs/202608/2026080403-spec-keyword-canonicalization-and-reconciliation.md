@@ -103,7 +103,7 @@ The KnowledgeStore already reconciles objects and entities with an exact/alias/a
 
 The decisions below are the reason the module looks the way it does. They were settled in the ADR (DR15, DR16) by merging two earlier, partially conflicting specs — one proposing a Postgres-centric concept/variant/link model, the other a UMLS/SKOS-inspired four-layer model with SQLite-first storage. What follows is the resolution.
 
-### D1. Four identity layers, UMLS-style — 🚧 **Partial** (two of four layers are real entities; two are not)
+### 3.1 D1. Four identity layers, UMLS-style — 🚧 **Partial** (two of four layers are real entities; two are not)
 
 Every keyword passes through four layers of abstraction:
 
@@ -119,10 +119,11 @@ name   →   occurrence   →   surface   →   lexform   →   concept
 
 where "name" is whatever raw string a producer supplies — a metric name, an entity alias, a provision reference, a token the mention collector pulled out of prose, anything. **A metric name is one instance of "name," and the four-layer machinery downstream of it (occurrence→surface→lexform→concept) is exactly the same machinery any other keyword goes through — nothing in it is metric-specific, and nothing metric-specific needs to exist for it to apply.** What *is* missing today is a producer that supplies metric names as "name" in the first place (below, and `2026080404`-addendum §5.1 walks the metric case end to end).
 
-**A likely-sounding but incorrect mental model, worth heading off directly: `extract_metrics` does *not* "register with" the mention collector.** The collector (§9) is not a registration point other processors plug into — it is one specific, self-contained mechanism that reads *raw chunk text* and tokenizes it *itself*, blind to any other processor's output. It has no API for "here is a value I already extracted, please treat it as a name." The only way a metric name enters this chain is a **direct call** from somewhere downstream of `extract_metrics` — proposed as a new call inside `associate_semantics.processMetric` (`2026080404`-addendum §6 item 4) — to `KeywordFamily.ResolveSurface(metricName, ...)`. That call has nothing to do with the collector; the collector remains entirely separate, and stays parked regardless of whether metric-name resolution is built (§9.1–§9.3).
+**A likely-sounding but incorrect mental model, worth heading off directly: `extract_metrics` does *not* "register with" the mention collector.** The collector (§9) is not a registration point other processors plug into — it is one specific, self-contained mechanism that reads *raw chunk text* and tokenizes it *itself*, blind to any other processor's output. It has no API for "here is a value I already extracted, please treat it as a name." The only way a metric name enters this chain is a **direct call** from somewhere downstream of `extract_metrics` — via the proposed `names.Resolver.ResolveName` facade (`2026080404`-addendum §2), **not** inside `associate_semantics.processMetric` (an earlier version of the addendum proposed exactly that, and a subsequent review found it would have deepened `associate_semantics.go`'s existing package-purity problem rather than fixing anything — corrected in the addendum's 2026-08-05 revision note). That call has nothing to do with the collector; the collector remains entirely separate, and stays parked regardless of whether metric-name resolution is built (§9.1–§9.3).
 
 The rest of this entry is more concrete than the other D-items, because the gap between what these four words mean and what actually happens in the running code is the most common source of confusion in this module.
 
+#### 3.1.1 Persistence
 **Read this table before anything else in this entry — it is the single authoritative map from each layer to exactly where it lives, and it corrects the most common misreading of the diagram above: that each arrow is a separate table being looked up and handed to the next. It isn't.** Mechanically, there are exactly two real tables (`kb.keyword_surfaces`, `kb.keyword_concepts`); surface, lexform, and concept are three *columns on one row* of the first table for the common case, not three tables chained by joins.
 
 | Layer | Is it a table? | Where it actually lives | Which column(s) | How a *consumer* (a metric, an entity, anything) connects to it |
@@ -141,21 +142,54 @@ The rest of this entry is more concrete than the other D-items, because the gap 
 
 `kb.keyword_mentions` is never queried by any tier. It has no role in resolution at all — it is a (currently broken) audit side-effect, written once per call and never read back by anything in the resolve path.
 
+**Open Question 01**: does it mean `kb.keyword_mentions` is only logs that can be referenced by others,
+otherwise, it is not 'used'?
+
+> **Answer:** Verified precisely — as shipped, it's less than "referenced by others": `MentionStore.ListMentions` (the only read function that exists for this table) is called from **nowhere else in the codebase** — no REST handler, no batch job, no other Go file. `InsertMention` is called; nothing ever reads a row back out. So today it isn't "logs others can reference" — it's logs nothing references. `ListMentions` exists as dead code waiting for a caller (e.g., an admin/debug endpoint) that was never built.
+
+**Open Question 02**: there is no (physically) `occurrence` in the implementation, 
+only `kb.keyword_mentions`, or can be say: `kb.keyword_mentions` is (should be) `kb.keyword_occurrence`?
+
+> **Answer:** Yes to both. There is no other table or structure anywhere that represents "occurrence" — `kb.keyword_mentions` is the only candidate, and it was designed to be exactly that (§8.4 calls it "the evidence queue"). Renaming it to `kb.keyword_occurrences` once it's fixed (surface/name column added, per K4) would make its role match its name — worth doing given the data reset you've already decided on, since there's no migration cost to pay.
+
 **Who generates an occurrence — literally, who calls the function.** An occurrence comes into existence when something calls `KeywordFamily.ResolveSurface(surface, scope, artifactRef, contextText)`. As of this writing there are exactly **two** callers anywhere in the codebase:
+
+**Open Question 03**: Bug report (2026080501-bug-name-resolver-qutd.md) clearly states
+ `KeywordFamily.ResolveSurface(...)` should be read-only. Why it is still not changed? 
+
+> **Answer:** Because nothing in this entire thread — the bug report, the addendum's revision, this document's own edits — has touched a single line of Go code. Everything since the bug report is a documentation/design correction. `ResolveSurface` in `ChenWeb/server/api/ontology/keywords/keywordfamily.go` today is byte-for-byte the same function described throughout this document: it still writes a mention row, a decision-log row, and a surface-or-backlog row on every call. The read-only `names.Resolver.ResolveName` is a **proposed** replacement (addendum §2, §2.1) — not implemented, not started. Nothing described as "PROPOSED" anywhere in either document exists in the repository yet.
 
 1. `KeywordMentionCollector.CollectFromText` (§9) — for every token it pulls out of raw document-chunk text. This is currently unwired into the pipeline, so in production today it never runs.
 2. `ResolveKeywordSurface`, the `POST /kb/keyword-resolve` REST handler (§10) — whenever an external caller sends it a string.
 
-**Neither is metric-specific, and neither runs against `extract_metrics` output today.** No doc processor — old or new, `extract_metrics` or `extract_metric_definitions` — calls this function (§14.1). The addendum (`2026080404` §6) proposes adding a *third* caller, inside `associate_semantics.processMetric`, which would make a metric's name into an occurrence for the first time. Until that's built, "occurrence" and "metric name" have no relationship at all in the running system.
+**Neither is metric-specific, and neither runs against `extract_metrics` output today.** No doc processor — old or new, `extract_metrics` or `extract_metric_definitions` — calls this function (§14.1). The addendum (`2026080404` §2) proposes a *third* caller reaching this mechanism — through `names.Resolver`, not by adding a call inside `associate_semantics.processMetric` — which would make a metric's name into an occurrence for the first time. Until that's built, "occurrence" and "metric name" have no relationship at all in the running system.
 
 **What each layer means, and what it actually is in code:**
 
 - **occurrence** — a raw string as observed in one specific place, plus where it came from (≈ UMLS AUI). **No single table holds a complete occurrence record.** See the trace below for exactly what does and doesn't get written, and §17.2 K4 for why this is tracked as a defect rather than left as an implicit gap.
 - **surface** — one exact, distinct string, stored verbatim, tagged with a role (`pref`/`alt`/`hidden`) and an alias type (≈ SUI). **A real, fully built entity** — `kb.keyword_surfaces` + `SurfaceStore` (§8.2), CRUD'd, unit-tested.
-- **lexform** — a normalization-equivalence class; the working-mode index key (≈ LUI). **Not an entity — a derived value**, with no dedicated table (no `lexform_id` anywhere). It is the string in a `norm_key` column, computed once by the normalizer and copied onto every row that needs to be found by it. This matches the original design intent — "the working-mode index key" already says "key," not "governed record" — so having no table is not itself a gap. What *is* a gap: `kb.keyword_unresolved.norm_key` is supposed to hold this value too but currently holds the raw surface instead (§17.2 K5).
-- **concept** — a unit of meaning with a canonical label and gloss (≈ CUI). **A real, fully built entity** — `kb.keyword_concepts` + `ConceptStore` (§8.1), with a genuine lifecycle. Concepts are created only through the REST API today; there is no automated "propose a new concept" path (that's reconciliation's R5, §11, unbuilt).
+- **lexform** — a normalization-equivalence class; the working-mode index key (≈ LUI). A LexForm is a normalized representation of a term that removes superficial differences in spelling and formatting so that different strings with the same lexical meaning can be matched more easily. **Not an entity — a derived value**, with no dedicated table (no `lexform_id` anywhere). It is the string in a `norm_key` column, computed once by the normalizer and copied onto every row that needs to be found by it. This matches the original design intent — "the working-mode index key" already says "key," not "governed record" — so having no table is not itself a gap. What *is* a gap: `kb.keyword_unresolved.norm_key` is supposed to hold this value too but currently holds the raw surface instead (§17.2 K5).
+- **concept** — a unit of meaning with a canonical label and gloss (≈ CUI). LexForm is purely lexical, whereas the Concept Unique Identifier (CUI) is semantic. **A real, fully built entity** — `kb.keyword_concepts` + `ConceptStore` (§8.1), with a genuine lifecycle. Concepts are created only through the REST API today; there is no automated "propose a new concept" path (that's reconciliation's R5, §11, unbuilt).
+
+**Open Question 04**: Since `lexform` purely lexical, and `2026080501-bug` suggests `names.Resolver.ResolveName(...)`. Shall we adopt the recommendation? The same function can also be used to normalize `surface`. Note that `occurrence` to `surface` is many-to-one. The mapping should be purely 
+lexical, too. This means we should use the same function to resolve `occurrence` to `surface`. 
+Is this understanding correct?
+
+> **Answer:** Adopt the recommendation — already done in the addendum's 2026-08-05 revision. On the mechanism: correct in spirit, with one precise distinction worth drawing out, because it explains why the code has two tiers instead of one. There are actually **two different "is this the same" checks**, and only one of them goes through the normalizer:
+>
+> 1. **"Is this occurrence's literal text already an existing surface?"** — tier 0, exact string comparison (`WHERE surface = $1`). No normalizer involved.
+> 2. **"Does this occurrence's normalized form match an existing surface's normalized form?"** — tier 1, the normalizer's output compared against stored `norm_key`.
+>
+> Both checks exist because surface is deliberately *not* the normalized form — it's the verbatim string (cardinal rule 2, §4.2). If occurrence→surface collapsed straight through the normalizer, "Luminance" and "luminance" would never be distinguishable as two separately-observed spellings, which is exactly the information surface exists to preserve. So: yes, one normalizer function underlies everything downstream of an exact-match miss — but the exact-match check itself is deliberately *not* normalizer-mediated, and that's not an oversight.
 
 **Since lexform is only a value, not a row — how does the system guarantee two surfaces are consistently recognized as "the same lexform"?** Not by lookup — by *determinism*. `KeywordNormalizer.Normalize(surface)` is a pure function: no database access, no I/O, no shared state (confirmed — there is nothing in `normalizer.go` that touches a DB or a cache). It runs the fixed ten-step pipeline (§5.1) purely on the string it's given and returns a `norm_key`. Because the function is pure, calling it twice on the same input — from anywhere, at any time — produces the same output. "Two surfaces belong to the same lexform" is therefore not a fact that gets *recorded*; it's a fact that gets *recomputed*, identically, every time either surface is normalized. `norm_key` **is** "the normalized form" by construction — it is literally what the pipeline returns, not a further transformation of it.
+
+**Open Question 05**: The logic appears incorrect. It implies `occurrence` maps to not-normalized 
+`surface` first, then `KeywordNormalizer.Normalize(surface)` normalizes `surface`. 
+The correct one should be: `occurrence` -> normalize `occurrence` as the parameter -> search 
+`surface`. If not found, create one. Otherwise, use it. Is this understanding correct?
+
+> **Answer:** Close, with the same two-step correction as OQ04. Normalization *does* run immediately (`Kernel.Resolve` computes the key bundle before any lookup, unconditionally) — but the *first* search performed is against the raw, un-normalized text (tier 0), not the normalized key. Only if that misses does the search fall through to the normalized key (tier 1). So the precise sequence is: occurrence arrives → normalize it (always, upfront) → search by exact raw text first → if that misses, search by normalized key → if that also misses (through tiers 2–4 too), it's a genuine miss, goes to the backlog, no surface created → if any tier hits, check whether this exact literal string is already recorded under that concept; if not, create it. "Normalize, then search" is right about *what eventually gets searched*; it understates that an exact-text search happens first and doesn't need the normalized form at all.
 
 This has two direct consequences worth naming:
 
@@ -174,6 +208,20 @@ This has two direct consequences worth naming:
 | 4 | Verdict is `deferred` → `UnresolvedStore.UpsertUnresolved` | `kb.keyword_unresolved` | `norm_key = "kubernets"` *(bug: should be the normalized key — K5)*, `surfaces = ["kubernets"]`, `scope = "_"` | — |
 | 4′ *(alternate, if the verdict had been `auto_accepted` instead)* | `SurfaceStore.CreateSurface` | `kb.keyword_surfaces` | `surface = "kubernets"`, `norm_key = <normalized>`, `concept_id = <matched>` | — |
 
+**Open Question 06**: Line 191, what does it normalize? what/how to adjudicate? what are
+parameters of `Kernel.Resolve`?
+
+> **Answer:** Exact signature, verified against `semid/kernel.go`: `Kernel.Resolve(ctx context.Context, surface string) (Resolution, error)`. Two parameters only — `surface` is the raw string; **scope is not a parameter**, it's derived internally via `k.Family.Scope(surface)`, which is precisely K2's bug (it always returns `"_"`, discarding whatever scope the caller passed to `ResolveSurface`). What it normalizes: `k.Family.Normalizer().Normalize(surface)` — the same `KeywordNormalizer` pipeline (§5.1), producing a key bundle (`CanonicalKey = norm_key`, `AlternateKeys = [alnum, sorted, phonetic, initials]`). How it adjudicates: `Adjudicate(matches []ScoredMatch, policy AutoAcceptPolicy) Verdict` (`semid/adjudicate.go`) — given the tier-scored candidates (sorted, highest first) and the family's policy (`{Enabled: true, MinScore: 0.8, MaxCandidates: 1}` for keywords): zero matches → `deferred`; the top score tied across more candidates than `MaxCandidates` → `ambiguous`; policy disabled, or the top score below `MinScore` → `human_review`; otherwise → `auto_accepted`.
+
+**Open Question 07**: Line 192, 'runs on every call': which call? what function(s) to call? 
+We should clearly separate resolve-functions as read-only and, if resolve-functions
+failed resolving, mutable decision-functions to make decisions. Does the new design
+follow this rule? Who calls `DecisionLogStore.Append(...)`?
+
+> **Answer:** "Every call" = every call to `KeywordFamily.ResolveSurface` (the function this whole trace is about), regardless of which verdict comes back. The exact call site: `(semid.DecisionLogStore{DB: kf.DB}).Append(ctx, semid.DecisionLogEntry{...})`, inside `ResolveSurface` itself (`keywordfamily.go`), executed unconditionally right after `Kernel.Resolve` returns and before the verdict-based switch. **`Kernel.Resolve` itself never writes anything** — confirmed by re-reading its full body: normalize, query candidates (read-only), score, adjudicate, return. All writes belong to `ResolveSurface`, one layer up.
+>
+> On the read/write separation rule: **yes, the corrected design follows it — that's the entire point of addendum §2.1.** `names.Resolver.ResolveName` performs zero writes, full stop. One refinement your question surfaces, worth making explicit rather than leaving implicit: the decision-log write should move to the same side of the line as the mention/surface/backlog writes — i.e., a plain `ResolveName` call should produce **no** decision-log entry either, only `ObserveName`/`ResolveAndObserve` should. The addendum's §2.1 text focused on mention/surface/backlog; the decision log deserves the same treatment for the same reason, and I've added this to the addendum's read/write section.
+
 **So: is the raw string persisted, or not?** Both things the prior questions pointed at are true, and they were never in tension once stated precisely — the confusion was entirely mine, in how the earlier version of this section phrased it. The string **is** durably persisted, every time, in one of two places depending on the verdict (step 4 or step 4′) — and, incidentally, **always** in the decision log's `input` field (step 3), regardless of verdict. What is **not** persisted, ever, is a single row that ties the string together with *where it was seen* — step 1 records the "where" (partially) with no "what"; step 3 records the "what" with no "where"; nothing links them. That is the actual, precise shape of the gap: not "nothing is stored," but "what's stored is split across two unlinked tables, and the one table shaped to hold both (`kb.keyword_mentions`) is missing the column that would let it hold either." §8.4 and §17.2 K4 describe the same gap from the schema side; this trace is the same fact from the call-flow side.
 
 **How the layers relate to each other, mechanically, once a surface row exists:**
@@ -181,42 +229,178 @@ This has two direct consequences worth naming:
 - **surface → lexform** — many-to-one, computed at write time by `KeywordNormalizer.Normalize(surface)`, the function that produces `norm_key` (step 4′ above). This is cardinal rule 2 (§4.2, "store surfaces, derive keys") being exercised directly: `norm_key` is set once, from the surface, and never edited by hand — a normalizer-version bump means recomputing it, not migrating it.
 - **lexform → concept** — many-to-many, but there is no join table for it; it's an emergent property of how the surface table is shaped. `kb.keyword_surfaces.concept_id` is `NOT NULL`, so every surface belongs to exactly one concept. When two surfaces share a `norm_key` but point at different `concept_id`s — a surface row `ML` under a `machine learning` concept, a separate surface row `ML` under a `millilitre` concept — that pair of rows *is* the many-to-many relationship, with nothing else modeling it. The tier-1 lookup (`SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.norm_key = $1 AND s.scope = $2`, §7.2) is this relationship being queried directly: one distinct `concept_id` in the result set → auto-accept; two or more tied at the top score → `ambiguous` (`Adjudicate`, §6.2). This single query *is* the entire mechanism behind D5 (ambiguity is first-class) and §4.3 (homonymy) — there is no separate disambiguation subsystem.
 
-**How this would connect to production — the metric example, now clearly marked as an illustration, not the definition.** No doc processor reaches any of the four layers today, old or new (§14.1). If the addendum's proposed integration (`2026080404` §6) is built, a metric's raw name would become an occurrence exactly the way "kubernets" does in the trace above — `associate_semantics.processMetric` would be the third caller of `ResolveSurface`, using the metric name as `surface`. A resolved concept would then, separately, need a human-confirmed `aligns_to_term` assertion (§14) to reach a governed `metric_definition` term — the identity DR23's comparison matrix actually keys on. The pilot domain this is meant to work on is 呼吸机/医疗器械 — ventilators and medical devices, ADR OD1, resolved 2026-07-29 — still un-authored as domain content. Nothing about the four-layer mechanism itself is metric-specific; metrics are simply the first concrete consumer this document has worked through in detail.
+**How this would connect to production — the metric example, now clearly marked as an illustration, not the definition.** No doc processor reaches any of the four layers today, old or new (§14.1). If the addendum's proposed integration (`2026080404` §2, §6) is built, a metric's raw name would become an occurrence exactly the way "kubernets" does in the trace above — the consumer of `extract_metrics`' output, calling `names.Resolver.ResolveName` (not `associate_semantics.processMetric` — see the 2026-08-05 correction two paragraphs up), would be the third caller reaching `ResolveSurface`'s underlying mechanism, using the metric name as `surface`. A resolved concept would then, separately, need a human-confirmed `aligns_to_term` assertion (§14) to reach a governed `metric_definition` term — the identity DR23's comparison matrix actually keys on. The pilot domain this is meant to work on is 呼吸机/医疗器械 — ventilators and medical devices, ADR OD1, resolved 2026-07-29 — still un-authored as domain content. Nothing about the four-layer mechanism itself is metric-specific; metrics are simply the first concrete consumer this document has worked through in detail.
 
-### D2. One shared resolution kernel, not a bespoke engine — ✅ **Built**
+**Open Question 08**: the bug report clearly suggest that since the ontology subssystem 
+and the Keyword module should be generic and doc processors agnostic, it should
+move `associate_semantics.processMetric` out of them. Why it is still here?
+
+> **Answer:** Two separate reasons, and both matter. First — same as OQ03 — nothing has been implemented yet; this is all still design. `processMetric` in the actual repo is unchanged. Second, and this is the more useful answer: **the addendum does not currently propose moving `processMetric`'s body out at all, and correctly so, by its own reasoning.** Re-reading the addendum's §2.3 precisely: it recommends moving `processMetric`/`processProvision`'s concrete bodies into consumer-specific adapter packages and un-registering `"metric"`/`"provision"` from the shared `init()` — but it explicitly sequences this as *follow-up*, deliberately *after* the metrics pilot, not before it (§6's closing paragraph: "neither has to be paid down before one metric name resolves correctly, and DR12's own vertical-slice framing argues for proving the pilot before generalizing further"). So "why is it still here" has a real, stated reason: proving one vertical slice works, per DR12, is judged more valuable right now than restructuring the package it happens to live in. If you think that sequencing call is wrong — that the restructuring should happen *before* wiring metrics through it, not after — that's a legitimate position to push back on, and worth deciding explicitly rather than leaving as my judgment call.
+>
+> I found a real bug while checking this, though: two places in this document (the paragraph just above, and §9.2 below) still described the *old, corrected-away* proposal — a metric resolving through `associate_semantics.processMetric` directly. Both are now fixed to say `names.Resolver`, matching the addendum's actual corrected design. Thank you for surfacing this — I introduced the inconsistency when I corrected the addendum and didn't propagate the fix back here.
+
+### 3.1.2 Example: `surface` to `concept` 
+
+```text
+surface row
+├── surface = "Apple"
+├── norm_key = "apple"       ← lexform value
+└── concept_id = "kwc_..."   ← persisted concept identity
+```
+
+`kb.keyword_surface_keys` is also persisted, but it holds alternate derived keys such 
+as `alnum`, `sorted`, and `initials`; it is not a lexform table.
+
+### 3.1.3 `surface` Resolves to `lexform`
+
+Currently, based on this document it is computed deterministically:
+
+```text
+norm_key = KeywordNormalizer.Normalize(surface)
+```
+
+For example, ideally:
+
+```text
+"Apple"   ─┐
+"apple"   ─┼── normalize → "apple"
+"APPLE"   ─┘
+```
+
+“Many-to-one” means many different surface strings can produce the same `norm_key`. 
+It does **not** mean a single surface has several possible lexforms. For a given 
+normalizer version, one surface produces one primary `norm_key`.
+
+During resolution, the module:
+
+1. Normalizes the input in memory.
+2. Uses the resulting `norm_key` for the tier-1 lookup.
+3. Queries `kb.keyword_surfaces` for rows with that `norm_key` and scope.
+
+The implementation is in [keywordfamily.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/keywordfamily.go:80), with the tier-1 query at [keywordfamily.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/keywordfamily.go:157).
+
+**Open Question 09**: surfaces created through the direct REST authoring path currently 
+accept a caller-supplied `norm_key` rather than deriving and validating it. Therefore, 
+the intended surface→lexform invariant is not fully enforced today.
+Please verify it.
+
+> **Answer:** Verified, exactly as stated. `CreateKeywordSurface` (`kbhandler/keyword_handlers.go`) decodes `NormKey` straight from the request JSON and passes it unchanged into `SurfaceStore.CreateSurface`, which never calls `KeywordNormalizer.Normalize` at all (§17.2 K3). So the invariant "surface's `norm_key` always equals `Normalize(surface)`" holds only on one of the two write paths — `ResolveSurface`'s auto-accept branch, which does compute it correctly (§3.1.1's trace, step 4′) — and does not hold on the human REST-authoring path, where `norm_key` is only as correct as whatever the caller typed. Your understanding is correct without qualification.
+
+### 3.1.4 How a lexform resolve to a concept
+
+The relation is represented indirectly through `kb.keyword_surfaces`:
+
+```text
+SELECT concept_id
+FROM kb.keyword_surfaces
+WHERE norm_key = ? AND scope = ?
+```
+
+There is no separate lexform↔concept join table. Each surface row belongs to exactly 
+one concept, but multiple surface rows with the same `norm_key` can point to different concepts.
+
+The intended decision rule is:
+
+```text
+norm_key
+   │
+   ├── 0 concepts → unresolved/deferred
+   ├── 1 distinct concept → auto_accepted
+   └── 2+ equally valid concepts → ambiguous
+```
+
+The resolver returns ranked candidates, and the shared adjudicator returns 
+`ambiguous` when multiple top candidates tie. 
+See [adjudicate.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/adjudicate.go:23).
+
+The intended disambiguation order is:
+
+1. Scope, such as the knowledge store or domain.
+2. Context-based disambiguation if scope is insufficient.
+3. Otherwise return `ambiguous`.
+
+However, the current implementation has important limitations:
+
+- The passed scope is effectively ignored because `KeywordFamily.Scope()` returns `_`.
+- Context-token disambiguation is deferred and not implemented.
+- Consequently, homonyms in global scope normally remain `ambiguous`.
+- The query does not use `SELECT DISTINCT concept_id`; duplicate matching rows for the same concept could potentially be counted as multiple tied candidates. The specification describes distinct concepts, but the current SQL does not explicitly enforce that distinction.
+
+So the current module safely detects many ambiguous cases, but it does not yet reliably choose the contextually correct concept.
+
+### 3.1.5 Does many-to-many mean the same lexform can have multiple meanings?
+
+**Yes. That is exactly why the relationship is many-to-many.**
+
+For example:
+
+```text
+surface/lexform: "apple"
+    ├── concept: apple, the fruit
+    └── concept: Apple Inc., the company
+```
+
+Similarly:
+
+```text
+"ML"
+    ├── machine learning
+    └── millilitre
+```
+
+It is also many-to-many in the other direction because one concept can have several lexforms:
+
+```text
+concept: Apple Inc.
+    ├── "apple"
+    ├── "apple inc"
+    ├── "apple computer"
+    └── "苹果公司"
+```
+
+Importantly, normalization does not determine meaning. It only collapses spelling, casing, punctuation, whitespace, and limited morphological variants. Synonyms and translations usually have different lexforms and are united only because their surface rows share the same `concept_id`.
+
+**Open Question 10**: the proposed `names.Resolver` and metric integration are 
+**not implemented yet**. The underlying keyword tables and tier-0/tier-1 mechanics exist, 
+but reliable scope/context disambiguation and the `concept → governed ontology term` 
+continuation remain future work.
+
+> **Answer:** Confirmed, with one word worth sharpening. `names.Resolver` and the metric integration: 0% implemented, design-only, correct as stated. Keyword tables + tier 0/1: built and correct on the paths that work (Case A/B, §3.1's trace). Concept → governed term (`aligns_to_term`): 0% implemented — no schema, no code path — and, per the bug-report-driven correction, additionally blocked by `kb.semantic_assertions.subject_ref_kind`'s `CHECK` constraint excluding `'keyword_concept'` if that table is meant to hold it. The one word to sharpen: **scope disambiguation isn't merely "not reliable" — it doesn't exist at all.** K2 means the caller's scope has *zero* effect on matching; it isn't a partially-working feature, it's completely inert. "Reliable... remain future work" reads as if there's a working-but-imperfect version today; there isn't one yet.
+
+### 3.2 D2. One shared resolution kernel, not a bespoke engine — ✅ **Built**
 
 DR15 built a single canonicalization kernel — `normalize → candidates → score → adjudicate → link → merge/split → audit` — in `ChenWeb/server/api/ontology/semid/`, instantiated **per identity family**. A family declares only what differs via a `FamilyAdapter`; it never edits the mechanism. The keyword family is the **second instantiation** of this kernel (after P2's ontology-term family, `TermFamily`). This rejects both prior specs' assumption that the keyword module owns its own resolver engine. The keyword family supplies: a surface store, a node store, a normalizer profile, scoring via key bundles, scope, and an auto-accept policy — not a second copy of the mechanism.
 
-### D3. Postgres storage (`kb.keyword_*`) — ✅ **Built**
+### 3.3 D3. Postgres storage (`kb.keyword_*`) — ✅ **Built**
 
 Storage is Postgres, in the `kb.` schema, per the ChenWeb convention. SemOS already runs `pg_trgm` and `pgvector` and needs one backup/migration story, not two storage engines. This resolves the earlier specs' SQLite-vs-Postgres disagreement in Postgres's favor.
 
-### D4. SKOS label roles — ✅ **Built**
+### 3.4 D4. SKOS label roles — ✅ **Built**
 
 Every surface carries a role: `pref` (the canonical display label), `alt` (synonyms, acronyms — user-visible), or `hidden` (misspellings — indexed and searchable but never displayed). This three-way split costs nothing to adopt and exactly matches the problem.
 
-### D5. Ambiguity is first-class — ✅ **Built** (kernel verdict)
+### 3.5 D5. Ambiguity is first-class — ✅ **Built** (kernel verdict)
 
 When a key maps to multiple concepts and scope does not disambiguate, the result is **`ambiguous` with ranked candidates** — never a forced pick, and never a silent coin flip. Silently picking the most frequent candidate produces an error invisible to both caller and metrics.
 
-### D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect** (rule not enforced)
+### 3.6 D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect** (rule not enforced)
 
 Every normalization key is recomputable from `surface + norm_version`. A normalizer change is therefore a **re-index job, never data loss**. Bumping `norm_version` invalidates the derived-key layer; the original surfaces are always preserved.
 
 The schema honours this; the shipped write paths do not. `POST /kb/keyword-surfaces` accepts a caller-supplied `norm_key` verbatim and never derives or validates it, and no write path populates `kb.keyword_surface_keys` at all. Keys are therefore *asserted*, not derived — see D6 defects in §17.2.
 
-### D7. Merges are tombstones; no transitive closure; `never_merge`; `locked` — 🚧 **Partial** (tombstones built, guardrails unenforced)
+### 3.7 D7. Merges are tombstones; no transitive closure; `never_merge`; `locked` — 🚧 **Partial** (tombstones built, guardrails unenforced)
 
 - Merges set `merged_into` and move the concept to `merged`; the row is **never deleted**, so stale ids still resolve. ✅ Built.
 - Merges are **not transitive**: `A→B` and `B→C` do not imply `A→C`. Connected-component clustering is explicitly rejected (one bad edge chains two unrelated clusters together). ✅ Built by omission — nothing computes a closure.
 - **`never_merge`** assertions (`kb.semid_never_merge`, shared kernel table) block specific pairs forever. ⚠️ **Storage only.** The table and `NeverMergeStore` exist from P2, but no keyword code path reads them: `ConceptStore.MergeConcept` performs no never-merge check (§12.2).
 - **`locked`** surfaces are human-asserted; the reconciler may propose changes to them but never apply them. ✅ The flag and its toggle are built; ⏳ the reconciler that must honour it does not exist yet, so the guarantee is currently vacuous.
 
-### D8. Token-economics discipline — ⏳ **Deferred** (reconciliation not built)
+### 3.8 D8. Token-economics discipline — ⏳ **Deferred** (reconciliation not built)
 
 Reconciliation runs the seven-stage ladder `harvest → prune → block → batch → decide → validate → apply`, with every stage before the model existing to shrink the model's job, and every stage after it existing to stop the model from corrupting the database. Only the data structures that support it are built today (§11).
 
-### D9. Two modes of operation, on two independent axes — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
+### 3.9 D9. Two modes of operation, on two independent axes — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
 
 The word "mode" is used for two different things in this design, and they are **not** three peers. Reading them as one list is the single most common misunderstanding of this module, so both axes are defined here, before either term is used again.
 
@@ -245,7 +429,7 @@ Reconciliation mode is orthogonal to all three settings: it is a batch job over 
 
 Throughout this document, **"observe mode"** is shorthand for "working mode running under `KEYWORD_RESOLVER_MODE=observe`". §7.4 gives the concrete behaviour of each setting and records two defects in the gate itself.
 
-### D10. Bias toward under-merging — ✅ **Adopted as policy**
+### 3.10 D10. Bias toward under-merging — ✅ **Adopted as policy**
 
 A missed alias is a self-reporting, self-healing condition — it lands in the unresolved backlog and gets fixed on the next reconciliation run. A wrong merge is invisible, permanent until someone notices, and contaminates every consumer. Every conservative threshold in the design follows from this asymmetry: **prefer under-merging everywhere**.
 
@@ -660,7 +844,7 @@ None of this bears on metric-name canonicalization, or on any other targeted-enr
 
 **Should there be a doc processor (or several) using an LLM to do this extraction?** No — and this one matters enough to state as a hard constraint, not a preference. Mention *collection* has to stay free and deterministic: it runs on every chunk of every document, and the module's entire economic thesis (§1.4: "LLM cost should scale with vocabulary growth, not with query volume") depends on that step costing nothing. An LLM-based collector would make cost scale with corpus size instead, which is exactly the failure mode the design exists to avoid. LLM usage belongs only in reconciliation (R4/R5), applied to the deduplicated backlog, not to every mention. On the "one or several" question: one processor is the right shape, not several — the collector's whole value is being document-type-agnostic (it reads the same chunks regardless of what other processors extract from them), so splitting it by document type would just reintroduce the coupling to specific extractors that job 2 exists to avoid.
 
-**`on` mode is what a production system would run — doesn't calling `ResolveSurface` in `on` mode already make something a consumer?** Yes, and this sharpens a distinction §9.1 didn't draw precisely enough. Once the addendum's targeted-enrichment integration is built — `associate_semantics.processMetric` or `extract_metric_definitions`' harvest step calling `KeywordFamily.ResolveSurface` — those *are* real `on`-mode consumers, in exactly the sense meant here: something calls resolve, does something with the result, in production. That closes the "`on` mode has no consumer" gap for the *targeted* path. It does not close it for the *collector's* path: a consumer of one known field (a metric name) is not a consumer of the broad, undifferentiated mention stream the collector produces. The collector still needs something that reads the *lexicon in bulk* — retrieval expansion, a faceting view, an analytics query — not something that resolves one field it already knows about.
+**`on` mode is what a production system would run — doesn't calling `ResolveSurface` in `on` mode already make something a consumer?** Yes, and this sharpens a distinction §9.1 didn't draw precisely enough. Once the addendum's targeted-enrichment integration is built — the `names.Resolver`-mediated call downstream of `extract_metrics`, or `extract_metric_definitions`' harvest step, reaching `KeywordFamily.ResolveSurface`'s underlying mechanism — those *are* real `on`-mode consumers, in exactly the sense meant here: something calls resolve, does something with the result, in production. That closes the "`on` mode has no consumer" gap for the *targeted* path. It does not close it for the *collector's* path: a consumer of one known field (a metric name) is not a consumer of the broad, undifferentiated mention stream the collector produces. The collector still needs something that reads the *lexicon in bulk* — retrieval expansion, a faceting view, an analytics query — not something that resolves one field it already knows about.
 
 ### 9.3 Decision
 

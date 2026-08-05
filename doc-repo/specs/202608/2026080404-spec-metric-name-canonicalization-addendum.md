@@ -101,7 +101,7 @@ resolution := resolver.ResolveName(ctx, ResolveNameRequest{
 
 `KeywordFamily.ResolveSurface` (§2 above) attempts writes—a mention row, a decision-log row, and either a surface or a backlog row—on every call, with no way to just ask "what does this resolve to" without also recording it as an observation. Several of those write errors are discarded, so even the attempted side effects are not atomic or guaranteed. That's a real defect independent of everything else in this section: a debugging tool, a UI autocomplete, a test, or a reprocessing run has no way to *look up* a name without *also* attempting to pollute the mention/decision-log/backlog tables.
 
-`names.Resolver.ResolveName` is read-only. A separate, explicit call does the writing:
+`names.Resolver.ResolveName` is read-only — **including the decision-log write.** Today's `ResolveSurface` appends to `kb.semid_decision_log` unconditionally, on every call, regardless of whether the caller wanted an observation recorded (`2026080403-spec` §3 D1, OQ07). Under the corrected design, a plain `ResolveName` produces no decision-log entry either — audit logging moves to the same side of the line as the mention/surface/backlog writes. A separate, explicit call does all of the writing:
 
 ```go
 ObserveName(ctx context.Context, occurrence NameOccurrence) error
@@ -395,8 +395,8 @@ kw:luminance     Luminance     ventilator  active
 kb.keyword_surfaces
 surface          norm_key      concept_id       label_role  alias_type   lang  provenance
 Luminance        luminance     kw:luminance     pref        synonym      en    import:wikidata
-亮度              亮度           kw:luminance     pref        translation  zh    import:wikidata
-显示亮度           显示亮度        kw:luminance     alt         domain_alias zh    reconcile:<decision-id>
+亮度              亮度          kw:luminance     pref        translation  zh    import:wikidata
+显示亮度           显示亮度      kw:luminance     alt         domain_alias zh    reconcile:<decision-id>
 ```
 
 The exact provenance depends on the resources actually configured. The trace does not claim that one universal dataset supplies all three rows.
