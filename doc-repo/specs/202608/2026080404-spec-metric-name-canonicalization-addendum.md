@@ -10,6 +10,17 @@
 
 ---
 
+## Revision note (2026-08-05)
+
+**§2 and part of §6 of this document were wrong, not just under-specified, and are corrected below.** An independent review (`doc-repo/bugs/202608/2026080501-bug-name-resolver-qutd.md`) checked the original recommendation — `AssociateSemantics.processMetric` calling `KeywordFamily.ResolveSurface` directly, "shaped like `resolveUnitTerms`" — against the actual code, and found two things this document had gotten backwards. Both were independently re-verified against the code before accepting them:
+
+1. **`associate_semantics.go` is not the clean, generic package the original §2 described.** It self-registers `"metric"` and `"provision"` in its own `init()`; it hardcodes `governedMetricAssertionKinds`, the predicate `mea:measured_by`, and the unit-resolution maps `canonicalUnitForm`/`unitQuantityKindMap` — all domain-specific content, sitting inside what the original §2 called "the seam... working as designed." Adding a metric-specific `resolveMetricDefinitionTerm` step here, as originally proposed, would have added a fourth piece of hardcoded metric knowledge to a package already carrying three — deepening exactly the "old vs. new processor" coupling problem this addendum exists to close, not fixing it.
+2. **`resolveUnitTerms` is not a good precedent to copy.** The original §2 called it "a precedent for the shape, not the mechanism" and left it there. What it actually is: a workaround for an incomplete QUDT import. Verified directly in `server/cmd/qudt-import/main.go:238` — `if existing[it.TermID] { continue }` — the importer skips a term entirely, including label creation, if that term_id already exists. 4151 quantity terms exist in `kb.ontology_terms` without labels because of exactly this; no unit-to-quantity-kind relationship import exists anywhere in that file either. `canonicalUnitForm`'s hardcoded map is filling a hole the import left, not an intentional, stable design choice worth extending to metric names.
+
+The corrected design: a new, consumer-agnostic name-resolution interface that neither `extract_metrics` nor `associate_semantics` calls into directly against the keyword module's raw, side-effect-heavy API — replacing §2 below. §5/§6 are updated to match. The four-layer keyword mechanism itself (`2026080403-spec` §3 D1) is unaffected — this changes how a consumer *reaches* it, not what it is.
+
+---
+
 ## 0. Why this is a separate document
 
 `2026080403-spec` is the keyword module's own reference: what it is, what's built, what's deferred, what's broken. This addendum is about something else — **how a consumer** (metric extraction) is meant to use it, and what has to exist for that to actually work. It stays a separate document because it is design, not yet implementation: nothing here has shipped, unlike most of what `2026080403-spec` describes.
@@ -33,19 +44,101 @@ Nothing in the running code performs this resolution. This addendum proposes the
 
 ---
 
-## 2. Decision: integrate at the association layer, not the extraction layer
+## 2. Decision: a consumer-agnostic name-resolution interface, not a direct call into the keyword module's internals
 
-**Existing doc processors, including `extract_metrics`, should not be modified.** This isn't a compromise — it's already how the codebase is built, and the seam that makes it possible already exists and already treats pre-ontology artifact families as first-class.
+**Existing doc processors, including `extract_metrics`, should still not be modified.** That part of the original reasoning holds. What was wrong was *where the new logic should go instead* — the original version of this section put it inside `associate_semantics.processMetric`. It shouldn't be there, for two independent reasons, both confirmed against the code:
 
-Verified in `ChenWeb/server/api/ontology/assertions/association_resolver_registry.go` and `associate_semantics.go`: `AssociationResolver` is a registry keyed by `source_artifact_type`, with resolvers already registered for `"metric"` and `"provision"` — both produced by extractors that predate this ontology program and were never modified to participate in it. The registry doesn't distinguish "old" from "new" families; it dispatches on artifact type, uniformly. This is the seam DR11 describes (seam 5, extended from candidate generation through to adjudication) working as designed.
+**First, `associate_semantics.go` is not the clean generic package the original version of this section described.** The `AssociationResolver` *registry mechanism* genuinely is generic — it dispatches on `source_artifact_type` without caring whether the artifact type is old or new. But the *package* built around that registry is not: `init()` (`associate_semantics.go:138`) self-registers `"metric"` and `"provision"` resolvers directly in the ontology package, rather than consumers registering themselves during application composition. `governedMetricAssertionKinds` (a measurement-domain policy map), the literal predicate `mea:measured_by`, and `canonicalUnitForm`/`unitQuantityKindMap` (hardcoded unit-resolution maps) all live in this same file. Adding a metric-specific `resolveMetricDefinitionTerm` step here — the original proposal — would have been a fourth piece of hardcoded metric knowledge added to a package that already has three, not a clean use of a generic seam.
 
-**Consequence:** the "old processors don't know about the ontology stuff, new ones do" split you want gone is not fixed by teaching `extract_metrics` about the keyword module. It's fixed by extending `AssociateSemantics.processMetric` — which already runs downstream of every metric, from any extractor, old or new — with a keyword-resolution step. `extract_metrics` stays exactly as it is: fast, cheap, unaware of governance. The distinction dissolves one layer down, where it already dissolved for units.
+**Second, `KeywordFamily.ResolveSurface` is not a good interface for a consumer to depend on directly.** It mixes a lookup with writes to four different tables in one call (`2026080403-spec` §3 D1's trace); its parameters expose storage concepts (`artifactRef`) that have nothing to do with what a caller is trying to ask; and its caller-supplied `scope` argument is silently ignored during matching (K2). A consumer calling this directly couples itself to an implementation detail that is expected to keep changing (§17.2's eleven defects, the `aligns_to_term` bridge not existing yet, tiers 5–6 unbuilt) rather than to a stable contract.
 
-The precedent already exists: `resolveUnitTerms` (`associate_semantics.go:323`) maps a raw unit string to a governed QUDT term, "best-effort enrichment, never a gate." §6 below proposes the same shape for metric names.
+**The corrected decision:** a new, consumer-agnostic package — `ChenWeb/server/api/ontology/names/` — sitting between any consumer and the keyword module's internals:
 
-**A precision worth stating plainly, since it's easy to over-read the parallel: `resolveUnitTerms` is a precedent for the *shape*, not the *mechanism*.** QUDT unit and quantity-kind terms are indeed imported — confirmed in the code comment at `associate_semantics.go:316-321`: "the import stores term rows (`kb.ontology_terms`, 4151 quantity terms)... Lookup is by term_id against the QUDT quantity module." But `resolveUnitTerms` does not use the keyword module at all. It resolves through `canonicalUnitForm()`, a hand-written function that maps a raw unit string (`"mm"`, `"℃"`) directly to the catalog's local-name suffix — a closed, small, well-known vocabulary where a hardcoded mapping is cheap and sufficient, and there is no `kb.keyword_surfaces` row, no normalizer, no tiered lookup involved anywhere in that path. Metric *names* are the opposite case — open-ended, growing, exactly what the keyword module exists for — so §5–§6 below propose actually routing metric-name resolution through `KeywordFamily` (occurrence/surface/lexform/concept), which is a materially different mechanism from what units use today, even though both follow the same "resolve if you can, never force it" policy.
+```go
+type NameResolver interface {
+    ResolveName(ctx context.Context, req ResolveNameRequest) (NameResolution, error)
+    ResolveNames(ctx context.Context, reqs []ResolveNameRequest) ([]NameResolution, error)
+}
 
-**If a future doc processor needs ontology awareness that can't be expressed as post-hoc association-layer enrichment** (uncommon, but possible — e.g., something that needs to *react* to a resolution mid-extraction rather than annotate after the fact), that is a case-by-case decision, not a blanket policy. Nothing in this document rules it out; it just isn't needed for metrics.
+type ResolveNameRequest struct {
+    Name              string
+    Scope             string
+    ExpectedTermKinds []string   // e.g. "metric_definition" for a metric, "unit" for a unit
+    ExpectedModules   []string
+    Language          string
+}
+
+type NameResolution struct {
+    RawName, NormalizedKey string
+    Status                 ResolutionStatus  // term_resolved | lexical_resolved | ambiguous | unresolved | disabled
+
+    ConceptID, ConceptPrefName string        // keyword layer — fast, ungoverned
+    TermID, TermPrefName, TermKind, ModuleID string  // governed layer — only set per §4's rule below
+
+    Candidates []NameCandidate
+    Method     string
+    Confidence float64
+}
+```
+
+No `MetricID`, no processor name, no consumer table appears anywhere in this contract. A metric asks for `ExpectedTermKinds: ["metric_definition"]`; a unit (once this replaces `canonicalUnitForm`, §6) would ask for `["unit"]`; a future test-method or inventory-item consumer asks for whatever kind fits, with no changes to the resolver itself. Read/write are also explicitly separated (§3 below) — `ResolveName` never writes; observation is a distinct, opt-in call.
+
+**Where consumers call it:** for `extract_metrics`, after the LLM result is parsed and validated but before the metric row is persisted — not inside `associate_semantics` at all:
+
+```go
+resolution := resolver.ResolveName(ctx, ResolveNameRequest{
+    Name: metric.Name, Scope: knowledgeStoreID,
+    ExpectedTermKinds: []string{"metric_definition"},
+})
+// persist metric.Name unchanged, plus resolution.ConceptID and resolution.TermID when set
+```
+
+`extract_metrics` itself still isn't modified in the sense that matters — no LLM prompt, no extraction logic changes; what changes is that the *consumer of its output*, before persistence, makes one call to a stable, generic interface rather than nothing at all. `AssociateSemantics` keeps its existing job (building qualified semantic assertions from already-resolved data); it stops being where name discovery happens.
+
+### 2.1 Read and write are separate operations, not one call that always does both
+
+`KeywordFamily.ResolveSurface` (§2 above) always writes — a mention row, a decision-log row, and either a surface or a backlog row — on every call, with no way to just ask "what does this resolve to" without also recording it as an observation. That's a real defect independent of everything else in this section: a debugging tool, a UI autocomplete, a test, or a reprocessing run has no way to *look up* a name without *also* polluting the mention/decision-log/backlog tables as a side effect.
+
+`names.Resolver.ResolveName` is read-only. A separate, explicit call does the writing:
+
+```go
+ObserveName(ctx context.Context, occurrence NameOccurrence) error
+// or, as a convenience that does both:
+ResolveAndObserve(ctx context.Context, req ResolveNameRequest, occurrence NameOccurrence) (NameResolution, error)
+```
+
+Consumers that want evidence to accumulate (the common case — most callers should default to `ResolveAndObserve`) get it explicitly, not as an unavoidable side effect of asking a question.
+
+The occurrence record this writes should be shaped to actually answer "what was seen, where" — unlike today's `kb.keyword_mentions` (§17.2 K4), which has no column for the name itself. At minimum: `artifact_type`, `artifact_id`, `field_path` (consumer-supplied provenance, e.g. `"metric_name"` — meaningful to the consumer, opaque to the resolver), `raw_name`, `scope`, `context`, `chunk_ref`, `concept_id` (nullable), `term_id` (nullable), `resolution_status`, and a link to the decision-log row from the same call — closing the gap named in `2026080403-spec` §3 D1's trace, where the mention row and the decision-log row from one call currently share no key at all.
+
+### 2.2 Resolution semantics: lexical and governed identity are different things, and the contract must say so
+
+A name can land in one of five states, and all five are normal results, not errors:
+
+| Status | Meaning |
+|---|---|
+| `term_resolved` | exactly one released governed term is established |
+| `lexical_resolved` | a keyword concept was found, but no governed alignment exists yet |
+| `ambiguous` | multiple equally valid concepts or terms remain |
+| `unresolved` | no match |
+| `disabled` | the resolver is intentionally off (mirrors `KEYWORD_RESOLVER_MODE=off`, §7.4 of the keyword spec) |
+
+**The rule that matters: `TermID` is set only by one of two things — an exact match against a released term's governed label, or an accepted, reviewed `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`. This is the same governance boundary §14 of the keyword spec already draws between the ungoverned lexicon and governed terms — this contract is what makes that boundary visible and enforceable at the one place a consumer actually touches it, rather than something a caller has to reconstruct by separately checking two different systems.
+
+### 2.3 What stays in `AssociateSemantics`, what moves out
+
+`AssociateSemantics.Run`, the `AssociationResolver` registry, and the generic assertion/evidence lifecycle stay — those genuinely are generic. What doesn't belong there: `processMetric`'s and `processProvision`'s concrete bodies, `governedMetricAssertionKinds`, the hardcoded `mea:` predicate, and (§2.4 below) the unit-resolution maps. These move to consumer-specific adapter packages, and the ontology package stops self-registering `"metric"`/`"provision"` in its own `init()` — registration happens during application composition, or the consumer package provides its own adapter. This doesn't eliminate `AssociateSemantics`'s role: it still builds and adjudicates qualified assertions from already-resolved data (`ConceptID`/`TermID` now arriving pre-resolved from `names.Resolver`, rather than being discovered here). It stops being where discovery happens.
+
+This is a real restructuring, not a rename, and it doesn't have to land before metrics work — §6 sequences it as follow-up, not a blocker.
+
+### 2.4 The same correction applies to `resolveUnitTerms` — but it needs a data fix first, not just a code change
+
+`resolveUnitTerms`/`canonicalUnitForm`/`unitQuantityKindMap` should eventually be replaced by the same `ResolveName(Name: "ms", ExpectedTermKinds: ["unit"])` call metrics use — but doing that today would just move the same broken lookup behind a nicer interface, because the underlying data isn't there yet. Two concrete gaps, both confirmed in `server/cmd/qudt-import/main.go`:
+
+1. **Existing term IDs are skipped, including their labels.** Line 238: `if existing[it.TermID] { continue }` — if a term row was created before its label was, a re-run never backfills the label. This is why 4151 imported quantity terms have no `kb.ontology_term_labels` rows and a label-based lookup would resolve nothing (the comment already on `resolveUnitTerms` says as much).
+2. **No unit-to-quantity-kind relationship is imported at all.** Units, quantity kinds, and dimensions are each imported as independent terms with their own external-IRI mappings; nothing links a unit term to the quantity kind it measures.
+
+Fix order: backfill labels for existing quantity terms (fix the importer's skip condition, or add a separate backfill pass), import the unit→quantity-kind relationships as governed data, then retire the hardcoded maps in favor of exact governed-label resolution through `names.Resolver`. This is real work, independent of the metric-name path, and shouldn't block it — but the original framing of `resolveUnitTerms` as a pattern *worth copying* was wrong, and item 4.4 in §6 below reflects the correction.
 
 ---
 
@@ -72,16 +165,16 @@ This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the 
 
 ## 5. The proposed design: two identifiers, neither one forced
 
-The design in `2026080403-spec`'s D5/D10 (ambiguity is first-class; bias toward under-merging) and the `resolveUnitTerms` precedent (§2 above) both point the same direction: resolve where you can, never overwrite, never force.
+The design in `2026080403-spec`'s D5/D10 (ambiguity is first-class; bias toward under-merging) points one direction, and §2.2's resolution-semantics rule points the same way independently: resolve where you can, never overwrite, never force.
 
-Applied to a metric, that means **two** identifiers, at two different trust levels, in addition to the raw extracted name:
+Applied to a metric, that means **two** identifiers, at two different trust levels, in addition to the raw extracted name — populated by one call to `names.Resolver.ResolveName` (§2), not by a direct call into the keyword module:
 
 | Field | Populated by | Trust level | When empty |
 |---|---|---|---|
 | `metric_name` (unchanged) | `extract_metrics`, as today | — (provenance) | never — always the literal extracted string |
-| `keyword_concept_id` (nullable) | `KeywordFamily.ResolveSurface` on `metric_name`, tiers 0–4 | fast, ungoverned, auto-mergeable | no deterministic keyword match yet |
-| `metric_definition_term_id` (nullable) | an **accepted** `aligns_to_term` assertion connecting that keyword concept to a term | governed, reviewed | no human has confirmed the link yet (§4) |
-| canonical name shown to users | the term's `pref_label` if `metric_definition_term_id` is set; else `metric_name` | — | falls back cleanly |
+| `keyword_concept_id` (nullable) | `resolution.ConceptID`, set whenever status is `lexical_resolved` or `term_resolved` | fast, ungoverned, auto-mergeable | status is `unresolved` or `ambiguous` |
+| `metric_definition_term_id` (nullable) | `resolution.TermID`, set **only** when status is `term_resolved` — an accepted `aligns_to_term` assertion, per §2.2's rule | governed, reviewed | status is anything else (§4) |
+| canonical name shown to users | `resolution.TermPrefName` if `metric_definition_term_id` is set; else `metric_name` | — | falls back cleanly |
 
 **Why two identifiers and not one.** A keyword-tier auto-accept is cheap and unreviewed by design — that's what makes working mode fast. Pinning a metric's display identity to `keyword_concept_id` alone would mean a single bad auto-merge in the lexicon silently misfiles a metric, with no review step in between — exactly the failure D10 (bias toward under-merging) exists to prevent everywhere else in the keyword module. Routing the *authoritative* identity through `aligns_to_term` keeps that guarantee intact for metrics specifically: the metric shows its raw extracted name right up until a human has confirmed the term-level link, never before.
 
@@ -91,7 +184,7 @@ Applied to a metric, that means **two** identifiers, at two different trust leve
 
 The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface → lexform → concept`. A metric name is one instance of "name." Nothing below is metric-specific machinery — it's the same four-layer mechanism every keyword goes through, traced concretely for this one case so every hop can be checked against the running code rather than taken on faith.
 
-**Not via the collector.** To say this once more, plainly, because it's the most natural wrong guess: `extract_metrics` does not "register with" the mention collector, and the collector plays no role in this design at all. The collector reads raw chunk text and tokenizes it itself, blind to what any processor extracted (§9.1). The mechanism below is a **direct call** — `associate_semantics.processMetric` calling `KeywordFamily.ResolveSurface(metricName, ...)` — proposed, not built, entirely separate from the collector.
+**Not via the collector, and — per the 2026-08-05 revision above — not via `associate_semantics` either.** `extract_metrics` does not "register with" the mention collector; the collector reads raw chunk text and tokenizes it itself, blind to what any processor extracted (§9.1), and plays no role in this design. The mechanism below is a call to `names.Resolver.ResolveName(metricName, ...)` (§2), made by whatever consumes `extract_metrics`' output before persisting a metric row — not a call to `KeywordFamily.ResolveSurface` from inside `associate_semantics.processMetric`, which was this document's original (incorrect) proposal. `names.Resolver` internally uses the same tier 0–4 mechanism traced below; what changed is who calls it and through what contract, not what happens once the call is made.
 
 **Exactly what that call does, in order** (this is the general `ResolveSurface` pipeline, `2026080403-spec` §3 D1's trace, restated as an ordered list rather than a table since the order matters):
 
@@ -163,19 +256,26 @@ All three are entirely unbuilt (`2026080403-spec` §11, §17.1) — this addendu
 None of the following is built. None of it is blocked on anything external — the one genuine blocker in this whole thread (human review of `kb.ontology_candidates` before promotion, `2026080403-spec` §14.2) sits upstream of this list and is already accounted for as designed, not as a gap.
 
 1. **Fix the keyword-module defects first.** §17.2 of `2026080403-spec` lists eleven; K2 (scope ignored), K5 (backlog keyed on raw surface), and N1 (normalizer over-collapses) would each silently corrupt this integration on day one if built on top of them unfixed.
-2. **`extract_metric_definitions` resolves its own `canonical_name`/`aliases` through `KeywordFamily`** at harvest time (`ontology_candidate_harvest.go`), instead of leaving them as inert JSON on the candidate payload. Note per §5.1 Case C: an exact-match resolution here only catches a proposal that repeats a *known* surface — it does **not**, by itself, connect "luminance" and "亮度" as the same thing on first sight. The candidate-match signal this should populate (`candidate_matches`, `2026080403-spec` §14.2) still needs the scoped-embedding step in §5.2 to do anything for genuinely new words in a new language; plain keyword resolution alone only closes this for repeats and spelling variants.
-3. **An `aligns_to_term` producer.** Currently doesn't exist in any form — no table column, no assertion type, no code path. This is the one piece every other item in this list depends on; it is the actual critical path for DR23's "prerequisite," not a nice-to-have.
-4. **`AssociateSemantics.processMetric` gains a `resolveMetricDefinitionTerm` step**, shaped exactly like `resolveUnitTerms`: best-effort, sets `keyword_concept_id`/`metric_definition_term_id` when it can, leaves them null and accepts the assertion anyway when it can't.
-5. **Schema:** `kb.metrics` and/or `kb.semantic_assertions` gain `keyword_concept_id` and `metric_definition_term_id` columns (nullable, no constraint forcing either).
-6. **Open, unverified: does manual curation actually cover the pilot domain?** §5.2 — before assuming items 1–5 are sufficient for the pilot to work end to end, get a real count of how many synonym/translation clusters exist in the 呼吸机/医疗器械 corpus. If it's small, human curation through the REST API is plausibly enough. If it's not, the scoped-embedding step in §5.2 (or more of reconciliation) needs to move from "later" into this list.
+2. **Build the `names.Resolver` interface and its `KeywordFamily`-backed implementation** (§2) — the `ResolveName`/`ResolveNames`/`ResolveAndObserve` contract, and a shaped occurrence record for `ObserveName` (§2.1) to replace `kb.keyword_mentions`' incomplete shape. This is new package-level work, not present in the original version of this document, and everything below depends on it existing rather than consumers calling `KeywordFamily.ResolveSurface` directly.
+3. **`extract_metric_definitions` resolves its own `canonical_name`/`aliases` through `names.Resolver`** at harvest time (`ontology_candidate_harvest.go`), instead of leaving them as inert JSON on the candidate payload. Note per §5.1 Case C: an exact-match resolution here only catches a proposal that repeats a *known* surface — it does **not**, by itself, connect "luminance" and "亮度" as the same thing on first sight. The candidate-match signal this should populate (`candidate_matches`, `2026080403-spec` §14.2) still needs the scoped-embedding step in §5.2 to do anything for genuinely new words in a new language; plain keyword resolution alone only closes this for repeats and spelling variants.
+4. **An `aligns_to_term` producer**, plus the schema fix it depends on: `kb.semantic_assertions.subject_ref_kind`'s `CHECK` constraint currently allows only `('object_node', 'ontology_term', 'assertion', 'artifact', 'literal')` — **verified directly against `20260801000001_create_kb_semantic_assertions.sql`** — with no `'keyword_concept'` value. If `aligns_to_term` assertions are meant to use this same table (per DR9's assertion/evidence schema, which this design assumed without checking), a keyword concept cannot be an assertion subject until this constraint is extended. This is the one piece every other item in this list depends on; it is the actual critical path for DR23's "prerequisite," not a nice-to-have — and it's more work than previously stated, because the schema itself needs to change first.
+5. **`extract_metrics`' consumer calls `names.Resolver.ResolveName`** before the metric row is persisted (§2), setting `keyword_concept_id`/`metric_definition_term_id` per §2.2's rule — replacing the original, incorrect proposal to add this inside `AssociateSemantics.processMetric`.
+6. **Schema:** `kb.metrics` and/or `kb.semantic_assertions` gain `keyword_concept_id` and `metric_definition_term_id` columns (nullable, no constraint forcing either).
+7. **Open, unverified: does manual curation actually cover the pilot domain?** §5.2 — before assuming items 1–6 are sufficient for the pilot to work end to end, get a real count of how many synonym/translation clusters exist in the 呼吸机/医疗器械 corpus. If it's small, human curation through the REST API is plausibly enough. If it's not, the scoped-embedding step in §5.2 (or more of reconciliation) needs to move from "later" into this list.
 
-Item 1 is a prerequisite for correctness. Items 2, 4, and 5 are independent of each other and could be sequenced in any order once item 1 lands; item 3 is the one that turns them from inert plumbing into an actual working bridge. Item 6 should be answered *before* declaring items 1–5 sufficient — it's a scoping question, not a build task, and it's cheap to answer (count the clusters) relative to what it would cost to discover the answer is "no" after the fact.
+**Deliberately sequenced after the metrics pilot, not blocking it:** moving `processMetric`/`processProvision` out of `AssociateSemantics` into consumer-specific adapters and un-registering them from the shared `init()` (§2.3); backfilling QUDT labels and importing unit→quantity-kind relationships so `resolveUnitTerms` can retire in favor of `names.Resolver` (§2.4). Both are real architectural debt, confirmed real by the same review that corrected this document — but neither has to be paid down before one metric name resolves correctly, and DR12's own vertical-slice framing argues for proving the pilot before generalizing further.
+
+Item 1 is a prerequisite for correctness. Items 2, 3, and 6 are independent of each other and could be sequenced in any order once item 1 lands, but item 2 has to exist before 3, 5, or 6 have anything to call. Item 4 is the one that turns the others from inert plumbing into an actual working bridge, and now includes a schema change this document previously missed. Item 7 should be answered *before* declaring items 1–6 sufficient — it's a scoping question, not a build task, and it's cheap to answer (count the clusters) relative to what it would cost to discover the answer is "no" after the fact.
 
 ---
 
 ## 7. Documentation impact
 
-**What knowledge changed?** The relationship between `extract_metrics` and `extract_metric_definitions` (there isn't one, and there should be) is now documented, along with the concrete design for closing that gap. The "old vs. new processor" question has a settled answer: integrate at the association layer, don't touch extractors. The mention collector's non-wiring now has a stated, principled reason rather than an implicit one. Governed terms' approach to homonymy — don't resolve by label at all, only by human-chosen id — is now written down where previously it had to be inferred from the absence of a lookup function. §5.1/§5.2 add a precise, tier-by-tier account of what the keyword mechanism actually automates for a metric name (spelling/casing variants of an already-known word) versus what it never will (translations, synonyms — genuinely different words for the same meaning), and name the concrete, currently-unbuilt mechanism (tier 6 embeddings + reconciliation) that would close that second gap at scale. That distinction — not previously stated this precisely anywhere in the document lineage — is the main addition from this revision, and it surfaces an open, unverified scoping question (item 6, §6) rather than a settled answer: whether manual curation alone is enough for the pilot domain depends on a cluster count nobody has taken yet.
+**What knowledge changed, as of the 2026-08-05 revision?** Two of this document's own core recommendations were wrong, not merely under-specified, and are now corrected: name resolution should happen behind a new, consumer-agnostic `names.Resolver` interface, not via a direct call from `AssociateSemantics.processMetric` into `KeywordFamily.ResolveSurface` — because `associate_semantics.go` is not the clean generic package the original version described (it self-registers `"metric"`/`"provision"` and hardcodes measurement-domain policy in its own `init()`), and because `ResolveSurface` itself is not a stable interface worth a consumer depending on directly (it mixes read with four different writes, per `2026080403-spec` §3 D1's trace). `resolveUnitTerms`, previously cited as a precedent worth following, is now understood to be a workaround for an incomplete QUDT import (verified: the importer skips existing term IDs before backfilling their labels, and never imports unit-to-quantity-kind relationships) rather than an intentional, stable pattern. A previously-unstated schema gap was also found: `kb.semantic_assertions.subject_ref_kind` cannot represent a keyword concept as an assertion subject today, which the `aligns_to_term` producer will need addressed.
+
+Earlier findings still stand: the relationship between `extract_metrics` and `extract_metric_definitions` (there isn't one, and there should be), the mention collector's non-wiring having a stated reason, governed terms' approach to homonymy, and the precise tier-by-tier account in §5.1/§5.2 of what the keyword mechanism automates for a metric name versus what it never will.
+
+**Source of the correction:** `doc-repo/bugs/202608/2026080501-bug-name-resolver-qutd.md`, an independent review requested specifically to check whether concerns raised about this document's reasoning were real problems — they were, on every concretely checkable claim, independently re-verified against the code before this revision was written.
 
 **Which docs/specs/ADRs are affected?** `2026072901-adr` DR23 is the design authority for the metric-definition/lexicon relationship and is unchanged by this document — this addendum operationalizes it, it doesn't revise it. `2026080403-spec` gained §14.1, §14.2, and §9.1 alongside this addendum and should be read together with it.
 
@@ -187,9 +287,12 @@ Item 1 is a prerequisite for correctness. Items 2, 4, and 5 are independent of e
 
 ## 8. References
 
+- `doc-repo/bugs/202608/2026080501-bug-name-resolver-qutd.md` — the independent review that corrected §2 and §6 of this document; source of the `names.Resolver` design and the `subject_ref_kind`/QUDT-importer findings
 - `2026080403-spec-keyword-canonicalization-and-reconciliation.md` — the keyword module, especially §6.1 (scope defect), §9.1 (collector scope), §14 (`aligns_to_term`), §14.1–§14.2, §17.2 (defects to fix before building on top of this)
 - `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` — DR12 §3.13 (metrics as the pilot vertical slice), DR23 §3.24 (metric definition vs. profile; lexicon as prerequisite), DR11 (seams, extensibility without modifying existing dispatch)
-- `ChenWeb/server/api/ontology/assertions/associate_semantics.go` — `AssociationResolver` registry, `resolveUnitTerms` (the precedent this design follows), `processMetric`
+- `ChenWeb/server/api/ontology/assertions/associate_semantics.go` — `AssociationResolver` registry, `init()` (self-registration), `governedMetricAssertionKinds`, `resolveUnitTerms`/`canonicalUnitForm`/`unitQuantityKindMap` (confirmed workarounds, not precedents), `processMetric`, `processProvision`
+- `ChenWeb/server/cmd/qudt-import/main.go` — confirms the existing-term-ID skip (line 238) that leaves imported terms without labels
+- `ChenWeb/project_migrations/20260801000001_create_kb_semantic_assertions.sql` — confirms `subject_ref_kind`'s `CHECK` constraint excludes `'keyword_concept'`
 - `ChenWeb/server/api/doc-processing/extract-metrics.go`, `extract-metric-definitions.go`, `ontology_candidate_harvest.go`
 - `ChenWeb/server/api/ontology/candidates/` — `state_machine.go`, `fingerprint.go`, `promote.go`
 - `ChenWeb/server/api/ontology/terms/terms_store.go` — confirms no lookup-by-label exists

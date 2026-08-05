@@ -56,4 +56,13 @@
   keywords: ["Diary"],
 )
 
+= 2026/08/04 - DataStar - The Hypermedia Framework
+#let a_001 = link(
+  "https://data-star.dev/"
+)[#text(fill: blue)[Data-Star]]
+
+#a_001 \
+Source: Jimmy
+
+This is a frontend technique to show pages using SSE.
 
