@@ -1,18 +1,12 @@
 # Keyword Canonicalization and Reconciliation — Specification
 
 - **DocID:** `doc-2026080403`
-- **Status:** Adopted — the reference for the keyword module
-- **Date:** 2026-08-04, **rewritten 2026-08-05**
+- **Status:** Adopted — **the single reference for the keyword module**
+- **Date:** 2026-08-04; rewritten 2026-08-05; **addendum `doc-2026080404` merged in 2026-08-05**
 - **Component:** SemOS / ChenWeb — keyword lexicon, the DR15/DR16 keyword identity family
-- **Supersedes:** `2026080101-spec-keyword-canonicalization-merged.md`, `2026072703-spec-…-2.md`, `2026072301-spec-….md`
-- **Design authority:** ADR `2026072901`, DR15 (shared canonicalization kernel), DR16 (merged keyword design), DR23 (metric definitions and the lexicon)
-- **Role:** **Master document for the keyword module.** It owns the design decisions (D1–D11), the data model, the defect register (§17.2), the dead-code register (§17.4), and the build order (§19). Where any companion document disagrees with this one, this one governs.
-- **Companion documents:**
-  - `2026080404-spec-metric-name-canonicalization-addendum.md` — how a consumer reaches this module (`names.Resolver`), and the metrics pilot integration. Design only.
-  - `2026080501-bug-name-resolver-qutd.md` — the review that produced the `names.Resolver` design.
-  - `2026080502-bug-keyword-module-review.md` — findings F1–F8; the source of this rewrite's decisions.
-
-**Rewrite note (2026-08-05).** The prior revision had accumulated ten inline Q&A blocks and several "this corrects an earlier version" passages, mixing design with conversation transcript. That content is removed here; its *conclusions* are folded into the sections below as plain design statements, and its *reasoning* lives in `2026080502-bug`. No verified finding was dropped. Where the earlier revision and this one conflict, this one governs.
+- **Supersedes:** `2026080101-spec-…-merged.md`, `2026072703-spec-…-2.md`, `2026072301-spec-….md`, and **`2026080404-spec-metric-name-canonicalization-addendum.md`** (merged here; retained on disk as history only)
+- **Design authority:** ADR `2026072901` — DR15 (shared kernel), DR16 (merged keyword design), **DR23 (the governing requirement, §2)**, DR12 (metrics is the pilot slice)
+- **Reasoning record:** `2026080501-bug-name-resolver-qutd.md` (the `names.Resolver` correction) and `2026080502-bug-keyword-module-review.md` (findings F1–F8). Design conclusions live here; the analysis behind them lives there.
 
 ---
 
@@ -21,351 +15,325 @@
 | | |
 |---|---|
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
-| **Works correctly today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
-| **Broken** | 11 verified defects (§17.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
-| **Not built** | Tiers 5–6, the R1–R7 reconciliation pipeline, `aligns_to_term`, `on`-mode retrieval wiring, seed content, and the `names.Resolver` facade (`2026080404`). |
-| **Never validated live** | No run against a real PostgreSQL instance with real document text (I2). Every defect below was found by reading code, not by a failing test. |
-| **Design gap, newly stated** | **D11 (auto-first)** — the shipped design assumes a human drains queues and adjudicates suggestions. At 10⁷–10⁸ name occurrences nobody can. Several sections were revised on 2026-08-05 to remove that assumption; the corresponding code does not exist yet. |
+| **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
+| **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
+| **Not built** | Tiers 5–6, reconciliation R1–R7, `aligns_to_term`, `on`-mode wiring, `names.Resolver`, resource import, the metric integration. |
+| **Never validated live** | No run against real PostgreSQL with real document text (I2). Every defect was found by reading code, not by a failing test. |
+| **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
 
-**Do not build new features on this module until §17.2's K1/K2/K3/K5 and N1 are fixed.** They silently corrupt data that a later fix cannot reconstruct.
+**Do not build on this module until §20.2's K1/K2/K3/K5 and N1 are fixed** — they silently corrupt data a later fix cannot reconstruct. **And do not build the remaining features as originally specified**: D11 changes what tiers 5–6, reconciliation, and `aligns_to_term` are each supposed to *do*.
 
-**And do not build the remaining features as originally specified** — read D11 first. Auto-first changes what tiers 5–6, the reconciliation pipeline, and `aligns_to_term` are each supposed to *do*, not merely when they get built.
+**Phase context.** P1, P2, P4 (generic runtime), and P5 are built. P3 Track A (assertions, evidence, Phase D) is built and live-validated. **P3 Track B — this module — is built but never live-validated**, which is why its defect list is longer than its siblings'. Nothing in §20.2 invalidates Track A or the P4/P5 runtime; the defects are contained inside `ontology/keywords` and `ontology/semid`.
 
-### 0.1 Where this sits in the phase plan
-
-P1, P2, P4 (generic runtime), and P5 are built. P3 Track A (assertions, evidence, Phase D association) is built and live-validated. **P3 Track B — this module — is built in observe mode but not live-validated**, which is why its defect list is longer than its siblings'. Nothing in §17.2 invalidates Track A or the P4/P5 runtime; the defects are contained inside `ontology/keywords` and `ontology/semid`.
-
-### 0.2 Badge meanings
-
-| Badge | Meaning |
-|---|---|
-| ✅ **Built** | code exists and does what this section says |
-| 🚧 **Partial** | built with a stated limitation |
-| ⚠️ **Defect** | built, verified *not* to behave as specified — see §17.2 |
-| ⏳ **Deferred** | designed, deliberately not built |
-
-A badge describes whether code exists, never whether it is correct.
+**Badges:** ✅ Built (does what this says) · 🚧 Partial (stated limitation) · ⚠️ Defect (verified wrong, §20.2) · ⏳ Deferred. *A badge describes whether code exists, never whether it is correct.*
 
 ---
 
-## 1. Background and problem
+## 1. Background
 
-### 1.1 Keywords are fragile retrieval keys
-
-Documents refer to the same thing many ways:
+Documents refer to one thing many ways:
 
 ```
 Postgres, PostgreSQL, postgresql
-HVAC, heating ventilation and air conditioning
 亮度, 显示亮度, luminance, brightness
 ML, machine learning, millilitre          (homonym)
 K8S, Kubernetes, Kube, kubernets           (case + noise + misspelling)
 ```
 
-If each form is an independent key, recall fragments and analytics count one concept as several. The cost compounds in SemOS's bilingual corpus, where one concept appears as an acronym, a full phrase, a translation, and a misspelling.
+If each form is an independent key, recall fragments and analytics count one concept as several. The cost compounds in a bilingual corpus where one concept appears as an acronym, a full phrase, a translation, and a misspelling.
 
-### 1.2 What the system needs
-
-1. A **stable canonical concept** per keyword family.
-2. A **growing store of known variants** attached to it.
-3. A **deterministic, model-free online path** — lookups must be cheap, because query volume is high.
-4. An **asynchronous, auditable, LLM-assisted path** for the long tail.
-5. **Ambiguity preserved as a real result**, never a forced guess.
-
-### 1.3 The economic thesis
-
-**LLM cost scales with vocabulary growth, not query volume.** Every alias learned once is free thereafter. A mature deployment approaches zero LLM calls per day at millions of lookups. Everything in §11 exists to make the model's job small and safe.
+**The economic thesis:** LLM cost must scale with *vocabulary growth*, not query volume. Every alias learned once is free thereafter. A mature deployment approaches zero LLM calls per day at millions of lookups.
 
 ---
 
-## 2. Goals and non-goals
+## 2. The governing requirement — DR23
 
-**Goals.** Resolve a surface to a concept with no LLM call; return variants by role; preserve ambiguity; grow the store through reconciliation; support aliases, acronyms, spellings, language variants; make every merge auditable and reversible; stay reusable across search, extraction, enrichment, faceting, analytics.
+Everything in this document exists to satisfy one requirement, stated in the ADR:
 
-**Non-goals.** Not full business-entity resolution. **The online path never calls an LLM** — this remains absolute; a local embedding lookup (tier 6) is not an LLM call, and reconciliation's model use is offline and batched. Not a taxonomy engine — hierarchy is out of scope for v1. Not a spell-checker — misspellings become `hidden` aliases.
+> **"Alternative names are lexicon, not term duplicates.** A metric definition's alias set is the DR15/DR16 keyword lexicon instantiated over metric terms, aligned by `aligns_to_term`. This is what lets 亮度 / 显示亮度 / luminance / brightness in 140 documents reach one row — and it is why the lexicon is not an optional side quest for this application but a prerequisite." — ADR `2026072901` §3.24 (DR23)
 
-*(The earlier "fuzzy/ANN tiers are suggest-only" non-goal is withdrawn — see D11 and §11.1. Suggest-only presumed a human adjudicator that cannot exist at this volume.)*
+**"Reach one row" is the acceptance criterion for this entire module.** It is not aspirational and it is not deferred: the comparison matrix that the target application renders has one row per metric definition, and if four phrasings of luminance produce four rows, the application is wrong on its primary screen.
+
+### 2.1 What "one row" decomposes into
+
+| # | Requirement | Satisfied by | Status |
+|---|---|---|---|
+| **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ⚠️ tiers 0–1 only; cross-lingual unification unbuilt |
+| **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ⏳ nothing built; blocked by a schema CHECK |
+| **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ⏳ nothing built |
+| **REQ-4** | The comparison matrix keys rows on **term id**, never on a label string | DR23/DR22 — the matrix's own design | ✅ by design in P4 |
+
+**REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 is already correct.** The failure mode today is that REQ-1 partially works, REQ-2 and REQ-3 do not exist at all, so `metric_definition_term_id` would be null on every row and the matrix would fall back to grouping by raw string — four rows, not one.
+
+### 2.2 The acceptance test
+
+Given a corpus where luminance is phrased as `Luminance`, `luminance`, `亮度`, and `显示亮度` across many documents:
+
+1. All four resolve to **one** `concept_id`.
+2. That concept has **one** accepted `aligns_to_term` to a released `metric_definition` term.
+3. Every extracted metric from every one of those documents carries that **one** `metric_definition_term_id`.
+4. A comparison run for that metric definition produces **exactly one row**, with all documents' assertions inside it.
+5. Adding a 141st document with a fifth phrasing does not create a second row — it either resolves (R1) or auto-creates a concept that reconciliation merges (§13), converging to one row without human intervention.
+
+Step 5 is the one that distinguishes a system that works at scale from one that works on a fixture.
+
+### 2.3 A domain question DR23's own example raises
+
+DR23 lists **brightness** alongside 亮度 / 显示亮度 / luminance. Photometrically, *brightness* is a perceptual attribute and *luminance* is a measured quantity — they are near-synonyms in ordinary use and **different quantities in a standards context**. Whether they are one metric definition or two is a **domain-owner decision**, not something this module may infer.
+
+The requirement on the module is therefore narrower and stricter than "merge things that look alike": it must be able to represent **either** answer, and it must never auto-merge them on lexical or embedding similarity alone. This is the ADR's own `exact | close | broad | narrow | related` mapping-strength discipline (DR13) applied to the case DR23 happens to use as an illustration. §13.4 states how a resource-imported "related" pair is prevented from silently becoming "exact."
 
 ---
 
-## 3. Design decisions
+## 3. Goals and non-goals
 
-### D1. Four identity layers, UMLS-style — 🚧 **Partial**
+**Goals.** Resolve a surface to a concept with no LLM call; return variants by role; preserve ambiguity as a real result; grow the store automatically; support aliases, acronyms, spellings, and language variants; make every decision auditable and reversible; stay reusable across search, extraction, enrichment, faceting, and analytics.
+
+**Non-goals.** Not full business-entity resolution. **The online path never calls an LLM** — absolute; a *local* embedding lookup is not an LLM call, and reconciliation's model use is offline and batched (§23.2 item 2 revisits whether tier 6 belongs online at all). Not a taxonomy engine — hierarchy is out of scope for v1. Not a spell-checker — misspellings become `hidden` aliases.
+
+*(The earlier "fuzzy/ANN tiers are suggest-only" non-goal is withdrawn — D11 and §13.1. Suggest-only presumed a human adjudicator who cannot exist at this volume.)*
+
+---
+
+## 4. Design decisions
+
+### D1. Four identity layers — 🚧 **Partial**
 
 ```
 name  →  occurrence  →  surface  →  lexform  →  concept
 ```
 
-`name` is whatever raw string a producer supplies — a metric name, an entity alias, a token from prose. The machinery downstream is identical regardless of source; **nothing in it is metric-specific**.
+`name` is whatever raw string a producer supplies. The machinery downstream is identical regardless of source; **nothing in it is metric-specific**.
 
 | Layer | Storage | Where | Status |
 |---|---|---|---|
-| **name** | not this module's | the producer's own table (e.g. `kb.metrics.metric_name`) | — |
-| **occurrence** | one table, incomplete | `kb.keyword_mentions` — has **no column for the observed string** | ⚠️ K4 |
+| **name** | not this module's | the producer's table (e.g. `kb.metrics.metric_name`) | — |
+| **occurrence** | one table, incomplete | `kb.keyword_mentions` — **no column for the observed string** | ⚠️ K4 |
 | **surface** | real entity | `kb.keyword_surfaces` — verbatim text, role, alias type | ✅ |
-| **lexform** | **not an entity** — a derived value | the `norm_key` column on surface rows | ✅ (⚠️ K5 on the backlog) |
-| **concept** | real entity | `kb.keyword_concepts` — opaque id, `pref_label`, gloss, lifecycle | ✅ |
+| **lexform** | **not an entity** — a derived value | the `norm_key` column | ✅ (⚠️ K5 on the backlog) |
+| **concept** | real entity | `kb.keyword_concepts` | ✅ |
 
-Only two of the four are database entities. Lexform is deliberately a *value*, not a row: it is an index key, not a governed record, and needs no identity of its own.
-
-**Matching is always `name` against `kb.keyword_surfaces`, never against occurrence.** `kb.keyword_mentions` participates in no lookup; it is an audit side-effect.
+Only two of four are database entities. Lexform is deliberately a *value*: an index key, not a governed record. **Matching is always `name` against `kb.keyword_surfaces`**, never against occurrence — `kb.keyword_mentions` participates in no lookup.
 
 ### D2. One shared resolution kernel — ✅ **Built**
 
-`normalize → candidates → score → adjudicate` lives once, in `ontology/semid/`, instantiated per identity family through a `FamilyAdapter`. The keyword family is the second instantiation, after P2's `TermFamily`.
+`normalize → candidates → score → adjudicate` lives once, in `ontology/semid/`, instantiated per family. What legitimately differs: `CandidateNodes` (which tables), `AutoAcceptPolicy` (governed vs. not), `Scope`. **Normalization does not differ — see D3.**
 
-**What legitimately differs per family, and what does not** (revised per F1/F2):
+### D3. Normalization is shared, not per-family — ⚠️ **Defect**
 
-| Concern | Family-specific? |
-|---|---|
-| `CandidateNodes` — which tables to search | **Yes** — keyword searches `kb.keyword_surfaces`; term searches `kb.ontology_terms` |
-| `AutoAcceptPolicy` — may a match auto-accept | **Yes** — ungoverned may, governed never |
-| `Scope` — the identity namespace | **Yes** in principle (both broken today, §17.2 K2/K9) |
-| **Normalization** | **No** — see D3 |
+**Lexical normalization depends on the language of the string, never on which family is asking.** A Chinese term label and a Chinese keyword surface need identical treatment; nothing about "being governed" changes what NFKC does.
 
-### D3. Normalization is shared, not per-family — ⚠️ **Defect** (two implementations exist)
+The code violates this. `keywords.KeywordNormalizer` (ten steps) and `semid.Normalizer`'s built-in (`ToLower` → `TrimSpace` → collapse-whitespace, plus punctuation-stripping at v2) are two implementations of one operation — the second a strict subset of the first. They duplicate outright: `semid.collapseSpace` and `keywords.collapseWhitespace` are byte-identical logic under different names, and the `0x2E80` CJK threshold is hardcoded in both. `NormFunc`, the hook letting a family override the built-in, has **one user** — added so it could bypass a normalizer doing a subset of its own work.
 
-**Lexical normalization depends on the language of the string, never on which family is asking.** A Chinese term label and a Chinese keyword surface require identical treatment; nothing about "being governed" changes what NFKC or case-folding should do.
-
-The code currently violates this. Two implementations exist:
-
-- `keywords.KeywordNormalizer` — the full ten-step pipeline (§5.1).
-- `semid.Normalizer`'s built-in — `ToLower` → `TrimSpace` → collapse-whitespace, plus punctuation-stripping at version ≥ 2. **A strict subset of steps 5 and 7 of the keyword pipeline**, not a different approach.
-
-They duplicate each other outright: `semid.collapseSpace` and `keywords.collapseWhitespace` are byte-identical logic under different names, and the `0x2E80` CJK threshold is hardcoded independently in both files. The `NormFunc` hook that lets a family override the built-in has exactly one user — `KeywordFamily` — added so it could bypass a normalizer doing a subset of its own work.
-
-**Decision: one normalizer implementation, shared.** Delete `NormFunc` and the `semid` built-in; remove `Normalizer()` from `FamilyAdapter`; move the shared primitives into the single implementation. If profiles are needed later they key on **language and version**, never on family. This also removes the mechanism by which the fork occurred, so it cannot recur.
+**Decision:** one implementation, shared. Delete `NormFunc` and the `semid` built-in; remove `Normalizer()` from `FamilyAdapter`; consolidate the primitives. Profiles, if needed, key on **language and version** — never on family.
 
 ### D4. SKOS label roles — ✅ **Built**
 
-Every surface carries `pref` (canonical display), `alt` (synonyms, acronyms — user-visible), or `hidden` (misspellings — searchable, never displayed).
+`pref` (canonical display) · `alt` (synonyms, acronyms — visible) · `hidden` (misspellings — searchable, never displayed).
 
-### D5. Ambiguity is first-class — ✅ **Built**, ⚠️ **semantics revised by D11**
+### D5. Ambiguity is first-class — ✅ **Built**, semantics revised by D11
 
-When a key maps to multiple concepts and scope does not disambiguate, the result is `ambiguous` with ranked candidates. The original rationale stands: *silently* picking the most frequent candidate produces an error invisible to caller and metrics alike.
-
-**D11 changes what happens next, not that rationale.** Under auto-first, `ambiguous` is returned **together with the top-1 pick** — the caller gets both a usable id and an explicit signal that it was contested. Nothing is silent: the verdict, the tied candidates, the scores, and the method are all recorded, so ambiguous assignments are a findable, measurable, reversible set. What is rejected is *unrecorded* guessing, not *deciding*.
+*Silently* picking the most frequent candidate produces an error invisible to caller and metrics. Under D11, `ambiguous` is returned **with the top-1 pick** — the caller gets a usable id *and* an explicit contested signal. What is rejected is unrecorded guessing, not deciding.
 
 ### D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect**
 
-Every key is recomputable from `surface + norm_version`, so a normalizer change is a re-index, never data loss. **The schema honours this; the write paths do not** — `POST /kb/keyword-surfaces` accepts a caller-supplied `norm_key` unvalidated (K3), and nothing populates `kb.keyword_surface_keys` (K1).
+Every key is recomputable from `surface + norm_version`, so a normalizer change is a re-index, never data loss. The schema honours this; the write paths do not (K3: caller-supplied `norm_key`; K1: nothing writes derived keys). **Decision:** the server derives all keys on every write path and *rejects* a caller-supplied `norm_key`.
 
-**Decision:** the server derives `norm_key`, `norm_version`, and all alternate keys on every write path. A caller-supplied `norm_key` is rejected, not silently ignored.
+### D7. Merges are tombstones; no transitive closure — ⚠️ **Defect**
 
-### D7. Merges are tombstones; no transitive closure; `never_merge`; `locked` — ⚠️ **Defect**
+Merges set `merged_into` and keep the row. Merges are never transitive — one bad edge must not chain two clusters.
 
-Merges set `merged_into` and keep the row, so stale ids still resolve. Merges are never transitive — one bad edge must not chain two unrelated clusters.
-
-**Merge is currently implemented twice, with disjoint capabilities and neither complete** (F4):
+**Merge is implemented twice with disjoint capabilities, neither complete:**
 
 | | `semid.MergeGraph` | `ConceptStore.MergeConcept` |
 |---|---|---|
-| Persistence | **none** — in-memory maps | Postgres |
-| Refuses `never_merge` pair | yes | **no** |
-| Refuses already-merged source | yes | **no** |
+| Persistence | **none** (in-memory maps) | Postgres |
+| Refuses `never_merge` / already-merged | yes | **no** |
 | Follows `merged_into` at read time | yes | **no** |
 | Production callers | **0** | the merge endpoint |
 
-**Decision:** delete `semid.MergeGraph`; port its four guardrails into `ConceptStore.MergeConcept` and the resolve path, backed by the persisted `NeverMergeStore`.
+**Decision:** delete `MergeGraph`; port its four guardrails into `ConceptStore.MergeConcept` and the resolve path, backed by the persisted `NeverMergeStore`.
 
 ### D8. Token-economics discipline — ⏳ **Deferred**
 
-Reconciliation runs `harvest → prune → block → batch → decide → validate → apply`. Every stage before the model shrinks its job; every stage after it stops the model corrupting the store.
+`harvest → prune → block → batch → decide → validate → apply`. Every stage before the model shrinks its job; every stage after stops it corrupting the store.
 
-### D9. Two modes, on two independent axes — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
+### D9. Two modes, two axes — ✅ **Built** (working), ⏳ **Deferred** (reconciliation)
 
-**Axis 1 — what work runs:**
+**Axis 1 — what runs:** *working mode* (every resolve call, never an LLM) vs. *reconciliation mode* (scheduled batch, LLM permitted, drains the backlog).
 
-| Mode | Trigger | LLM? | Job |
-|---|---|---|---|
-| **Working** | every resolve call | never | answer from the store; record what it can't answer |
-| **Reconciliation** | scheduled batch | yes | drain the backlog, grow the store |
+**Axis 2 — how far answers travel** (`KEYWORD_RESOLVER_MODE`):
 
-**Axis 2 — how far working mode's answers travel** (`KEYWORD_RESOLVER_MODE`):
-
-| Setting | Resolution runs? | Side effects recorded? | Reaches retrieval? |
-|---|---|---|---|
-| `off` (default) | no | no | — |
-| `observe` | yes | yes | **no** |
-| `on` | yes | yes | yes |
-
-- **`off`** — `CandidateNodes` returns nothing, `ResolveSurface` no-ops before touching the database. The safe do-nothing state. ⚠️ Not honoured when the env var is *unset* (K6).
-- **`observe`** — the full pipeline runs and every side effect is written; only the answer is withheld from downstream consumers. This is the evaluation setting, and what P3 Track B shipped. **`observe` is a state of working mode, not a third mode.**
-- **`on`** — same pipeline, gate removed. ⚠️ Not usable: no retrieval consumer exists, and the collector's `IsObserveMode()` check means flipping to `on` turns mention collection *off* (K7).
-
-Reconciliation is orthogonal to all three settings.
+- **`off`** (default) — no resolution, no writes. ⚠️ Not honoured when the variable is *unset* (K6).
+- **`observe`** — full pipeline runs, all side effects written, answer withheld from consumers. What P3 Track B shipped. **A state of working mode, not a third mode.**
+- **`on`** — same pipeline, gate removed. ⚠️ Unusable: no consumer exists, and `IsObserveMode()` means flipping to `on` turns collection *off* (K7).
 
 ### D10. Bias toward under-merging — ✅ **Policy, scoped to merges only**
 
-A wrong **merge of two established concepts** is structural: it is invisible, permanent until noticed, and contaminates everything already assigned to either concept. Merges therefore stay conservative, and the §7.2 vetoes are hard.
+A wrong **merge of two established concepts** is structural, invisible, and contaminates everything already assigned. Merges stay conservative; §9.2's vetoes are hard.
 
-**This policy governs merges. It does not govern assignment** — deciding which concept a given occurrence refers to. Under D11, leaving an assignment undecided is *not* the safe option, and the older framing ("a missed alias is self-healing, so prefer to leave it") is withdrawn for that case. It was written assuming a human would drain the backlog; at production scale nobody will.
+**This governs merges, not assignment.** Under D11, leaving an assignment undecided is not the safe option, and the older "a missed alias is self-healing" framing is withdrawn for that case — it assumed a human would drain the backlog.
 
-### D11. Auto-first: every path terminates in a decision — 🆕 **Load-bearing, not yet implemented**
+### D11. Auto-first: every path terminates in a decision — 🆕 **Load-bearing, not implemented**
 
-**Scale forces this.** The corpus is 10⁵–10⁶ documents, each yielding on the order of 10² artifacts — 10⁷–10⁸ name occurrences. Human review of even 0.1% of that is not affordable. **Any design in which a routine path waits for a person is a design that stalls permanently at this volume**, and several parts of the earlier revision assumed exactly that.
+**Scale forces this.** 10⁵–10⁶ documents × ~10² artifacts = 10⁷–10⁸ name occurrences. Reviewing even 0.1% is unaffordable. **Any design where a routine path waits for a person stalls permanently.**
 
-**The rule: no routine resolution path may block on a human.** Concretely:
-
-| Situation | Old behaviour | **Auto-first behaviour** |
+| Situation | Old | **Auto-first** |
 |---|---|---|
-| No concept matches a **targeted** name | `deferred` → backlog → wait | **Auto-create a provisional concept** and assign it |
-| Multiple concepts tie | `ambiguous` → return no id | **Return `ambiguous` *and* the top-1 pick**, flagged |
-| Fuzzy/embedding candidate | candidate-only, never accepted | **May auto-accept** above a tier-specific threshold (§11.1) |
-| Below any threshold | `human_review` → a queue nobody drains | Decide, record method + score, mark for **sampling** |
+| No concept matches a **targeted** name | `deferred` → backlog → wait | **auto-create a provisional concept**, assign it |
+| Multiple concepts tie | return no id | **`ambiguous` + the top-1 pick**, flagged |
+| Fuzzy/embedding candidate | never accepted | **may auto-accept** above a tier threshold (§13.1) |
+| Below threshold | a queue nobody drains | decide, record method + score, mark for **sampling** |
 
-**Why deciding beats deferring here.** An unresolved metric name is not a neutral outcome — it is a hole in the comparison matrix, and the Review Document app then answers a customer's question with silently incomplete data. A wrong-but-recorded assignment is visible, attributable, and cheap to reverse. An absent assignment is none of those. **Silence is not the safe default.**
+**Why deciding beats deferring.** An unresolved metric name is not neutral — it is a hole in the comparison matrix (§2), and the review app then answers a customer with silently incomplete data. A wrong-but-recorded assignment is visible, attributable, and cheap to reverse. **Silence is not the safe default.**
 
-**What auto-first requires in exchange.** Because every decision is automatic, every decision must be:
+**The price, non-optional:** every decision must be **attributable** (method, score, normalizer version, decision-log row), **reversible** (retraction is ordinary, not archaeology), and **sampleable** (low-confidence and auto-created outcomes findable *as a set*). Without these, auto-first is unattributable guesswork.
 
-1. **Attributable** — which method resolved it (exact / norm / rewrite / initials / fuzzy / embedding / auto-created), what score, which normalizer version, which decision-log row.
-2. **Reversible** — retracting a bad assignment, alias, or auto-created concept must be a cheap, ordinary operation, not archaeology.
-3. **Sampleable** — low-confidence and auto-created outcomes must be *findable as a set*, so quality can be measured without reviewing everything.
+**Human involvement, all non-blocking:** benchmark/gold-set curation (offline); **exception repair** (a review is found wrong → correct the database, re-run — acts after the fact); and the governed-catalog gate (§16.1 — small enough to review).
 
-These three are the price of removing the human gate, and they are not optional: without them, auto-first degrades into unattributable guesswork.
-
-**Two exceptions where a human remains, both non-blocking:**
-
-- **Benchmark and gold-set curation** — deliberately manual, low volume, offline. Nothing in production waits on it.
-- **Exception repair** — when a specific document's review is found wrong (by a customer or internally), someone corrects the database directly (retract an alias, add a `never_merge`, fix a concept) and re-runs the app. This is a *repair* path, not a gate: it acts on outcomes after the fact, never before.
-
-**Where the human gate legitimately stays — and why it is not a scale problem.** The ADR's "no LLM activates ontology content" guarantee (`kb.ontology_candidates`, §14.2) governs **creating governed content**: terms, labels, mappings. That catalog is small — on the order of hundreds of metric definitions for a domain, not millions. Reviewing hundreds of items once is affordable. What must never be human-gated is the **assignment** of millions of artifacts to that small catalog. §14 states this split precisely.
-
-**Scope of auto-creation.** Auto-creating a concept on a miss applies to **targeted names** — a field a producer has asserted *is* a name (a metric name, an entity alias). It must **not** apply to the mention collector's output, which tokenizes all prose and would otherwise create a concept per junk token. Corpus-wide recall (§9.1 job 2) keeps the backlog-then-reconcile path.
+**Scope limit.** Auto-creation applies to **targeted names** — a field a producer asserted *is* a name. It must **not** apply to the mention collector, which tokenizes all prose and would mint a concept per junk token.
 
 ---
 
-## 4. Identity model
+## 5. Identity model
 
-### 4.1 Cardinal rules (binding)
+### 5.1 Cardinal rules (binding)
 
-1. **`concept_id` is opaque and immutable.** The label is a mutable display attribute; the id is the identity. Renaming a concept must break nothing.
-2. **Store surfaces; derive keys.** Every key is recomputable from `surface + norm_version`.
+1. **`concept_id` is opaque and immutable.** The label is a mutable display attribute.
+2. **Store surfaces; derive keys.**
 3. **Merges are tombstones, never deletes.**
-4. **Everything carries provenance and confidence** — `human:<user> | rule:<id> | llm:<model>@<prompt_version> | import:<src>` — so a bad source's entire output can be revoked in one query.
-5. **Human assertions are locked.** The reconciler may propose changes but never apply them.
+4. **Everything carries provenance and confidence** — so a bad source's entire output can be revoked in one query.
+5. **Human assertions are locked.** The reconciler may propose but never apply.
 
-### 4.2 How the layers relate
+### 5.2 How the layers relate
 
-- **occurrence → surface** — many-to-one. A resolve call checks the raw literal string first (tier 0), then the normalized key (tier 1). Surface is deliberately *not* the normalized form: keeping the verbatim string is what lets "Luminance" and "luminance" remain distinguishable as separately-observed spellings.
-- **surface → lexform** — many-to-one, computed by the normalizer at write time. Consistency comes from **determinism, not lookup**: the normalizer is a pure function, so "these two surfaces share a lexform" is recomputed identically every time rather than recorded. That determinism is also the risk — one inconsistent implementation fractures the layer silently, which is exactly what N1/N2 do today.
-- **lexform → concept** — many-to-many, with **no join table**. `kb.keyword_surfaces.concept_id` is `NOT NULL`, so each surface belongs to one concept; two surfaces sharing a `norm_key` but pointing at different concepts *is* the many-to-many relation. The tier-1 query is that relation being read directly: one distinct concept → auto-accept; two or more tied → `ambiguous`. **There is no separate disambiguation subsystem** — ambiguity detection falls out of the surface table's shape.
+- **occurrence → surface** — many-to-one. A resolve checks the raw literal first (tier 0), then the normalized key (tier 1). Surface is deliberately *not* the normalized form: keeping the verbatim string is what lets "Luminance" and "luminance" stay distinguishable as separately-observed spellings.
+- **surface → lexform** — many-to-one, computed at write time. Consistency comes from **determinism, not lookup**: the normalizer is pure, so "these share a lexform" is recomputed identically every time. That determinism is also the risk — one inconsistent implementation fractures the layer silently, which is what N1/N2 do today.
+- **lexform → concept** — many-to-many, with **no join table**. `concept_id` is `NOT NULL` on each surface; two surfaces sharing a `norm_key` but pointing at different concepts *is* the relation. The tier-1 query reads it directly: one distinct concept → auto-accept; two or more tied → `ambiguous`. **There is no separate disambiguation subsystem.**
 
-### 4.3 What lexform does not do
+### 5.3 What lexform does not do
 
-`norm_key` is a function of one string's spelling, casing, and morphology. It has no notion of meaning. "Luminance," "亮度," "显示亮度," and "brightness" produce **four different `norm_key` values**. DR23's promise that these reach one row is real, but it is delivered at the **concept** layer by curation — four surface rows sharing one `concept_id` — never by normalization. Lexform collapses variants of the *same* string; it never substitutes for the curation that connects different words to one meaning.
+`norm_key` is a function of one string's spelling, casing, and morphology. **"Luminance," "亮度," "显示亮度," and "brightness" produce four different `norm_key` values.** REQ-1 of §2.1 is delivered at the **concept** layer — four surface rows sharing one `concept_id` — never by normalization. Lexform collapses variants of the *same* string; it never substitutes for the curation or reconciliation that connects different words to one meaning.
 
-### 4.4 Homonymy
+### 5.4 Homonymy
 
-The schema does not make `norm_key` globally unique, so `ML` → machine learning *and* millilitre is representable. Scope should disambiguate, then context. ⚠️ Neither works today: scope is ignored (K2) and context disambiguation is unbuilt, so global-scope homonyms return `ambiguous` — the safe outcome, not the designed one.
+`norm_key` is not globally unique, so `ML` → machine learning *and* millilitre is representable. Scope should disambiguate, then context. ⚠️ Neither works today (K2; context disambiguation unbuilt), so global-scope homonyms return `ambiguous` — safe, but not the designed path.
 
 ---
 
-## 5. Normalization — ⚠️ **Defect**
+## 6. Normalization — ⚠️ **Defect**
 
-The normalizer is the most dangerous component: fast, invisible, and every over-aggressive rule silently collapses distinct concepts forever. The design is conservative. **The implementation is not.**
+The most dangerous component: fast, invisible, and every over-aggressive rule silently collapses distinct concepts forever. The design is conservative; the implementation is not.
 
-### 5.1 The pipeline as implemented
+### 6.1 The pipeline as implemented
 
 | # | Step | Verified example | Note |
 |---|---|---|---|
-| 1 | Unicode NFKC | `ﬁle` → `file` | |
-| 2 | Strip zero-width / BOM / LTR-RTL marks | | soft hyphen U+00AD **not** stripped |
-| 3 | Dashes → ASCII `-` | `e–mail` → `e-mail` | |
-| 4 | Quotes → ASCII | `“x”` → `"x"` | |
-| 5 | Collapse/trim whitespace | | |
-| 6 | Collapse dotted initialisms | `U.S.A.` → `usa` | uppercase `A.B.C` patterns only |
-| 7 | Case-fold | | CJK unaffected |
-| 8 | Drop possessive `'s` | `AWS's cloud` → `aws cloud`; **`AWS's` → `aws'`** | word-final possessive missed (N2) |
-| 9 | Strip leading articles | `the cloud` → `cloud` | English, unguarded by language |
-| 10 | Singularization | `indices` → `index`; **`AIDS` → `aid`**, **`SaaS` → `saa`** | reproduces the stemmer failures it was written to avoid (N1) |
+| 1 | Unicode NFKC | `Ｌｕｍｉｎａｎｃｅ` → `luminance` | full-width folded |
+| 2 | Strip zero-width / BOM / LTR-RTL | `显示​亮度` → `显示亮度` | soft hyphen U+00AD **not** stripped |
+| 3 | Dashes → ASCII | `e–mail` → `e-mail` | |
+| 4 | Quotes → ASCII | | |
+| 5 | Collapse/trim whitespace | `␠␠LUMINANCE␠␠` → `luminance` | |
+| 6 | Collapse dotted initialisms | `U.S.A.` → `usa` | uppercase `A.B.C` only |
+| 7 | Case-fold | `亮度` → `亮度` (CJK unaffected) | ⚠️ `unicode.ToLower`, i.e. lowercasing, **not** full Unicode case folding, despite the comment |
+| 8 | Drop possessive `'s` | **`AWS's` → `aws'`** | word-final possessive missed (N2) |
+| 9 | Strip leading articles | `the cloud` → `cloud` | English, **unguarded by language** |
+| 10 | Singularization | **`AIDS` → `aid`**, **`SaaS` → `saa`** | reproduces the failures it was written to avoid (N1) |
 
-### 5.2 The key bundle — 🚧 computed, never persisted
+Note `显示 亮度` (with a space) → `norm_key` = `显示 亮度`, which does **not** equal `显示亮度`. The `alnum` key would bridge them at tier 2 — but nothing populates that table (K1), so the bridge does not work.
 
-Six keys per surface: `exact`, `norm` (primary index), `alnum`, `sorted`, `phonetic`, `initials`. `norm` lives on the surface row; the other four belong in `kb.keyword_surface_keys` — **which no code path writes** (K1), so tiers 2 and 4 query an empty table. The `phonetic` key is a stub and is read by no tier at all.
+### 6.2 The key bundle — 🚧 computed, never persisted
 
-### 5.3 Verified normalizer defects
+Six keys: `exact`, `norm` (primary index), `alnum`, `sorted`, `phonetic`, `initials`. Only `norm` is stored (on the surface row). The other four belong in `kb.keyword_surface_keys`, **which no code path writes** (K1) — so tiers 2 and 4 query an empty table. `phonetic` is a stub read by no tier.
 
-**N1 — singularization runs after case-folding, so the ALLCAPS guard is absent.** Reproduced by execution: `AIDS→aid`, `SaaS→saa`, `Kubernetes→kubernete`, `Postgres→postgre`, `analysis→analysi`, `status→statu`. The design says "never a Porter/Snowball stemmer" precisely to avoid these; the implementation reproduces them. The `len > 3` floor is the only protection. **Fix:** carry the casing signal step 7 was supposed to record and refuse to singularize originally-ALLCAPS tokens.
+### 6.3 Required improvements
 
-**N2 — the possessive rule requires a trailing space.** `strings.ReplaceAll(s, "'s ", " ")` misses word-final possessives; singularization then yields `aws'`.
+Beyond the defects in §20.2, normalization must gain before production use:
 
-**N3 — the `initials` bridge cannot bridge.** Two reasons: the key is uppercased while every other key is lowercased, so it can never equal a `norm` value; and tier 4 looks up the *query's* initials, so `ML` yields `M`, not `ML`. Populating K1 alone would make tier 4 match every single-token surface starting with `m` — worse than matching nothing. **Fix:** look up the query's normalized form against lower-cased stored initials, scope- and length-gated.
+1. **Full Unicode case folding**, not `ToLower`.
+2. **A language guard on every language-specific step** — articles, possessives, and singularization are English rules applied today to every string regardless of language.
+3. **CJK handling beyond pass-through**: word segmentation, a Simplified/Traditional policy, and a decision on transliteration. **Never silently declare Simplified/Traditional equivalence during normalization** — that is a semantic claim, and it belongs in an explicit, provenance-bearing surface.
+4. **Lossless canonical key.** Normalization must not erase meaningful diacritics, digits, symbols, negation, or script distinctions to increase recall. Lossy transformations belong in lower-confidence **alternate** keys, never the canonical one.
+5. **Structure: one generic base cleaner + pluggable, versioned language profiles.** Profiles derive additional candidate keys; they never establish semantic identity by themselves.
 
-**N4 — `norm_version` is stored but never filtered on.** Two normalizer versions would serve reads simultaneously. Harmless while only version 1 exists; must be fixed before the first bump.
+### 6.4 Verified normalizer defects
 
-### 5.4 CJK
+**N1 — singularization runs after case-folding, so the ALLCAPS guard is absent.** Reproduced: `AIDS→aid`, `SaaS→saa`, `Kubernetes→kubernete`, `Postgres→postgre`, `analysis→analysi`. **Fix:** carry the casing signal step 7 was meant to record; never singularize an originally-ALLCAPS token.
 
-CJK passes the pipeline unchanged (no case, no matching suffixes) and is retained by the `alnum` key. The *collector's* tokenizer is a separate matter — see §9.
+**N2 — the possessive rule requires a trailing space**, so word-final possessives are missed and then mangled.
+
+**N3 — the `initials` bridge cannot bridge.** The key is uppercased while every other key is lowercased, and tier 4 looks up the *query's* initials (`ML` → `M`). Fixing K1 alone would make tier 4 match every single-token surface starting with `m` — worse than nothing. **Fix:** look up the query's normalized form against lower-cased stored initials, scope- and length-gated.
+
+**N4 — `norm_version` is stored but never filtered on.** Two versions would serve reads simultaneously. Must be fixed before the first bump.
 
 ---
 
-## 6. The shared kernel (`semid`) — ✅ **Built**
+## 7. Multilingual policy — ⚠️ **Represented in storage, not operational**
 
-### 6.1 The contract
+The pilot corpus is predominantly Chinese with English technical terms. Multilingual support is more than storing UTF-8:
 
-A family declares what differs; the kernel owns the mechanism. Per D2/D3 the interface should carry `CandidateNodes`, `AutoAcceptPolicy`, and `FamilyName` — **not** `Normalizer()`, and not `Scope()` once scope becomes an explicit parameter (§6.2).
+1. **Store a valid BCP 47 language tag on every surface**; use `und` when unknown — **not** today's default of `en`, which asserts a language nobody verified.
+2. **Script detection is a hint, not language identification.** Han characters alone do not distinguish Chinese, Japanese, or shared technical notation.
+3. **Translations and transliterations are explicit, provenance-bearing surfaces** — never a normalization side effect.
+4. **Requested language ranks and selects display; it does not filter.** Mixed-language documents and borrowed technical terms are normal.
+5. **The same literal surface may belong to multiple concepts and languages.** ⚠️ This requires changing the current uniqueness key, which omits `lang` (§10.2). Scope, language, term kind, and context narrow candidates; unresolved ties stay `ambiguous`.
+6. **Display label selection: requested language → configured fallback chain → concept default.** Persist and join by `concept_id`, **never** by a localized label.
 
-### 6.2 The resolve flow — ⚠️ signature defect
+⚠️ Today `kb.keyword_surfaces.lang` is stored but **no tier filters or ranks by it**, `Scope` discards the caller's scope (K2), and `ResolveNameRequest.Language` has no implementation beneath it.
 
-```
-normalize(input) → key bundle
-  → CandidateNodes(input, scope)   // family-provided
-  → Score(bundle, candidate)       // deterministic
-  → sort, then Adjudicate          // policy-provided
-```
+---
 
-`Score` is a four-way discrete function: exact key match 1.0; candidate key ∈ surface's alternate keys 0.8; mutual prefix ≥ 3 chars 0.5; else 0. Candidates scoring 0 are dropped **before** adjudication.
+## 8. The shared kernel (`semid`) — ✅ **Built**
 
-`Adjudicate` maps scored matches to a verdict: no candidates → `deferred`; top score tied beyond `MaxCandidates` → `ambiguous`; policy disabled or top below `MinScore` → `human_review`; else → `auto_accepted`.
+### 8.1 Contract
 
-⚠️ **`Kernel.Resolve(ctx, surface)` takes one input but needs two.** The scope it actually filters on is fetched behind the caller's back via `Family.Scope()` — which is why K2 and K9 are invisible at every call site. Both families work around it by overwriting `res.Scope` *after* the search already ran with the wrong value. The parameter name `surface` is also keyword vocabulary imposed on a family-agnostic mechanism; `TermFamily` reuses it for a materially different thing (a candidate proposal, not a persisted entity).
+A family declares what differs; the kernel owns the mechanism. Per D2/D3 the interface carries `CandidateNodes`, `AutoAcceptPolicy`, and `FamilyName` — **not** `Normalizer()`, and not `Scope()` once scope becomes an explicit parameter.
 
-**Decision:** `Kernel.Resolve(ctx, input string, scope string)`. Scope becomes explicit; `Family.Scope()` leaves the interface.
+### 8.2 Resolve flow — ⚠️ signature defect
 
-### 6.3 Verdicts — ⚠️ **semantics revised by D11**
+`Score` is a four-way discrete function: exact key 1.0; candidate key ∈ surface's alternates 0.8; mutual prefix ≥3 chars 0.5; else 0. **Zero-scoring candidates are dropped before adjudication.** `Adjudicate`: no candidates → `deferred`; tied beyond `MaxCandidates` → `ambiguous`; disabled or below `MinScore` → `human_review`; else → `auto_accepted`.
 
-Four verdicts exist: `auto_accepted` · `ambiguous` · `deferred` · `human_review`. Their *meaning* changes under auto-first: a verdict is a **description of how confident the decision was**, not a branch that decides whether a decision happens. Every verdict except a hard-veto rejection now carries a resolved id.
+⚠️ **`Kernel.Resolve(ctx, surface)` takes one input but needs two.** The scope it filters on is fetched behind the caller's back via `Family.Scope()` — which is why K2 and K9 are invisible at call sites. Both families overwrite `res.Scope` *after* the search already ran with the wrong value. The parameter name `surface` is also keyword vocabulary imposed on a family-agnostic mechanism; `TermFamily` reuses it for a different thing entirely.
+
+**Decision:** `Kernel.Resolve(ctx, input string, scope string)`; `Family.Scope()` leaves the interface.
+
+### 8.3 Verdicts — semantics revised by D11
+
+A verdict describes **how confident the decision was**, not whether a decision happens.
 
 | Verdict | Means | Carries an id? |
 |---|---|---|
 | `auto_accepted` | one clean match above threshold | yes |
-| `ambiguous` | several candidates tied at the top | **yes — the top-1 pick**, plus the tied set |
-| `deferred` | no candidate found | **yes, for targeted names — a newly auto-created provisional concept** (D11); no id on the collector path, which keeps the backlog |
-| `human_review` | resolved below the confidence threshold | yes, flagged for sampling — **not** a queue that blocks |
+| `ambiguous` | several tied at the top | **yes — top-1 plus the tied set** |
+| `deferred` | no candidate | **yes for targeted names — an auto-created concept**; none on the collector path |
+| `human_review` | resolved below threshold | yes, flagged for sampling — **not a queue** |
 
-`human_review` is now a **label on an outcome**, not a routing destination. Nothing waits for the review it names; the flag exists so low-confidence decisions form a measurable, sampleable set (D11 requirement 3).
+⚠️ `TermFamily` can produce only two of four: `MaxCandidates` at its zero value gates off tie-detection, and `Enabled: false` blocks auto-accept (K10).
 
-⚠️ `TermFamily` can currently produce only two of the four: `MaxCandidates` at the zero value gates off tie-detection entirely, and `Enabled: false` blocks auto-accept (K10). Both must be set explicitly — under D11, "routes everything to a human" is not a viable configuration for any family whose output feeds production assignment.
+### 8.4 Shared tables — ✅ **Built** (P2)
 
-### 6.4 Shared tables — ✅ **Built** (P2)
-
-`kb.semid_decision_log` (append-only audit), `kb.semid_never_merge`, `kb.semid_snapshots` — shared across families, scoped by `family`. The keyword family appends to the decision log on every resolve.
+`kb.semid_decision_log` · `kb.semid_never_merge` · `kb.semid_snapshots`, scoped by `family`.
 
 ---
 
-## 7. Working mode — the resolution ladder
+## 9. Working mode
 
-**This section describes the internal mechanism.** The intended consumer-facing interface is `names.Resolver` (`2026080404` §2), which wraps it without exposing its side effects or storage-oriented parameters.
-
-### 7.1 The tier ladder
+### 9.1 The tier ladder
 
 | Tier | Method | Score | Status |
 |---|---|---|---|
 | 0 | exact surface match | 1.0 | ✅ |
 | 1 | `norm_key` match | 1.0 | ✅ |
-| 2 | `alnum`/`sorted` key match | 0.8 | 🚧 query built, table empty (K1) |
-| 3 | rewrite rules, then retry tiers 0–1 | 1.0/0.8 | ✅ |
+| 2 | `alnum`/`sorted` key | 0.8 | 🚧 query built, table empty (K1) |
+| 3 | rewrite rules → retry 0–1 | 1.0/0.8 | ✅ |
 | 4 | `initials` bridge | 0.8 | ⚠️ N3 |
-| 5 | fuzzy (trigram + edit distance) | continuous, higher threshold | ⏳ — may auto-accept (§11.1) |
-| 6 | embedding similarity (multilingual ANN) | continuous, higher threshold | ⏳ — may auto-accept (§11.1) |
-| 7 | miss → `kb.keyword_unresolved` | — | ✅ |
+| 5 | fuzzy (trigram + edit distance) | continuous | ⏳ may auto-accept (§13.1) |
+| 6 | embedding (multilingual ANN) | continuous | ⏳ may auto-accept (§13.1) |
+| 7 | miss → backlog / auto-create | — | ✅ backlog; ⏳ auto-create |
 
-`CandidateNodes` exits at the **first tier producing candidates**; it does not accumulate.
+`CandidateNodes` exits at the **first tier producing candidates**. **Tier 2 is a data gap; tier 4 is a logic defect.** Tier 3 matches the **raw** surface with byte equality, so a rule `K8S → Kubernetes` does not fire for `k8s`; one rule fires at most; the retry covers tiers 0–1 only.
 
-**Tier 2 is a data gap; tier 4 is a logic defect** — populating the keys table fixes the first, not the second. Tier 3 matches the **raw** surface against `pattern` with byte equality, so a rule `K8S → Kubernetes` does not fire for `k8s`; at most one rule fires, and the retry covers tiers 0–1 only.
-
-### 7.2 Fuzzy guardrails (binding, for when tiers 5–6 are built)
+### 9.2 Fuzzy guardrails (binding)
 
 ```
 len ≤ 4       → no fuzzy matching at all
@@ -373,38 +341,33 @@ len ≤ 4       → no fuzzy matching at all
 len ≥ 9       → max edit distance 2, normalized similarity ≥ 0.88
 ```
 
-Three absolute vetoes apply before any threshold: **digit** (strings differing in any digit never match — digits are versions and generations), **canonical** (a query that is itself an exact `pref_label` never fuzzy-matches elsewhere), **negation/affix** (`un-`/`non-`/`de-`/`anti-`/`-less` differences never match).
+Three absolute vetoes, applied **before any threshold** and overridden by no score: **digit** (strings differing in any digit never match), **canonical** (a query that is itself an exact `pref_label` never fuzzy-matches elsewhere), **negation/affix** (`un-`/`non-`/`de-`/`anti-`/`-less`).
 
-### 7.3 `ResolveSurface` side effects — 🚧 **Partial**
+### 9.3 `ResolveSurface` side effects — 🚧 **Partial**
 
-Called by the mention collector and the REST resolve handler. In order:
+Called by the mention collector and the REST resolve handler:
 
-1. **Unconditionally** insert a `kb.keyword_mentions` row — `artifact_ref` and `context_text` only; `chunk_ref`/`ks_id` always null; **no column exists for the observed string** (K4). Errors discarded.
+1. **Unconditionally** insert a mention row — `artifact_ref`, `context_text` only; `chunk_ref`/`ks_id` null; **no column for the observed string** (K4). Errors discarded.
 2. `Kernel.Resolve` — read-only.
-3. **Unconditionally** append to `kb.semid_decision_log`. Captures the string (in `input`) but no artifact reference, and **shares no key with the mention row from the same call** — so "what" and "where" are stored in two tables that cannot be joined. Errors discarded.
-4. On `auto_accepted`: write the surface row if this exact literal isn't already present under that concept. Derived keys not written (K1). The code's `human_review` arm is unreachable — `Kernel.Resolve` only sets `ResolvedNodeID` on `auto_accepted`.
-5. On `deferred`/`ambiguous`: upsert the backlog — ⚠️ **passing the raw surface where the primary key expects `norm_key`** (K5).
+3. **Unconditionally** append to `kb.semid_decision_log` — captures the string but no artifact reference, and **shares no key with the mention row from the same call**, so "what" and "where" cannot be joined. Errors discarded.
+4. On `auto_accepted`: write the surface row if this exact literal isn't present. Derived keys not written (K1). The `human_review` arm is unreachable.
+5. On `deferred`/`ambiguous`: upsert the backlog — ⚠️ **raw surface passed where the PK expects `norm_key`** (K5).
 
-⚠️ **This function conflates read and write.** No caller can ask "what does this resolve to" without also writing four rows. **Decision:** split into a pure `ResolveSurface` and an `ObserveSurface`, matching the `names.Resolver` read/write separation (`2026080404` §2.1) at every layer, not only at the facade.
+⚠️ **This conflates read and write.** No caller can ask "what does this resolve to" without writing four rows. **Decision:** split into a pure `ResolveSurface` and an `ObserveSurface`, applying the read/write rule at *every* layer, not only at the facade.
 
-**Two changes D11 requires here, beyond the defects above:**
+**Two changes D11 requires:** step 5 gains an **auto-create branch for targeted names** (collector misses keep today's backlog-only behaviour); step 4 must return the **top-1 id on `ambiguous`**, not only on `auto_accepted`.
 
-- **Step 5 gains an auto-create branch for targeted names.** A miss on a name a producer asserted *is* a name creates a provisional concept and returns its id, rather than only recording a backlog row. Provenance must mark it auto-created and the confidence must reflect that it is unconfirmed, so the auto-created population stays sampleable. **Collector-sourced misses keep today's behaviour** — backlog only, no concept — because tokenized prose would otherwise generate a concept per junk token (D11, scope of auto-creation).
-- **Step 4 must return the top-1 id on `ambiguous`**, not only on `auto_accepted`. Today `Kernel.Resolve` sets `ResolvedNodeID` exclusively for `auto_accepted`; under D5-as-revised it must also populate it for `ambiguous`, alongside the tied candidate set.
+### 9.4 Resolver modes — ⚠️ **Defect**
 
-### 7.4 Resolver modes — ⚠️ **Defect**
+⚠️ **The default is open (K6).** `ResolverMode()` defaults an unset variable to `off`, but the REST handler reads `os.Getenv` directly — `""` fails every `== "off"` gate, so an unset variable leaves the endpoint resolving and writing. One-line fix.
 
-⚠️ **The default is open, not closed (K6).** `keywords.ResolverMode()` correctly defaults an unset variable to `off`, but the REST handler bypasses it and reads `os.Getenv` directly. An unset variable yields `""`, which fails every `== "off"` gate — so on a server that never set the variable, `POST /api/v1/kb/keyword-resolve` resolves and writes. This inverts the fail-safe the mode design exists to provide. One-line fix.
+⚠️ **`on` silently disables collection (K7).**
 
-⚠️ **`on` silently disables collection (K7).** The collector gates on `IsObserveMode()`, true only for `observe`. Graduating `observe → on` turns mention collection off.
+### 9.5 The consumer interface: `names.Resolver` — ⏳ **Not built**
 
----
+**No consumer may call §9.1–§9.4 directly.** `KeywordFamily.ResolveSurface` mixes reads with four writes, exposes storage concepts (`artifactRef`), ignores the caller's scope (K2), and will keep changing while §20.2 is worked through.
 
-### 7.5 The consumer interface: `names.Resolver` — ⏳ **Not built**
-
-Everything above describes the module's *internals*. **No consumer should call any of it directly.** `KeywordFamily.ResolveSurface` is not a usable public contract: it mixes a read with writes to four tables, exposes storage concepts (`artifactRef`) unrelated to what a caller is asking, silently ignores the caller's scope (K2), and is expected to keep changing while §17.2 is worked through.
-
-The public contract is a separate, consumer-agnostic package, `ChenWeb/server/api/ontology/names/`:
+The public contract is `ChenWeb/server/api/ontology/names/`:
 
 ```go
 type NameResolver interface {
@@ -415,7 +378,7 @@ type NameResolver interface {
 type ResolveNameRequest struct {
     Name              string
     Scope             string
-    ExpectedTermKinds []string   // "metric_definition" for a metric, "unit" for a unit, …
+    ExpectedTermKinds []string   // "metric_definition", "unit", …
     ExpectedModules   []string
     Language          string
 }
@@ -424,207 +387,169 @@ type NameResolution struct {
     RawName, NormalizedKey string
     Status                 ResolutionStatus
 
-    ConceptID, ConceptPrefName               string   // keyword layer — ungoverned
-    TermID, TermPrefName, TermKind, ModuleID string   // governed layer — set only per the rule below
+    ConceptID, ConceptPrefName               string   // ungoverned lexical layer
+    TermID, TermPrefName, TermKind, ModuleID string   // governed layer, per the rule below
 
     Candidates []NameCandidate
-    Method     string    // which tier/mechanism resolved it (D11 requirement 1)
+    Method     string    // which mechanism resolved it (D11 requirement 1)
     Confidence float64
 }
 ```
 
-**No consumer identity appears in the contract** — no `MetricID`, no processor name, no consumer table. A metric asks for `ExpectedTermKinds: ["metric_definition"]`; a unit asks for `["unit"]`; a future consumer asks for whatever kind fits, with no change to the resolver.
+**No consumer identity appears** — no `MetricID`, no processor name, no consumer table. A metric asks `["metric_definition"]`; a unit asks `["unit"]`; a new consumer changes nothing in the resolver.
 
-**Five statuses, all normal results:**
+**Five statuses, all normal results:** `term_resolved` (one released term) · `lexical_resolved` (concept, no alignment yet) · `ambiguous` (**top-1 + tied set**) · `unresolved` (**auto-created concept** on the targeted path; empty only for the collector) · `disabled`.
 
-| Status | Meaning | Carries an id? |
-|---|---|---|
-| `term_resolved` | exactly one released governed term established | `TermID` + `ConceptID` |
-| `lexical_resolved` | a keyword concept found, no governed alignment yet | `ConceptID` |
-| `ambiguous` | several candidates tied | **yes — top-1 plus the tied set** (D11) |
-| `unresolved` | no match | on the targeted path, an **auto-created** `ConceptID` (D11); empty only on the collector path |
-| `disabled` | resolver intentionally off (`KEYWORD_RESOLVER_MODE=off`) | no |
+**The layer rule: `TermID` is set only by an unambiguous exact match against a released term's governed label, or by an accepted `aligns_to_term`.** A tier-0–4 lexical hit alone never produces a `TermID` — promoting an ungoverned identity to a governed one silently would erase the distinction the layers exist to keep. Per §16.1 the *alignment* auto-accepts above a threshold; what stays gated is creating the term, not pointing at it.
 
-**The layer rule: `TermID` is set only by an unambiguous exact match against a released term's governed label, or by an accepted `aligns_to_term` alignment.** A tier-0–4 lexical hit alone never produces a `TermID` — promoting an ungoverned lexical identity to a governed one silently would erase the distinction the two layers exist to keep. Per §14.0 the *alignment* itself auto-accepts above a threshold; what stays gated is creating the governed term, not pointing at it.
-
-**Read and write are separate calls.** `ResolveName` performs **no writes — including no decision-log entry.** A debugging tool, an autocomplete, a test, or a reprocessing run must be able to ask what a name resolves to without writing anything. Recording is explicit:
+**Read and write are separate calls.** `ResolveName` performs **no writes — including no decision-log entry**. A debugging tool, an autocomplete, a test, or a reprocessing run must be able to ask without writing:
 
 ```go
-ObserveName(ctx context.Context, occurrence NameOccurrence) error
+ObserveName(ctx, occurrence NameOccurrence) error
 ResolveAndObserve(ctx, req ResolveNameRequest, occ NameOccurrence) (NameResolution, error)
 ```
 
-Most production callers should use `ResolveAndObserve` — but by choosing it, not by having it forced on them. The occurrence record it writes is the corrected shape from K4: `artifact_type`, `artifact_id`, `field_path` (consumer-supplied provenance such as `"metric_name"` — meaningful to the consumer, opaque to the resolver), `raw_name`, `scope`, `context`, `chunk_ref`, `concept_id`, `term_id`, `resolution_status`, and a link to the decision-log row from the same call.
+Most production callers use `ResolveAndObserve` — **by choosing it**. The occurrence record is the corrected K4 shape: `artifact_type`, `artifact_id`, `field_path` (consumer-supplied provenance such as `"metric_name"` — opaque to the resolver), `raw_name`, `scope`, `context`, `chunk_ref`, `concept_id`, `term_id`, `resolution_status`, and a link to the decision-log row from the same call.
 
 ---
 
-## 8. Data model — ✅ **Built** (migrations `20260803000001`–`00006`)
+## 10. Data model — ✅ **Built** (migrations `20260803000001`–`00006`)
 
-### 8.1 `kb.keyword_concepts`
+### 10.1 `kb.keyword_concepts`
 
-`concept_id` TEXT PK (opaque) · `pref_label` · `gloss` · `scope` (default `'_'`) · `status` CHECK (`active|provisional|merged|deprecated`) · `merged_into` FK · `gloss_source` · timestamps. Indexes on `(scope, status)` and `(pref_label)`.
+`concept_id` TEXT PK (opaque) · `pref_label` · `gloss` · `scope` · `status` CHECK (`active|provisional|merged|deprecated`) · `merged_into` FK · `gloss_source` · timestamps. Indexes `(scope, status)`, `(pref_label)`.
 
-**Lifecycle:** `active ↔ provisional`, either → `merged`/`deprecated`; the latter two terminal.
+⚠️ `MergeConcept` bypasses the state machine with a direct `UPDATE`: merged/deprecated concepts can be re-merged, chains unchecked, `never_merge` never consulted, and merging a nonexistent id returns success (K8).
 
-⚠️ `MergeConcept` bypasses the state machine with a direct `UPDATE`: a merged or deprecated concept can be re-merged, chains and cycles are unchecked, `never_merge` is never consulted, and merging a non-existent id updates zero rows and returns success (K8).
+### 10.2 `kb.keyword_surfaces`
 
-### 8.2 `kb.keyword_surfaces`
+`surface_id` TEXT PK (content-derived) · `concept_id` FK NOT NULL · `surface` verbatim · `norm_key` ⚠️ caller-supplied on REST (K3) · `norm_version` · `label_role` · `alias_type` · `lang` · `scope` · `confidence` · `provenance` · `locked` · `evidence`.
 
-`surface_id` TEXT PK (content-derived, `kws_` + 12 hex chars of sha256 over `concept_id|surface|label_role`) · `concept_id` FK NOT NULL · `surface` verbatim · `norm_key` ⚠️ caller-supplied on the REST path (K3) · `norm_version` · `label_role` CHECK · `alias_type` · `lang` (default `'en'`) · `scope` · `confidence` · `provenance` · `locked` · `evidence` · timestamps.
+Unique on `(norm_key, concept_id, scope, label_role)`; indexes `(norm_key, scope)`, `(concept_id)`.
 
-Unique on `(norm_key, concept_id, scope, label_role)`; indexes on `(norm_key, scope)` and `(concept_id)`.
+⚠️ **The uniqueness key omits `lang`** (§7 item 5), so one concept cannot hold a `pref` surface per language. Fix in schema — the planned data reset makes this free.
+⚠️ **`provenance` is a single string and `evidence` a single text field** — they cannot represent two sources independently asserting the same alias, so one source's support cannot be retracted without destroying the other's. §13.3 requires a separate evidence table; design it in when this schema is next touched.
 
-⚠️ The uniqueness key omits `lang`, so the same normalized form in two languages under one concept cannot both be `pref`. Given the planned data reset, fix this in the schema rather than working around it.
+### 10.3 `kb.keyword_surface_keys`
 
-### 8.3 `kb.keyword_surface_keys`
+`(surface_id, key_kind)` PK · `key_value` · `norm_version`. ⚠️ **Empty in every shipped path** (K1).
 
-`(surface_id, key_kind)` PK · `key_value` · `norm_version`. CHECK on `key_kind ∈ {alnum, sorted, phonetic, initials}`. Lookup index `(key_kind, key_value, norm_version)`.
+### 10.4 `kb.keyword_mentions` — the occurrence record
 
-⚠️ **Empty in every shipped path** (K1). `UpsertSurfaceKeys` exists and is unit-tested; nothing calls it.
+`mention_id` · `artifact_ref` · `chunk_ref` · `context_text` · `ks_id` · `create_time`.
 
-### 8.4 `kb.keyword_mentions` — the occurrence record
+⚠️ **Cannot serve its purpose** (K4): no column names the observed string; `chunk_ref`/`ks_id` always null; `context_text` always empty (the only caller passes `""`). **Decision:** add `surface`/`norm_key` and the §9.5 occurrence fields, link to the decision-log row, and **rename to `kb.keyword_occurrences`** — verified cheap, nothing outside the package reads it.
 
-`mention_id` BIGSERIAL PK · `artifact_ref` · `chunk_ref` · `context_text` · `ks_id` · `create_time`.
+### 10.5 `kb.keyword_unresolved` — the backlog
 
-⚠️ **Cannot serve its purpose as shaped** (K4). No column names the observed string — a schema gap, not a missing assignment. `chunk_ref`/`ks_id` are always null, and `context_text` is always empty because the only real caller passes `""`. **Decision:** add `surface`/`norm_key`, populate the provenance columns, add a link to the decision-log row from the same call, and **rename the table to `kb.keyword_occurrences`** to match the layer it implements. Verified cheap: nothing outside the keyword package reads it.
+`(norm_key, scope)` PK · `surfaces` JSONB · `contexts` JSONB · `hits` · `status` · `attempts` · `last_attempt` · `priority` · timestamps.
 
-### 8.5 `kb.keyword_unresolved` — the backlog
+⚠️ The caller passes the **raw surface** as `norm_key` (K5). 🚧 `contexts` is keep-last-5, not a reservoir sample. ⚠️ The 200-char cap slices **bytes**, splitting multi-byte CJK into invalid UTF-8.
 
-`(norm_key, scope)` PK · `surfaces` JSONB (deduped, capped 10) · `contexts` JSONB · `hits` · `status` CHECK (`pending|batched|needs_human|resolved|junk|insufficient_context`) · `attempts` · `last_attempt` (negative-caching key) · `priority` · `first_seen`/`last_seen`. Work index `(status, last_seen)`.
+### 10.6 `kb.keyword_rewrite_rules`
 
-Three deviations: ⚠️ the caller passes the **raw surface** as `norm_key` (K5), defeating the deduplication the PK exists for; 🚧 `contexts` is keep-the-last-5, not a reservoir sample; ⚠️ the 200-char cap slices **bytes**, which will split multi-byte CJK and store invalid UTF-8. The read path requires both scope and status, so there is no "all pending" query.
-
-### 8.6 `kb.keyword_rewrite_rules`
-
-`rule_id` PK · `pattern` (literal only, validated) · `replacement` · `scope` · `enabled` (default false) · `provenance` · timestamps.
-
-🚧 Because matching is on the raw surface, a rule is one-string-to-one-string and cannot express the family generalization (`<name>-svc → <name> service`) that makes rule promotion the cost lever in §11.
+`rule_id` · `pattern` (literal only) · `replacement` · `scope` · `enabled` (default false) · `provenance`. 🚧 One-string-to-one-string; cannot express the family generalization that makes rule promotion a cost lever.
 
 ---
 
-## 9. Mention collection — 🚧 **Built standalone, not wired**
+## 11. Mention collection — 🚧 **Built standalone, not wired**
 
-`KeywordMentionCollector.CollectFromText` tokenizes chunk text and resolves each unique token. Runs only in `observe`.
+Tokenizes chunk text and resolves each unique token; runs only in `observe`. Splits on any non-letter/digit rune; 2–50 runes; 59-word English stopword list.
 
-- **Tokenization:** splits on any non-letter/non-digit rune; keeps 2–50 runes; 59-word English stopword list.
-- **Context:** ⚠️ passes `""`, so no snippet ever reaches the backlog — R1 harvesting and context disambiguation both depend on those snippets and are dead until this is fixed.
-- ⚠️ **CJK is not segmented.** CJK characters are letters, so an unpunctuated Chinese run becomes one 50-rune pseudo-token. On the 呼吸机/医疗器械 corpus this fills the backlog with junk. Segment, or restrict to Latin script until segmentation exists.
-- 🚧 **Single tokens only** — no multi-word surface can ever be observed, which removes the entire class the `sorted` and `initials` keys were designed for.
+- ⚠️ **Context is always `""`**, so no snippet reaches the backlog — reconciliation stage R1 (harvest) and context disambiguation are dead until fixed.
+- ⚠️ **CJK is not segmented** — an unpunctuated Chinese run becomes one 50-rune pseudo-token, filling the backlog with junk on this corpus.
+- 🚧 **Single tokens only** — no multi-word surface can ever be observed, removing the class the `sorted`/`initials` keys exist for.
 
-### 9.1 What this collector is for
+**What it is for.** Two jobs exist; the collector serves one:
 
-Two different jobs exist, and the collector serves only one:
+1. **Targeted enrichment** — a producer knows a field is a name; it calls `names.Resolver` directly. **No collector.**
+2. **Corpus-wide recall** — vocabulary that never becomes a structured field, for a retrieval consumer expanding queries against the lexicon. **This is the collector's job**, and its chain (`collector → backlog → reconciliation → lexicon → retrieval`) is unbuilt after the first arrow. Wiring it today generates rows nothing reads.
 
-1. **Targeted enrichment** — a processor already knows a field is a name (a metric name, an alias list). It calls `names.Resolver` directly. **No collector involved.**
-2. **Corpus-wide recall** — vocabulary that never becomes a structured field, useful to a retrieval consumer that expands queries against the lexicon. This is the collector's job.
-
-Job 2's consumer chain is `collector → backlog → reconciliation → grown lexicon → retrieval/faceting`, and **everything after the first arrow is unbuilt**. Wiring the collector today would generate rows nothing reads. Its idle state is therefore coupled to reconciliation and retrieval, not independently arbitrary — revisit all three together.
-
-**Metric-name canonicalization is job 1 and is not blocked by any of this.**
+**§2's requirement (REQ-1/REQ-3) runs through job 1 and is not blocked by any of this.**
 
 ---
 
-## 10. REST API — ✅ **Built** (14 endpoints under `/api/v1/kb/keyword-*`)
+## 12. REST API — ✅ **Built** (14 endpoints under `/api/v1/kb/keyword-*`)
 
-Handlers in `kbhandler/keyword_handlers.go`; routes in `server/api/routes.go:461–474`. Concepts (list/create/get/update/status/merge), surfaces (create/get/list-by-concept/lock), rewrite rules (create/list/toggle), and `POST /kb/keyword-resolve`.
+Concepts (list/create/get/update/status/merge) · surfaces (create/get/list/lock) · rewrite rules (create/list/toggle) · `POST /kb/keyword-resolve`.
 
-**This API and `names.Resolver` are different consumption modes, not two layers of one interface.** `names.Resolver` is an in-process Go interface for other code in the same binary. This REST API is the external admin/diagnostic surface, and is where future frontend administration pages will attach (§17.4).
+**This is the external admin/diagnostic surface** — where frontend administration pages will attach. `names.Resolver` (§9.5) is the in-process interface for other Go code; they are different consumption modes, not two layers of one thing.
 
-Gaps: ⚠️ `POST /kb/keyword-surfaces` accepts an unvalidated `norm_key` (K3); ⚠️ the resolve handler reads `os.Getenv` (K6); 🚧 no REST surface for `kb.keyword_surface_keys`, mentions, or the backlog; 🚧 no endpoint retracts a surface, deletes a rule, or records a `never_merge` pair.
+Gaps: ⚠️ unvalidated `norm_key` (K3); ⚠️ `os.Getenv` (K6); 🚧 no REST surface for derived keys, occurrences, or the backlog; 🚧 no endpoint retracts a surface, deletes a rule, or records a `never_merge`.
 
 ---
 
-## 11. Reconciliation mode — ⏳ **Deferred**
+## 13. Reconciliation and vocabulary growth — ⏳ **Deferred**
 
-A batch job that drains `kb.keyword_unresolved` and grows the store. Schema and stores exist; the workflow does not.
+Reconciliation is what makes §2's REQ-1 true for **translations and genuinely different words**, which normalization can never do (§5.3). It is not optional polish.
 
 ```
-R1 harvest    free extractors (Schwartz–Hearst parenthetical acronyms, definitional
-              patterns) — zero LLM tokens
-R2 prune      drop junk, dedup, frequency-floor; negative-cache anything already marked
-              junk/insufficient_context by the same model@prompt_version
-R3 block      lexical (pg_trgm) ∪ semantic (pgvector) blocking to k candidates — the
-              biggest cost lever
-R4 assemble   batch into compact pipe-row prompts; tag unreviewed LLM glosses to avoid
-              self-confirmation
-R5 decide     structured output, cheap-model bulk pass; escalate ambiguous/high-blast-
-              radius items to a stronger model
-R6 validate   deterministic gates (schema, referential, acronym plausibility, role
-              consistency, never-merge, lock, scope, blast radius, confidence, digit
-              veto) — reject before writing
-R7 apply      transactional write through the kernel; append to the decision log; promote
-              candidate rules; rebuild snapshot
+R1 harvest    free extractors (Schwartz–Hearst parentheticals, definitional patterns)
+R2 prune      junk, dedup, frequency floor; negative-cache by model@prompt_version
+R3 block      lexical (pg_trgm) ∪ semantic (pgvector) to k candidates — biggest cost lever
+R4 assemble   compact pipe-row batches; tag unreviewed LLM glosses to avoid self-confirmation
+R5 decide     structured output, cheap model bulk; escalate ambiguous/high-blast-radius
+R6 validate   deterministic gates — schema, referential, acronym plausibility, role
+              consistency, never-merge, lock, scope, blast radius, confidence, digit veto
+R7 apply      transactional write through the kernel; decision log; promote rules; snapshot
 ```
 
-**The reconciler, not the model, owns every write.** Backlog draining reuses the DR5/DR6/DR7 pattern from P3 Track A; of those, DR5 (bulk backfill) is built, DR6 (admin review) and DR7 (LLM adjudication) are not.
+**The reconciler, not the model, owns every write.**
 
-### 11.1 Kernel scoring change for tiers 5–6 and R3 — ✅ **Decided**
+### 13.1 Scoring for tiers 5–6 — ✅ **Decided**
 
-`Score()` is today a four-way discrete function (1.0 / 0.8 / 0.5 / 0) with no way to express a continuous similarity, and `Kernel.Resolve` drops zero-scoring candidates **before** adjudication — so a trigram or embedding candidate satisfying none of the four discrete conditions would be silently discarded.
+Extend `Score()` to a **continuous** similarity value, **uncapped**. Fuzzy and embedding matches may auto-accept.
 
-**Decision, per D11:** extend `Score()` to accept a **continuous similarity value**, and **do not cap it below `MinScore`**. Fuzzy and embedding matches may auto-accept.
+This reverses "candidate-only, never auto-accept," which assumed a human adjudicator. At 10⁷–10⁸ occurrences a suggestion nobody acts on is indistinguishable from no answer. Safeguards move from *refusing to decide* to *deciding attributably*:
 
-This reverses the earlier "tiers 5–6 are candidate-only, never auto-accept" position, which was written under the assumption that a human would adjudicate what they proposed. At 10⁷–10⁸ occurrences nobody will, and a suggestion nobody acts on is indistinguishable from no answer — the outcome D11 exists to prevent. The safeguards move from *refusing to decide* to *deciding attributably*:
+1. **Tier-specific thresholds** — fuzzy and embedding need a materially higher bar than exact/normalized. Exact key equality and cosine proximity are different kinds of evidence.
+2. **The §9.2 vetoes stay hard**, applied before any threshold. They are correctness rules, not confidence heuristics.
+3. **Method and score recorded on every decision**, so these populations are sampleable and bulk-re-runnable when a threshold or model changes.
+4. **Merging two established concepts is still not automatic** (D10) — a high score proposes an *assignment*, never a structural merge.
 
-1. **Tier-specific thresholds.** Fuzzy and embedding require a materially higher score to auto-accept than exact/normalized matches do. Exact key equality is evidence of a different kind than cosine proximity, and the thresholds must say so.
-2. **The §7.2 vetoes remain hard, and apply before any threshold** — length gate, digit veto, canonical veto, negation/affix veto. These are correctness rules, not confidence heuristics, and no score overrides them.
-3. **Method and score are recorded on every decision** (D11 requirement 1), so fuzzy- and embedding-derived assignments are a distinguishable, sampleable population — and can be re-run in bulk when a threshold or model changes.
-4. **Merging two established concepts is still not auto** (D10) — a high-similarity score proposes an assignment, never a structural merge.
+Tier 6 requires a **multilingual** embedding model — an English-only model cannot place "luminance" near "亮度", which is the case that motivates the tier. R4's prompt lives in `prompts/` per `ChenWeb/CLAUDE.md`.
 
-Tiers 5–6 additionally need `pg_trgm` and `pgvector`. **Tier 6's embedding model must be multilingual — confirmed requirement, not an open question.** An English-only model would not place "luminance" near "亮度", which is the case motivating the tier at all. R4's prompt must live in `prompts/` per `ChenWeb/CLAUDE.md`, never hardcoded.
+### 13.2 Seeding and external vocabulary
+
+The store should not start empty when curated multilingual vocabularies exist. Resolution is a long-solved problem; harvesting beats curating.
+
+- **Wikidata** (not Wikipedia prose) is the strong fit — CC0, downloadable, locally hostable, structurally `item → {labels per language, aliases}`, which is nearly `concept → surfaces`. Two insertion points: **seed content** and **an R1 harvest source** (zero LLM tokens, cheaper than tiers 5–6, so it belongs *earlier* in the waterfall than either).
+- **CC-CEDICT** is narrower and targeted at the EN↔ZH case this corpus needs.
+- **UMLS** is a strong model and plausible biomedical source but **is not open** — NLM licenses it individually and some constituent vocabularies add restrictions. An importer must preserve those boundaries.
+- **Domain standards glossaries** (IEC 60601 / ISO 80601 for this pilot) are likely the **highest-yield source** — general resources cover common vocabulary and miss regulatory jargon.
+
+### 13.3 Schema shapes to design in now
+
+Deferred to build, but these shapes must exist whenever §10 is next touched — retrofitting the first one means migrating every surface row:
+
+1. **Multi-source evidence, not a single provenance string** (§10.2). Required so one source's support can be retracted independently.
+2. **External identity mapping** — `(source, external_id, release) → concept_id`, so re-import is idempotent.
+3. **Source/release/license registry** — recorded before import, because some sources carry real restrictions that must survive into the data.
+
+### 13.4 Import must not upgrade relation strength — **binding**
+
+A thesaurus's `related`, `broad`, or `narrow` relationship **must never be silently promoted to `exact`**. This is the ADR's mapping-strength discipline (DR13) and it is exactly the §2.3 case: an importer that flattens "brightness ≈ luminance" into an alias makes a domain decision it has no authority to make. Imported relations carry their source's strength; only `exact` produces a same-concept surface, and anything weaker becomes a candidate or a typed relation.
+
+### 13.5 Growth loop
+
+```
+new resource release or document occurrence
+→ normalize, resolve against the active snapshot
+→ record unresolved/ambiguous with raw text, language, context, provenance
+→ batch harvest and candidate blocking
+→ deterministic evidence + optional LLM adjudication
+→ deterministic validation gates
+→ transactional concept/surface/mapping update
+→ rebuild indexes, publish next snapshot
+```
+
+Snapshot activation: build and validate a candidate release while readers stay on the prior immutable snapshot, then switch atomically. A normalizer-version change rebuilds every derived key. Readers must never observe half an import.
 
 ---
 
-## 12. Merge, split, lifecycle — 🚧 **Partial**
+## 14. Merge, split, lifecycle — 🚧 **Partial**
 
-`MergeConcept(from, to)` tombstones: `status='merged'`, `merged_into=to`, row survives, self-merge refused, target existence verified. See D7 for the guardrails it lacks and the decision to consolidate the two implementations.
-
-`locked` surfaces are human-asserted; the flag and its toggle are built, but with no reconciler the guarantee is currently vacuous. `never_merge` is storage-only — no keyword path consults it. `split_concept` is not built; splits are rarer and more painful than merges, which is itself the argument for D10.
-
----
-
-## 13. Seeding — ⏳ **Deferred**
-
-Sources, each recording provenance: curated lists already in KnowledgeStore (`import:prompt_seed`); aliases and acronyms already on entities, metrics, provisions, products (`import:artifact_backfill`); curated domain glossaries (`human:<curator>`).
-
-No seed module and no backfill job exist; concepts are authored through the REST API, so the store starts empty. **External vocabulary import is the higher-leverage path** — see §20.1.
-
----
-
-## 14. The bridge to governed terms — ⏳ **Deferred**
-
-A keyword concept is an **ungoverned lexical identity**: fast, high-volume, auto-mergeable under guardrails. A governed ontology term is a **reviewed meaning** with a definition, owner, and release. They connect through an `aligns_to_term` assertion — **never** by merging the keyword concept into the term space.
-
-### 14.0 Catalog vs. assignment — the split that makes governance survive scale
-
-D11 and the ADR's "no LLM activates ontology content" guarantee only appear to conflict. They do not, because they govern two different things with two very different volumes:
-
-| | **Governed content** (the catalog) | **Assignment** (pointing at the catalog) |
-|---|---|---|
-| Example | creating `luminance` as a `metric_definition` term, with its definition and owner | deciding that "显示亮度" in document #47,332 refers to that term |
-| Volume | **hundreds** per domain | **millions** |
-| Gate | **human review stays** (`kb.ontology_candidates`, §14.2) — affordable, and it is what the ADR's guarantee protects | **must be fully automatic** (D11) — a human gate here stalls permanently |
-| Reversible? | via the candidate lifecycle | must be cheap and bulk-reversible |
-
-**So: human-gate the small catalog; auto-assign the large volume to it.** This preserves the ADR's guarantee exactly as written — no LLM creates or activates a governed term — while removing the throughput gate that would otherwise leave `metric_definition_term_id` null on every row forever.
-
-Applied to `aligns_to_term` specifically: connecting a keyword concept to an already-released term is an **assignment**, not content creation. It is therefore auto-proposed and auto-accepted above a threshold, with method, score, and evidence recorded (D11), and with human involvement as sampling and repair rather than as a precondition.
-
-Nothing is built: no assertion type, no column, no producer. ⚠️ It is additionally blocked by a schema constraint: `kb.semantic_assertions.subject_ref_kind` allows only `('object_node','ontology_term','assertion','artifact','literal')` — **no `keyword_concept`** — so a keyword concept cannot be an assertion subject until that CHECK is extended.
-
-### 14.1 Why this matters for metrics
-
-`extract_metrics` and `extract_metric_definitions` both run in Phase B, both touch a metric's name, and **neither resolves it against anything**. There is no dependency edge between them, no shared identifier, and no join anywhere from `kb.metrics.metric_name` to `kb.ontology_terms`. Two documents asserting "luminance is 450 cd/m²" and "亮度为450cd/m²" produce two unrelated rows.
-
-DR23 states the intended fix directly: *"A metric definition's alias set is the DR15/DR16 keyword lexicon instantiated over metric terms, aligned by `aligns_to_term`… the lexicon is not an optional side quest for this application but a prerequisite."* The concrete design is `2026080404`.
-
-### 14.2 `kb.ontology_candidates`
-
-The single proposal channel for all governed content. Nothing reaches `kb.ontology_terms` except through its lifecycle (`discovered → draft → in_review → approved → included_in_release`, with `rejected`/`deferred` branches), and `approved` is reachable only by human action. **This is a genuine by-design gate, not a gap** — it is why zero `metric_definition` instance-terms exist today, and per §14.0 it stays, because the catalog it guards is small enough to review.
-
-⚠️ **But it must not be on the assignment path.** Today nothing distinguishes "propose a new term" from "point an artifact at an existing term," so the gate would apply to both. §14.0 requires that assignment bypasses it entirely; only content creation enters this lifecycle.
-
-Deduplication is exact-fingerprint only: "luminance", "亮度", and "显示亮度" produce three fingerprints and three separate review items with nothing linking them. The `candidate_matches` column exists for exactly that signal. `TermFamily.ResolveCandidate` computes and writes it correctly — **but has no caller** (§17.4), so it never runs. Two fixes, not one: wire a caller for term-duplicate detection, and add keyword resolution to the harvest step for the cross-lingual case.
+`MergeConcept` tombstones; self-merge refused; target existence verified. See D7 for the missing guardrails and the consolidation decision. `locked` surfaces are built but the guarantee is vacuous with no reconciler. `never_merge` is storage-only — no keyword path consults it. `split_concept` is not built.
 
 ---
 
@@ -634,7 +559,7 @@ Deduplication is exact-fingerprint only: "luminance", "亮度", and "显示亮�
 
 | | Under-merge | Over-merge |
 |---|---|---|
-| Symptom | cache miss, goes to the queue | silently wrong answers |
+| Symptom | cache miss → queue | silently wrong answers |
 | Detection | automatic | none |
 | Cost of fix | one reconciliation cycle | manual archaeology |
 | Blast radius | none | every consumer trusting the canonical form |
@@ -644,111 +569,194 @@ Deduplication is exact-fingerprint only: "luminance", "亮度", and "显示亮�
 | Failure | Mitigation | In force? |
 |---|---|---|
 | Canonical label churn | opaque immutable ids | ✅ |
-| Normalizer drift | `norm_version` + re-index | ⚠️ stored, never filtered (N4); already drifted wrong (N1) |
-| LLM self-confirmation | tag unreviewed glosses in prompts | ⏳ reconciliation only |
+| Normalizer drift | `norm_version` + re-index | ⚠️ never filtered (N4); already drifted (N1) |
+| LLM self-confirmation | tag unreviewed glosses | ⏳ reconciliation only |
 | Hallucinated ids | referential gate | ⏳ reconciliation only |
-| Homonym collapse | scope + `ambiguous` verdict | 🚧 verdict real; scope inert (K2) |
+| Homonym collapse | scope + `ambiguous` | 🚧 verdict real; scope inert (K2) |
 | Queue starvation | junk filter, negative caching, priority | ⏳ columns exist, no logic |
-| Multi-writer races | single-writer reconciliation | ⏳ no reconciler |
-| Caller pollution | input validation at the boundary | 🚧 non-empty check only |
+| Caller pollution | input validation | 🚧 non-empty check only |
 
-### 15.3 Where a human is involved — all non-blocking (D11)
-
-**Nothing in production waits for any of these.** Each acts on outcomes after the fact, or on the small governed catalog, never on the assignment path.
+### 15.3 Human involvement — all non-blocking
 
 | Activity | Volume | Blocking? |
 |---|---|---|
-| Creating/approving a governed term (`kb.ontology_candidates`) | hundreds per domain | Gates the **catalog** only, never assignment (§14.0) |
-| Benchmark and gold-set curation | low, offline | No — production never reads it |
-| **Exception repair** — a review result is found wrong, someone corrects the database (retract an alias, add a `never_merge`, fix a concept) and re-runs the app | rare, reactive | No — acts after the fact |
-| Merging two established concepts | rare, structural | Still conservative (D10) — the one place "don't decide automatically" survives |
-| Deleting a `never_merge`, unlocking a `locked` surface | rare | Yes, deliberately — these are the override mechanisms themselves |
+| Creating/approving a governed term | hundreds per domain | Gates the **catalog** only (§16.1) |
+| Benchmark and gold-set curation | low, offline | No |
+| **Exception repair** — a review is wrong; correct the database, re-run | rare, reactive | No — acts after the fact |
+| Merging two established concepts | rare, structural | Conservative (D10) |
+| Deleting a `never_merge`, unlocking a surface | rare | Yes, deliberately — these *are* the override mechanisms |
 
-**Exception repair is a first-class supported workflow, not an admission of failure.** It is what D11's reversibility and attributability requirements exist to serve: when a customer reports a wrong review, someone must be able to find *which* decision caused it, correct it, and re-run — in minutes, not by archaeology. A design that makes repair expensive is a design that forces the human gate back in.
+**Exception repair is a first-class workflow**, and what D11's attributability and reversibility requirements exist to serve: when a customer reports a wrong review, someone must find *which* decision caused it and correct it in minutes. A design that makes repair expensive forces the human gate back in.
 
 ---
 
-## 16. Evaluation
+## 16. The governed-term bridge and metric integration — ⏳ **Deferred**
+
+### 16.1 Catalog vs. assignment — how governance survives scale
+
+D11 and the ADR's "no LLM activates ontology content" only appear to conflict:
+
+| | **Governed content** (catalog) | **Assignment** |
+|---|---|---|
+| Example | creating `luminance` as a `metric_definition` term | deciding "显示亮度" in document #47,332 refers to it |
+| Volume | **hundreds** per domain | **millions** |
+| Gate | **human review stays** — affordable, and what the ADR protects | **fully automatic** (D11) |
+
+**Human-gate the small catalog; auto-assign the large volume to it.** `aligns_to_term` is an *assignment* — auto-proposed, auto-accepted above a threshold, with method/score/evidence recorded.
+
+⚠️ **Blocked by a schema constraint:** `kb.semantic_assertions.subject_ref_kind` allows only `('object_node','ontology_term','assertion','artifact','literal')` — **no `keyword_concept`** — so a keyword concept cannot be an assertion subject until that CHECK is extended.
+
+### 16.2 Why `extract_metrics` and `extract_metric_definitions` don't converge
+
+Both run in Phase B, both touch a metric's name, **neither resolves it**. No dependency edge between them, no shared identifier, no join from `kb.metrics.metric_name` to `kb.ontology_terms`. Two documents asserting "luminance is 450 cd/m²" and "亮度为450cd/m²" produce two unrelated rows — §2's failure, exactly.
+
+`kb.ontology_candidates` dedupes by **exact fingerprint only**, so "luminance", "亮度", and "显示亮度" become three separate review items with nothing linking them. The `candidate_matches` column exists for that signal; `TermFamily.ResolveCandidate` computes and writes it correctly but **has no caller** (§20.4).
+
+### 16.3 The metric row: two identifiers, neither forced
+
+| Field | Populated by | Trust | When empty |
+|---|---|---|---|
+| `metric_name` (unchanged) | `extract_metrics`, as today | provenance | never |
+| `keyword_concept_id` | `resolution.ConceptID` | fast, ungoverned | only if the resolver is `disabled` (D11 auto-creates otherwise) |
+| `metric_definition_term_id` | `resolution.TermID` — only on `term_resolved` | governed | no released term or alignment yet |
+| displayed name | `TermPrefName` → localized concept label → `metric_name` | display only | falls back cleanly |
+
+**Why two and not one.** A keyword auto-accept is cheap and ungoverned; pinning a metric's *authoritative* identity to it alone would let a bad auto-merge silently misfile it with no review boundary. Routing authority through the governed term keeps that boundary while the raw name always remains as provenance.
+
+**Where the call goes:** in the consumer of `extract_metrics`' output, after parsing and validation, **before the metric row is persisted** — not inside `associate_semantics` (§17.1). `extract_metrics` itself is not modified: no prompt change, no extraction change.
+
+---
+
+## 17. Consequences for adjacent subsystems
+
+These are not keyword-module work, but this integration forces them and they have no other home.
+
+### 17.1 `AssociateSemantics` — ⏳ **After the pilot, not blocking it**
+
+The `AssociationResolver` *registry* is genuinely generic. The *package* is not: `init()` self-registers `"metric"` and `"provision"` in the ontology package rather than consumers registering during composition, and `governedMetricAssertionKinds`, the literal `mea:measured_by`, and `canonicalUnitForm`/`unitQuantityKindMap` live in the same file. Adding a metric-specific resolution step there would deepen the coupling rather than use a seam.
+
+**Decision:** `processMetric`/`processProvision` bodies and their domain policy move to consumer adapters; the ontology package stops self-registering. Sequenced *after* the metrics pilot per DR12's vertical-slice framing.
+
+### 17.2 QUDT / `resolveUnitTerms` — ⏳ **Data fix first**
+
+`resolveUnitTerms` should eventually be `ResolveName(Name:"ms", ExpectedTermKinds:["unit"])` — but doing that today moves a broken lookup behind a nicer interface. Two confirmed gaps in `qudt-import/main.go`:
+
+1. **Existing term IDs are skipped, including their labels** (line 238) — which is why 4151 quantity terms have no `kb.ontology_term_labels` rows and a label lookup resolves nothing.
+2. **No unit→quantity-kind relationship is imported at all.**
+
+`canonicalUnitForm`'s hardcoded map is filling those holes — a workaround, **not a pattern worth copying**. Fix order: backfill labels, import the relationships, then retire the maps in favour of governed-label resolution.
+
+---
+
+## 18. Evaluation and required tests
 
 **Online:** coverage/hit rate at tiers 0–4, unresolved rate, ambiguity rate, median latency.
 **Reconciliation:** auto-attach precision, **false-merge rate** (hard gate), backlog burn-down, human-override rate.
 **Candidate generation:** blocking recall/precision, reduction ratio.
 
-### 16.1 Test coverage today — 🚧 thinner than the counts suggest
+### 18.1 Test coverage today — 🚧 thinner than the counts suggest
 
-51 test functions pass; `go build`/`go vet`/`gofmt` clean. That is weaker evidence than it appears:
+51 tests pass; build/vet/gofmt clean. Weaker than it appears:
 
 | File | Funcs | What it verifies |
 |---|---|---|
-| `normalizer_test.go` | 14 | individual steps. **No test asserts an acronym survives singularization** — which is why N1 shipped. |
-| `concepts_store_test.go` | 11 | sqlmock CRUD — SQL shape, not semantics |
-| `surfaces_store_test.go` | 6 | sqlmock CRUD |
-| `keywordfamily_test.go` | 9 | name, policy constants, key mapping, and `off`/nil-DB early returns. **No test drives a tier against a database** — tiers 0–4 have zero behavioural coverage. |
-| `keyword_exit_test.go` | 11 | ⚠️ **assertion-free.** Nine bodies are comments naming other tests; `TestExitCoverageComplete` asserts `len(hardcoded 9-entry map) == 9`. The file cannot fail. |
+| `normalizer_test.go` | 14 | individual steps. **No test asserts an acronym survives singularization** — why N1 shipped. |
+| `concepts_store_test.go` / `surfaces_store_test.go` | 17 | sqlmock CRUD — SQL shape, not semantics |
+| `keywordfamily_test.go` | 9 | constants and `off`/nil-DB early returns. **No test drives a tier against a database.** |
+| `keyword_exit_test.go` | 11 | ⚠️ **assertion-free** — nine bodies are comments; `TestExitCoverageComplete` asserts `len(hardcoded 9-entry map) == 9`. Cannot fail. |
 
-Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it. **Minimum credible set before trusting this module:** per-tier query and score coverage; a normalizer table test containing `AIDS`/`SaaS`/`Kubernetes`/`AWS's`; a scope round-trip (write at `ks`, read at `ks`); and a test asserting an **unset** `KEYWORD_RESOLVER_MODE` writes nothing.
+Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
+
+### 18.2 The required test set
+
+**Correctness (before trusting the module):** per-tier query and score coverage; a normalizer table containing `AIDS`/`SaaS`/`Kubernetes`/`AWS's`; a scope round-trip (write at `ks`, read at `ks`); an **unset** `KEYWORD_RESOLVER_MODE` writing nothing.
+
+**§2 acceptance (the DR23 requirement) — two phases, not a fixture that begins with the answer:**
+
+*Bootstrap/growth:* start with empty tables → import a versioned fixture connecting `Luminance` and `亮度` through one external id → ingest an observed `显示亮度` with language, context, and unit evidence → run reconciliation with real validation gates → assert **one concept, three evidence-bearing surfaces** → activate atomically and prove re-import is idempotent → add a conflicting `亮度` concept and prove ambiguity is preserved rather than over-merged.
+
+*Online:* resolve all three clean names plus dirty variants (`␠␠LUMINANCE␠␠`, `Ｌｕｍｉｎａｎｃｅ`, `显示​亮度`) → assert **the same `ConceptID`** for all while each raw string is preserved → assert **zero LLM/network calls** on every `ResolveName` → assert language-driven label selection → assert scope, term kind, and language participate in ranking → assert `ResolveName` writes nothing and `ResolveAndObserve` writes exactly one linked occurrence + decision → assert `disabled` writes nothing.
+
+*End-to-end (§2.2):* 140 documents with mixed phrasings produce **exactly one comparison-matrix row**; a 141st document with a fifth phrasing does not create a second.
+
+**Structural:** assert **no keyword or ontology code contains a metric-, resource-, or processor-specific branch** to make any of the above pass.
 
 ---
 
-## 17. Status
+## 19. Build order
 
-### 17.1 Deferred — deliberately unbuilt
+1. **K6** — one line, only live-impact defect.
+2. **K2 + K5** — corrupt unreconstructable data.
+3. **N1 (+N2)** — forces a `norm_version` bump; observe-mode data before this must be recomputed.
+4. **One normalizer** (D3): delete `NormFunc` and the `semid` built-in, remove `Normalizer()` from `FamilyAdapter`, consolidate primitives — combined with `Kernel.Resolve(ctx, input, scope)` (§8.2), same files and call sites.
+5. **K1 + N3 + K3** — one "derived keys are actually derived" change.
+6. **K8 + K9 + K10** — merge guardrails per D7; delete `MergeGraph`; explicit `MaxCandidates`.
+7. **K4** — reshape the occurrence table, rename to `kb.keyword_occurrences`, link to the decision log. **Design §13.3's shapes in here** — retrofitting multi-source evidence later means migrating every surface row.
+8. **D11 auto-first** — top-1 on `ambiguous`, auto-create on targeted miss, method/score recorded, low-confidence and auto-created populations queryable as sets.
+9. **Dead-code deletions** (§20.4) and the §18.2 correctness tests.
+10. **`names.Resolver`** (§9.5) — the read-only contract plus `ObserveName`/`ResolveAndObserve`.
+11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations.
+12. **§2 REQ-2/REQ-3** — `subject_ref_kind` fix, the `aligns_to_term` producer, metric columns, and the consumer call.
 
-Fuzzy tiers 5–6 (needs extensions, an embedding model, and the §11.1 scoring decision) · the R1–R7 pipeline · `aligns_to_term` · `on`-mode retrieval wiring · collector pipeline wiring (§9.1) · context-token disambiguation · full Double Metaphone · curated seed content · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof** — the reason every defect below was found by reading rather than by a failing test.
+Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 are what make §2's acceptance test pass.
 
-### 17.2 Defects — built, not as specified
+---
+
+## 20. Status
+
+### 20.1 Deferred
+
+Tiers 5–6 · R1–R7 · `aligns_to_term` · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
+
+### 20.2 Defects
 
 | # | Defect | Where | Effect | Size |
 |---|---|---|---|---|
-| **K6** | resolve endpoint reads `os.Getenv`, so an **unset** var isn't `off` | `keyword_handlers.go:371` | fail-safe default is open; writes on any server that didn't set it | 1 line |
-| **N1** | singularization after case-folding — no ALLCAPS guard | `normalizer.go` | `AIDS→aid`, `SaaS→saa`; every stored `norm_key` is affected | small + `norm_version` bump |
-| **K2** | kernel uses `Family.Scope()` (constant `"_"`) while writes use the caller's scope | `kernel.go:65`, `keywordfamily.go:69` | ks-scoped surfaces written then unfindable; effectively single-scope | small |
-| **K5** | raw surface passed where `UpsertUnresolved` expects `norm_key` | `keywordfamily.go:308` | backlog PK doesn't dedupe variants; negative caching is per-spelling | 1 line |
-| **K1** | nothing writes `kb.keyword_surface_keys` | resolver + REST handler | tiers 2 and 4 match nothing | small |
-| **N3** | `initials` uppercase; tier 4 looks up the *query's* initials | §5.3 | tier 4 cannot bridge; fixing K1 alone makes it match wrongly | design + small |
-| **K3** | REST surface creation stores an unvalidated caller-supplied `norm_key` | `keyword_handlers.go:194` | cardinal rule 2 unenforced; tier-1 index can disagree with the normalizer | small |
-| **K8** | `MergeConcept` bypasses the state machine and all guardrails | `concepts_store.go:218` | re-merge possible; `never_merge` unchecked; merging a nonexistent id "succeeds" | small |
-| **K4** | occurrence table has no column for the observed string; provenance columns never populated; no link to the decision-log row | `keywordfamily.go:253` | `kb.keyword_mentions` holds nothing reconcilable; blocks R1/R4 | schema + wiring |
-| **K7** | collector gates on `IsObserveMode()`, false in `on` | `keyword_mention_collector.go:43` | graduating to `on` turns collection off | 1 line |
-| **N2** | possessive rule needs a trailing space | §5.3 | word-final `AWS's` → `aws'` | 1 line |
-| **K9** | `TermFamily.Scope` returns `""` unconditionally while its comment claims "scopes by module"; the SQL's `($1 = '' OR module_id = $1)` then disables the filter entirely | `termfamily.go:37` | every term search runs across every module | small |
-| **K10** | `TermFamily.AutoAcceptPolicy` leaves `MaxCandidates` at zero, gating off tie-detection | `termfamily.go:32` | `ambiguous` unreachable for that family | 1 line |
+| **K6** | resolve endpoint reads `os.Getenv`; unset ≠ `off` | `keyword_handlers.go:371` | fail-safe default is open | 1 line |
+| **N1** | singularization after case-folding | `normalizer.go` | `AIDS→aid`, `SaaS→saa`; every `norm_key` affected | small + version bump |
+| **K2** | kernel uses `Family.Scope()` (constant `"_"`) | `kernel.go:65`, `keywordfamily.go:69` | ks-scoped surfaces unfindable | small |
+| **K5** | raw surface passed as `norm_key` | `keywordfamily.go:308` | backlog doesn't dedupe | 1 line |
+| **K1** | nothing writes `kb.keyword_surface_keys` | resolver + REST | tiers 2/4 match nothing | small |
+| **N3** | `initials` uppercase; tier 4 uses the query's initials | §6.4 | tier 4 cannot bridge | design + small |
+| **K3** | REST stores unvalidated `norm_key` | `keyword_handlers.go:194` | index can disagree with normalizer | small |
+| **K8** | `MergeConcept` bypasses state machine and guardrails | `concepts_store.go:218` | re-merge; `never_merge` unchecked | small |
+| **K4** | occurrence table has no column for the string; provenance never populated; no link to the decision log | `keywordfamily.go:253` | holds nothing reconcilable | schema + wiring |
+| **K7** | collector gates on `IsObserveMode()` | `keyword_mention_collector.go:43` | `on` turns collection off | 1 line |
+| **N2** | possessive rule needs a trailing space | §6.4 | `AWS's` → `aws'` | 1 line |
+| **K9** | `TermFamily.Scope` returns `""` while its comment claims module scoping; SQL then disables the filter | `termfamily.go:37` | term search ignores module | small |
+| **K10** | `TermFamily` `MaxCandidates` at zero value | `termfamily.go:32` | `ambiguous` unreachable | 1 line |
 
-Lower-severity, recorded inline: byte-sliced context truncation and keep-last-5 in place of reservoir sampling (§8.5); `norm_version` never filtered (N4); `surface_id` hashed before `label_role` defaulting (§8.2); the unreachable `human_review` arm (§7.3); the dead `phonetic` key (§5.2); the `lang`-less uniqueness key (§8.2); assertion-free exit tests (§16.1).
+Lower-severity, inline: byte-sliced context truncation and keep-last-5 (§10.5); `norm_version` unfiltered (N4); `surface_id` hashed before role defaulting; unreachable `human_review` arm (§9.3); dead `phonetic` key; `lang`-less uniqueness (§10.2); assertion-free exit tests (§18.1).
 
-**Fix order.** K6 first — one line, and the only defect with live blast radius. Then K2 and K5, which corrupt data a later fix cannot reconstruct. Then N1, which forces a `norm_version` bump. Then K1/N3/K3 together as one "derived keys are actually derived" change. K8 and K9/K10 before any reconciler work. K4 before R1/R4 is designed.
+**Fix order:** K6 → K2/K5 → N1 → K1/N3/K3 → K8/K9/K10 → K4.
 
-### 17.3 Operational consequence
+### 20.3 Operational consequence
 
-With the variable **explicitly** `off`, the module is inert. **Unset**, it is inert for the collector but not for the REST endpoint (K6). In `observe`, rows are written but the backlog is mis-keyed (K5), scoped inconsistently (K2), and context-free (§9). **Treat all observe-mode data as disposable** — this aligns with the planned data reset; truncate `kb.keyword_unresolved` and any `provenance='llm:observe'` surfaces after the fixes land.
+Explicitly `off` → inert. **Unset** → inert for the collector, *not* for the REST endpoint (K6). In `observe` → rows written but mis-keyed (K5), inconsistently scoped (K2), context-free. **Treat all observe-mode data as disposable**, consistent with the planned data reset.
 
-### 17.4 Dead-code register
+### 20.4 Dead-code register
 
-11 of 12 audited exported functions have zero production callers. This is a consequence of building bottom-up, one table per chunk, with no consumer at any point. Each item below is classified and decided rather than deleted wholesale — some of it is genuinely needed by work that is planned but not yet started, including the **frontend administration pages that are the expected next stage after this module**.
+11 of 12 audited exported functions have zero production callers — a consequence of building bottom-up, one table per chunk, with no consumer. Classified, not deleted wholesale:
 
-| Item | Callers | Classification | Decision |
-|---|---|---|---|
-| `SurfaceKeyStore.UpsertSurfaceKeys` | 0 | **Not dead — unfinished feature.** Tiers 2/4 already query the table it fills. | **Wire** as part of K1 |
-| `UnresolvedStore.ListUnresolved` | 0 | Needed by R2/R3 **and** by a backlog admin page | **Keep** — named consumer in §11 and §17.1 |
-| `UnresolvedStore.UpdateUnresolvedStatus` | 0 | Needed by R7 to transition drained items | **Keep** — named consumer in §11 |
-| `MentionStore.ListMentions` | 0 | Needed by R1 (context harvest) and by an "occurrences in this document" admin view | **Keep** — named consumer in §11 |
-| `NeverMergeStore.Add`/`IsNeverMerge`/`List` | 0 | Required by the D7 merge-guardrail fix and R6's never-merge gate; `List` also backs an admin view | **Keep** — becomes live with K8 |
-| `SnapshotStore.Record`/`Latest` | 0 | Required by snapshot activation (`2026080404` build item 8) | **Keep** — named consumer |
-| `TermFamily.ResolveCandidate` | 0 | Writes `candidate_matches`, which the ontology-candidate review UI needs (§14.2) | **Keep** — needs a caller wired |
-| `MentionStore.InsertMentions` (batch) | 0 | **Genuinely speculative.** It is a `for` loop calling `InsertMention` — no transaction, no multi-row insert, **zero batching benefit**. No planned consumer. | **Delete** |
-| `semid.MergeGraph` (`NewMergeGraph`, `SetNeverMerge`, `IsNeverMerge`, `Merge`, `MergedInto`, `Resolve`, `Unmerge`) | 0 | **Orphaned duplicate.** In-memory, unpersisted, superseded by `ConceptStore.MergeConcept` before it had a caller (D7). | **Delete**, after porting its four guardrails |
+| Item | Classification | Decision |
+|---|---|---|
+| `SurfaceKeyStore.UpsertSurfaceKeys` | **Not dead — unfinished feature**; tiers 2/4 already query it | **Wire** (K1) |
+| `UnresolvedStore.ListUnresolved` | R2/R3 + a backlog admin page | **Keep** |
+| `UnresolvedStore.UpdateUnresolvedStatus` | R7 transitions | **Keep** |
+| `MentionStore.ListMentions` | R1 context harvest + an occurrences admin view | **Keep** |
+| `NeverMergeStore.Add`/`IsNeverMerge`/`List` | D7's merge guardrails + R6's gate | **Keep** — live with K8 |
+| `SnapshotStore.Record`/`Latest` | snapshot activation (§13.5) | **Keep** |
+| `TermFamily.ResolveCandidate` | writes `candidate_matches` for the candidate-review UI | **Keep** — wire a caller |
+| `MentionStore.InsertMentions` | **Speculative** — a `for` loop calling `InsertMention`; no transaction, **zero batching benefit**, no planned consumer | **Delete** |
+| `semid.MergeGraph` (7 funcs) | **Orphaned duplicate**, superseded before it had a caller | **Delete** after porting guardrails |
 
-**Rule going forward:** no store method merges without a caller in the same change, *or* a one-line entry in this register naming the consumer that will call it. The sqlmock tests are what made this accumulate invisibly — they assert SQL shape against a mock, proving nothing about reachability.
+**Rule going forward:** no store method merges without a caller in the same change, *or* an entry here naming the consumer that will call it. The sqlmock tests are what let this accumulate invisibly — they assert SQL shape against a mock, proving nothing about reachability.
 
 ---
 
-## 18. Implementation record
+## 21. Implementation record
 
-**Shipped** (P3 Track B, 2026-08-04, 7 commits on `main`): `641b73b6` concept store · `2355449a` surface + surface_keys stores · `8e709aaa` mention/unresolved/rewrite stores · `c6c4a1a3` normalizer · `5e746c96` `KeywordFamily` + `semid.Normalizer` extension · `e6b8fb55` REST handlers and routes · `b5ffb554` resolver mode, collector, exit criteria.
-
-Package `server/api/ontology/keywords/` · 14 handlers in `kbhandler/` routed at `routes.go:461–474` · standalone collector in `doc-processing/` · 6 goose migrations.
-
-**Verify:**
+P3 Track B, 2026-08-04, 7 commits on `main`: `641b73b6` concept store · `2355449a` surface + surface_keys · `8e709aaa` mention/unresolved/rewrite · `c6c4a1a3` normalizer · `5e746c96` `KeywordFamily` + `NormFunc` · `e6b8fb55` REST + routes · `b5ffb554` mode, collector, exit criteria.
 
 ```bash
 cd ChenWeb
@@ -756,70 +764,68 @@ go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/...
 go build ./... && go vet ./...
 ```
 
-These pass and prove little (§16.1) — no test in the suite would fail if any §17.2 defect were introduced, which is why all were found by reading.
+These pass and prove little (§18.1) — no test would fail if any §20.2 defect were introduced.
 
 ---
 
-## 19. Build order from here
+## 22. Open questions
 
-1. **K6** — one line, only live-impact defect.
-2. **K2 + K5** — corrupt unreconstructable data.
-3. **N1** (+N2) — forces a `norm_version` bump; every day of observe data before this must be recomputed.
-4. **One normalizer** (D3/F1): delete `NormFunc` and the `semid` built-in, remove `Normalizer()` from `FamilyAdapter`, consolidate primitives. Combine with `Kernel.Resolve(ctx, input, scope)` (§6.2) — same files, same call sites, one change.
-5. **K1 + N3 + K3** — one "derived keys are actually derived" change; wire `UpsertSurfaceKeys`.
-6. **K8 + K9 + K10** — merge guardrails consolidated per D7; delete `MergeGraph`; explicit `MaxCandidates`.
-7. **K4** — reshape the occurrence table, rename to `kb.keyword_occurrences`, link it to the decision log. **Design the §20.3 shapes into this same change** — multi-source evidence, external-id mapping, source/release registry. Retrofitting them later means migrating every surface row; adding them while the schema is already open costs almost nothing, and the planned data reset removes any migration burden.
-8. **D11 auto-first behaviour** — top-1 id on `ambiguous` (§6.3, §7.3), auto-create on targeted-name miss (§7.3), method/score/decision-id recorded on every outcome, and a way to query the low-confidence and auto-created populations as sets (D11 requirements 1–3). This is the change that makes the module usable at production scale; steps 1–7 make it correct enough to trust first.
-9. **Dead-code deletions** (§17.4) and the tests in §16.1 — including a test asserting an auto-created concept is distinguishable from a curated one.
-10. Then the addendum's build list: `names.Resolver`, resource ingestion, reconciliation, `aligns_to_term`, the metrics pilot.
-
-Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid` and touch no other subsystem.
+1. **Auto-accept thresholds per tier** (§13.1). Not derivable from first principles — measure against the gold set, ship conservative, tune.
+2. **Whether tier 6 belongs online at all.** Tier 6 must embed *the query* at resolve time. A **local** model is CPU work, consistent with §3's non-goal. A **hosted API** puts a network call on every miss — breaking the non-goal, the latency budget, and independence from a third party. Either host a small multilingual model locally, or **restrict tier 6 to reconciliation** (offline, batched) and let the online path stop at tier 5. **Recommendation: reconciliation-only unless a local model is already in the stack** — D11's auto-creation means a first-seen foreign-language name gets an identity immediately regardless, so deferring the merge costs little.
+3. **Is `brightness` the same metric definition as `luminance`?** (§2.3) A domain-owner decision. The module must represent either answer and must never infer it.
 
 ---
 
-## 20. Open questions
+## 23. Documentation impact
 
-### 20.1 External vocabulary resources
+**What changed.** The addendum `doc-2026080404` is merged here; there is now one document for the module. DR23 is stated as **the governing requirement** with a decomposition and an acceptance test (§2), rather than being an implication readers had to reconstruct. Appendix A's requirement content — multilingual policy, normalization requirements, resource-import shapes, growth loop, required tests — is distributed into §6.3, §7, §13, and §18.2 as **requirements, not deferred appendix material**; what remains of it is a worked example (Appendix A below).
 
-The system should not invent its own lexicon from scratch when curated multilingual vocabularies exist. Resolution is a long-solved problem; harvesting is cheaper than curating.
+**Affected.** ADR `2026072901` (DR15/DR16/DR23) is the design authority, unchanged — this operationalizes it. `2026080501-bug` and `2026080502-bug` hold the reasoning behind these decisions.
 
-- **Wikidata**, not Wikipedia prose, is the strong fit — CC0, downloadable, locally hostable, and structurally `item → {labels per language, aliases, description}`, which is almost exactly `concept → surfaces`. Two insertion points: **seed content** (§13, converting future misses into hits before any document is processed) and **an R1 harvest source** (§11 — zero LLM tokens, and cheaper than tiers 5–6, so it belongs earlier in the waterfall than either).
-- **CC-CEDICT** is narrower and more targeted for the EN↔ZH case this corpus needs.
-- **UMLS** is a strong model and a plausible biomedical source, but it is **not open** — NLM licenses it individually and some constituent vocabularies add restrictions. An importer must preserve those boundaries rather than flattening every atom into unrestricted local data.
-- **Caution for thesaurus-style sources:** a `related`/`broad`/`narrow` relationship must never be silently upgraded to `exact`. "Brightness" and "luminance" are near-synonyms in ordinary language and different governed quantities in photometry. ADR §3.14 (DR13) already binds this: mapping strength is `exact|close|broad|narrow|related`, and lexical similarity may never be recorded as equivalence.
-- **The honest limit for this pilot:** general resources cover common vocabulary and miss narrow regulatory jargon. A ventilator metric from IEC 60601 / ISO 80601 is unlikely to be in Wikidata. **The higher-yield source for the pilot is probably those standards' own terminology sections**, if obtainable machine-readably.
-
-### 20.2 Previously undecided — now resolved (2026-08-05)
-
-- ~~**Kernel scoring change**~~ → **Decided (§11.1):** extend `Score()` to a continuous value, **uncapped**; fuzzy and embedding may auto-accept above tier-specific thresholds, with the §7.2 vetoes remaining hard and method+score recorded on every decision.
-- ~~**Embedding model**~~ → **Decided:** multilingual is a requirement, not an option. An English-only model cannot place "luminance" near "亮度", which is the case that motivates tier 6.
-- ~~**Whether manual curation covers the pilot domain**~~ → **Question withdrawn — D11 makes it moot.** It presupposed curation as the primary path, which auto-first rejects at production scale. Curation is now confined to the small governed catalog (§14.0), benchmarks, and exception repair. The cluster count is still worth knowing for *benchmark* design, but nothing in the production path depends on the answer.
-
-**Remaining open, and genuinely so:**
-
-1. **The specific auto-accept thresholds per tier** (§11.1 item 1). These cannot be chosen from first principles — they need measurement against a gold set, which is what the benchmark curation in §15.3 is for. Ship with conservative defaults, measure, then tune.
-2. **Whether tier 6 belongs in the online path at all.** Deciding the model must be multilingual surfaces a tension not previously stated: tier 6 requires embedding *the query*, at resolve time. If the model is **locally hosted**, that is CPU work and consistent with §2.2's "the online path never calls an LLM." If it is a **hosted API**, tier 6 puts a network call on every miss — breaking both that non-goal and the latency budget, and making the module's availability depend on a third party. Two viable resolutions: host a small multilingual embedding model locally (keeps tier 6 online), or **restrict tier 6 to reconciliation only** (offline, batched — where embedding cost amortizes anyway) and let the online path stop at tier 5. The second is cheaper to build and loses little: a first-time-seen foreign-language name auto-creates a concept under D11 regardless, and reconciliation merges it shortly after. **Recommendation: reconciliation-only for tier 6 unless a local model is already in the stack**, revisited if measurement shows the merge latency matters.
-
-### 20.3 External vocabulary import — deferred to build, accommodated now
-
-**Confirmed important to the keyword module and to the ontology system generally.** Implementation is deferred; the *schema and interfaces should accommodate it now*, because retrofitting multi-source provenance later would mean migrating every surface row. Given the planned data reset, getting the shapes right now is nearly free; getting them wrong is a rebuild.
-
-Three shapes to design in from the start, none of which requires building the importer yet:
-
-1. **Multi-source evidence, not a single provenance string.** `kb.keyword_surfaces` today has one `provenance` TEXT and one `evidence` TEXT — it cannot represent "Wikidata *and* CC-CEDICT both assert this alias," and therefore cannot retract one source's support without destroying the other's. This needs a separate many-to-one evidence table. **This is the one that is expensive to retrofit** and cheap to include now.
-2. **External identity mapping.** `(source, external_concept_id, release) → local concept_id`, so re-import is idempotent and cross-source coalescing is possible. Without it, every refresh duplicates.
-3. **Source/release/license registry.** Which resource, which version, what license class, what redistribution limits — recorded before import, because some sources (UMLS) carry real restrictions that must survive into the data.
-
-The addendum's Appendix A (`2026080404`) works through the resource survey, the bootstrap sequence, and the multilingual policy in detail. Nothing there needs to be built for the metrics pilot; but items 1–3 above should shape the schema whenever §17.2's fixes touch it, rather than being deferred wholesale.
+**Now stale.** `2026080404-spec` is superseded by this merge and should not be edited further. `2026080101-spec` §7 is **wrong**, not merely superseded — it states keyword merges go through the kernel's `MergeGraph`; they do not (D7). The Track B handoff `2026080401` and log `2026080402` record the slice as complete against exit criteria that §18.1 shows were self-certified by assertion-free tests. The `-- +goose Up` comments in migrations `…0005`/`…0006` describe behaviour the code does not implement.
 
 ---
 
-## 21. Documentation impact
+## Appendix A. Worked example — four names, one row
 
-**What changed.** The module is specified and partially implemented; 13 verified defects and a dead-code register are recorded with decisions rather than descriptions. Normalization is now stated as **shared, not per-family** (D3), reversing the earlier position that each family should hold its own profile. Merge is stated as **one implementation, not two** (D7).
+*This is an illustration of §2's requirement, not a source of requirements. Every rule it exercises is stated normatively in the sections above; nothing here adds to them.*
 
-**Affected.** ADR `2026072901` (DR15/DR16/DR23) is the design authority and is unchanged — this operationalizes it. `2026080404` is the consumer-side companion. `2026080502-bug` holds the reasoning behind this rewrite's decisions.
+**Setup.** A bilingual corpus. Luminance appears as `Luminance`, `luminance`, `␠␠LUMINANCE␠␠`, `Ｌｕｍｉｎａｎｃｅ`, `亮度`, `显示亮度`, and `显示​亮度` across many documents. The target: one comparison-matrix row.
 
-**Now stale.** `2026080101-spec` §7 is **wrong**, not merely superseded — it states the keyword family's merges go through the kernel's `MergeGraph`; they do not (D7). The Track B handoff `2026080401` and log `2026080402` record the slice as complete against exit criteria that §16.1 shows were self-certified by assertion-free tests; both should link to §17.2. The `-- +goose Up` comments in migrations `…0005` and `…0006` describe behaviour the code does not implement (K5, §8.6).
+**Stage 1 — normalization collapses spelling variants (§6).** Four of the seven collapse immediately, because they are variants of *one* string:
 
-**Left undocumented.** Exact migration filenames and column names for the fixes above; the `aligns_to_term` payload shape; reconciliation prompt text (which belongs in `prompts/`, per `ChenWeb/CLAUDE.md`).
+| Input | `norm_key` | By which step |
+|---|---|---|
+| `Luminance` | `luminance` | case-fold (7) |
+| `␠␠LUMINANCE␠␠` | `luminance` | whitespace (5) + case-fold (7) |
+| `Ｌｕｍｉｎａｎｃｅ` | `luminance` | NFKC (1) + case-fold (7) |
+| `显示​亮度` | `显示亮度` | zero-width strip (2) |
+
+The other three do not: `亮度` → `亮度`, `显示亮度` → `显示亮度`, `luminance` → `luminance` — **three different keys**. Normalization has done all it can; §5.3 is why.
+
+**Stage 2 — the first name creates the concept.** `extract_metrics` yields `metric_name = "Luminance"`. `names.Resolver.ResolveName` (§9.5) misses every tier, and per D11 **auto-creates** a provisional concept `kwc_L` with surface `Luminance`, returning its id. The metric persists `metric_name` unchanged plus `keyword_concept_id = kwc_L`. **No human was involved and the metric is not left without an identity.**
+
+**Stage 3 — variants attach automatically.** A later document says `␠␠LUMINANCE␠␠`. Tier 0 misses (different literal); **tier 1 hits** on the shared `norm_key`. The resolver returns `kwc_L` and records the new literal as an `alt` surface. Same for `Ｌｕｍｉｎａｎｃｅ`. Cost: zero LLM calls, zero human decisions.
+
+**Stage 4 — a translation creates a second concept, deliberately.** A Chinese document yields `亮度`. Every tier misses — `亮度` shares no derived key with `luminance`, and no amount of normalization will change that. D11 auto-creates `kwc_B`.
+
+**There are now two concepts for one meaning. This is the designed intermediate state, not a failure** — and it is strictly better than the alternative: the metric *has* an identity, is groupable and countable, and the duplication is a detectable condition rather than an absence.
+
+**Stage 5 — reconciliation unifies them (§13).** The batch job blocks `kwc_B` against existing concepts using multilingual embeddings (tier 6, §13.1): `亮度` and `luminance` sit close in vector space where edit distance sees nothing. R6's gates check unit compatibility (both `cd/m²`), scope, and `never_merge`. R7 merges `kwc_B` into `kwc_L` — a tombstone, reversible, recorded with method, score, and evidence.
+
+`显示亮度` follows the same path. **Result: one concept, all seven strings.** REQ-1 of §2.1 is satisfied — by auto-creation plus reconciliation, not by normalization and not by a person.
+
+**Stage 6 — the governed term (§16).** A domain owner creates `mea:luminance` as a `metric_definition` term once, through the human-gated catalog path — hundreds of such terms, reviewed once each. An `aligns_to_term` assertion connects `kwc_L` to it, **auto-proposed and auto-accepted** above threshold, because assignment is not catalog creation (§16.1).
+
+**Stage 7 — one row.** Every metric from every document now carries `metric_definition_term_id = mea:luminance`. The comparison run keys on term id (REQ-4) and renders **one row** holding all documents' assertions. A 141st document with an eighth phrasing enters at Stage 4 and converges through Stage 5 without anyone being asked.
+
+**What would have broken it, and which rule prevents each:**
+
+| Failure | Prevented by |
+|---|---|
+| `Ｌｕｍｉｎａｎｃｅ` treated as a distinct metric | NFKC (§6.1 step 1) |
+| `亮度` left unresolved, its documents missing from the row | D11 auto-create |
+| `亮度` and `luminance` never unified | tier 6 + reconciliation (§13) |
+| `brightness` silently folded in as an alias | §13.4 — relation strength is never upgraded on import; §2.3 — a domain decision |
+| The row keyed on a label, breaking when the label changes | Cardinal rule 1 (§5.1) — join on `concept_id`/`term_id`, never a string |
+| `AIDS`-style acronym destroyed en route | N1's fix (§6.4) — **not currently in place** |

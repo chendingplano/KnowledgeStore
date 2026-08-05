@@ -1,4 +1,24 @@
-# Metric Name Canonicalization — Addendum to the Keyword Spec
+# Metric Name Canonicalization — Addendum (SUPERSEDED)
+
+> **⚠️ SUPERSEDED 2026-08-05 — merged into `2026080403-spec-keyword-canonicalization-and-reconciliation.md`.**
+>
+> Do not read this document for current design, and do not edit it. Everything load-bearing was merged into the master spec:
+>
+> | This document's content | Now in `2026080403-spec` |
+> |---|---|
+> | `names.Resolver` contract, read/write separation, five statuses | §9.5 |
+> | Why the call does not belong in `associate_semantics` | §17.1 |
+> | QUDT / `resolveUnitTerms` data fix | §17.2 |
+> | Metric two-identifier design (`keyword_concept_id`, `metric_definition_term_id`) | §16.3 |
+> | Why `extract_metrics` and `extract_metric_definitions` don't converge | §16.2 |
+> | Appendix A's requirements — multilingual policy, normalization requirements, resource-import shapes, growth loop, required tests | §7, §6.3, §13, §18.2 — **as requirements, not deferred appendix material** |
+> | Appendix A's example | §Appendix A, rewritten as a genuine worked example |
+> | Build list | §19 |
+>
+> Retained on disk as history only. The master spec is the single reference for the keyword module.
+
+---
+
 
 - **DocID:** `doc-2026080404`
 - **Status:** Proposed addendum — its decisions are unimplemented; underlying keyword tables, stores, REST APIs, and tier 0–4 code are partial existing implementation
