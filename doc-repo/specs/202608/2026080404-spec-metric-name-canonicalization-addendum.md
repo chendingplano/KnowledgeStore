@@ -24,13 +24,29 @@ Appendix A was corrected again on 2026-08-05 after review exposed an invalid sta
 
 ---
 
-## 0. Why this is a separate document
+## 0. Scope — what is in this document and what is not
 
-`2026080403-spec` is the keyword module's own reference: what it is, what's built, what's deferred, what's broken. This addendum is about something else—**how a consumer** (metric extraction) is meant to use it, and what has to exist for that to actually work. It stays separate because none of this addendum's proposed decisions has shipped, even though it evaluates and reuses partial implementation documented by `2026080403-spec`.
+`2026080403-spec` is the **master** document for the keyword module: its design decisions, data model, defect register, dead-code register, and build order. This addendum covers only what is specific to **consuming** that module, plus the metrics pilot.
 
-This document also answers a broader question raised alongside the metric-name question: whether the "existing doc processors don't know about the ontology modules" gap should be closed by modifying those processors, and what happens to two adjacent pieces (the mention collector, and how governed terms handle multiple meanings of the same word) once that question is answered. §3–§5 cover those; §6–§7 return to the metric-name design proper.
+**In this document:**
 
----
+- why `extract_metrics` and `extract_metric_definitions` do not converge today, and what closing that gap requires (§1, §5);
+- the two-identifier design for a metric row — `keyword_concept_id` and `metric_definition_term_id` (§5);
+- a hop-by-hop trace of one metric name through the resolution chain, marked TODAY vs. PROPOSED (§5.1);
+- restructuring decisions for **other** subsystems that this integration forces: `AssociateSemantics` (§2.3) and QUDT/`resolveUnitTerms` (§2.4);
+- the build list for the pilot (§6);
+- **Appendix A** — lexicon warm-start from external vocabulary resources, the multilingual policy, and the required tests.
+
+**Not in this document — read the master spec instead:**
+
+| Topic | Where |
+|---|---|
+| The `names.Resolver` public contract | `2026080403-spec` §7.5 |
+| The four identity layers, tiers, normalization | `2026080403-spec` §3–§7 |
+| Auto-first (D11) and the catalog/assignment split | `2026080403-spec` D11, §14.0 |
+| Defects, dead code, and the fix order | `2026080403-spec` §17, §19 |
+
+**Known boundary issue.** Appendix A is module-generic — it describes how the *lexicon* is bootstrapped and grown from external vocabularies, which is not a metric concern. Its natural home is the master spec's §13 (Seeding) and §20.3. It stays here for now because it is substantial, self-contained, and entirely deferred work: nothing in the current build order (`2026080403-spec` §19 steps 1–9) depends on it. Move it when resource ingestion is actually scheduled, not before.
 
 ## 1. The problem, restated
 
@@ -47,90 +63,13 @@ Nothing in the running code performs this resolution. This addendum proposes the
 
 ---
 
-## 2. Decision: a consumer-agnostic name-resolution interface, not a direct call into the keyword module's internals
+## 2. Where name resolution happens — pointer, not a second copy
 
-**Existing doc processors, including `extract_metrics`, should still not be modified.** That part of the original reasoning holds. What was wrong was *where the new logic should go instead* — the original version of this section put it inside `associate_semantics.processMetric`. It shouldn't be there, for two independent reasons, both confirmed against the code:
+**The `names.Resolver` contract now lives in `2026080403-spec` §7.5**, where it belongs: it is the keyword module's public interface, generic over every consumer, not a metric concern. It was drafted here because the metric case forced the question; keeping it here would mean a developer looking for the module's public API has to read a document titled "metric name canonicalization" to find it.
 
-**First, `associate_semantics.go` is not the clean generic package the original version of this section described.** The `AssociationResolver` *registry mechanism* genuinely is generic — it dispatches on `source_artifact_type` without caring whether the artifact type is old or new. But the *package* built around that registry is not: `init()` (`associate_semantics.go:138`) self-registers `"metric"` and `"provision"` resolvers directly in the ontology package, rather than consumers registering themselves during application composition. `governedMetricAssertionKinds` (a measurement-domain policy map), the literal predicate `mea:measured_by`, and `canonicalUnitForm`/`unitQuantityKindMap` (hardcoded unit-resolution maps) all live in this same file. Adding a metric-specific `resolveMetricDefinitionTerm` step here — the original proposal — would have been a fourth piece of hardcoded metric knowledge added to a package that already has three, not a clean use of a generic seam.
+What that section settles, in brief: consumers never call `KeywordFamily.ResolveSurface` directly; `ResolveName` is read-only (including no decision-log write) with `ObserveName`/`ResolveAndObserve` doing all recording; five statuses, all normal results; and `TermID` set only by an exact governed-label match or an accepted `aligns_to_term` alignment.
 
-**Second, `KeywordFamily.ResolveSurface` is not a good interface for a consumer to depend on directly.** It mixes a lookup with writes to four different tables in one call (`2026080403-spec` §3 D1's trace); its parameters expose storage concepts (`artifactRef`) that have nothing to do with what a caller is trying to ask; and its caller-supplied `scope` argument is silently ignored during matching (K2). A consumer calling this directly couples itself to an implementation detail that is expected to keep changing (§17.2's eleven defects, the `aligns_to_term` bridge not existing yet, tiers 5–6 unbuilt) rather than to a stable contract.
-
-**The corrected decision:** a new, consumer-agnostic package — `ChenWeb/server/api/ontology/names/` — sitting between any consumer and the keyword module's internals:
-
-```go
-type NameResolver interface {
-    ResolveName(ctx context.Context, req ResolveNameRequest) (NameResolution, error)
-    ResolveNames(ctx context.Context, reqs []ResolveNameRequest) ([]NameResolution, error)
-}
-
-type ResolveNameRequest struct {
-    Name              string
-    Scope             string
-    ExpectedTermKinds []string   // e.g. "metric_definition" for a metric, "unit" for a unit
-    ExpectedModules   []string
-    Language          string
-}
-
-type NameResolution struct {
-    RawName, NormalizedKey string
-    Status                 ResolutionStatus  // term_resolved | lexical_resolved | ambiguous | unresolved | disabled
-
-    ConceptID, ConceptPrefName string        // keyword layer — fast, ungoverned
-    TermID, TermPrefName, TermKind, ModuleID string  // governed layer — only set per §4's rule below
-
-    Candidates []NameCandidate
-    Method     string
-    Confidence float64
-}
-```
-
-No `MetricID`, no processor name, no consumer table appears anywhere in this contract. A metric asks for `ExpectedTermKinds: ["metric_definition"]`; a unit (once this replaces `canonicalUnitForm`, §6) would ask for `["unit"]`; a future test-method or inventory-item consumer asks for whatever kind fits, with no changes to the resolver itself. Read/write are also explicitly separated (§3 below) — `ResolveName` never writes; observation is a distinct, opt-in call.
-
-**Where consumers call it:** for `extract_metrics`, after the LLM result is parsed and validated but before the metric row is persisted — not inside `associate_semantics` at all:
-
-```go
-resolution := resolver.ResolveName(ctx, ResolveNameRequest{
-    Name: metric.Name, Scope: knowledgeStoreID,
-    ExpectedTermKinds: []string{"metric_definition"},
-})
-// persist metric.Name unchanged, plus resolution.ConceptID and resolution.TermID when set
-```
-
-`extract_metrics` itself still isn't modified in the sense that matters — no LLM prompt, no extraction logic changes; what changes is that the *consumer of its output*, before persistence, makes one call to a stable, generic interface rather than nothing at all. `AssociateSemantics` keeps its existing job (building qualified semantic assertions from already-resolved data); it stops being where name discovery happens.
-
-### 2.1 Read and write are separate operations, not one call that always does both
-
-`KeywordFamily.ResolveSurface` (§2 above) attempts writes—a mention row, a decision-log row, and either a surface or a backlog row—on every call, with no way to just ask "what does this resolve to" without also recording it as an observation. Several of those write errors are discarded, so even the attempted side effects are not atomic or guaranteed. That's a real defect independent of everything else in this section: a debugging tool, a UI autocomplete, a test, or a reprocessing run has no way to *look up* a name without *also* attempting to pollute the mention/decision-log/backlog tables.
-
-`names.Resolver.ResolveName` is read-only — **including the decision-log write.** Today's `ResolveSurface` appends to `kb.semid_decision_log` unconditionally, on every call, regardless of whether the caller wanted an observation recorded (`2026080403-spec` §3 D1, OQ07). Under the corrected design, a plain `ResolveName` produces no decision-log entry either — audit logging moves to the same side of the line as the mention/surface/backlog writes. A separate, explicit call does all of the writing:
-
-```go
-ObserveName(ctx context.Context, occurrence NameOccurrence) error
-// or, as a convenience that does both:
-ResolveAndObserve(ctx context.Context, req ResolveNameRequest, occurrence NameOccurrence) (NameResolution, error)
-```
-
-Consumers that want evidence to accumulate (the common case — most callers should default to `ResolveAndObserve`) get it explicitly, not as an unavoidable side effect of asking a question.
-
-The occurrence record this writes should be shaped to actually answer "what was seen, where" — unlike today's `kb.keyword_mentions` (§17.2 K4), which has no column for the name itself. At minimum: `artifact_type`, `artifact_id`, `field_path` (consumer-supplied provenance, e.g. `"metric_name"` — meaningful to the consumer, opaque to the resolver), `raw_name`, `scope`, `context`, `chunk_ref`, `concept_id` (nullable), `term_id` (nullable), `resolution_status`, and a link to the decision-log row from the same call — closing the gap named in `2026080403-spec` §3 D1's trace, where the mention row and the decision-log row from one call currently share no key at all.
-
-### 2.2 Resolution semantics: lexical and governed identity are different things, and the contract must say so
-
-A name can land in one of five states, and all five are normal results, not errors:
-
-| Status | Meaning |
-|---|---|
-| `term_resolved` | exactly one released governed term is established |
-| `lexical_resolved` | a keyword concept was found, but no governed alignment exists yet |
-| `ambiguous` | multiple equally valid concepts or terms remain |
-| `unresolved` | no match |
-| `disabled` | the resolver is intentionally off (mirrors `KEYWORD_RESOLVER_MODE=off`, §7.4 of the keyword spec) |
-
-**The rule that matters: `TermID` is set only by one of two things — an unambiguous exact match against a released term's governed label after expected-kind/module filtering, or an accepted `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`: a keyword concept is an ungoverned lexical identity, and promoting it silently to a governed one would erase the distinction the two layers exist to keep.
-
-⚠️ **Revised 2026-08-05 (D11).** An earlier version of this rule said the alignment must be "accepted, **reviewed**" — human-confirmed before any `TermID` could be set. That is withdrawn. Per `2026080403-spec` §14.0, **creating a governed term is human-gated; assigning an artifact to an already-released term is not** — the catalog is hundreds of items, the assignments are millions. An `aligns_to_term` assertion is an assignment. It is therefore **auto-proposed and auto-accepted above a threshold**, with method, score, and evidence recorded so the population stays sampleable and reversible.
-
-What survives from the original rule is the *layer boundary*, not the human gate: a tier-0–4 lexical hit alone still cannot produce a `TermID`; it takes either an exact governed-label match or an actual alignment assertion. If an exact governed label still names multiple released terms, the verdict is `ambiguous` — and per D11 it now carries a top-1 pick alongside the tied set, rather than returning nothing.
+**Why not inside `associate_semantics`** — the finding that redirected this design, retained here because it is about the *consumer* side and has no other home. `associate_semantics.go` is not the clean generic package an earlier version of this document assumed: `init()` self-registers `"metric"` and `"provision"` in the ontology package rather than consumers registering during composition, and `governedMetricAssertionKinds`, the literal `mea:measured_by` predicate, and `canonicalUnitForm`/`unitQuantityKindMap` all live in that same file. Adding a metric-specific `resolveMetricDefinitionTerm` step there would have been a fourth piece of hardcoded metric knowledge in a package already carrying three. The resolution call belongs in the consumer of `extract_metrics`' output, before the metric row is persisted — not in `associate_semantics` at all.
 
 ### 2.3 What stays in `AssociateSemantics`, what moves out
 
@@ -166,7 +105,7 @@ The other adjacent question: if a metric's canonical identity is meant to land o
 
 **The current term store doesn't attempt to; the proposed facade must do so conservatively.** Verified in `ChenWeb/server/api/ontology/terms/terms_store.go`: there is no lookup-by-label function today. Terms are reached only by an already-known, namespaced `term_id` (`bio:apple` vs. `org:apple_inc`, for example). Two meanings become two term rows with separate `kb.ontology_term_labels` rows.
 
-The proposed exact governed-label path in §2.2 may return a `TermID` only when expected kind/module filters leave one released term. If two released terms still share the label, the result is `ambiguous` (carrying a top-1 pick, per D11). The other path is an accepted `aligns_to_term` assertion — **auto-proposed and auto-accepted above a threshold, not human-reviewed per instance** (§2.2, revised). The homonym protection does not come from a person inspecting each link; it comes from the two *terms* being separate governed rows, created once through the human-gated catalog path, so an alignment can only ever point at one of them.
+The exact governed-label path (`2026080403-spec` §7.5) may return a `TermID` only when expected kind/module filters leave one released term. If two released terms still share the label, the result is `ambiguous` (carrying a top-1 pick, per D11). The other path is an accepted `aligns_to_term` assertion — **auto-proposed and auto-accepted above a threshold, not human-reviewed per instance** (`2026080403-spec` §7.5). The homonym protection does not come from a person inspecting each link; it comes from the two *terms* being separate governed rows, created once through the human-gated catalog path, so an alignment can only ever point at one of them.
 
 This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the keyword spec): the keyword layer is where automated, ambiguity-tolerant "string → concept" resolution happens. The term layer holds governed meanings. An exact unique governed label can resolve directly; every non-exact lexical link requires accepted alignment evidence. A metric's `metric_definition_term_id`, once set through either governed path, carries no unresolved homonymy from the lexical lookup.
 
@@ -174,15 +113,15 @@ This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the 
 
 ## 5. The proposed design: two identifiers, neither one forced
 
-The design in `2026080403-spec`'s D5/D10 (ambiguity is first-class; bias toward under-merging) points one direction, and §2.2's resolution-semantics rule points the same way independently: resolve where you can, never overwrite, never force.
+The design in `2026080403-spec`'s D5/D10 (ambiguity is first-class; bias toward under-merging) points one direction, and §7.5's resolution-semantics rule in the master spec points the same way independently: resolve where you can, never overwrite, never force.
 
-Applied to a metric, that means **two** identifiers, at two different trust levels, in addition to the raw extracted name — populated by one call to `names.Resolver.ResolveName` (§2), not by a direct call into the keyword module:
+Applied to a metric, that means **two** identifiers, at two different trust levels, in addition to the raw extracted name — populated by one call to `names.Resolver.ResolveName` (`2026080403-spec` §7.5), not by a direct call into the keyword module:
 
 | Field | Populated by | Trust level | When empty |
 |---|---|---|---|
 | `metric_name` (unchanged) | `extract_metrics`, as today | — (provenance) | never — always the literal extracted string |
 | `keyword_concept_id` (nullable) | `resolution.ConceptID`, set whenever status is `lexical_resolved` or `term_resolved` | fast, ungoverned, auto-mergeable | status is `unresolved` or `ambiguous` |
-| `metric_definition_term_id` (nullable) | `resolution.TermID`, set only when status is `term_resolved`—an unambiguous exact released label or accepted `aligns_to_term`, per §2.2 | governed | status is anything else (§4) |
+| `metric_definition_term_id` (nullable) | `resolution.TermID`, set only when status is `term_resolved`—an unambiguous exact released label or accepted `aligns_to_term`, per `2026080403-spec` §7.5 | governed | status is anything else (§4) |
 | canonical name shown to users | governed `TermPrefName` when available; otherwise language-selected lexical concept label; raw `metric_name` as final fallback | display only—the persisted identity remains an id | falls back cleanly |
 
 **Why two identifiers and not one.** A keyword-tier auto-accept is cheap and ungoverned by design—that's what makes working mode fast. Its localized concept label is useful for grouping and display, but must be visibly treated as lexical/provisional. Pinning a metric's *authoritative* identity to `keyword_concept_id` alone would mean a bad auto-merge silently misfiles it with no review boundary. Routing authoritative identity through either governed path—an unambiguous exact released label or an accepted `aligns_to_term` assertion—keeps that guarantee intact; the raw extracted name always remains available as provenance and fallback.
@@ -193,7 +132,7 @@ Applied to a metric, that means **two** identifiers, at two different trust leve
 
 The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface → lexform → concept`. A metric name is one instance of "name." Nothing below is metric-specific machinery — it's the same four-layer mechanism every keyword goes through, traced concretely for this one case so every hop can be checked against the running code rather than taken on faith.
 
-**Not via the collector, and — per the 2026-08-05 revision above — not via `associate_semantics` either.** `extract_metrics` does not "register with" the mention collector; the collector reads raw chunk text and tokenizes it itself, blind to what any processor extracted (§9.1), and plays no role in this design. The mechanism below is a call to `names.Resolver.ResolveName(metricName, ...)` (§2), made by whatever consumes `extract_metrics`' output before persisting a metric row — not a call to `KeywordFamily.ResolveSurface` from inside `associate_semantics.processMetric`, which was this document's original (incorrect) proposal. `names.Resolver` internally uses the same tier 0–4 mechanism traced below; what changed is who calls it and through what contract, not what happens once the call is made.
+**Not via the collector, and — per the 2026-08-05 revision above — not via `associate_semantics` either.** `extract_metrics` does not "register with" the mention collector; the collector reads raw chunk text and tokenizes it itself, blind to what any processor extracted (§9.1), and plays no role in this design. The mechanism below is a call to `names.Resolver.ResolveName(metricName, ...)` (`2026080403-spec` §7.5), made by whatever consumes `extract_metrics`' output before persisting a metric row — not a call to `KeywordFamily.ResolveSurface` from inside `associate_semantics.processMetric`, which was this document's original (incorrect) proposal. `names.Resolver` internally uses the same tier 0–4 mechanism traced below; what changed is who calls it and through what contract, not what happens once the call is made.
 
 **TODAY—what the underlying `KeywordFamily.ResolveSurface` does, in order** (not what the proposed read-only `ResolveName` will do):
 
@@ -272,16 +211,16 @@ All three are entirely unbuilt (`2026080403-spec` §11, §17.1). Manual curation
 Most of the following is unbuilt. Resource acquisition also has real external constraints: each source's license, release process, availability, and redistribution limits must be approved and recorded before import.
 
 1. **Fix the keyword-module correctness defects and normalization first.** §17.2 of `2026080403-spec` lists eleven; K2 (scope ignored), K5 (backlog keyed on raw surface), and N1 (normalizer over-collapses) would each silently corrupt this integration on day one. Implement the generic base cleaner plus versioned language profiles in Appendix A.5–A.6, populate all derived surface keys, change unknown language from `en` to `und`, and revise surface uniqueness so legitimate multilingual rows are representable (including language in the identity, with a separate invariant for one preferred surface per concept/scope/language). **K3, decided (`2026080403-spec` §3.1 OQ09):** `CreateKeywordSurface` must derive `norm_key`/`norm_version`/derived keys server-side via `KeywordNormalizer`, and reject (not silently ignore) a caller-supplied `norm_key`.
-2. **Fix the `Kernel.Resolve` / `KeywordFamily.ResolveSurface` naming, decided (`2026080403-spec` §3.1 OQ07):** rename `Kernel.Resolve`'s parameter from `surface` to `input` (or `text`) and its doc comment — the generic kernel must not use family-specific vocabulary; confirmed `TermFamily` already reuses the name `surface` for a different concept entirely (a term proposal, not a persisted entity), which is the same class of leak the bug report found in `associate_semantics.go`, one layer down. Split `KeywordFamily.ResolveSurface` into a pure `ResolveSurface` (matching `Kernel.Resolve`'s actual behavior) and an `ObserveSurface`/`ResolveAndObserveSurface` that does today's writes — extending the `Resolve`-never-writes rule (§2.1) down through every layer of the stack, not just the `names.Resolver` facade. **Same item, two more fixes surfaced by tracing both families on one input (`2026080403-spec` §3.1, the "显示亮度" trace):** `TermFamily.Scope` returns `""` unconditionally while its own comment claims "scopes by module" — fix the code or the comment, they currently disagree, and the SQL bug (module filter structurally disabled) needs closing regardless. `TermFamily.Normalizer()` should stop defaulting to the kernel's generic three-step fallback and get its own deliberately-chosen profile — the "governed content should be conservative" justification for the current gap does not hold once `AutoAcceptPolicy{Enabled: false}` is accounted for (that policy alone already prevents any silent auto-merge, independent of normalization strength), and the actual cost of the current gap is candidate recall: a genuine duplicate term can fail to surface as a candidate at all, never reaching a reviewer to catch.
+2. **Fix the `Kernel.Resolve` / `KeywordFamily.ResolveSurface` naming, decided (`2026080403-spec` §3.1 OQ07):** rename `Kernel.Resolve`'s parameter from `surface` to `input` (or `text`) and its doc comment — the generic kernel must not use family-specific vocabulary; confirmed `TermFamily` already reuses the name `surface` for a different concept entirely (a term proposal, not a persisted entity), which is the same class of leak the bug report found in `associate_semantics.go`, one layer down. Split `KeywordFamily.ResolveSurface` into a pure `ResolveSurface` (matching `Kernel.Resolve`'s actual behavior) and an `ObserveSurface`/`ResolveAndObserveSurface` that does today's writes — extending the `Resolve`-never-writes rule (`2026080403-spec` §7.5) down through every layer of the stack, not just the `names.Resolver` facade. **Same item, two more fixes surfaced by tracing both families on one input (`2026080403-spec` §3.1, the "显示亮度" trace):** `TermFamily.Scope` returns `""` unconditionally while its own comment claims "scopes by module" — fix the code or the comment, they currently disagree, and the SQL bug (module filter structurally disabled) needs closing regardless. `TermFamily.Normalizer()` should stop defaulting to the kernel's generic three-step fallback and get its own deliberately-chosen profile — the "governed content should be conservative" justification for the current gap does not hold once `AutoAcceptPolicy{Enabled: false}` is accounted for (that policy alone already prevents any silent auto-merge, independent of normalization strength), and the actual cost of the current gap is candidate recall: a genuine duplicate term can fail to surface as a candidate at all, never reaching a reviewer to catch.
 3. **Build generic resource ingestion.** Add source adapters, a source-release/license registry, external-concept mappings, idempotent full/delta import, a separate many-to-one source-evidence/assertion table, and a bounded domain filter. The evidence table—not a surface's single provenance string—must support independent source retraction. No adapter logic belongs in a document processor.
 4. **Build a metrics warm-start package as configuration/data, not keyword-core code.** Select relevant resources from `20260805-rsch`, include curated metric glossaries and artifact backfill, then measure coverage and ambiguity before activation.
-5. **Build the `names.Resolver` interface and its `KeywordFamily`-backed implementation** (§2)—the read-only `ResolveName`/`ResolveNames` contract, language-aware preferred-label selection, correct scope handling, and expected-kind/module filtering on the governed-term continuation. A bare keyword concept is not filtered by term kind until an alignment/type assertion supplies that evidence.
-6. **Build complete observation records and `ResolveAndObserve`.** Replace `kb.keyword_mentions`' incomplete shape with the occurrence data in §2.1, linked to the resolution decision and unresolved backlog. Renaming the table to `kb.keyword_occurrences` at the same time is low-cost and recommended (`2026080403-spec` §3.1 OQ02) — confirmed nothing outside the keyword package reads it today.
+5. **Build the `names.Resolver` interface and its `KeywordFamily`-backed implementation** (`2026080403-spec` §7.5)—the read-only `ResolveName`/`ResolveNames` contract, language-aware preferred-label selection, correct scope handling, and expected-kind/module filtering on the governed-term continuation. A bare keyword concept is not filtered by term kind until an alignment/type assertion supplies that evidence.
+6. **Build complete observation records and `ResolveAndObserve`.** Replace `kb.keyword_mentions`' incomplete shape with the occurrence data in `2026080403-spec` §7.5, linked to the resolution decision and unresolved backlog. Renaming the table to `kb.keyword_occurrences` at the same time is low-cost and recommended (`2026080403-spec` §3.1 OQ02) — confirmed nothing outside the keyword package reads it today.
 7. **Build the minimum R1–R7 reconciliation loop required to drain misses.** Deterministic harvest/blocking comes first; multilingual embeddings and batched LLM adjudication are permitted for candidates; deterministic gates and transactional apply remain mandatory. The reconciler, not the LLM, owns writes.
 8. **Add versioned snapshot activation.** Build and validate a candidate lexicon release while readers remain on the prior immutable snapshot, then switch atomically. Normalizer-version changes rebuild every derived key.
 9. **`extract_metric_definitions` resolves its `canonical_name`/`aliases` through `names.Resolver`** at harvest time (`ontology_candidate_harvest.go`) and records evidence-bearing `candidate_matches` instead of leaving names as inert JSON.
 10. **Build an `aligns_to_term` producer**, plus the schema fix it depends on: `kb.semantic_assertions.subject_ref_kind`'s `CHECK` constraint currently allows only `('object_node', 'ontology_term', 'assertion', 'artifact', 'literal')`, with no `'keyword_concept'` value. A keyword concept cannot be an assertion subject until this constraint is extended.
-11. **`extract_metrics`' consumer calls `names.Resolver.ResolveName`** before the metric row is persisted (§2), setting `keyword_concept_id`/`metric_definition_term_id` per §2.2's rule—not inside `AssociateSemantics.processMetric`.
+11. **`extract_metrics`' consumer calls `names.Resolver.ResolveName`** before the metric row is persisted (`2026080403-spec` §7.5), setting `keyword_concept_id`/`metric_definition_term_id` per that section's rule—not inside `AssociateSemantics.processMetric`.
 12. **Schema:** `kb.metrics` and/or `kb.semantic_assertions` gain nullable `keyword_concept_id` and `metric_definition_term_id` columns, with no constraint forcing either resolution to succeed.
 
 **Deliberately sequenced after the metrics pilot, not blocking it:** moving `processMetric`/`processProvision` out of `AssociateSemantics` into consumer-specific adapters and un-registering them from the shared `init()` (§2.3); backfilling QUDT labels and importing unit→quantity-kind relationships so `resolveUnitTerms` can retire in favor of `names.Resolver` (§2.4). Both are real architectural debt, confirmed real by the same review that corrected this document — but neither has to be paid down before one metric name resolves correctly, and DR12's own vertical-slice framing argues for proving the pilot before generalizing further.

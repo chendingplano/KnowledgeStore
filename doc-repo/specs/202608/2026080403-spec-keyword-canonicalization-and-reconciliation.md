@@ -400,6 +400,64 @@ Called by the mention collector and the REST resolve handler. In order:
 
 ---
 
+### 7.5 The consumer interface: `names.Resolver` — ⏳ **Not built**
+
+Everything above describes the module's *internals*. **No consumer should call any of it directly.** `KeywordFamily.ResolveSurface` is not a usable public contract: it mixes a read with writes to four tables, exposes storage concepts (`artifactRef`) unrelated to what a caller is asking, silently ignores the caller's scope (K2), and is expected to keep changing while §17.2 is worked through.
+
+The public contract is a separate, consumer-agnostic package, `ChenWeb/server/api/ontology/names/`:
+
+```go
+type NameResolver interface {
+    ResolveName(ctx context.Context, req ResolveNameRequest) (NameResolution, error)
+    ResolveNames(ctx context.Context, reqs []ResolveNameRequest) ([]NameResolution, error)
+}
+
+type ResolveNameRequest struct {
+    Name              string
+    Scope             string
+    ExpectedTermKinds []string   // "metric_definition" for a metric, "unit" for a unit, …
+    ExpectedModules   []string
+    Language          string
+}
+
+type NameResolution struct {
+    RawName, NormalizedKey string
+    Status                 ResolutionStatus
+
+    ConceptID, ConceptPrefName               string   // keyword layer — ungoverned
+    TermID, TermPrefName, TermKind, ModuleID string   // governed layer — set only per the rule below
+
+    Candidates []NameCandidate
+    Method     string    // which tier/mechanism resolved it (D11 requirement 1)
+    Confidence float64
+}
+```
+
+**No consumer identity appears in the contract** — no `MetricID`, no processor name, no consumer table. A metric asks for `ExpectedTermKinds: ["metric_definition"]`; a unit asks for `["unit"]`; a future consumer asks for whatever kind fits, with no change to the resolver.
+
+**Five statuses, all normal results:**
+
+| Status | Meaning | Carries an id? |
+|---|---|---|
+| `term_resolved` | exactly one released governed term established | `TermID` + `ConceptID` |
+| `lexical_resolved` | a keyword concept found, no governed alignment yet | `ConceptID` |
+| `ambiguous` | several candidates tied | **yes — top-1 plus the tied set** (D11) |
+| `unresolved` | no match | on the targeted path, an **auto-created** `ConceptID` (D11); empty only on the collector path |
+| `disabled` | resolver intentionally off (`KEYWORD_RESOLVER_MODE=off`) | no |
+
+**The layer rule: `TermID` is set only by an unambiguous exact match against a released term's governed label, or by an accepted `aligns_to_term` alignment.** A tier-0–4 lexical hit alone never produces a `TermID` — promoting an ungoverned lexical identity to a governed one silently would erase the distinction the two layers exist to keep. Per §14.0 the *alignment* itself auto-accepts above a threshold; what stays gated is creating the governed term, not pointing at it.
+
+**Read and write are separate calls.** `ResolveName` performs **no writes — including no decision-log entry.** A debugging tool, an autocomplete, a test, or a reprocessing run must be able to ask what a name resolves to without writing anything. Recording is explicit:
+
+```go
+ObserveName(ctx context.Context, occurrence NameOccurrence) error
+ResolveAndObserve(ctx, req ResolveNameRequest, occ NameOccurrence) (NameResolution, error)
+```
+
+Most production callers should use `ResolveAndObserve` — but by choosing it, not by having it forced on them. The occurrence record it writes is the corrected shape from K4: `artifact_type`, `artifact_id`, `field_path` (consumer-supplied provenance such as `"metric_name"` — meaningful to the consumer, opaque to the resolver), `raw_name`, `scope`, `context`, `chunk_ref`, `concept_id`, `term_id`, `resolution_status`, and a link to the decision-log row from the same call.
+
+---
+
 ## 8. Data model — ✅ **Built** (migrations `20260803000001`–`00006`)
 
 ### 8.1 `kb.keyword_concepts`
