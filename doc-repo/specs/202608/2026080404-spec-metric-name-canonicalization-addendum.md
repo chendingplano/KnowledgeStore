@@ -1,7 +1,7 @@
 # Metric Name Canonicalization — Addendum to the Keyword Spec
 
 - **DocID:** `doc-2026080404`
-- **Status:** Proposed (design only — nothing in this document is implemented)
+- **Status:** Proposed addendum — its decisions are unimplemented; underlying keyword tables, stores, REST APIs, and tier 0–4 code are partial existing implementation
 - **Date:** 2026-08-04
 - **Component:** SemOS / ChenWeb — metric extraction, ontology candidates, keyword lexicon
 - **Extends:** `2026080403-spec-keyword-canonicalization-and-reconciliation.md` (the keyword module), particularly §14 (the `aligns_to_term` bridge), §14.1–§14.2 (added alongside this addendum), and §9.1 (the mention collector's scope)
@@ -19,11 +19,13 @@
 
 The corrected design: a new, consumer-agnostic name-resolution interface that neither `extract_metrics` nor `associate_semantics` calls into directly against the keyword module's raw, side-effect-heavy API — replacing §2 below. §5/§6 are updated to match. The four-layer keyword mechanism itself (`2026080403-spec` §3 D1) is unaffected — this changes how a consumer *reaches* it, not what it is.
 
+Appendix A was corrected again on 2026-08-05 after review exposed an invalid starting assumption: it had traced only the lookup that occurs *after* the lexicon already knows the three example names, without explaining how an empty system acquires that knowledge. The replacement appendix traces warm-start resource import, multilingual normalization, pre-service reconciliation, online lookup, and continued vocabulary growth. The resulting design permits LLM use during batched vocabulary growth, but never requires an LLM call for each `ResolveName` request.
+
 ---
 
 ## 0. Why this is a separate document
 
-`2026080403-spec` is the keyword module's own reference: what it is, what's built, what's deferred, what's broken. This addendum is about something else — **how a consumer** (metric extraction) is meant to use it, and what has to exist for that to actually work. It stays a separate document because it is design, not yet implementation: nothing here has shipped, unlike most of what `2026080403-spec` describes.
+`2026080403-spec` is the keyword module's own reference: what it is, what's built, what's deferred, what's broken. This addendum is about something else—**how a consumer** (metric extraction) is meant to use it, and what has to exist for that to actually work. It stays separate because none of this addendum's proposed decisions has shipped, even though it evaluates and reuses partial implementation documented by `2026080403-spec`.
 
 This document also answers a broader question raised alongside the metric-name question: whether the "existing doc processors don't know about the ontology modules" gap should be closed by modifying those processors, and what happens to two adjacent pieces (the mention collector, and how governed terms handle multiple meanings of the same word) once that question is answered. §3–§5 cover those; §6–§7 return to the metric-name design proper.
 
@@ -97,7 +99,7 @@ resolution := resolver.ResolveName(ctx, ResolveNameRequest{
 
 ### 2.1 Read and write are separate operations, not one call that always does both
 
-`KeywordFamily.ResolveSurface` (§2 above) always writes — a mention row, a decision-log row, and either a surface or a backlog row — on every call, with no way to just ask "what does this resolve to" without also recording it as an observation. That's a real defect independent of everything else in this section: a debugging tool, a UI autocomplete, a test, or a reprocessing run has no way to *look up* a name without *also* polluting the mention/decision-log/backlog tables as a side effect.
+`KeywordFamily.ResolveSurface` (§2 above) attempts writes—a mention row, a decision-log row, and either a surface or a backlog row—on every call, with no way to just ask "what does this resolve to" without also recording it as an observation. Several of those write errors are discarded, so even the attempted side effects are not atomic or guaranteed. That's a real defect independent of everything else in this section: a debugging tool, a UI autocomplete, a test, or a reprocessing run has no way to *look up* a name without *also* attempting to pollute the mention/decision-log/backlog tables.
 
 `names.Resolver.ResolveName` is read-only. A separate, explicit call does the writing:
 
@@ -123,7 +125,7 @@ A name can land in one of five states, and all five are normal results, not erro
 | `unresolved` | no match |
 | `disabled` | the resolver is intentionally off (mirrors `KEYWORD_RESOLVER_MODE=off`, §7.4 of the keyword spec) |
 
-**The rule that matters: `TermID` is set only by one of two things — an exact match against a released term's governed label, or an accepted, reviewed `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`. This is the same governance boundary §14 of the keyword spec already draws between the ungoverned lexicon and governed terms — this contract is what makes that boundary visible and enforceable at the one place a consumer actually touches it, rather than something a caller has to reconstruct by separately checking two different systems.
+**The rule that matters: `TermID` is set only by one of two things—an unambiguous exact match against a released term's governed label after expected-kind/module filtering, or an accepted, reviewed `aligns_to_term` alignment.** A lexical auto-match (tiers 0–4, `2026080403-spec` §7.1) must never, by itself, produce a `TermID`. If an exact governed label still names multiple released terms, the result remains ambiguous. This is the same governance boundary §14 of the keyword spec already draws between the ungoverned lexicon and governed terms.
 
 ### 2.3 What stays in `AssociateSemantics`, what moves out
 
@@ -146,7 +148,7 @@ Fix order: backfill labels for existing quantity terms (fix the importer's skip 
 
 Covered in full in `2026080403-spec` §9.1 (added alongside this document); summarized here because the question came up in the same conversation. There are two different jobs a keyword-surfacing mechanism can do:
 
-1. **Targeted enrichment** — a processor already knows a specific field is a keyword (a metric name, a candidate's alias list). Resolve it directly through `KeywordFamily`. No collector involved.
+1. **Targeted enrichment** — a processor already knows a specific field is a name (a metric name, a candidate's alias list). Resolve it through the generic `names.Resolver` facade. No collector involved.
 2. **Corpus-wide recall** — vocabulary that never becomes a structured field, useful only to a retrieval/search consumer that expands queries against the lexicon. This is the collector's job, and that consumer doesn't exist yet (§7.4, §17.1 of the keyword spec).
 
 Metric-name canonicalization is job 1. It needs no collector, and is not blocked by the collector's unwired state.
@@ -157,9 +159,11 @@ Metric-name canonicalization is job 1. It needs no collector, and is not blocked
 
 The other adjacent question: if a metric's canonical identity is meant to land on a governed `metric_definition` term, and the same word can mean different things (the conversation's example was "apple" — fruit vs. company), how does the term layer avoid confusing them?
 
-**It doesn't attempt to, and that's the design.** Verified in `ChenWeb/server/api/ontology/terms/terms_store.go`: there is no lookup-by-label function of any kind. The only way to reach a term is by its already-known `term_id` — a human-chosen, namespaced string (`mea:metric_definition`, and by the same convention something like `bio:apple` vs. `org:apple_inc` for the homonym case). Two meanings of a word simply become two separate term rows, each with its own `kb.ontology_term_labels` rows. No algorithm ever needs to pick between them, because no algorithm ever resolves a bare label into a term_id — a human makes that call exactly once, during candidate review (`kb.ontology_candidates`, `2026080403-spec` §14.2), and it becomes permanent.
+**The current term store doesn't attempt to; the proposed facade must do so conservatively.** Verified in `ChenWeb/server/api/ontology/terms/terms_store.go`: there is no lookup-by-label function today. Terms are reached only by an already-known, namespaced `term_id` (`bio:apple` vs. `org:apple_inc`, for example). Two meanings become two term rows with separate `kb.ontology_term_labels` rows.
 
-This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the keyword spec): the keyword layer is where automated, ambiguity-tolerant "string → concept" resolution happens — it has to handle input no human has reviewed, so it needs `ambiguous` as a first-class, storable outcome. The term layer is where a human's one-time decision becomes durable and lookup-free. A metric's `metric_definition_term_id`, once set via an accepted `aligns_to_term` assertion, carries no residual homonymy risk — the risk was resolved once, by a person, at the moment the assertion was accepted.
+The proposed exact governed-label path in §2.2 may return a `TermID` only when expected kind/module filters leave one released term. If two released terms still share the label, the result is `ambiguous`. The other path is an accepted `aligns_to_term` assertion: a human reviews the lexical concept-to-term decision once during candidate governance, and later lookups reuse it.
+
+This is precisely why `aligns_to_term` is a bridge and not a merge (§14 of the keyword spec): the keyword layer is where automated, ambiguity-tolerant "string → concept" resolution happens. The term layer holds governed meanings. An exact unique governed label can resolve directly; every non-exact lexical link requires accepted alignment evidence. A metric's `metric_definition_term_id`, once set through either governed path, carries no unresolved homonymy from the lexical lookup.
 
 ---
 
@@ -173,28 +177,30 @@ Applied to a metric, that means **two** identifiers, at two different trust leve
 |---|---|---|---|
 | `metric_name` (unchanged) | `extract_metrics`, as today | — (provenance) | never — always the literal extracted string |
 | `keyword_concept_id` (nullable) | `resolution.ConceptID`, set whenever status is `lexical_resolved` or `term_resolved` | fast, ungoverned, auto-mergeable | status is `unresolved` or `ambiguous` |
-| `metric_definition_term_id` (nullable) | `resolution.TermID`, set **only** when status is `term_resolved` — an accepted `aligns_to_term` assertion, per §2.2's rule | governed, reviewed | status is anything else (§4) |
-| canonical name shown to users | `resolution.TermPrefName` if `metric_definition_term_id` is set; else `metric_name` | — | falls back cleanly |
+| `metric_definition_term_id` (nullable) | `resolution.TermID`, set only when status is `term_resolved`—an unambiguous exact released label or accepted `aligns_to_term`, per §2.2 | governed | status is anything else (§4) |
+| canonical name shown to users | governed `TermPrefName` when available; otherwise language-selected lexical concept label; raw `metric_name` as final fallback | display only—the persisted identity remains an id | falls back cleanly |
 
-**Why two identifiers and not one.** A keyword-tier auto-accept is cheap and unreviewed by design — that's what makes working mode fast. Pinning a metric's display identity to `keyword_concept_id` alone would mean a single bad auto-merge in the lexicon silently misfiles a metric, with no review step in between — exactly the failure D10 (bias toward under-merging) exists to prevent everywhere else in the keyword module. Routing the *authoritative* identity through `aligns_to_term` keeps that guarantee intact for metrics specifically: the metric shows its raw extracted name right up until a human has confirmed the term-level link, never before.
+**Why two identifiers and not one.** A keyword-tier auto-accept is cheap and ungoverned by design—that's what makes working mode fast. Its localized concept label is useful for grouping and display, but must be visibly treated as lexical/provisional. Pinning a metric's *authoritative* identity to `keyword_concept_id` alone would mean a bad auto-merge silently misfiles it with no review boundary. Routing authoritative identity through either governed path—an unambiguous exact released label or an accepted `aligns_to_term` assertion—keeps that guarantee intact; the raw extracted name always remains available as provenance and fallback.
 
 **Why this satisfies "not forced."** At both hops, absence is a valid, expected, permanent-until-resolved state — not an error. A metric with no keyword match, or with a keyword match but no confirmed term, displays exactly as it does today. Nothing about this design requires the earlier resolution to succeed for the metric to remain fully usable.
 
-### 5.1 The full chain for one metric name, with every hop marked TODAY or PROPOSED
+### 5.1 The current side-effecting trace and the proposed separation
 
 The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface → lexform → concept`. A metric name is one instance of "name." Nothing below is metric-specific machinery — it's the same four-layer mechanism every keyword goes through, traced concretely for this one case so every hop can be checked against the running code rather than taken on faith.
 
 **Not via the collector, and — per the 2026-08-05 revision above — not via `associate_semantics` either.** `extract_metrics` does not "register with" the mention collector; the collector reads raw chunk text and tokenizes it itself, blind to what any processor extracted (§9.1), and plays no role in this design. The mechanism below is a call to `names.Resolver.ResolveName(metricName, ...)` (§2), made by whatever consumes `extract_metrics`' output before persisting a metric row — not a call to `KeywordFamily.ResolveSurface` from inside `associate_semantics.processMetric`, which was this document's original (incorrect) proposal. `names.Resolver` internally uses the same tier 0–4 mechanism traced below; what changed is who calls it and through what contract, not what happens once the call is made.
 
-**Exactly what that call does, in order** (this is the general `ResolveSurface` pipeline, `2026080403-spec` §3 D1's trace, restated as an ordered list rather than a table since the order matters):
+**TODAY—what the underlying `KeywordFamily.ResolveSurface` does, in order** (not what the proposed read-only `ResolveName` will do):
 
 1. Mode gate — no-op if `off` or no DB.
-2. **Unconditionally:** insert one row into `kb.keyword_mentions` (`artifact_ref`, `context_text`; `chunk_ref`/`ks_id` always null; no column for the name itself — §17.2 K4).
+2. **Unconditionally attempts:** insert one row into `kb.keyword_mentions` (`artifact_ref`, `context_text`; `chunk_ref`/`ks_id` always null; no column for the name itself—§17.2 K4). The error is ignored.
 3. `Kernel.Resolve`: normalize the name → key bundle (pure computation); query `kb.keyword_surfaces`/`kb.keyword_surface_keys` **tier by tier, stopping at the first tier that returns anything** — tier 0 (exact literal-string match) is tried before tier 1 (`norm_key` match); score and adjudicate a verdict.
-4. **Unconditionally:** append one row to `kb.semid_decision_log` (does capture the name, in `input`; captures no `artifact_ref`/`context_text`, and shares no key with the mention row from step 2).
-5. On `auto_accepted`: write a new surface row only if this exact literal string isn't already on file under that concept. On `deferred`/`ambiguous`: upsert the backlog.
+4. **Unconditionally attempts:** append one row to `kb.semid_decision_log` (does capture the name, in `input`; captures no `artifact_ref`/`context_text`, and shares no key with the mention row from step 2). The error is ignored.
+5. On `auto_accepted`: attempt a new surface row only if this exact literal string isn't already on file under that concept. On `deferred`/`ambiguous`: attempt a backlog upsert. Those errors are also ignored.
 
-**"Occurrence" is not a step that gets skipped — it's the name for step 2 happening at all, plus its one (incomplete) recorded side effect.** There is no separate occurrence-processing stage; the call itself, and the mention row it writes, are the entirety of what "occurrence" means operationally.
+**PROPOSED:** `names.Resolver.ResolveName` retains only mode gate, normalization, candidate lookup, scoring, adjudication, concept/term loading, and result shaping. It performs no writes. `ObserveName` owns the occurrence/decision/backlog write path; `ResolveAndObserve` explicitly composes the two. The cases below trace today's matching logic while noting its current attempted writes.
+
+**TODAY, "occurrence" is only step 2 plus its incomplete attempted side effect.** `ResolveSurface` has no separate occurrence-processing stage. The mention row it attempts to write may fail silently. The proposed `ObserveName` creates an explicit stage and makes its success or failure visible to the caller.
 
 **Three cases for one metric name, because the mechanism behaves differently depending on what's already on file — and getting these three straight is the whole answer to "how does resolution actually work."**
 
@@ -212,9 +218,9 @@ The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface
 |---|---|
 | Tier 0 | `WHERE s.surface = 'Luminance'` — **no match**; the stored row is lowercase, and this is a literal string comparison |
 | Tier 1 | the query's own `norm_key` (computed fresh from "Luminance" — case-folding makes it `"luminance"`) matches the **stored** `norm_key` on the existing row |
-| Result | `auto_accepted`, resolves to `kwc_luminance`. The exists-check (`ConceptID` matches, but `Surface == "Luminance"` does not match the existing `"luminance"` row) finds no exact literal match, so **a second surface row is created automatically** — `surface = "Luminance"`, same `concept_id`, same `norm_key`. Nobody decided this; it falls out of the exists-check plus tier 1's determinism. |
+| Result | `auto_accepted`, resolves to `kwc_luminance`. The exists-check finds no exact literal match, so `ResolveSurface` **attempts** a second `alt` surface row with the same concept and normalized key. If an existing `alt` row already occupies the schema's `(norm_key, concept_id, scope, label_role)` unique key, insertion fails and the error is ignored; resolution still succeeds without learning the new literal. |
 
-**To be precise about what "automatically" means here, since it's easy to mis-state in either direction: "Luminance" and "luminance" *do* end up as two different rows in `kb.keyword_surfaces`** — surface means one exact string, so two different strings are always two different rows, full stop. **What does *not* happen is anything requiring a human to "merge" them** — they're never two different concepts in the first place; the second row is created *already pointing at* the same `concept_id` as the first, because it's only created after tier 1 found that concept. "Merge," in this system, is a specific, heavier operation (`MergeConcept`, tombstoning one whole *concept* into another) reserved for when two independently-created `concept_id`s — say, two curators separately authoring "luminance" without knowing about each other — turn out to mean the same thing. That's a different failure mode from Case B, and nothing about Case B produces it.
+**To be precise about "automatically": the resolver attempts to attach the variant directly to the existing concept; it never creates a second concept requiring a merge.** Whether two literal strings persist as two surface rows depends on the uniqueness constraint and error handling just described. `MergeConcept` is the separate, heavier operation for two independently created concept ids that later prove equivalent.
 
 **Case C — a genuinely new word for the same meaning.** "亮度" is resolved for the first time; only `"luminance"` and `"显示亮度"` exist as surfaces under `kwc_luminance`. Nothing named `"亮度"` is on file.
 
@@ -225,13 +231,13 @@ The generic chain (`2026080403-spec` §3 D1) is `name → occurrence → surface
 | Tiers 2–4 | also miss, for the same reason — every tier here operates on keys derived from *this one string*, and "亮度" shares no derived key with either existing surface |
 | Result | `deferred` — regardless of the fact that a human reading the document would immediately recognize "亮度" as luminance. The system has no way to know this until someone tells it. |
 
-**Case B is the only one where anything happens "automatically" across two different surface rows, and it only covers spelling/casing variants of one underlying string.** Case C — a different word, in any language, for the same meaning — is never resolved by the normalizer, no matter how the mechanism is exercised, no matter how many times "亮度" is observed. Each unresolved occurrence just increments the same backlog entry's `hits` count; it never becomes a hit on its own. **Someone — a human today, or reconciliation once built — has to author "亮度" as its own surface row under `kwc_luminance` before Case C ever becomes Case A.** DR23's promise ("亮度/显示亮度/luminance/brightness... reach one row") is real, but every one of those four strings has to individually cross from Case C to "on file" before it holds — and nothing in the currently-built system does that crossing automatically. §5.2 below addresses this directly, because at real corpus scale it's the actual bottleneck, not a footnote.
+**Case B is the only one where the current resolver automatically attempts concept attachment for a new literal, and it only covers normalization-equivalent variants.** Case C—a different word, in any language, for the same meaning—is never resolved by the normalizer, no matter how often it is observed. Each successful unresolved upsert increments the backlog entry's `hits`; it never becomes a match on its own. **A human today, or reconciliation once built, has to accept `亮度` as a surface under `kwc_luminance` before Case C becomes Case A.** DR23's promise ("亮度/显示亮度/luminance/brightness... reach one row") is real, but every string has to cross from candidate to accepted surface before it holds.
 
 **`lexform → concept`, precisely: the lookup works; the discovery doesn't exist.** Given an *existing* `norm_key`, finding which concept(s) it belongs to is built and correct (Case A/B above, tier 0/1 queries). Deciding, for the first time, that a *new* `norm_key` belongs to a given concept — the step Case C needs — has no automated form today; only a human, through the REST API, does it.
 
-**What `kb.keyword_mentions` holds for a metric name, concretely: today, nothing recoverable.** A mention row gets written on every call once the integration exists (step 2 above), but it carries no reference to which name triggered it — no column exists for it (§17.2 K4). This is the same gap for every caller of `ResolveSurface`, not something specific to metrics.
+**What `kb.keyword_mentions` holds for a metric name, concretely: today, nothing recoverable.** `ResolveSurface` attempts a mention-row write on every call, ignores failures, and the row carries no reference to which name triggered it—no column exists for it (§17.2 K4). This is the same gap for every caller, not something specific to metrics.
 
-**Summary — where the gaps actually are, hop by hop:** name→occurrence needs a new caller (§6 item 4, not built). occurrence's own record-keeping (`kb.keyword_mentions`) is broken regardless of caller (K4, pre-existing). occurrence→surface→lexform→concept is **mechanically correct today** for Cases A and B — the miss path (Case C, and Run-1-style cold starts generally) additionally needs K5 fixed to dedupe the backlog properly. Case C's actual resolution — a human or reconciliation deciding a new word belongs to an existing concept — is unautomated today, by design for "human," entirely unbuilt for "reconciliation." concept→governed-term needs the `aligns_to_term` producer, which doesn't exist in any form (§6 item 3).
+**Summary—where the gaps actually are, hop by hop:** name→occurrence needs a new caller. Occurrence recording is broken regardless of caller (K4). Surface/derived-key lookup→concept is mechanically correct for Cases A and B, but Case B's attempted vocabulary growth is unreliable. The miss path needs K5 fixed to deduplicate the backlog. Case C's concept attachment is manual today and entirely unbuilt for reconciliation. Concept→governed-term needs exact governed-label lookup and the `aligns_to_term` producer, neither of which exists.
 
 ### 5.2 Why manual curation alone doesn't scale, and what would
 
@@ -245,33 +251,37 @@ This follows directly from Case C above, and it's worth being explicit about rat
 - **Tier 6 (embedding/ANN similarity)** is the actual candidate-generation mechanism for this — a multilingual embedding model would plausibly place "luminance" and "亮度" close in vector space, unlike edit distance. It is, by design, *candidate-only*: it would never auto-accept a link on its own, only propose one (§17.1, `2026080403-spec`) — a wrong embedding-driven merge is exactly the silent failure D10 (bias toward under-merging) exists to prevent.
 - **Reconciliation R3 (semantic/`pgvector` blocking) + R4/R5 (LLM batch decisions)** is what would turn a tier-6 candidate into a confirmed link at scale, without a human reading every pair by hand.
 
-All three are entirely unbuilt (`2026080403-spec` §11, §17.1) — this addendum's §6 build list deliberately treats them as out of scope for the metrics slice, on the reasoning that the metrics pilot is a bounded domain (呼吸机/医疗器械, DR12) where manual curation might be tractable. **That reasoning is plausible, not verified** — there is no count, anywhere in this document lineage, of how many synonym/translation clusters actually exist even within the bounded pilot corpus. If that number turns out to be large, manual curation stops being a reasonable simplification and becomes the actual bottleneck on whether the pilot's core promise (one row per metric, regardless of how it's phrased) holds at all.
+All three are entirely unbuilt (`2026080403-spec` §11, §17.1). Manual curation alone is not an acceptable bootstrap strategy: even a bounded pilot contains spelling noise, translations, and aliases that no curator can anticipate exhaustively. The adopted approach is the hybrid mutable lexicon in Appendix A: import a bounded slice of relevant resources, normalize every imported and observed surface, reconcile the remaining candidate clusters before activation, and continue draining new misses after activation. LLM calls are allowed in that batched growth path, not in every `ResolveName` call.
 
-**A smaller, more tractable first step, short of building all of reconciliation:** `2026080403-spec` §14.2 already flags that `kb.ontology_candidates.candidate_matches` is an unused column meant for exactly this signal. A scoped version of tier 6 — an embedding lookup run only at `extract_metric_definitions`' candidate-harvest time, checking a new candidate's `canonical_name`/`aliases` against existing keyword concepts and populating `candidate_matches` with anything close — would surface likely-duplicate metric definitions to a human reviewer without requiring the full general-purpose reconciliation pipeline (batching, negative caching, rewrite-rule promotion, the whole R1–R7 ladder) to exist first. This doesn't close the gap automatically, but it turns "a human has to notice three unrelated proposals are the same metric, unaided" into "a human is shown the likely match and confirms it" — a meaningfully smaller ask, and one bounded to the metric-definition candidate-review flow rather than the full corpus.
+`kb.ontology_candidates.candidate_matches` remains a useful metric-specific review surface, but it is a consumer of the generic reconciliation evidence—not the canonicalization engine. A scoped multilingual embedding lookup can populate likely matches for a new metric definition, while the generic keyword reconciler owns candidate blocking, decision records, validation gates, and accepted surface updates. That turns "a human has to notice three unrelated proposals are the same metric, unaided" into "the system proposes an evidence-bearing match for confirmation" without putting metric-specific behavior inside the keyword or ontology core.
 
 ---
 
 ## 6. What has to exist for this to work
 
-None of the following is built. None of it is blocked on anything external — the one genuine blocker in this whole thread (human review of `kb.ontology_candidates` before promotion, `2026080403-spec` §14.2) sits upstream of this list and is already accounted for as designed, not as a gap.
+Most of the following is unbuilt. Resource acquisition also has real external constraints: each source's license, release process, availability, and redistribution limits must be approved and recorded before import.
 
-1. **Fix the keyword-module defects first.** §17.2 of `2026080403-spec` lists eleven; K2 (scope ignored), K5 (backlog keyed on raw surface), and N1 (normalizer over-collapses) would each silently corrupt this integration on day one if built on top of them unfixed.
-2. **Build the `names.Resolver` interface and its `KeywordFamily`-backed implementation** (§2) — the `ResolveName`/`ResolveNames`/`ResolveAndObserve` contract, and a shaped occurrence record for `ObserveName` (§2.1) to replace `kb.keyword_mentions`' incomplete shape. This is new package-level work, not present in the original version of this document, and everything below depends on it existing rather than consumers calling `KeywordFamily.ResolveSurface` directly.
-3. **`extract_metric_definitions` resolves its own `canonical_name`/`aliases` through `names.Resolver`** at harvest time (`ontology_candidate_harvest.go`), instead of leaving them as inert JSON on the candidate payload. Note per §5.1 Case C: an exact-match resolution here only catches a proposal that repeats a *known* surface — it does **not**, by itself, connect "luminance" and "亮度" as the same thing on first sight. The candidate-match signal this should populate (`candidate_matches`, `2026080403-spec` §14.2) still needs the scoped-embedding step in §5.2 to do anything for genuinely new words in a new language; plain keyword resolution alone only closes this for repeats and spelling variants.
-4. **An `aligns_to_term` producer**, plus the schema fix it depends on: `kb.semantic_assertions.subject_ref_kind`'s `CHECK` constraint currently allows only `('object_node', 'ontology_term', 'assertion', 'artifact', 'literal')` — **verified directly against `20260801000001_create_kb_semantic_assertions.sql`** — with no `'keyword_concept'` value. If `aligns_to_term` assertions are meant to use this same table (per DR9's assertion/evidence schema, which this design assumed without checking), a keyword concept cannot be an assertion subject until this constraint is extended. This is the one piece every other item in this list depends on; it is the actual critical path for DR23's "prerequisite," not a nice-to-have — and it's more work than previously stated, because the schema itself needs to change first.
-5. **`extract_metrics`' consumer calls `names.Resolver.ResolveName`** before the metric row is persisted (§2), setting `keyword_concept_id`/`metric_definition_term_id` per §2.2's rule — replacing the original, incorrect proposal to add this inside `AssociateSemantics.processMetric`.
-6. **Schema:** `kb.metrics` and/or `kb.semantic_assertions` gain `keyword_concept_id` and `metric_definition_term_id` columns (nullable, no constraint forcing either).
-7. **Open, unverified: does manual curation actually cover the pilot domain?** §5.2 — before assuming items 1–6 are sufficient for the pilot to work end to end, get a real count of how many synonym/translation clusters exist in the 呼吸机/医疗器械 corpus. If it's small, human curation through the REST API is plausibly enough. If it's not, the scoped-embedding step in §5.2 (or more of reconciliation) needs to move from "later" into this list.
+1. **Fix the keyword-module correctness defects and normalization first.** §17.2 of `2026080403-spec` lists eleven; K2 (scope ignored), K5 (backlog keyed on raw surface), and N1 (normalizer over-collapses) would each silently corrupt this integration on day one. Implement the generic base cleaner plus versioned language profiles in Appendix A.5–A.6, populate all derived surface keys, change unknown language from `en` to `und`, and revise surface uniqueness so legitimate multilingual rows are representable (including language in the identity, with a separate invariant for one preferred surface per concept/scope/language).
+2. **Build generic resource ingestion.** Add source adapters, a source-release/license registry, external-concept mappings, idempotent full/delta import, a separate many-to-one source-evidence/assertion table, and a bounded domain filter. The evidence table—not a surface's single provenance string—must support independent source retraction. No adapter logic belongs in a document processor.
+3. **Build a metrics warm-start package as configuration/data, not keyword-core code.** Select relevant resources from `20260805-rsch`, include curated metric glossaries and artifact backfill, then measure coverage and ambiguity before activation.
+4. **Build the `names.Resolver` interface and its `KeywordFamily`-backed implementation** (§2)—the read-only `ResolveName`/`ResolveNames` contract, language-aware preferred-label selection, correct scope handling, and expected-kind/module filtering on the governed-term continuation. A bare keyword concept is not filtered by term kind until an alignment/type assertion supplies that evidence.
+5. **Build complete observation records and `ResolveAndObserve`.** Replace `kb.keyword_mentions`' incomplete shape with the occurrence data in §2.1, linked to the resolution decision and unresolved backlog.
+6. **Build the minimum R1–R7 reconciliation loop required to drain misses.** Deterministic harvest/blocking comes first; multilingual embeddings and batched LLM adjudication are permitted for candidates; deterministic gates and transactional apply remain mandatory. The reconciler, not the LLM, owns writes.
+7. **Add versioned snapshot activation.** Build and validate a candidate lexicon release while readers remain on the prior immutable snapshot, then switch atomically. Normalizer-version changes rebuild every derived key.
+8. **`extract_metric_definitions` resolves its `canonical_name`/`aliases` through `names.Resolver`** at harvest time (`ontology_candidate_harvest.go`) and records evidence-bearing `candidate_matches` instead of leaving names as inert JSON.
+9. **Build an `aligns_to_term` producer**, plus the schema fix it depends on: `kb.semantic_assertions.subject_ref_kind`'s `CHECK` constraint currently allows only `('object_node', 'ontology_term', 'assertion', 'artifact', 'literal')`, with no `'keyword_concept'` value. A keyword concept cannot be an assertion subject until this constraint is extended.
+10. **`extract_metrics`' consumer calls `names.Resolver.ResolveName`** before the metric row is persisted (§2), setting `keyword_concept_id`/`metric_definition_term_id` per §2.2's rule—not inside `AssociateSemantics.processMetric`.
+11. **Schema:** `kb.metrics` and/or `kb.semantic_assertions` gain nullable `keyword_concept_id` and `metric_definition_term_id` columns, with no constraint forcing either resolution to succeed.
 
 **Deliberately sequenced after the metrics pilot, not blocking it:** moving `processMetric`/`processProvision` out of `AssociateSemantics` into consumer-specific adapters and un-registering them from the shared `init()` (§2.3); backfilling QUDT labels and importing unit→quantity-kind relationships so `resolveUnitTerms` can retire in favor of `names.Resolver` (§2.4). Both are real architectural debt, confirmed real by the same review that corrected this document — but neither has to be paid down before one metric name resolves correctly, and DR12's own vertical-slice framing argues for proving the pilot before generalizing further.
 
-Item 1 is a prerequisite for correctness. Items 2, 3, and 6 are independent of each other and could be sequenced in any order once item 1 lands, but item 2 has to exist before 3, 5, or 6 have anything to call. Item 4 is the one that turns the others from inert plumbing into an actual working bridge, and now includes a schema change this document previously missed. Item 7 should be answered *before* declaring items 1–6 sufficient — it's a scoping question, not a build task, and it's cheap to answer (count the clusters) relative to what it would cost to discover the answer is "no" after the fact.
+Items 1–3 establish trustworthy warm data. Items 4–7 establish generic serving and growth. Items 8–11 connect the metrics pilot and governed-term layer without contaminating the generic modules. Resource import and reconciliation are no longer optional follow-ups: without them, the system can look up a dictionary but cannot build or sustain one.
 
 ---
 
 ## 7. Documentation impact
 
-**What knowledge changed, as of the 2026-08-05 revision?** Two of this document's own core recommendations were wrong, not merely under-specified, and are now corrected: name resolution should happen behind a new, consumer-agnostic `names.Resolver` interface, not via a direct call from `AssociateSemantics.processMetric` into `KeywordFamily.ResolveSurface` — because `associate_semantics.go` is not the clean generic package the original version described (it self-registers `"metric"`/`"provision"` and hardcodes measurement-domain policy in its own `init()`), and because `ResolveSurface` itself is not a stable interface worth a consumer depending on directly (it mixes read with four different writes, per `2026080403-spec` §3 D1's trace). `resolveUnitTerms`, previously cited as a precedent worth following, is now understood to be a workaround for an incomplete QUDT import (verified: the importer skips existing term IDs before backfilling their labels, and never imports unit-to-quantity-kind relationships) rather than an intentional, stable pattern. A previously-unstated schema gap was also found: `kb.semantic_assertions.subject_ref_kind` cannot represent a keyword concept as an assertion subject today, which the `aligns_to_term` producer will need addressed.
+**What knowledge changed, as of the 2026-08-05 revision?** Name resolution should happen behind a new, consumer-agnostic `names.Resolver` interface, not via a direct call from `AssociateSemantics.processMetric` into `KeywordFamily.ResolveSurface`. `resolveUnitTerms`, previously cited as a precedent worth following, is a workaround for an incomplete QUDT import rather than a stable pattern. `kb.semantic_assertions.subject_ref_kind` also cannot represent a keyword concept as an assertion subject today. Finally, the earlier appendix's preloaded-equivalence assumption was invalid: the adopted design is a hybrid mutable lexicon with resource import, normalization before every index/lookup, multilingual surface policy, optional offline LLM reconciliation, and versioned publication. `ResolveName` itself remains model-free.
 
 Earlier findings still stand: the relationship between `extract_metrics` and `extract_metric_definitions` (there isn't one, and there should be), the mention collector's non-wiring having a stated reason, governed terms' approach to homonymy, and the precise tier-by-tier account in §5.1/§5.2 of what the keyword mechanism automates for a metric name versus what it never will.
 
@@ -279,7 +289,7 @@ Earlier findings still stand: the relationship between `extract_metrics` and `ex
 
 **Which docs/specs/ADRs are affected?** `2026072901-adr` DR23 is the design authority for the metric-definition/lexicon relationship and is unchanged by this document — this addendum operationalizes it, it doesn't revise it. `2026080403-spec` gained §14.1, §14.2, and §9.1 alongside this addendum and should be read together with it.
 
-**Which docs are now stale?** None superseded. This is new design with no prior document covering it.
+**Which docs are now stale?** `2026080403-spec` §13's three-source seeding list and its implementation sequencing are incomplete relative to Appendix A: they omit generic resource adapters, source releases/licenses, external-id mappings, multilingual profiles, and snapshot activation. Its R1–R7 direction remains valid but must be extended with those prerequisites.
 
 **What was intentionally left undocumented?** Exact column names and migration numbering for item 5 above, the exact shape of an `aligns_to_term` assertion payload, and prompt text for any LLM-assisted step in candidate-match scoring — these are implementation decisions for whoever builds this slice, not design decisions this addendum needs to pin down.
 
@@ -296,30 +306,86 @@ Earlier findings still stand: the relationship between `extract_metrics` and `ex
 - `ChenWeb/server/api/doc-processing/extract-metrics.go`, `extract-metric-definitions.go`, `ontology_candidate_harvest.go`
 - `ChenWeb/server/api/ontology/candidates/` — `state_machine.go`, `fingerprint.go`, `promote.go`
 - `ChenWeb/server/api/ontology/terms/terms_store.go` — confirms no lookup-by-label exists
+- `doc-repo/research/202608/20260805-rsch-vocabulary-resources.md` — resource survey motivating pluggable domain vocabularies, ontologies, knowledge graphs, terminology systems, and authority files
 
 ---
 
-## Appendix A. Exact no-LLM trace: `Luminance`, `亮度`, and `显示亮度` → one canonical name
+## Appendix A. Warm-start multilingual trace: `Luminance`, `亮度`, and `显示亮度` → one identity
 
-This appendix answers one question narrowly and operationally: **once the keyword lexicon knows that `Luminance`, `亮度`, and `显示亮度` are names for the same metric, how does it resolve all three to one canonical name without an LLM?** It distinguishes the one-time act of establishing that knowledge from the cheap online lookup that uses it. The distinction is essential: deterministic lookup can reuse known equivalence, but string normalization alone cannot discover that a previously unseen English word and Chinese word have the same meaning.
+This appendix starts with an empty database and answers both halves of the problem:
 
-### A.1 The intended result
+1. how the system learns that the three names can denote one metric; and
+2. how every later `ResolveName` call uses that learned vocabulary without calling an LLM.
 
-For the metrics pilot, the three inputs should return the same stable lexical identity and the same current canonical display name:
+The adopted design is a **hybrid mutable lexicon**. External resources provide a warm start; deterministic normalization cleans both imported and observed names; document observations continuously identify coverage gaps; and an offline reconciliation job may use an LLM to adjudicate difficult vocabulary additions in batches. The online resolver remains deterministic, read-only, and cheap.
 
-| Input name | Keyword concept | Canonical name |
-|---|---|---|
-| `Luminance` | `kw:luminance` | `Luminance` |
-| `亮度` | `kw:luminance` | `Luminance` |
-| `显示亮度` | `kw:luminance` | `Luminance` |
+### A.1 The invariant: canonical identity is not canonical spelling
 
-`kw:luminance` is illustrative; `concept_id` is deliberately opaque and must not be derived from the label. `Luminance` is the mutable canonical display name stored in `kb.keyword_concepts.pref_label`. The identity is the concept id, not the string. A later rename of the preferred label must not change what any of the three inputs resolves to.
+For the metrics pilot, all three inputs should reach one stable lexical identity:
 
-This result requires no LLM on the document-processing path. Every online operation shown below is normalization, SQL lookup, deterministic scoring, and deterministic adjudication. Tier 1 has a supporting `(norm_key, scope)` index; tier 0 currently lacks a corresponding `(surface, scope)` index, which is flagged in A.7.
+| Input | Canonical identity | Default label | Localized preferred label |
+|---|---|---|---|
+| `Luminance` | `kw:luminance` | `Luminance` | `Luminance` (`en`) |
+| `亮度` | `kw:luminance` | `Luminance` | `亮度` (`zh`) |
+| `显示亮度` | `kw:luminance` | `Luminance` | `亮度` (`zh`) |
 
-### A.2 One-time lexicon preparation: establish the equivalence cluster
+`kw:luminance` is illustrative; the real `concept_id` must be opaque and immutable. A single `kb.keyword_concepts.pref_label` can remain the default/fallback label, but it is not sufficient as the multilingual display model. Preferred surfaces must be selectable by language. A Chinese caller may display `亮度` while an English caller displays `Luminance`; both still persist and join on the same concept id.
 
-Before online resolution can work, the database must contain one concept and one surface row for each semantically distinct spelling or translation:
+Normalization is necessary but does not prove synonymy. It can make `␠␠LUMINANCE␠␠` and full-width `Ｌｕｍｉｎａｎｃｅ` share the key `luminance`. It cannot infer that `luminance`, `亮度`, and `显示亮度` mean the same thing. Shared external identity, reviewed document evidence, or offline adjudication establishes that semantic relationship.
+
+### A.2 Resources are pluggable inputs; the keyword module owns the mechanisms
+
+The resource survey in `20260805-rsch-vocabulary-resources.md` spans controlled vocabularies, taxonomies, ontologies, knowledge graphs, terminology systems, and authority files. They should not become hardcoded keyword logic. The generic module needs source adapters that emit a common record such as:
+
+```go
+type LexiconSourceRecord struct {
+    Source, Release, ExternalConceptID string
+    PreferredLabels map[string]string   // BCP 47 language tag -> label
+    Aliases         []SourceAlias       // text, language, role, relation strength
+    Mappings        []ExternalMapping
+    Definition      string
+    DomainKinds     []string
+    Provenance      SourceProvenance
+}
+```
+
+Useful source roles differ:
+
+- Wikidata, UMLS, AGROVOC, GEMET, ChEBI, GeoNames, VIAF, IEC Electropedia, and domain glossaries can contribute lexical labels or aliases when their licensing and relation semantics permit it.
+- Gene Ontology, FIBO, Schema.org, ACM CCS, and similar semantic resources may contribute concept typing or candidate evidence without every relation becoming a keyword synonym.
+- A thesaurus's `related`, `broad`, or `narrow` relationship must never be silently upgraded to `exact`. For example, `brightness` may be related to luminance in ordinary language but is not automatically the same governed physical quantity.
+
+UMLS is a valuable model and potential biomedical source, but it is **not an open-source dataset**. NLM distributes it without charge under an individual UMLS license, and some constituent vocabularies impose additional restrictions. Its Metathesaurus is concept-organized and multilingual; `MRCONSO.RRF` carries names, language, source vocabulary, and concept identifiers. An importer must retain those source and license boundaries rather than flattening every UMLS atom into unrestricted local data. See the [NLM Metathesaurus overview](https://www.nlm.nih.gov/research/umls/knowledge_sources/metathesaurus/index.html), [download information](https://www.nlm.nih.gov/research/umls/licensedcontent/umlsknowledgesources.html), and [license summary](https://www.nlm.nih.gov/research/umls/new_users/online_learning/OVR_005.html).
+
+Wikidata is a more permissive cross-domain seed: its structured entity data is CC0, labels and aliases are language-specific, and weekly full dumps plus daily add/change dumps support a locally hosted, incrementally refreshed resource. See [Wikidata database downloads](https://www.wikidata.org/wiki/Wikidata:Database_download), [labels](https://www.wikidata.org/wiki/Help:Label), and [aliases](https://www.wikidata.org/wiki/Help:Aliases). The luminance item `Q355386` demonstrably connects the English concept *luminance* with the Chinese page/title `亮度` and a QUDT quantity-kind identifier. That is valid evidence for the first bilingual bridge. It is not evidence that Wikidata also supplies `显示亮度`.
+
+### A.3 Empty database → warm serving snapshot
+
+The system may begin physically empty during installation, but it should not advertise name resolution as ready until a minimum vocabulary snapshot is built and activated.
+
+1. **Register source releases.** Record each resource, release/version, license class, checksum, retrieval time, and permitted use. This provenance is currently missing from the keyword schema.
+2. **Extract a bounded slice.** Import only concepts relevant to configured domains and expected term kinds. Loading all of Wikidata or UMLS into `kb.keyword_surfaces` would increase ambiguity and operating cost without improving the metrics pilot.
+3. **Preserve external identity.** Upsert a mapping from `(source, external_concept_id, release)` to a local opaque concept id. The current schema has no keyword-source mapping table, so idempotent refresh and cross-source coalescing are not yet possible.
+4. **Normalize every imported label and alias.** The server—not the source adapter and not an API caller—derives all keys with one versioned normalizer. Raw text and source language remain stored.
+5. **Coalesce only with evidence.** Two source records join one local concept only through a shared trusted identifier/crosswalk or an accepted reconciliation decision. Similar spelling, translation proximity, or an LLM suggestion alone creates a candidate, not an automatic merge.
+6. **Run pre-service reconciliation.** Combine resource records, curated metrics glossaries, and an artifact backfill. Apply deterministic gates first; batch remaining candidate clusters for an LLM or human reviewer. Persist accepted aliases and all decision evidence.
+7. **Validate coverage and ambiguity.** Run a metrics-first benchmark, including dirty and multilingual variants. Activation fails if required seed names are unresolved or if ambiguity exceeds the configured threshold.
+8. **Publish atomically.** Readers use one immutable active snapshot while the next snapshot is built. The lexicon is mutable across releases, but a request never observes half an import or half a reconciliation transaction.
+
+“Warm enough” is measurable readiness for the configured domains, not a claim that the vocabulary is complete.
+
+### A.4 How this example is learned rather than assumed
+
+An honest bootstrap trace uses more than one evidence source:
+
+1. The Wikidata adapter reads `Q355386` and emits at least the English name `luminance`, the Chinese name/title `亮度`, the photometric definition/type, and its QUDT mapping.
+2. The importer creates one local concept and attaches the two language-tagged surfaces because the external record already places them under one external identity.
+3. No reviewed resource located for this trace establishes `显示亮度` as an alias. It must therefore begin as a candidate, not as fact. A domain glossary may provide it directly; otherwise artifact backfill or document extraction observes it with context such as display specifications, `cd/m²`, and neighboring luminance terminology.
+4. Offline reconciliation blocks `显示亮度` against the existing luminance concept using lexical parts, multilingual embeddings, unit/quantity-kind compatibility, document context, and resource definitions. An LLM may adjudicate the compact candidate batch. It returns a proposed relation and rationale, never writes directly.
+5. Deterministic gates verify scope, source references, language, unit compatibility, locked/never-merge constraints, and blast radius. A configured high-confidence decision may auto-apply; otherwise a human accepts it.
+6. The apply step inserts `显示亮度` as a `zh` alternative surface under the existing concept, records the decision/evidence/model+prompt version, and builds a new snapshot.
+
+The resulting serving data is conceptually:
 
 ```text
 kb.keyword_concepts
@@ -327,119 +393,154 @@ concept_id       pref_label    scope       status
 kw:luminance     Luminance     ventilator  active
 
 kb.keyword_surfaces
-surface          norm_key      concept_id       label_role  alias_type   lang  scope
-Luminance        luminance     kw:luminance     pref        synonym      en    ventilator
-亮度              亮度           kw:luminance     alt         translation  zh    ventilator
-显示亮度           显示亮度        kw:luminance     alt         translation  zh    ventilator
+surface          norm_key      concept_id       label_role  alias_type   lang  provenance
+Luminance        luminance     kw:luminance     pref        synonym      en    import:wikidata
+亮度              亮度           kw:luminance     pref        translation  zh    import:wikidata
+显示亮度           显示亮度        kw:luminance     alt         domain_alias zh    reconcile:<decision-id>
 ```
 
-The three surface strings do **not** need to normalize to the same key. They deliberately have three different `norm_key` values. Their equivalence is represented by all three rows carrying the same `concept_id`. This is how the module represents synonymy and translation without asking an LLM on every lookup.
+The exact provenance depends on the resources actually configured. The trace does not claim that one universal dataset supplies all three rows.
 
-How can this cluster be established without an LLM?
+### A.5 Normalization before resource lookup
 
-1. Import an authoritative metric glossary whose preferred name and aliases already state the relationship.
-2. Import reviewed aliases from promoted `metric_definition` content.
-3. Seed a curated metrics vocabulary for the bounded ventilator/medical-device pilot.
-4. Let a human create the concept and attach the three surfaces through the existing REST APIs.
-5. Once tier 3's scoring defect in A.7 is fixed, use a small, explicitly reviewed literal rewrite such as `亮度 → Luminance` as another deterministic bridge. Direct surface membership remains preferable for durable aliases because it records each name as first-class lexicon data rather than treating semantic equivalence as a text rewrite.
+The same normalizer must process imported resource surfaces, observed document names, and query strings. Otherwise a clean resource dictionary and dirty document extraction will use incompatible keys.
 
-The running implementation currently supports only item 4 end to end. It has REST endpoints and stores for concepts, surfaces, and rewrite rules, but the tier-3 scoring bug prevents a rewrite between genuinely different keys from producing an accepted result. It has no metrics glossary importer, promoted-term alias backfill, or curated metric seed. As verified on 2026-08-05 with counts from `kb.keyword_concepts` and `kb.keyword_surfaces`, the live `chenweb_test` database had three keyword concepts and four surfaces, but no luminance concept or any of the three example surfaces. Therefore this example is the required target state, not a claim about current data.
+The current `KeywordNormalizer.Normalize` implementation executes this pipeline:
 
-### A.3 Online resolution, step by step
+```text
+NFKC
+→ remove a fixed list of zero-width characters plus LRM/RLM
+→ normalize dash and quote variants
+→ collapse ASCII space, tab, CR, and LF
+→ collapse dotted uppercase initialisms
+→ lowercase Unicode runes
+→ remove a limited English possessive form
+→ remove leading English articles
+→ apply a small English singularizer
+→ derive norm, alnum, sorted-token, phonetic, and initials keys
+```
 
-The proposed consumer call is `names.Resolver.ResolveName`; that interface is not built. The actual implementation underneath it today is `KeywordFamily.ResolveSurface`, `KeywordFamily.CandidateNodes`, and the shared `semid.Kernel`. Assuming the three rows in A.2 exist and the scope defect described in A.5 is fixed, each input follows the same no-LLM path. Every step below is marked **TODAY** when the mechanism exists in current code and **PROPOSED** when it belongs to the unbuilt facade; the `ventilator` scope on today's SQL is conditional on fixing K2.
+Examples based on that implementation:
 
-#### Input 1: `Luminance`
+| Raw input | Current `norm_key` | Why |
+|---|---|---|
+| `Luminance` | `luminance` | lowercasing |
+| `␠␠LUMINANCE␠␠` | `luminance` | whitespace collapse + lowercasing (`␠` denotes a space) |
+| `Ｌｕｍｉｎａｎｃｅ` | `luminance` | NFKC + lowercasing |
+| `亮度` | `亮度` | CJK characters have no case and remain intact |
+| `显示\u200B亮度` | `显示亮度` | zero-width character removal |
+| `显示 亮度` | `显示 亮度` | repeated whitespace collapses, but the remaining space is not removed from `norm_key` |
 
-1. **PROPOSED:** the consumer supplies the raw name and scope: `ResolveName(Name: "Luminance", Scope: "ventilator", ExpectedTermKinds: ["metric_definition"])`.
-2. **TODAY:** `KeywordNormalizer.Normalize("Luminance")` applies NFKC, whitespace normalization, case folding, and the remaining deterministic normalizer stages. Its canonical key is `luminance`.
-3. **TODAY SQL; PROPOSED scope behavior:** tier 0 queries `kb.keyword_surfaces` for the exact literal surface and scope. The query exists today, but it receives `_` until K2 is fixed; the intended query is:
+For the final row, the derived `alnum` key is `显示亮度`, which could bridge the spaced and unspaced forms at tier 2—but no current write path populates `kb.keyword_surface_keys`, so that bridge does not work today.
 
-   ```sql
-   WHERE s.surface = 'Luminance' AND s.scope = 'ventilator'
-   ```
+Current normalization must be improved before production use:
 
-4. **TODAY:** the row returns candidate node `kw:luminance`. The generic kernel scores its stored `norm_key` against the input key. Both are `luminance`, so the score is `1.0`.
-5. **TODAY:** `KeywordFamily.AutoAcceptPolicy` allows an unambiguous keyword match at score `>= 0.8`. There is one top candidate, so `Adjudicate` returns `auto_accepted` and the kernel sets `ResolvedNodeID = "kw:luminance"`.
-6. **PROPOSED:** the name resolver loads `kb.keyword_concepts['kw:luminance']` and returns its `pref_label`, `Luminance`, as the lexical canonical name.
+- `caseFold` calls `unicode.ToLower`; despite its comment, this is lowercasing, not full Unicode case folding.
+- English singularization runs after case is destroyed and corrupts tokens such as `AIDS`, `SaaS`, and `Kubernetes` as already recorded in the keyword spec.
+- `dropPossessiveS` does not remove a possessive at end of string because it only replaces `"'s "` followed by a space.
+- English articles and morphology are applied without a language guard.
+- There is no Chinese word segmentation, Simplified/Traditional Chinese handling, transliteration, language-specific punctuation policy, or multilingual morphological normalization.
+- Normalization must not erase meaningful diacritics, digits, symbols, negation, or script distinctions merely to increase recall. Lossy transformations belong in lower-confidence alternate keys, never the canonical key.
 
-#### Input 2: `亮度`
+The recommended design is a generic base cleaner plus pluggable, versioned language profiles. Language-specific profiles derive additional candidate keys; they never establish semantic identity by themselves.
 
-1. **PROPOSED:** the consumer supplies `Name: "亮度"` with the same scope and expected term kind.
-2. **TODAY:** the deterministic normalizer leaves these CJK characters unchanged, producing canonical key `亮度`.
-3. **TODAY SQL; PROPOSED scope behavior:** tier 0 finds the exact `亮度` surface row; it uses the caller-supplied scope only after K2 is fixed.
-4. **TODAY:** that row also carries `concept_id = 'kw:luminance'`. Its stored key equals the input key, so the score is `1.0`.
-5. **TODAY:** the single candidate is auto-accepted.
-6. **PROPOSED:** loading that concept returns `pref_label = "Luminance"`. The returned canonical name is therefore `Luminance`, even though the raw input and normalized key remain `亮度`.
+### A.6 Multilingual resolution policy
 
-#### Input 3: `显示亮度`
+Multilingual support is more than storing UTF-8 strings:
 
-1. **PROPOSED:** the consumer supplies `Name: "显示亮度"` with the same scope and expected term kind.
-2. **TODAY:** normalization produces canonical key `显示亮度`.
-3. **TODAY SQL; PROPOSED scope behavior:** tier 0 finds the exact `显示亮度` row; it uses the caller-supplied scope only after K2 is fixed.
-4. **TODAY:** that row again points to `kw:luminance`; exact-key scoring produces `1.0`.
-5. **TODAY:** the single candidate is auto-accepted.
-6. **PROPOSED:** the resolver reads the same concept and returns the same canonical label, `Luminance`.
+1. Store a valid BCP 47 language tag on every resource and observed surface; use `und` when unknown rather than today's dangerous default of `en`.
+2. Treat script detection as a hint, not as language identification. Han characters alone do not distinguish Chinese, Japanese, or shared technical notation.
+3. Keep translations and transliterations as explicit, provenance-bearing surfaces. Do not transliterate or convert Simplified/Traditional Chinese and silently declare equivalence during normalization.
+4. Use requested language as ranking and display information, not an unconditional filter. Mixed-language documents and borrowed technical terms are normal.
+5. Permit the same literal surface to belong to multiple concepts or languages. This requires changing the current uniqueness key, which omits `lang`. Scope, language, governed-term kind/module, and context may narrow candidates; unresolved ties remain `ambiguous`.
+6. Select display label by `requested language → configured fallback chain → concept default`. Persist and join by concept id, never by the localized label.
 
-The important observation is that the resolver does not compare `Luminance` with `亮度` during these online calls. It does not translate either string and does not invoke an LLM. Each string independently performs a SQL lookup and reaches the same already-established concept id. The shared concept supplies the canonical name.
+The current schema stores `keyword_surfaces.lang`, but tier 0/1/2/4 queries neither filter nor rank by it. `KeywordFamily.Scope` also discards the caller's scope, and the proposed `ResolveNameRequest.Language` has no implementation underneath it. Multilingual resolution is therefore represented in storage but not operational in matching or display.
 
-### A.4 What happens for spelling and casing variants
+### A.7 Online resolution after snapshot activation
 
-If only lowercase `luminance` is stored and the input is `Luminance`, tier 0 misses because it compares literal strings. Tier 1 then matches the normalized key `luminance`, returns `kw:luminance`, and auto-accepts it. The current `ResolveSurface` implementation then attempts to create a new `Luminance` surface row under that already-resolved concept. If the existing lowercase row uses `label_role = 'pref'`, the new `alt` row can be inserted. If an `alt` row with the same `(norm_key, concept_id, scope)` already exists, the table's uniqueness constraint rejects the second `alt` row and `ResolveSurface` silently ignores the creation error. Resolution still succeeds, but automatic surface accumulation is not reliable or fully idempotent under the current schema/error handling. No LLM is involved in either outcome.
+After A.3–A.4 publish the three surfaces, all normal calls are deterministic and make zero LLM requests:
 
-The same mechanism covers normalization-equivalent variations such as compatible Unicode forms, whitespace differences, and the limited morphology handled by the normalizer. It does **not** establish synonymy or translation between different keys; that relationship comes from the shared concept membership prepared in A.2.
+1. A consumer calls `ResolveName(Name, Scope, Language, ExpectedTermKinds)` after extraction validation and before persistence.
+2. The resolver preserves `RawName` and derives versioned keys using A.5.
+3. Tier 0 attempts exact `(surface, scope)` lookup; tier 1 attempts `(norm_key, scope)`; lower tiers may use populated alternate keys. Language may rank candidates. Expected term kind/module filters only the governed-term continuation unless explicit type evidence exists for a lexical concept.
+4. Candidate rows are deduplicated by concept id and merged concepts are followed to their survivor.
+5. Exactly one eligible top concept is auto-accepted. A tie returns `ambiguous`; no candidate returns `unresolved`.
+6. The resolver loads the concept and chooses a localized preferred surface. All three calls return `ConceptID = kw:luminance`; their display labels may differ by requested language.
+7. `ResolveName` performs no write. A processing consumer normally follows it with `ObserveName`, or uses `ResolveAndObserve`, to preserve the occurrence and outcome for later learning.
 
-### A.5 Real ambiguity: do not force a canonical name
+The resolver never compares English and Chinese meanings at request time. Each normalized query reaches a stored surface; shared concept membership carries the previously adjudicated equivalence.
 
-Suppose `亮度` is stored under two active concepts in the same scope—for example, one rigorously defined photometric luminance metric and one looser display-brightness concept. Tier 0 returns both concept ids with the same top score. `semid.Adjudicate` returns `ambiguous`, not `auto_accepted`, because `MaxCandidates` is `1`. No canonical name should be returned until scope or reviewed context selects one concept.
+### A.8 How the vocabulary continues to grow
 
-This is the correct no-LLM behavior: deterministic resolution is cheap, but it must refuse to guess. Scope is the intended first disambiguator. Context-based deterministic disambiguation is not implemented.
+The dictionary must not be a frozen artifact. Growth is an explicit loop:
 
-### A.6 What the current implementation gets right
+```text
+new resource release or document occurrence
+→ normalize and resolve against active snapshot
+→ record unresolved/ambiguous occurrence with raw text, language, context, and provenance
+→ batch harvest and candidate blocking
+→ deterministic evidence + optional LLM/human adjudication
+→ deterministic validation gates
+→ transactional concept/surface/mapping update
+→ rebuild indexes and publish next snapshot
+```
 
-- Tiers 0 and 1 are deterministic SQL lookups and work for correctly stored global-scope data; tier 1 is indexed, while tier 0 still needs the index identified in A.7.
-- The normalizer is deterministic and versioned.
-- Multiple exact surface rows can point to one concept, which is the core structure needed for this example; normalization-equivalent rows still need the candidate-deduplication fix in A.7.
-- A tied top score produces `ambiguous`; it does not silently select one concept.
-- The auto-accept policy requires one unambiguous candidate at score `>= 0.8`.
-- The rewrite-rule store and tier-3 candidate lookup exist, although the scoring defect in A.7 prevents a different-key rewrite from completing successfully.
-- `kb.keyword_concepts.pref_label` already provides the canonical lexical display name.
+Growth includes:
 
-### A.7 What is missing or incorrect today
+- periodic full or incremental source refreshes, such as Wikidata add/change dumps and new UMLS releases;
+- newly configured domain resources from the research survey;
+- aliases and definitions promoted from ontology candidates;
+- repeated unresolved names harvested from document processors;
+- human corrections, locks, never-merge rules, merges, and later splits;
+- normalizer upgrades, which require a new `norm_version` and complete derived-key rebuild without overwriting raw surfaces.
 
-| Gap | Consequence for this example |
+Each accepted addition must retain provenance and evidence in a separate source-assertion model. That model is required so source removal or changed licensing can retract one source's support without destroying independent evidence; current singular surface provenance cannot do this. A bad LLM decision is reversible only when its proposal, validation, apply event, and affected assertions are versioned rather than hidden inside `ResolveName`.
+
+### A.9 What exists and what is still missing
+
+The current design is **mutable in intent and storage, but not yet a functioning self-growing lexicon**.
+
+| Capability | Current state and consequence |
 |---|---|
-| No metrics seed/import/backfill path | The required `kw:luminance` cluster is never created automatically. The live database does not contain it. |
-| No consumer calls the resolver for `metric_name` | Even a correctly seeded cluster would not currently canonicalize an extracted metric. |
-| Proposed `names.Resolver` is not built | The current API returns a `ResolvedNodeID`, not the concept's `pref_label`; it therefore does not yet return a canonical name in one call. |
-| K2: caller scope is ignored during matching | `Kernel.Resolve` calls `KeywordFamily.Scope`, which always returns `_`. A row stored under intended scope `ventilator` cannot be found. The A.2 example works in current code only if its rows are incorrectly stored in global scope `_`. |
-| K3: surface creation trusts caller-supplied `norm_key` | A bad API payload can make an exact surface produce the wrong score or make later tier-1 lookup fail. The server must derive the key itself. |
-| K6: REST resolver reads the environment variable directly | An unset mode is treated as active by the REST path instead of failing closed as `off`. |
-| Tier 0 has no `(surface, scope)` index | Exact lookups use `WHERE s.surface = $1 AND s.scope = $2`, but the schema indexes `(norm_key, scope)`, not `(surface, scope)`. The main exact-match path can degrade to a table scan as the lexicon grows, contrary to the latency goal. |
-| Candidate rows are not deduplicated by `concept_id` | Tier queries return one candidate per matching surface row. Multiple matching rows belonging to the same concept can be counted as tied candidates and incorrectly produce `ambiguous`; candidate generation should collapse them to one candidate per concept before adjudication. |
-| Tier 3 scores the rewrite target against the original input | `CandidateNodes` may find `Luminance` after rewriting `亮度`, but `Kernel.Resolve` still scores that candidate with the original `亮度` key. The score is `0`, so the kernel drops the candidate and returns `deferred`. Rewrite rules cannot currently bridge genuinely different names as intended. |
-| Tiers 2 and 4 are not operational | No path populates `kb.keyword_surface_keys`; tier 4's initials logic is also incorrect. These do not block the three exact surfaces, but they reduce deterministic variant coverage. |
-| Auto-added surface errors are ignored | A normalization-equivalent `alt` row can violate the current uniqueness constraint. `ResolveSurface` ignores the failed `CreateSurface` result, so resolution succeeds while the expected alias row is not recorded. |
-| Merged/deprecated concept handling is incomplete | Candidate queries do not filter concept status or follow `merged_into`; a lookup can return a tombstoned concept instead of the surviving canonical concept. |
-| Occurrence/audit writes are incomplete and inseparable from lookup | `ResolveSurface` writes on every lookup, while `kb.keyword_mentions` does not record which name was observed or link to the decision row. This does not change the match but breaks provenance and clean API semantics. |
-| Auto-added surfaces use hardcoded provenance `llm:observe` | Tier-1 attachment is deterministic and makes no LLM call, so the stored provenance is factually misleading and prevents accurate cost/audit interpretation. |
-| No accepted `aligns_to_term` bridge | The resolver cannot continue from lexical concept `kw:luminance` to a governed `metric_definition` term. This does not prevent returning the lexical canonical name, but it prevents governed metric identity. |
+| Mutable concepts/surfaces | Built stores and REST APIs can create concepts, attach/lock surfaces, update labels, change status, and merge concepts. The dictionary is not structurally read-only. |
+| Automatic normalization-equivalent growth | `ResolveSurface` tries to attach a newly observed spelling after a match, but ignores insertion errors and records the misleading provenance `llm:observe`. |
+| Miss collection | `kb.keyword_unresolved` and its store exist, but occurrence capture lacks the observed name and useful provenance, scope is inconsistent, and no reconciliation worker drains the backlog. |
+| Resource import and refresh | Not built. There is no generic source adapter, source-release registry, external-concept mapping, license metadata, delta refresh, seed module, or artifact backfill. A surface also has only one `provenance` and one free-text `evidence` field, so it cannot represent independent support from several sources without a separate evidence table. |
+| Snapshot publication | Not built. Readers query mutable tables directly; there is no immutable active lexicon release or atomic activation gate. |
+| Offline LLM reconciliation | R1–R7 are designed but unbuilt. LLM use is appropriate here in batches, after blocking and before deterministic validation—not inside every resolve call. |
+| Multilingual matching | `lang` is stored but ignored; it defaults to `en`; no language-profile normalizer, localized preferred-label lookup, or constraint enforcing at most one preferred surface per concept/scope/language exists. |
+| Alternate-key lookup | Query code exists, but derived surface keys are never populated; dirty variants that need those keys miss. |
+| Scope | K2 remains: the kernel calls `KeywordFamily.Scope`, which always returns `_`, so requested scope is not honored during candidate lookup. |
+| Exact lookup performance | Tier 0 lacks an index on `(surface, scope)`. |
+| Candidate correctness | Matching rows are not deduplicated by concept id; merged/deprecated concepts are not handled correctly. |
+| Rewrite tier | A rewritten candidate is scored against the original input key and can be discarded with score zero. |
+| Consumer integration | No document consumer currently calls the proposed generic `names.Resolver`; it is not implemented. |
+| Governed-term bridge | Accepted `aligns_to_term` resolution is not built, so lexical identity cannot yet become governed metric identity. |
 
-Most importantly, **tiers 5–6 and an LLM reconciler are not prerequisites for this example's normal runtime behavior**. They are possible ways to propose relationships for previously unseen names. The metrics-first implementation can prove the core requirement without them by loading a small, reviewed metric lexicon and then demonstrating that all documented aliases resolve through tiers 0–4 with zero model calls.
+### A.10 Required metrics-first tests
 
-### A.8 Recommended metrics-first acceptance test
+The proof should contain two phases, not a fixture that magically begins with all three aliases.
 
-The first end-to-end proof should use a database fixture containing exactly the concept and three surfaces in A.2, then call the public name-resolution interface three times. It passes only if:
+**Bootstrap/growth test:**
 
-1. all three calls make zero LLM requests;
-2. with only the A.2 fixture, all three return `lexical_resolved`, never `ambiguous` or `unresolved`; an extended fixture may expect `term_resolved` only if it also supplies a released metric-definition term and accepted alignment;
-3. all three return the same `ConceptID`;
-4. all three return canonical name `Luminance`;
-5. all three preserve their distinct raw input strings;
-6. repeated calls are idempotent and do not create duplicate surfaces;
-7. the requested `ventilator` scope is actually used;
-8. adding a second `亮度` concept in the same scope changes that input to `ambiguous` rather than selecting either concept;
-9. disabling the resolver produces `disabled` and performs no writes;
-10. no keyword or ontology code contains a metric-specific branch to make the fixture pass.
+1. start with empty keyword tables;
+2. import a versioned Wikidata-style fixture that connects `Luminance` and `亮度` through one external id;
+3. ingest an observed `显示亮度` occurrence with Chinese language, document context, and compatible unit evidence;
+4. run a deterministic reconciliation fixture or stubbed structured LLM decision followed by real validation gates;
+5. verify that one concept and three evidence-bearing surfaces exist in a candidate snapshot;
+6. activate it atomically and prove a repeated import/reconciliation is idempotent;
+7. add a conflicting `亮度` concept and prove the system preserves ambiguity rather than over-merging it.
 
-Once this test passes, extending the same interface to another artifact means choosing the artifact's name field, scope, and optional expected governed term kind—not creating another canonicalization engine.
+**Online resolution test:**
+
+1. resolve all three clean names plus dirty variants such as `␠␠LUMINANCE␠␠`, `Ｌｕｍｉｎａｎｃｅ`, and `显示\u200B亮度` (`␠` denotes a space);
+2. assert zero LLM/network requests on every `ResolveName` call;
+3. assert the same `ConceptID` for all accepted inputs while preserving each raw string;
+4. assert English and Chinese preferred-label selection follows the requested language and fallback policy;
+5. assert scope, expected term kind, and language participate in candidate ranking;
+6. assert `ResolveName` performs no writes and `ResolveAndObserve` writes exactly one linked occurrence/decision;
+7. assert disabling the resolver returns `disabled` and performs no writes;
+8. assert no keyword or ontology code contains a metric-, resource-, or document-processor-specific branch to make the test pass.
+
+Once these tests pass, another artifact or domain extends the same system by registering resources and supplying name, scope, language, and optional expected term kinds—not by creating another canonicalization engine.
