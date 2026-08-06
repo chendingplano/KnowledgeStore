@@ -17,7 +17,7 @@
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
 | **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
 | **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
-| **Not built** | Tiers 5–6, reconciliation R1–R7, `aligns_to_term`, `on`-mode wiring, `names.Resolver`, resource import, the metric integration. |
+| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `aligns_to_term`, `on`-mode wiring, `names.Resolver`, resource import, the metric integration. |
 | **Never validated live** | No run against real PostgreSQL with real document text (I2). Every defect was found by reading code, not by a failing test. |
 | **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
 
@@ -67,18 +67,6 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 
 ⚠️ **Correction (2026-08-05).** An earlier revision of this table marked REQ-4 "✅ by design in P4" and claimed the matrix "falls back to grouping by raw string" when the term id is null. **Both statements were wrong**, and the second was invented — no such fallback exists in the code. See §2.4.
 
-### 2.4 🏗️ APP-SPECIFIC — REQ-4 decided and enforced: `metric_key` *is* the governed term id
-
-**This entire subsection is Document Review app scope (P4), not keyword-module scope.** It is documented here only because §2.2's acceptance example references it and because DR23's own worked example doesn't converge without it.
-
-Originally verified against the P4 comparison code (2026-08-05): `metric_definition_term_id` appeared nowhere in the comparison package, `kb.ontology_comparison_cells.metric_key` was an unconstrained `TEXT` column, and cell comparison was driven by `QuantityKind`/`Unit`/`Component`, not by any term identity — so the matrix's row key was an opaque string (`metric_key`, e.g. `"time_to_alarm"`) with no defined relationship to the governed term id REQ-3 produces.
-
-**Decided and implemented (2026-08-06): `metric_key` *is* the governed term id.** The comparison scope's row universe is populated with `metric_definition` term ids; `metric_key` is not a separate key space, it is that id serialized as text, and the column name is a holdover from an earlier design (not renamed — the ADR's own Appendix C.6 already named this column `metric_definition_term_id`; the implementation had drifted from that, this decision and its enforcement restore it). The rejected alternative — an explicit `metric_definition_term_id → metric_key` mapping owned by the comparison layer — would have added an indirection layer with no benefit once the key space and the term id are the same thing.
-
-**Enforcement, in `comparison/store.go`:** `ComparisonStore.validateMetricKey` runs on every `CreateScope` (each entry in `metric_keys`) and `PersistCell` (`metric_key`) call, requiring the value to be a `kb.ontology_terms` row with `term_kind = 'metric_definition'` and `status = 'included_in_release'` — otherwise the call is rejected before any row is written. **This is application-level validation, not a DB foreign key**, deliberately: `kb.ontology_terms` has no single-column unique constraint on `term_id` alone (only `(term_id, version)`, because terms are versioned), so a real FK isn't possible without changing the governed-term schema. It mirrors `AssociateSemantics.termExists` (`ontology/assertions/associate_semantics.go`) — the same pattern every other term-id-reference column in this schema uses (`predicate_term_id`, `subject_term_id`, etc.), none of which have a DB FK either. Covered by `TestComparisonStoreCreateScopeRejectsMetricKeyThatIsNotAReleasedMetricDefinitionTerm` (unknown term id, wrong `term_kind`, not-yet-released status).
-
-REQ-4 is now **decided and enforced**: no longer an undefined break in the chain, and no longer just a naming intent — a comparison scope or cell can no longer be created with a `metric_key` that isn't a released `metric_definition` term.
-
 ### 2.2 The acceptance test
 
 Given a corpus where luminance is phrased as `Luminance`, `luminance`, `亮度`, and `显示亮度` across many documents:
@@ -96,6 +84,18 @@ Given a corpus where luminance is phrased as `Luminance`, `luminance`, `亮度`,
 DR23 lists **brightness** alongside 亮度 / 显示亮度 / luminance. Photometrically, *brightness* is a perceptual attribute and *luminance* is a measured quantity — they are near-synonyms in ordinary use and **different quantities in a standards context**. Whether they are one metric definition or two is a **domain-owner decision**, not something this module may infer.
 
 The requirement on the module is therefore narrower and stricter than "merge things that look alike": it must be able to represent **either** answer, and it must never auto-merge them on lexical or embedding similarity alone. This is the ADR's own `exact | close | broad | narrow | related` mapping-strength discipline (DR13) applied to the case DR23 happens to use as an illustration. §13.4 states how a resource-imported "related" pair is prevented from silently becoming "exact."
+
+### 2.4 🏗️ APP-SPECIFIC — REQ-4 decided and enforced: `metric_key` *is* the governed term id
+
+**This entire subsection is Document Review app scope (P4), not keyword-module scope.** It is documented here only because §2.2's acceptance example references it and because DR23's own worked example doesn't converge without it.
+
+Originally verified against the P4 comparison code (2026-08-05): `metric_definition_term_id` appeared nowhere in the comparison package, `kb.ontology_comparison_cells.metric_key` was an unconstrained `TEXT` column, and cell comparison was driven by `QuantityKind`/`Unit`/`Component`, not by any term identity — so the matrix's row key was an opaque string (`metric_key`, e.g. `"time_to_alarm"`) with no defined relationship to the governed term id REQ-3 produces.
+
+**Decided and implemented (2026-08-06): `metric_key` *is* the governed term id.** The comparison scope's row universe is populated with `metric_definition` term ids; `metric_key` is not a separate key space, it is that id serialized as text, and the column name is a holdover from an earlier design (not renamed — the ADR's own Appendix C.6 already named this column `metric_definition_term_id`; the implementation had drifted from that, this decision and its enforcement restore it). The rejected alternative — an explicit `metric_definition_term_id → metric_key` mapping owned by the comparison layer — would have added an indirection layer with no benefit once the key space and the term id are the same thing.
+
+**Enforcement, in `comparison/store.go`:** `ComparisonStore.validateMetricKey` runs on every `CreateScope` (each entry in `metric_keys`) and `PersistCell` (`metric_key`) call, requiring the value to be a `kb.ontology_terms` row with `term_kind = 'metric_definition'` and `status = 'included_in_release'` — otherwise the call is rejected before any row is written. **This is application-level validation, not a DB foreign key**, deliberately: `kb.ontology_terms` has no single-column unique constraint on `term_id` alone (only `(term_id, version)`, because terms are versioned), so a real FK isn't possible without changing the governed-term schema. It mirrors `AssociateSemantics.termExists` (`ontology/assertions/associate_semantics.go`) — the same pattern every other term-id-reference column in this schema uses (`predicate_term_id`, `subject_term_id`, etc.), none of which have a DB FK either. Covered by `TestComparisonStoreCreateScopeRejectsMetricKeyThatIsNotAReleasedMetricDefinitionTerm` (unknown term id, wrong `term_kind`, not-yet-released status).
+
+REQ-4 is now **decided and enforced**: no longer an undefined break in the chain, and no longer just a naming intent — a comparison scope or cell can no longer be created with a `metric_key` that isn't a released `metric_definition` term.
 
 ---
 
@@ -833,7 +833,7 @@ Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
 8. **D11 auto-first** — top-1 on `ambiguous`, auto-create on targeted miss, method/score recorded, low-confidence and auto-created populations queryable as sets.
 9. **Dead-code deletions** (§20.4) and the §18.2 correctness tests.
 10. **`names.Resolver`** (§9.5) — the read-only contract plus `ObserveName`/`ResolveAndObserve`.
-11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations.
+11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations. ✅ **DONE (2026-08-06, step 11):** tier 5 fuzzy matching (pg_trgm-backed, §9.2 guardrails) wired into `CandidateNodes`; offline `keywords.Reconciler` + `cmd/keyword-reconcile` for tier 6 (reconciliation-only per §22 Q2). Per the step-11 plan's Non-goals, R1/R2/R4/R5 and a `kb.keyword_reconcile_runs` watermark table are explicitly deferred — this is the minimum loop, not the full R1–R7 pipeline. Migration `20260806000001`.
 12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3). REQ-3's persisted `metric_definition_term_id` is this module's complete output here; its shape does not bend to accommodate P4's internal key scheme — platform independence (§2.1).
 
 Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 make this module's half of §2 true, and once step 12 lands this module's responsibility for §2 is fully discharged.
@@ -975,14 +975,24 @@ go build ./... && go vet ./server/api/ontology/... ./server/api/kbhandler/... ./
 go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/...
 ```
 
-These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Steps 11–12 (REQ-1 tiers 5–6, REQ-2/3 `aligns_to_term`) are not started: tiers 5–6 await the §22 fuzzy/embedding decisions, and `aligns_to_term` awaits §16.1 term-catalog seeding. Step 13 was never this module's work (§2.4) — 🏗️ **APP-SPECIFIC, done separately:** the Document Review app's `metric_key` gap is decided and enforced as of 2026-08-06 (`ComparisonStore.validateMetricKey`, `comparison/store.go`). Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
+These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Step 11 (REQ-1 tiers 5–6) is implemented — see the step-11 entry below; step 12 (REQ-2/3 `aligns_to_term`) is not started, and awaits §16.1 term-catalog seeding. Step 13 was never this module's work (§2.4) — 🏗️ **APP-SPECIFIC, done separately:** the Document Review app's `metric_key` gap is decided and enforced as of 2026-08-06 (`ComparisonStore.validateMetricKey`, `comparison/store.go`). Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
+
+Step 11 (tier 5 + minimum reconciliation loop), 2026-08-06, jj commit ids: `304a` step-11 plan · `7c3a` pg_trgm + trigram indexes (migration `20260806000001`) · `145c` semid PrecomputedScore · `d885`/`0f2a` §9.2 fuzzy guardrails · `c92b`/`8acb` tier-5 fuzzy matching wired into `CandidateNodes` · `429c` kernel-level e2e test · `008d` ConceptStore reconciliation queries · `d8b5` offline `keywords.Reconciler` (tier 6 embedding merge) · `e901`/`8396`/`82a4` review fix-ups · `7afd` `cmd/keyword-reconcile` binary. No LLM call; R1/R2/R4/R5 and a runs/watermark table are explicitly deferred (minimum loop, not the full R1–R7 pipeline); tier 6 runs reconciliation-only per §22 Q2.
+
+```bash
+cd ChenWeb
+go build ./... && go vet ./server/api/ontology/... ./server/api/kbhandler/... ./server/api/doc-processing/...
+go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/...
+```
+
+Green on keywords/semid/names; build and vet clean including the `cmd/keyword-reconcile` binary (compiles; runtime needs a DB/embedding server). kbhandler (search-registry/topic-category) and doc-processing retain only their pre-existing environment-dependent failures — none of step 11's commits touch those packages.
 
 ---
 
 ## 22. Open questions
 
 1. **Auto-accept thresholds per tier** (§13.1). Not derivable from first principles — measure against the gold set, ship conservative, tune.
-2. **Whether tier 6 belongs online at all.** Tier 6 must embed *the query* at resolve time. A **local** model is CPU work, consistent with §3's non-goal. A **hosted API** puts a network call on every miss — breaking the non-goal, the latency budget, and independence from a third party. Either host a small multilingual model locally, or **restrict tier 6 to reconciliation** (offline, batched) and let the online path stop at tier 5. **Recommendation: reconciliation-only unless a local model is already in the stack** — D11's auto-creation means a first-seen foreign-language name gets an identity immediately regardless, so deferring the merge costs little.
+2. **Whether tier 6 belongs online at all.** Tier 6 must embed *the query* at resolve time. A **local** model is CPU work, consistent with §3's non-goal. A **hosted API** puts a network call on every miss — breaking the non-goal, the latency budget, and independence from a third party. Either host a small multilingual model locally, or **restrict tier 6 to reconciliation** (offline, batched) and let the online path stop at tier 5. **Recommendation: reconciliation-only unless a local model is already in the stack** — D11's auto-creation means a first-seen foreign-language name gets an identity immediately regardless, so deferring the merge costs little. **✅ Decided 2026-08-06: reconciliation-only.** Two local multilingual embedding models are already in `.models.toml` (`qwen3-embedding-0-6b`, `nomic-embed-v2-moe` via llama.cpp), but the online resolve path was kept free of that runtime dependency by explicit choice.
 3. **Is `brightness` the same metric definition as `luminance`?** (§2.3) A domain-owner decision. The module must represent either answer and must never infer it.
 
 ---
