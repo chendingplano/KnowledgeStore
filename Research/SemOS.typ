@@ -266,6 +266,34 @@ Performance will depend on prompt and schema quality. The harness should make fo
 3. Replacement content must not include prefixes.
 4. An anchor mismatch means the file changed and should usually be reread.
 
+= Reviews
+== Cloudflare OS
+#let a_003 = link(
+  "https://blog.cloudflare.com/cloudflare-os/"
+)[#text(fill: blue)[CloudFlare OS Web Site]]
+
+#a_003 \
+Source: HackerNews
+
+Cloudflare OS is an AI platform, developed for developing AI apps.
+
+- Agent workspace: A workspace combines agent sessions, persistent state, 
+  outputs and files, resource access, and an isolated runtime where the 
+  agent can write and run code.
+- Interface: a chat interface. User asks Cloudflare, it uses company context,
+  resources made available to it, the skills created for the company,
+  search, filter, etc.
+- Create docs, slides, and spreadsheets: virtually anything you want to create
+- Create apps
+- Run deterministic workflows
+- Security: 
+  - agents start with no access
+  - Gatekeeps goven resources and actions: a gatekeeper is a service-specific worker 
+    that sits between Cloudflare OS and an external service. It understands the 
+    service's API, its resources, and the operations that can be performed on them.
+  - Policy follows what the agent has seen: Controlling the initial read is not enough. Take, for example, the case where an agent reads a sensitive table in a data warehouse and uses it to produce a live dashboard. Sharing the dashboard must not become a way to share the table with people who could not access it directly.
+
+
 = References
 [1]  I Improved 15 LLMs at Coding in One Afternoon. Only the Harness Changed
 https://blog.can.ac/2026/02/12/the-harness-problem/

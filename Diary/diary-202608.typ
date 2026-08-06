@@ -66,3 +66,7 @@ Source: Jimmy
 
 This is a frontend technique to show pages using SSE.
 
+= 2026/08/06 - Databricks Lakebase
+Refer to 'Review-Lakebase.typ'
+
+
