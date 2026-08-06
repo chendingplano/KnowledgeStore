@@ -88,6 +88,17 @@
   database, no data-only repository. Directly-coupled references updated to match: DR11 seam 4,
   §6.1 (module content as data), §7 env vars (the compiler reads the DB, not a repo), §8.1
   compiler row, §8.3.1 P0 bullet, and §10 consequences.
+* 2026/08/06, platform/application boundary clarification. Names the product-standard-comparison
+  application from the 2026/07/29 second revision explicitly: the **Document Review app**. Records
+  that DR21/DR22 (the strictness comparator, class-anchored comparison runs, `kb.comparison_scopes`
+  / `kb.comparison_runs` / `kb.comparison_cells`, §3.23) and the ventilator pilot benchmark/domain
+  module are that app's concern, not the ontology platform's (P1–P3, P5–P7 generic
+  ontology/keyword/profile/pipeline machinery). Nothing about DR21/DR22 changes — §3.23 already
+  scoped them as an L7 application service and §8.2 already says "not a doc processor"; this entry
+  only makes the boundary explicit by name, because a downstream module spec (keyword
+  canonicalization, `2026080403`) had drifted into treating P4's comparison-matrix row key as a
+  requirement the platform must itself satisfy. In-place tags added at §3.23, §8.1's comparison
+  service row, §8.2's not-a-doc-processor note, §8.3's deferred-data-gate line, and Appendix C.6.
 
 ## 2. Context
 
@@ -1345,6 +1356,8 @@ Two rules keep this honest:
 
 ### 3.23 DR22 — The comparison matrix is a class-anchored application service, not a doc processor
 
+🏗️ **APP-SPECIFIC — Document Review app, not the ontology platform.** See Change Log 2026/08/06.
+
 The existing review pipeline is document-anchored: review *this document* against selected
 profiles. The application is **class-anchored**: for this part class, across a whole corpus, show
 every expected metric against every authority family. Both are Layer 7; only the anchor differs.
@@ -1596,7 +1609,7 @@ kb.ontology_review_scopes      (immutable frozen scope)
 ALTER kb.doc_review_findings   ADD review_scope_id, profile_rule_id, assertion_id
 ```
 
-**P4 — target application (DR21–DR22)**
+**P4 — target application (DR21–DR22)** — 🏗️ Document Review app, not platform; see Change Log 2026/08/06
 
 ```text
 kb.comparison_scopes           (immutable: target class/object, metric definition set,
@@ -1782,9 +1795,9 @@ pipeline-table row, status JSON, dashboard registration) and now also declares a
 > gold-corpus reconciliation.
 
 Explicitly **not** doc processors: the comparison matrix and verdict computation (DR22, an L7
-service), profile evaluation (L6), the certification-body registry (reference data, not
-extraction), and the product image hotspot map (application data binding an image region to an
-object node).
+service — 🏗️ Document Review app, not platform), profile evaluation (L6), the certification-body
+registry (reference data, not extraction), and the product image hotspot map (application data
+binding an image region to an object node).
 
 ### 8.3 Phased Implementation Plan
 
@@ -2028,7 +2041,8 @@ authenticated authoring/execution/read APIs. All P4 migrations were live-validat
 `extract_test_methods`, and the structured-output extension of `extract_provisions` remain to be
 implemented. **Deferred data gate:** the ventilator benchmark/domain module is validation data only. It is not
 part of the generic runtime and remains un-authored until a domain owner supplies a traceable
-worked example and approved source values.
+worked example and approved source values. 🏗️ **APP-SPECIFIC** — the benchmark belongs to the
+Document Review app, not the ontology platform; see Change Log 2026/08/06.
 
 * Profile and rule schema; rule-kind registry with paired evaluator and SHACL emitter (seam 6).
 * The pilot 4b domain module authored end to end: classes, properties, profile, rules,
@@ -2694,7 +2708,7 @@ end.
 | `kb.ontology_profile_rules` | Typed rule kinds (e.g. `required_assertion_pattern`) with a paired SHACL emitter (DR11 seam 6). Each rule belongs to a profile and is versioned. | `rule_id`, `profile_id`, `version`, `rule_kind`, `quantifier`, `property_term_id`, `quantity_kind_term_id`, `severity`, `predicate JSONB`, `status` | DR3, DR11, L6 | Direct API `POST /kb/ontology/profile-rules` |
 | `kb.ontology_review_scopes` | Immutable frozen review scope: pinned module releases, closed dimensions, applicability facts, and the as-of date. Once written, never mutated. | `scope_id`, `profile_id`, `profile_version`, `pinned_releases JSONB`, `closed_dimensions JSONB`, `applicability_facts JSONB`, `as_of_date`, `frozen_at` | DR3, L7 | Review-scope freeze (L7 governance plane) |
 
-### C.6 New tables — P4 (target application, DR21–DR22)
+### C.6 New tables — P4 (target application, DR21–DR22) — 🏗️ Document Review app, not platform
 
 | Table | Description | Key columns | ADR ref | Authoring / generation |
 |---|---|---|---|---|

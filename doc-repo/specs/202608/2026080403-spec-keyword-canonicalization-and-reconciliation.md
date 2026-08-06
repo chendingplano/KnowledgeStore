@@ -52,7 +52,7 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 
 > **"Alternative names are lexicon, not term duplicates.** A metric definition's alias set is the DR15/DR16 keyword lexicon instantiated over metric terms, aligned by `aligns_to_term`. This is what lets 亮度 / 显示亮度 / luminance / brightness in 140 documents reach one row — and it is why the lexicon is not an optional side quest for this application but a prerequisite." — ADR `2026072901` §3.24 (DR23)
 
-**"Reach one row" is the acceptance criterion for this entire module.** It is not aspirational and it is not deferred: the comparison matrix that the target application renders has one row per metric definition, and if four phrasings of luminance produce four rows, the application is wrong on its primary screen.
+**"Reach one row" is the outcome this module exists to make possible.** It is not aspirational and it is not deferred: the comparison matrix that the target application renders has one row per metric definition, and if four phrasings of luminance produce four rows, the application is wrong on its primary screen. 🏗️ **APP-SPECIFIC:** the comparison matrix itself is rendered and owned by the **Document Review app** (P4, DR21/DR22) — not this module. This module's own acceptance boundary is REQ-1 and REQ-2 (§2.1).
 
 ### 2.1 What "one row" decomposes into
 
@@ -61,28 +61,23 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 | **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ⚠️ tiers 0–1 only; cross-lingual unification unbuilt |
 | **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ⏳ nothing built; blocked by a schema CHECK |
 | **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ⏳ nothing built |
-| **REQ-4** | The comparison matrix's row key is **derived from that term id** | ⚠️ **unspecified — see §2.4** | ⚠️ **gap** |
+| **REQ-4** | The comparison matrix's row key is **derived from that term id** | ✅ **decided and enforced (2026-08-06) — `metric_key` *is* the term id; see §2.4** | 🏗️ **APP-SPECIFIC — Document Review app (P4); implemented** |
 
-**REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 is a dependency on P4 that is currently unmet and unspecified.**
+**REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 belongs to the Document Review app (P4) — it is tracked in this table only because DR23's own acceptance example (§2.2) depends on it, not because this module owns it or blocks on it.**
 
 ⚠️ **Correction (2026-08-05).** An earlier revision of this table marked REQ-4 "✅ by design in P4" and claimed the matrix "falls back to grouping by raw string" when the term id is null. **Both statements were wrong**, and the second was invented — no such fallback exists in the code. See §2.4.
 
-### 2.4 The REQ-4 gap: `metric_key` is not `metric_definition_term_id`
+### 2.4 🏗️ APP-SPECIFIC — REQ-4 decided and enforced: `metric_key` *is* the governed term id
 
-Verified against the P4 comparison code:
+**This entire subsection is Document Review app scope (P4), not keyword-module scope.** It is documented here only because §2.2's acceptance example references it and because DR23's own worked example doesn't converge without it.
 
-- `kb.ontology_comparison_scopes.metric_keys` (JSONB) pins the row universe, and `kb.ontology_comparison_cells.metric_key` (**TEXT, no foreign key**) is part of each cell's uniqueness constraint — `UNIQUE (comparison_run_id, target_object_id, metric_key, subject_family, authority_family)`.
-- **`metric_definition_term_id` appears nowhere in the comparison package** (`comparison/store.go`, `compare.go`, `constraint.go`, `evaluate_cell.go`), and there is no `term_id` column on either comparison table.
-- Cell comparison itself is driven by `QuantityKind` / `Unit` / `Component` (`constraint.go`), not by any term identity.
+Originally verified against the P4 comparison code (2026-08-05): `metric_definition_term_id` appeared nowhere in the comparison package, `kb.ontology_comparison_cells.metric_key` was an unconstrained `TEXT` column, and cell comparison was driven by `QuantityKind`/`Unit`/`Component`, not by any term identity — so the matrix's row key was an opaque string (`metric_key`, e.g. `"time_to_alarm"`) with no defined relationship to the governed term id REQ-3 produces.
 
-**So the matrix's row key is an opaque string (`metric_key`, e.g. `"time_to_alarm"`) with no defined relationship to the governed term id that REQ-3 produces.** Even a perfect REQ-1/REQ-2/REQ-3 implementation does not deliver "one row" until this is closed: the keyword module would correctly assign one term id to all 140 documents' metrics, and the matrix would still group by whatever populates `metric_key`.
+**Decided and implemented (2026-08-06): `metric_key` *is* the governed term id.** The comparison scope's row universe is populated with `metric_definition` term ids; `metric_key` is not a separate key space, it is that id serialized as text, and the column name is a holdover from an earlier design (not renamed — the ADR's own Appendix C.6 already named this column `metric_definition_term_id`; the implementation had drifted from that, this decision and its enforcement restore it). The rejected alternative — an explicit `metric_definition_term_id → metric_key` mapping owned by the comparison layer — would have added an indirection layer with no benefit once the key space and the term id are the same thing.
 
-**This must be resolved before §2.2's acceptance test can pass.** Two candidate resolutions, undecided:
+**Enforcement, in `comparison/store.go`:** `ComparisonStore.validateMetricKey` runs on every `CreateScope` (each entry in `metric_keys`) and `PersistCell` (`metric_key`) call, requiring the value to be a `kb.ontology_terms` row with `term_kind = 'metric_definition'` and `status = 'included_in_release'` — otherwise the call is rejected before any row is written. **This is application-level validation, not a DB foreign key**, deliberately: `kb.ontology_terms` has no single-column unique constraint on `term_id` alone (only `(term_id, version)`, because terms are versioned), so a real FK isn't possible without changing the governed-term schema. It mirrors `AssociateSemantics.termExists` (`ontology/assertions/associate_semantics.go`) — the same pattern every other term-id-reference column in this schema uses (`predicate_term_id`, `subject_term_id`, etc.), none of which have a DB FK either. Covered by `TestComparisonStoreCreateScopeRejectsMetricKeyThatIsNotAReleasedMetricDefinitionTerm` (unknown term id, wrong `term_kind`, not-yet-released status).
 
-1. **`metric_key` *is* the governed term id** — the comparison scope is populated with `metric_definition` term ids, and the column is simply named from an earlier design. Cheapest if true; needs confirmation from whoever owns P4, plus a documented constraint that scope authors may only use term ids.
-2. **An explicit mapping** — `metric_definition_term_id → metric_key`, owned by the comparison layer, so the matrix keeps its own key space while remaining derivable from governed identity.
-
-Until one is chosen and recorded, REQ-4 is a **known break in the chain**, not a satisfied requirement. It is the one part of §2 that this module cannot fix on its own.
+REQ-4 is now **decided and enforced**: no longer an undefined break in the chain, and no longer just a naming intent — a comparison scope or cell can no longer be created with a `metric_key` that isn't a released `metric_definition` term.
 
 ### 2.2 The acceptance test
 
@@ -91,10 +86,10 @@ Given a corpus where luminance is phrased as `Luminance`, `luminance`, `亮度`,
 1. All four resolve to **one** `concept_id`.
 2. That concept has **one** accepted `aligns_to_term` to a released `metric_definition` term.
 3. Every extracted metric from every one of those documents carries that **one** `metric_definition_term_id`.
-4. A comparison run for that metric definition produces **exactly one row**, with all documents' assertions inside it.
-5. Adding a 141st document with a fifth phrasing does not create a second row — it either resolves (R1) or auto-creates a concept that reconciliation merges (§13), converging to one row without human intervention.
+4. 🏗️ **APP-SPECIFIC (P4):** a comparison run for that metric definition produces **exactly one row**, with all documents' assertions inside it.
+5. 🏗️ **APP-SPECIFIC (P4):** adding a 141st document with a fifth phrasing does not create a second row — it either resolves (R1) or auto-creates a concept that reconciliation merges (§13), converging to one row without human intervention.
 
-Step 5 is the one that distinguishes a system that works at scale from one that works on a fixture.
+**Steps 1–3 are this module's acceptance boundary**, independently testable per §18.2. Steps 4–5 are the Document Review app's end-to-end proof that this module's output actually closes the loop — real, and worth stating so DR23's own example is verifiable end to end, but they exercise P4 code this module does not own and cannot make pass by itself. Step 5 is the one that distinguishes a system that works at scale from one that works on a fixture.
 
 ### 2.3 A domain question DR23's own example raises
 
@@ -820,7 +815,7 @@ Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
 
 *Online:* resolve all three clean names plus dirty variants (`␠␠LUMINANCE␠␠`, `Ｌｕｍｉｎａｎｃｅ`, `显示​亮度`) → assert **the same `ConceptID`** for all while each raw string is preserved → assert **zero LLM/network calls** on every `ResolveName` → assert language-driven label selection → assert scope, term kind, and language participate in ranking → assert `ResolveName` writes nothing and `ResolveAndObserve` writes exactly one linked occurrence + decision → assert `disabled` writes nothing.
 
-*End-to-end (§2.2):* 140 documents with mixed phrasings produce **exactly one comparison-matrix row**; a 141st document with a fifth phrasing does not create a second.
+*End-to-end (§2.2, steps 4–5):* 🏗️ **APP-SPECIFIC — owned by the Document Review app's own test suite, not required for this module to pass.** Recorded here only as the observable proof that DR23's example works: 140 documents with mixed phrasings produce **exactly one comparison-matrix row**; a 141st document with a fifth phrasing does not create a second. REQ-4's side of this (§2.4) is now built; what remains before this is observable is this module's own REQ-1/REQ-2 (steps 11–12, §19) plus REQ-3's consumer call.
 
 **Structural:** assert **no keyword or ontology code contains a metric-, resource-, or processor-specific branch** to make any of the above pass.
 
@@ -839,10 +834,11 @@ Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
 9. **Dead-code deletions** (§20.4) and the §18.2 correctness tests.
 10. **`names.Resolver`** (§9.5) — the read-only contract plus `ObserveName`/`ResolveAndObserve`.
 11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations.
-12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3).
-13. **§2 REQ-4 — resolve the `metric_key` gap (§2.4).** Not keyword-module work, and **not optional**: until `metric_key` is either confirmed to be the governed term id or given a specified mapping, steps 1–12 cannot produce "one row." Settle this with whoever owns P4 **before** step 12, since the answer may change what REQ-3 persists.
+12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3). REQ-3's persisted `metric_definition_term_id` is this module's complete output here; its shape does not bend to accommodate P4's internal key scheme — platform independence (§2.1).
 
-Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 make this module's half of §2 true. **Step 13 is outside this module and is currently the binding constraint on the whole requirement** — worth raising now rather than discovering it after step 12.
+Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 make this module's half of §2 true, and once step 12 lands this module's responsibility for §2 is fully discharged.
+
+🏗️ **APP-SPECIFIC, not a build-order step of this module.** §2 REQ-4 — `metric_key` *is* the term id, decided and enforced in `comparison/store.go` (§2.4) — belongs to the Document Review app (P4) and was implemented there, not here. This module's job ends at persisting a governed `metric_definition_term_id`, in its own canonical form, on every metric row; steps 1–12 never depended on REQ-4's resolution. Flagged here only because §2.2's full end-to-end acceptance example isn't observable until REQ-1–3 are also built.
 
 **Two prerequisites owned elsewhere**, both gating §2 and neither scheduled here: the `aligns_to_term` predicate term must be seeded and released (§16.1), and released `metric_definition` terms must exist to align to — via the human catalog path or a standards-glossary import (§13.2). Someone must own both.
 
@@ -906,6 +902,12 @@ When a caller supplies a concept id that has since been merged (it stored `conce
 
 #### 20.1.13 I2 live PostgreSQL proof** (§0)
 I2 is the finding that the module has **never been validated live**: "No run against real PostgreSQL with real document text. Every defect was found by reading code, not by a failing test." The deferred item is actually running the module against real PostgreSQL with real document text — i.e., executing the §18.2 acceptance tests against a real DB rather than sqlmock. It's the overarching validation gap that hangs over everything else.
+
+#### 20.1.14 
+There's no end-to-end regression test for the targeted human_review path yet, because it's still 
+unreachable through real tier scoring today (tiers 0–4 only ever produce 1.0 or 0.8, both ≥ the 0.8 
+MinScore) — same reason F5 called it latent originally. That test should land with step 11 
+(tiers 5–6). The consolidated decisions table row is updated to match.
 
 ### 20.2 Defects
 
