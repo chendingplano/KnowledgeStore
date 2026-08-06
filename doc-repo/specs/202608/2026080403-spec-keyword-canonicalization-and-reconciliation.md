@@ -17,7 +17,7 @@
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
 | **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
 | **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
-| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `aligns_to_term`, `on`-mode wiring, resource import, the metric integration. |
+| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `on`-mode wiring, resource import. |
 | **Never validated live** | No run against real PostgreSQL with real document text (I2). Every defect was found by reading code, not by a failing test. |
 | **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
 
@@ -59,8 +59,8 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 | # | Requirement | Satisfied by | Status |
 |---|---|---|---|
 | **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ⚠️ tiers 0–1 only; cross-lingual unification unbuilt |
-| **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ⏳ nothing built; blocked by a schema CHECK |
-| **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ⏳ nothing built |
+| **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ✅ accepted `aligns_to_term` assertion (§16.2) — step 12 (2026-08-06): auto-align on exact pref-label match + merge-follow; still gated on released `metric_definition` terms (§16.1) |
+| **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ✅ `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) — the minimum loop (exact-label auto-align + merge-follow) is the step-12 deliverable; the governed-catalog bootstrap (§16.1) and standards-glossary import (§13.2) still gate the live §2.2 end-to-end run |
 | **REQ-4** | The comparison matrix's row key is **derived from that term id** | ✅ **decided and enforced (2026-08-06) — `metric_key` *is* the term id; see §2.4** | 🏗️ **APP-SPECIFIC — Document Review app (P4); implemented** |
 
 **REQ-1 and REQ-2 are this module's responsibility. REQ-3 is the integration. REQ-4 belongs to the Document Review app (P4) — it is tracked in this table only because DR23's own acceptance example (§2.2) depends on it, not because this module owns it or blocks on it.**
@@ -651,9 +651,11 @@ Snapshot activation: build and validate a candidate release while readers stay o
 
 Re-pointing alone is not enough (stale consumer ids break); chasing alone is not enough (every surface lookup pays for it forever). Both, or REQ-1 does not hold across a merge.
 
-### 14.2 What a merge does to an `aligns_to_term` assertion — ✅ **Decided**
+### 14.2 What a merge does to an `aligns_to_term` assertion — ✅ **Live** (step 12)
 
 If A has an accepted `aligns_to_term` and B does not, the alignment **follows to B** as part of the merge transaction. If A and B are aligned to **different** terms, that is a **conflict and the merge is refused** — two concepts aligned to two distinct governed terms are evidence they are not the same thing, and that evidence outranks whatever similarity proposed the merge. This is the §2.3 `brightness`/`luminance` case arriving from the other direction, and it is a deterministic R6 gate, not a judgement call.
+
+✅ **Live (2026-08-06, step 12):** the conflict gate and follow now run inside `MergeConcept`'s transaction when an alignment store is wired (Task 4 of step 12, commit `msts`).
 
 ### 14.3 Which merges may be automatic — ✅ **Decided** (the D10 / §13.1 boundary)
 
@@ -761,7 +763,7 @@ Both run in Phase B, both touch a metric's name, **neither resolves it**. No dep
 
 **Where the call goes:** in the consumer of `extract_metrics`' output, after parsing and validation, **before the metric row is persisted** — not inside `associate_semantics` (§17.1). `extract_metrics` itself is not modified: no prompt change, no extraction change.
 
-⚠️ **The exact call site is not yet fixed, and choosing it is part of step 12.** The seam is named but not located: metric rows are written by `MetricsSQLStore.SaveMetrics`/`UpsertMetrics` (`doc-processing/extract-metrics.go`), which is reached from `FinalizeChunkBatch` and from the enrichment path. Whether the resolver call belongs immediately before those writes, or in a small adapter that wraps them, is an implementation decision — but it must be **one** place, not one per write path, or the two paths will diverge exactly the way the two normalizers did (D3).
+✅ **Call site decided (step 12, 2026-08-06): a `ResolvingMetricsStore` decorator wraps `MetricsSQLStore`.** It is constructed by `newResolvingMetricsStore(db)` inside `defaultProductionRuntimeComponents` at `doc-processing/runtime.go`, where `NewMetricsProcessor` receives its `Store` — **one seam**, not one per write path. `keyword_concept_id` comes from `resolution.ConceptID`; `metric_definition_term_id` comes from `resolution.TermID` on `term_resolved` only. Metric rows are still written by `MetricsSQLStore.SaveMetrics`/`UpsertMetrics` (`doc-processing/extract-metrics.go`), reached from `FinalizeChunkBatch` and from the enrichment path, but every path now flows through the single decorator, so the two write paths cannot diverge the way the two normalizers did (D3).
 
 ---
 
@@ -834,7 +836,7 @@ Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
 9. **Dead-code deletions** (§20.4) and the §18.2 correctness tests.
 10. **`names.Resolver`** (§9.5) — the read-only contract plus `ObserveName`/`ResolveAndObserve`.
 11. **§2 REQ-1** — tiers 5–6 and the minimum reconciliation loop that unifies translations. ✅ **DONE (2026-08-06, step 11):** tier 5 fuzzy matching (pg_trgm-backed, §9.2 guardrails) wired into `CandidateNodes`; offline `keywords.Reconciler` + `cmd/keyword-reconcile` for tier 6 (reconciliation-only per §22 Q2). Per the step-11 plan's Non-goals, R1/R2/R4/R5 and a `kb.keyword_reconcile_runs` watermark table are explicitly deferred — this is the minimum loop, not the full R1–R7 pipeline. Migration `20260806000001`.
-12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3). REQ-3's persisted `metric_definition_term_id` is this module's complete output here; its shape does not bend to accommodate P4's internal key scheme — platform independence (§2.1).
+12. **§2 REQ-2/REQ-3** — seed and release the `aligns_to_term` predicate term (§16.1), extend `subject_ref_kind`, build the alignment producer, add the metric columns, and place the consumer call (§16.3). REQ-3's persisted `metric_definition_term_id` is this module's complete output here; its shape does not bend to accommodate P4's internal key scheme — platform independence (§2.1). ✅ **DONE (2026-08-06, step 12):** the call-site decision was recorded as a `ResolvingMetricsStore` decorator — one seam at the metrics processor's `Store` construction in `doc-processing/runtime.go` (§16.3); `subject_ref_kind` was extended to admit `keyword_concept` subjects (migration `20260806000002`); `core:aligns_to_term` was seeded into the core module and released (`core@1.0.0`); and the two external prerequisites (§16.1 governed-catalog bootstrap, §13.2 standards-glossary import) still gate the full §2.2 acceptance test.
 
 Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps 10–12 make this module's half of §2 true, and once step 12 lands this module's responsibility for §2 is fully discharged.
 
@@ -848,7 +850,7 @@ Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps
 
 ### 20.1 Deferred
 
-R1–R7 · `aligns_to_term` · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
+R1–R7 · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
 
 
 
@@ -868,42 +870,39 @@ The seven-stage **reconciliation pipeline** — the offline batch process that u
 
 The reconciler, not the model, owns every write. This is the machinery Appendix A Stage 5 depends on.
 
-#### 20.1.3 `aligns_to_term`** (§16, REQ-2, build step 12)
-The assertion linking a keyword **concept** (ungoverned lexical layer) to a governed **`metric_definition` term**. This is REQ-2 ("one governed term"). Blocked by two hard prerequisites: (a) a schema CHECK — `kb.semantic_assertions.subject_ref_kind` doesn't permit `keyword_concept` as a subject; (b) the `aligns_to_term` predicate must itself be seeded and released as a governed term (it's absent from `ontology-seed` today). It also presumes released `metric_definition` terms exist to align *to*.
-
-#### 20.1.4 `on`-mode wiring** (§9.4, D9)
+#### 20.1.3 `on`-mode wiring** (§9.4, D9)
 `KEYWORD_RESOLVER_MODE=on` removes the gate so resolution answers actually reach consumers. Currently unusable because **no consumer exists**. (The narrower K7 bug — `on` accidentally disabling collection — was fixed in §21 step 1; the remaining problem is deeper: nothing is wired to *consume* results in `on` mode.) Effectively this is the consumer/metric-integration wiring.
 
-#### 20.1.5 Collector pipeline wiring** (§11)
+#### 20.1.4 Collector pipeline wiring** (§11)
 The mention collector is built standalone, but its downstream chain — `collector → backlog → reconciliation → lexicon → retrieval` — is unbuilt after the first arrow. Its job is **corpus-wide recall** (vocabulary for a retrieval consumer expanding queries). Wiring it today would write rows nothing reads. Note §2's requirement runs through *targeted* enrichment, not the collector, so this doesn't block the pilot.
 
-#### 20.1.6 Context-token disambiguation** (§5.4)
+#### 20.1.5 Context-token disambiguation** (§5.4)
 For homonyms (`ML` → machine learning *and* millilitre), the design is: scope disambiguates first, then **context**. Neither works — scope is inert (K2) and context disambiguation is unbuilt — so global-scope homonyms just return `ambiguous`. This item is the using-surrounding-tokens-to-pick-the-right-sense mechanism.
 
-#### 20.1.7 Double Metaphone** (§6.2)
+#### 20.1.6 Double Metaphone** (§6.2)
 The phonetic-key algorithm. The key bundle defines six keys (`exact`, `norm`, `alnum`, `sorted`, `phonetic`, `initials`); **`phonetic` is a stub read by no tier**. Double Metaphone would populate it (match by pronunciation). It's dead — §21 step 9 even removed the dead phonetic-key write.
 
-#### 20.1.8 Resource import** (§13.2–§13.4)
+#### 20.1.7 Resource import** (§13.2–§13.4)
 Seeding the lexicon from curated external vocabularies instead of starting empty: **Wikidata** (CC0, strong structural fit), **CC-CEDICT** (EN↔ZH), **UMLS** (not open — licensing must survive import), and **domain standards glossaries** (IEC 60601 / ISO 80601, likely highest-yield). Includes the binding rule §13.4 — import must **never upgrade relation strength** (a thesaurus `related`/`broad`/`narrow` must not silently become `exact`, i.e. don't flatten "brightness ≈ luminance" into an alias) — plus the §13.3 schema shapes (external-id mapping, source/license registry).
 
-#### 20.1.9 Multi-word and CJK-segmented collection** (§11)
+#### 20.1.8 Multi-word and CJK-segmented collection** (§11)
 Two collector gaps: (a) **CJK isn't segmented** — an unpunctuated Chinese run becomes one 50-rune pseudo-token, filling the backlog with junk on this predominantly-Chinese corpus; (b) **single tokens only** — no multi-word surface can ever be observed, which removes exactly the class the `sorted`/`initials` keys were built for.
 
-#### 20.1.10 Backlog admin surfaces** (§12, §20.4)
+#### 20.1.9 Backlog admin surfaces** (§12, §20.4)
 REST/UI admin pages for the backlog (`kb.keyword_unresolved`). §12 notes there's no REST surface for the backlog (nor derived keys nor occurrences); §20.4 explicitly keeps `UnresolvedStore.ListUnresolved` alive "for a backlog admin page."
 
-#### 20.1.11 Rewrite-rule auto-promotion** (§13 R7, §10.6)
+#### 20.1.10 Rewrite-rule auto-promotion** (§13 R7, §10.6)
 When reconciliation learns an alias, R7 **"promote rules"** — write it as a rewrite rule so future lookups hit at tier 3 (free SQL) instead of re-running reconciliation. It's a cost lever. §10.6 notes the current one-string→one-string rule shape can't express the family generalization that would make promotion actually pay.
 
-#### 20.1.12 `merged_into` chase at resolve time** (§14.1 item 3)
+#### 20.1.11 `merged_into` chase at resolve time** (§14.1 item 3)
 When a caller supplies a concept id that has since been merged (it stored `concept_id = A` before the A→B merge), resolution must follow `merged_into` to return survivor B. Applies to caller-supplied ids, not the surface-lookup path; cycle-guarded.
 
 > ⚠️ **This one is internally inconsistent.** §20.1 lists it as deferred, but the implementation record (§21, step 6, commit `b16b`) and Appendix A Stage 5 both state the chase **is now in place** ("resolution chases the survivor"). So this entry appears stale relative to §21.
 
-#### 20.1.13 I2 live PostgreSQL proof** (§0)
+#### 20.1.12 I2 live PostgreSQL proof** (§0)
 I2 is the finding that the module has **never been validated live**: "No run against real PostgreSQL with real document text. Every defect was found by reading code, not by a failing test." The deferred item is actually running the module against real PostgreSQL with real document text — i.e., executing the §18.2 acceptance tests against a real DB rather than sqlmock. It's the overarching validation gap that hangs over everything else.
 
-#### 20.1.14 
+#### 20.1.13 
 There's no end-to-end regression test for the targeted human_review path yet, because it's still 
 unreachable through real tier scoring today (tiers 0–4 only ever produce 1.0 or 0.8, both ≥ the 0.8 
 MinScore) — same reason F5 called it latent originally. That test should land with step 11 
@@ -975,7 +974,7 @@ go build ./... && go vet ./server/api/ontology/... ./server/api/kbhandler/... ./
 go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/...
 ```
 
-These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Step 11 (REQ-1 tiers 5–6) is implemented — see the step-11 entry below; step 12 (REQ-2/3 `aligns_to_term`) is not started, and awaits §16.1 term-catalog seeding. Step 13 was never this module's work (§2.4) — 🏗️ **APP-SPECIFIC, done separately:** the Document Review app's `metric_key` gap is decided and enforced as of 2026-08-06 (`ComparisonStore.validateMetricKey`, `comparison/store.go`). Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
+These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Step 11 (REQ-1 tiers 5–6) is implemented — see the step-11 entry below; step 12 (REQ-2/3 `aligns_to_term` + metric integration) is implemented — see the step-12 entry below. Step 13 was never this module's work (§2.4) — 🏗️ **APP-SPECIFIC, done separately:** the Document Review app's `metric_key` gap is decided and enforced as of 2026-08-06 (`ComparisonStore.validateMetricKey`, `comparison/store.go`). Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
 
 Step 11 (tier 5 + minimum reconciliation loop), 2026-08-06, jj commit ids: `304a` step-11 plan · `7c3a` pg_trgm + trigram indexes (migration `20260806000001`) · `145c` semid PrecomputedScore · `d885`/`0f2a` §9.2 fuzzy guardrails · `c92b`/`8acb` tier-5 fuzzy matching wired into `CandidateNodes` · `429c` kernel-level e2e test · `008d` ConceptStore reconciliation queries · `d8b5` offline `keywords.Reconciler` (tier 6 embedding merge) · `e901`/`8396`/`82a4` review fix-ups · `7afd` `cmd/keyword-reconcile` binary. No LLM call; R1/R2/R4/R5 and a runs/watermark table are explicitly deferred (minimum loop, not the full R1–R7 pipeline); tier 6 runs reconciliation-only per §22 Q2.
 
@@ -986,6 +985,16 @@ go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./ser
 ```
 
 Green on keywords/semid/names; build and vet clean including the `cmd/keyword-reconcile` binary (compiles; runtime needs a DB/embedding server). kbhandler (search-registry/topic-category) and doc-processing retain only their pre-existing environment-dependent failures — none of step 11's commits touch those packages.
+
+Step 12 (REQ-2/3 `aligns_to_term` + metric integration), 2026-08-06, jj commit ids: `utzkonsllqsy` migration — `subject_ref_kind` CHECK extended with `keyword_concept` on both the subject (NOT NULL) and object (nullable) sides, and `kb.metrics` gains `keyword_concept_id` (FK to `kb.keyword_concepts`) + `metric_definition_term_id` (deliberately no FK, the same reason every other term-id-reference column in this schema has none, §2.4); migration `20260806000002` · `kurzxzxyoqzl` seed — `core:aligns_to_term` property seeded and released (`core@1.0.0`) · `qxrzszuzsouv` alignment store (`AlignmentsStore` + `AllowedRefKinds`) · `mstsuzspxtnl` §14.2 gate + follow live in `MergeConcept` (a different-term alignment conflicts and refuses the merge; a sole alignment follows to the survivor) · `twoyxzvtwzuu` resolver follows `aligns_to_term` and auto-aligns on an exact pref-label match (REQ-2) · `wpvswuvomvon` `ResolvingMetricsStore` decorator wrapping `MetricsSQLStore`, constructed by `newResolvingMetricsStore(db)` at `NewMetricsProcessor` in `doc-processing/runtime.go` — one seam, not one per write path (§16.3) — persisting `keyword_concept_id` from `resolution.ConceptID` and `metric_definition_term_id` from `resolution.TermID` on `term_resolved` only (REQ-3). The spec's two asserted step-12 hard prerequisites — the `subject_ref_kind` schema CHECK and predicate seeding — are both resolved: the first by migration `20260806000002`, the second by the seeded+released predicate. What still gates the live §2.2 end-to-end run is external to this module: released `metric_definition` terms to align *to* (§16.1 governed-catalog bootstrap, §13.2 standards-glossary import).
+
+```bash
+cd ChenWeb
+go build ./... && go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/cmd/...
+go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/... ./server/api/ontology/assertions/...
+```
+
+Green on keywords/semid/names/assertions; build and vet clean. doc-processing retains only its pre-existing environment-dependent failures (the step-11 baseline of ~15; Task 6 confirmed the set did not grow) — none of step 12's commits grow it.
 
 ---
 
