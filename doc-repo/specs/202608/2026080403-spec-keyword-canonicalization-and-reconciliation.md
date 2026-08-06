@@ -17,7 +17,7 @@
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
 | **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
 | **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
-| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `aligns_to_term`, `on`-mode wiring, `names.Resolver`, resource import, the metric integration. |
+| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `aligns_to_term`, `on`-mode wiring, resource import, the metric integration. |
 | **Never validated live** | No run against real PostgreSQL with real document text (I2). Every defect was found by reading code, not by a failing test. |
 | **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
 
@@ -848,7 +848,7 @@ Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps
 
 ### 20.1 Deferred
 
-Tiers 5–6 · R1–R7 · `aligns_to_term` · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
+R1–R7 · `aligns_to_term` · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
 
 
 
