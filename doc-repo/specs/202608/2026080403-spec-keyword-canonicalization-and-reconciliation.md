@@ -840,6 +840,16 @@ go build ./... && go vet ./...
 
 These pass and prove little (§18.1) — no test would fail if any §20.2 defect were introduced.
 
+P4 §19 build order, 2026-08-05, 8 commits on `main` (jj, commit ids): `5fb6` step 1 — K6/K7 mode gates fail closed · `11f7` steps 2–4 — one shared normalizer (N1–N3), norm_version bump, scoped kernel resolve · `be91` step 5 — server-derived surface keys (K1/N3/K3) · `b16b` step 6 — guarded merge with §14.1 surface re-point, un-merge, chase; `MergeGraph` deleted · `e679` step 7 — K4 occurrences reshape + §13.3 evidence shapes; `MentionStore` deleted · `b7e0` step 8 — D11 auto-first (targeted miss → provisional concept, `gloss_source='auto:d11'`; collector exempt) · `ec62` step 9 — §20.2 leftovers (surface_id hashed after role defaulting, dead phonetic key write removed) + §18.2 correctness tests · `d1ab` step 10 — `names.Resolver` (§9.5 facade: governed released-term layer over the keyword lexical layer, five statuses, read/write split). Migrations `20260805000001–3`.
+
+```bash
+cd ChenWeb
+go build ./... && go vet ./server/api/ontology/... ./server/api/kbhandler/... ./server/api/doc-processing/...
+go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/...
+```
+
+These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Steps 11–13 (REQ-1 tiers 5–6, REQ-2/3 `aligns_to_term`, REQ-4 `metric_key`) are not started: tiers 5–6 await the §22 fuzzy/embedding decisions, `aligns_to_term` awaits §16.1 term-catalog seeding, and `metric_key` awaits metric-side (P4) coordination. Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
+
 ---
 
 ## 22. Open questions
@@ -891,7 +901,7 @@ R7 merges `kwc_B` into `kwc_L`, and — per §14.1 — **re-points `kwc_B`'s sur
 
 `显示亮度` follows the same path. **Result: one concept, all seven strings.** REQ-1 of §2.1 is satisfied — by auto-creation plus reconciliation, not by normalization and not by a person.
 
-⚠️ **None of Stage 5 works today.** Tier 6 is unbuilt, reconciliation is unbuilt, and `MergeConcept` does not re-point surfaces (§14.1). This stage describes the design in §13–§14, not current behaviour.
+⚠️ **Most of Stage 5 does not work today.** Tier 6 is unbuilt and reconciliation is unbuilt. The §14.1 merge machinery itself is now in place — `MergeConcept` re-points surfaces with `origin_concept`, `UnmergeConcept` reverses it, and resolution chases the survivor — but nothing proposes merges automatically yet. This stage describes the design in §13–§14.
 
 **Stage 6 — the governed term (§16).** A domain owner creates `mea:luminance` as a `metric_definition` term once, through the human-gated catalog path — hundreds of such terms, reviewed once each. An `aligns_to_term` assertion connects `kwc_L` to it, **auto-proposed and auto-accepted** above threshold, because assignment is not catalog creation (§16.1).
 
@@ -906,4 +916,4 @@ R7 merges `kwc_B` into `kwc_L`, and — per §14.1 — **re-points `kwc_B`'s sur
 | `亮度` and `luminance` never unified | tier 6 + reconciliation (§13) |
 | `brightness` silently folded in as an alias | §13.4 — relation strength is never upgraded on import; §2.3 — a domain decision |
 | The row keyed on a label, breaking when the label changes | Cardinal rule 1 (§5.1) — join on `concept_id`/`term_id`, never a string |
-| `AIDS`-style acronym destroyed en route | N1's fix (§6.4) — **not currently in place** |
+| `AIDS`-style acronym destroyed en route | N1's fix (§6.4) — **in place since 2026-08-05** |
