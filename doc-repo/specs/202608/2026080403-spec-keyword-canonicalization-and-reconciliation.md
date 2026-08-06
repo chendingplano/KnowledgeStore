@@ -202,7 +202,9 @@ A wrong **merge of two established concepts** is structural, invisible, and cont
 | No concept matches a **targeted** name | `deferred` → backlog → wait | **auto-create a provisional concept**, assign it |
 | Multiple concepts tie | return no id | **`ambiguous` + the top-1 pick**, flagged |
 | Fuzzy/embedding candidate | never accepted | **may auto-accept** above a tier threshold (§13.1) |
-| Below threshold | a queue nobody drains | decide, record method + score, mark for **sampling** |
+| Below threshold | a queue nobody drains | **auto-create a provisional concept** (the weak candidate is not attached to), record its method + score, mark for **sampling** |
+
+**`ambiguous` and below-threshold are different kinds of uncertainty.** `ambiguous` means the evidence is strong but split between two-plus concepts — the top-1 pick is choosing among plausible answers, so attaching to it is reasonable. Below-threshold means the evidence for *any* candidate is weak; attaching to it anyway risks mis-filing the name onto an established concept's surface set, an error only `split_concept` (§14.4) can undo. So below-threshold is treated like "no candidate," not like "tied candidates": auto-create, don't attach. A fresh provisional concept costs nothing and stays mergeable once reconciliation confirms a match.
 
 **Why deciding beats deferring.** An unresolved metric name is not neutral — it is a hole in the comparison matrix (§2), and the review app then answers a customer with silently incomplete data. A wrong-but-recorded assignment is visible, attributable, and cheap to reverse. **Silence is not the safe default.**
 
@@ -338,7 +340,7 @@ A verdict describes **how confident the decision was**, not whether a decision h
 | `auto_accepted` | one clean match above threshold | yes |
 | `ambiguous` | several tied at the top | **yes — top-1 plus the tied set** |
 | `deferred` | no candidate | **yes for targeted names — an auto-created concept**; none on the collector path |
-| `human_review` | resolved below threshold | yes, flagged for sampling — **not a queue** |
+| `human_review` | resolved below threshold | **yes for targeted names — an auto-created concept, same as `deferred`**, flagged for sampling — **not a queue**; the rejected candidate's id/method/score is recorded, but not assigned
 
 ⚠️ `TermFamily` can produce only two of four: `MaxCandidates` at its zero value gates off tie-detection, and `Enabled: false` blocks auto-accept (K10).
 
@@ -351,6 +353,65 @@ A verdict describes **how confident the decision was**, not whether a decision h
 ## 9. Working mode
 
 ### 9.1 The tier ladder
+The tier ladder is the resolution waterfall: the ordered list of methods 
+CandidateNodes tries when turning an observed string (a "surface" — the 
+literal text found in a document) into a concept_id. It is the mechanical 
+core of REQ-1 — the thing that has to make Postgres / PostgreSQL / postgresql 
+land on one concept so the comparison matrix produces one row instead of 
+three (§2.1).
+
+Two rules govern it, both in the paragraph under the table:
+
+* Exit at the first tier that produces candidates. Tiers are not unioned. If tier 1 returns anything, tiers 2–7 never run.
+* Each tier stamps a score, which is then handed to Adjudicate (§8.2) to produce the verdict — auto_accepted (one clean match), ambiguous (tied at the top), deferred (nothing), human_review (below threshold).
+
+**The ordering principle**
+
+The ladder is sorted by strength of evidence and cost, jointly — 
+strongest and cheapest first:
+
+| Tiers	| Kind of evidence	| Cost|
+|-------|-------------------|-----|
+|0–1	| string identity (raw, then normalized)	| one indexed SQL lookup|
+|2–4	| derived keys — alphanumeric-only, sorted tokens, initials, plus rewrite rules	| one more SQL lookup |
+|5–6	| statistical similarity — trigram/edit distance, then multilingual embeddings	| expensive; ANN or scan |
+|7	| no match at all → backlog, or auto-create a new concept	| deferred to offline reconciliation |
+
+That gradient is the whole economic thesis of the module (§1): cost must scale 
+with vocabulary growth, not query volume. Tiers 0–4 are pure SQL and free. A miss 
+at tier 7 costs something once — the reconciler learns the alias and writes a surface 
+row — and every subsequent occurrence of that string comes back at tier 0 forever 
+after. Mature deployment → millions of lookups/day, near-zero LLM calls.
+
+**Tier by tier**
+* Tier 0 — exact surface match. The verbatim literal. Surfaces are stored un-normalized on purpose, so Luminance and luminance stay distinguishable as separately-observed spellings (§5.2).
+* Tier 1 — norm_key match. The normalized form (NFKC, case-fold, whitespace, dashes, etc. — §6.1). This is where casing/punctuation variants collapse. Together 0 and 1 are the only tiers working today.
+* Tier 2 — alnum/sorted keys. Bridges spacing and word-order noise — the doc's own example is 显示 亮度 vs 显示亮度, which have different norm_keys but the same alnum key. Scored 0.8 because it's a lossy key, not identity. (`alnum`: stripping everything except alphanumeric characters (removing spaces, punctuation, dashes, etc.), `sorted`: sorting the remaining tokens/characters into a canonical order).
+* Tier 3 — rewrite rules, then retry 0–1. Curated substitutions (K8S → Kubernetes) applied before re-running the exact/normalized lookups. This is the human-editable escape hatch for aliases the normalizer can't reach mechanically.
+* Tier 4 — initials bridge. Acronym ↔ expansion (ML ↔ machine learning).
+* Tiers 5–6 — fuzzy, then embeddings. Misspellings (kubernets) at tier 5; cross-lingual identity (luminance ↔ 亮度) at tier 6, which is why the model must be multilingual. These carry continuous scores and, per D11/§13.1, are now allowed to auto-accept — the earlier "suggest-only" stance was withdrawn because at 10⁷–10⁸ occurrences a suggestion nobody acts on equals no answer.
+* Tier 7 — miss. Either park it in kb.keyword_unresolved (collector path) or auto-create a concept (targeted-name path), leaving offline reconciliation to merge it later. This is what makes step 5 of the acceptance test work: the 141st document with a fifth phrasing converges to one row without a human.
+
+**What the ladder deliberately does not do**
+It only collapses variants of the same string. Different words for the same 
+meaning — luminance vs 亮度 vs brightness — are never unified by normalization; 
+they become several surface rows sharing one concept_id, established by 
+curation or reconciliation (§5.3). Tier 6 is the one partial exception, and 
+even it proposes an assignment, never a structural merge of two established 
+concepts (D10).
+
+**Current reality vs. the table**
+Worth reading the status column literally — the ladder is mostly aspirational right now:
+
+* Tier 2 and 4 query `kb.keyword_surface_keys`, which no code path ever writes (defect K1). The table is empty, so both tiers always return nothing.
+* Tier 4 is additionally broken in logic (N3): initials are stored uppercase while every other key is lowercase, and it looks up the query's initials. Fixing K1 alone would make it match every surface starting with the same letter — worse than the current no-op.
+* Tier 3 matches the raw surface with byte equality, so K8S → Kubernetes does not fire for k8s. The rewrite engine applies only a single substitution per lookup. If the input needs two chained rewrites (e.g., rule A transforms part of the string, then Rule B transforms another part), only the first matching fule runs. It does not iterate or chain rules. Worse, after applying the rewrite, the system re-runs the lookup but only re-checks Tier 0 (exact surface match) and Tier 1 (norm_key match). It does not retry against Tiers, 2, 4, 5, or 6. So if the rewritten form would only be found via, say, an alnum/sorted key (Tier 2), it's missed.
+* Tiers 5, 6, and tier 7's auto-create are unbuilt.
+
+So the functioning ladder today is 0 → 1 → 3(narrowly) → 7-backlog. The 
+first-tier-exit rule also means that once tier 2 is populated, it will start 
+shadowing tier 3 for anything it matches — worth keeping in mind when K1 gets fixed.
+
 
 | Tier | Method | Score | Status |
 |---|---|---|---|
@@ -382,12 +443,12 @@ Called by the mention collector and the REST resolve handler:
 1. **Unconditionally** insert a mention row — `artifact_ref`, `context_text` only; `chunk_ref`/`ks_id` null; **no column for the observed string** (K4). Errors discarded.
 2. `Kernel.Resolve` — read-only.
 3. **Unconditionally** append to `kb.semid_decision_log` — captures the string but no artifact reference, and **shares no key with the mention row from the same call**, so "what" and "where" cannot be joined. Errors discarded.
-4. On `auto_accepted`: write the surface row if this exact literal isn't present. Derived keys not written (K1). The `human_review` arm is unreachable.
+4. On `auto_accepted`: write the surface row if this exact literal isn't present. Derived keys not written (K1). The `human_review` arm is unreachable today — see the required behavior below.
 5. On `deferred`/`ambiguous`: upsert the backlog — ⚠️ **raw surface passed where the PK expects `norm_key`** (K5).
 
 ⚠️ **This conflates read and write.** No caller can ask "what does this resolve to" without writing four rows. **Decision:** split into a pure `ResolveSurface` and an `ObserveSurface`, applying the read/write rule at *every* layer, not only at the facade.
 
-**Two changes D11 requires:** step 5 gains an **auto-create branch for targeted names** (collector misses keep today's backlog-only behaviour); step 4 must return the **top-1 id on `ambiguous`**, not only on `auto_accepted`.
+**Three changes D11 requires:** step 5 gains an **auto-create branch for targeted names**, taken on **both `deferred` and `human_review`** (collector misses keep today's backlog-only behaviour) — below-threshold is treated like no-candidate, never like an attach; step 4 must return the **top-1 id on `ambiguous`**, not only on `auto_accepted`; and the currently-unreachable `human_review` arm must route into that auto-create branch instead of being dropped, recording the rejected candidate's method/score for sampling without assigning it.
 
 ### 9.4 Resolver modes — ⚠️ **Defect**
 
@@ -590,7 +651,7 @@ Snapshot activation: build and validate a candidate release while readers stay o
 **Decision — both halves, because they solve different problems:**
 
 1. **Merge re-points surfaces.** `MergeConcept(A, B)` updates `kb.keyword_surfaces SET concept_id = B WHERE concept_id = A`, in the same transaction as the tombstone. Resolution then costs no extra join and returns B directly.
-2. **Each moved surface records `origin_concept = A`** (a new column). This is what makes a split reconstructible — without it, a merge is irreversible, and D11's reversibility requirement is unmet.
+2. **Each moved surface records `origin_concept = A`** (a new column). This is what makes a split reconstructible — without it, a merge is irreversible, and D11's reversibility requirement is unmet. Across a chain (A → B → C), `origin_concept` is **root-preserving**: `COALESCE(origin_concept, A)` at each hop keeps the deepest origin, not the immediate parent, so A's surfaces still read `origin_concept = A` after landing on C. §14.4 covers what that means for un-merging a middle link.
 3. **Resolution still chases `merged_into` for incoming ids.** A consumer that stored `keyword_concept_id = A` before the merge must still resolve to B. The chase applies when a *caller supplies a concept id*, not on the surface lookup path — cycle-guarded, since D7 forbids transitive closure but chains can still form.
 
 Re-pointing alone is not enough (stale consumer ids break); chasing alone is not enough (every surface lookup pays for it forever). Both, or REQ-1 does not hold across a merge.
@@ -610,11 +671,22 @@ D10 says merging established concepts stays conservative; §13.1 item 4 says the
 
 The test is the concept's own provenance and status, not the similarity score. A high score never promotes a merge from the second row to the first.
 
-### 14.4 Reversibility — ⏳ **Unbuilt, and required by D11**
+### 14.4 Reversibility — ⏳ **Unbuilt**; chained case decided (2026080601-bug F4)
 
 D11 calls reversibility non-optional, but there is no designed path today: `split_concept` does not exist, `ConceptStore` has no unmerge (only `MergeGraph.Unmerge`, which is in-memory and scheduled for deletion, D7), and §12 exposes no retraction endpoint.
 
-**Decision:** with §14.1's `origin_concept` recorded, un-merge is mechanical — move surfaces whose `origin_concept = A` back to A, clear A's tombstone. Build it **with** the merge guardrails (§19 step 6), not later: auto-merge (§14.3) must not ship before the thing that undoes it. Until then, reversal is manual database correction, and §13's reconciliation must not be enabled.
+**Decision, single hop:** with §14.1's `origin_concept` recorded, un-merge is mechanical — move surfaces whose `origin_concept = B` back to B, clear B's tombstone.
+
+**Decision, chained merges (A → B → C, then unmerge B) — reposition only, do not cascade:** because `origin_concept` is root-preserving (§14.1 item 2), A's surfaces already read `origin_concept = A`, not `B`, even though they are physically sitting on C. `WHERE origin_concept = B` alone misses them — they would stay stranded on C, and A's own concept row (`status='merged', merged_into=B`) would never be revisited. Un-merging B must therefore also **reposition** the surfaces of every concept transitively merged into B — walk `merged_into` backward from B (`X` where `X.merged_into = B`, recursively, e.g. via a recursive CTE) and move *those* surfaces' `concept_id` back to B too, **without** touching their `origin_concept` or their own concept row.
+
+This restores exactly the state that existed immediately before B's own merge — no more:
+- A's surfaces land back on B, still tagged `origin_concept = A` (that tag was never wrong; it just needs to be on the right concept again).
+- A's concept row is untouched: `status='merged'`, `merged_into=B` — A → B was a separate, still-valid decision; un-merging B does not retract it. `FollowMerge(A)` correctly chases to B, which is live again.
+- Only an explicit, later `UnmergeConcept(A, ...)` undoes A → B. Un-merging a descendant never cascades into resurrecting its ancestors as a side effect — each retraction reverses exactly the one merge event it names, matching how each `MergeConcept` call only ever merges one pair.
+
+(Rejected alternative: cascading — also fully restoring every ancestor concept to independently live status. Rejected because it silently undoes merge decisions nobody asked to retract, and conflates "undo this merge" with "dissolve this whole lineage.")
+
+Build it **with** the merge guardrails (§19 step 6), not later: auto-merge (§14.3) must not ship before the thing that undoes it, including the chained case. Until then, reversal is manual database correction, and §13's reconciliation must not be enabled.
 
 ---
 
@@ -781,6 +853,59 @@ Steps 1–9 are contained inside `ontology/keywords` and `ontology/semid`. Steps
 ### 20.1 Deferred
 
 Tiers 5–6 · R1–R7 · `aligns_to_term` · `on`-mode wiring · collector pipeline wiring · context-token disambiguation · Double Metaphone · resource import · multi-word and CJK-segmented collection · backlog admin surfaces · rewrite-rule auto-promotion · `merged_into` chase at resolve time · **I2 live PostgreSQL proof**.
+
+
+
+
+#### 20.1.1 Tiers 5–6** (§9.1, §13.1, §22)
+The two top rungs of the resolution tier ladder. **Tier 5** = fuzzy matching (trigram + edit distance) to catch misspellings like `kubernets`. **Tier 6** = multilingual embedding (ANN) to catch cross-lingual identity like `luminance ↔ 亮度` — the case normalization can never reach. Both carry continuous scores and, since D11, *may auto-accept* above a threshold (the old "suggest-only" stance was withdrawn because at 10⁷–10⁸ occurrences a suggestion nobody acts on equals no answer). Tier 6 needs a multilingual model; §22 Q2 even questions whether tier 6 belongs online at all (recommendation: keep it offline/reconciliation-only unless a local model is already in the stack). Build step 11; part of REQ-1.
+
+#### 20.1.2 R1–R7** (§13)
+The seven-stage **reconciliation pipeline** — the offline batch process that unifies *genuinely different words and translations* (which no normalization can do, §5.3):
+- **R1 harvest** — free extractors (Schwartz–Hearst parentheticals, definitional patterns)
+- **R2 prune** — junk/dedup/frequency floor; negative-cache by `model@prompt_version`
+- **R3 block** — lexical (pg_trgm) ∪ semantic (pgvector) down to *k* candidates; the biggest cost lever
+- **R4 assemble** — compact batches; tag unreviewed LLM glosses to avoid self-confirmation
+- **R5 decide** — structured output, cheap model in bulk; escalate ambiguous/high-blast-radius
+- **R6 validate** — deterministic gates (schema, referential, never-merge, lock, scope, digit veto…)
+- **R7 apply** — transactional write through the kernel, decision log, promote rules, snapshot
+
+The reconciler, not the model, owns every write. This is the machinery Appendix A Stage 5 depends on.
+
+#### 20.1.3 `aligns_to_term`** (§16, REQ-2, build step 12)
+The assertion linking a keyword **concept** (ungoverned lexical layer) to a governed **`metric_definition` term**. This is REQ-2 ("one governed term"). Blocked by two hard prerequisites: (a) a schema CHECK — `kb.semantic_assertions.subject_ref_kind` doesn't permit `keyword_concept` as a subject; (b) the `aligns_to_term` predicate must itself be seeded and released as a governed term (it's absent from `ontology-seed` today). It also presumes released `metric_definition` terms exist to align *to*.
+
+#### 20.1.4 `on`-mode wiring** (§9.4, D9)
+`KEYWORD_RESOLVER_MODE=on` removes the gate so resolution answers actually reach consumers. Currently unusable because **no consumer exists**. (The narrower K7 bug — `on` accidentally disabling collection — was fixed in §21 step 1; the remaining problem is deeper: nothing is wired to *consume* results in `on` mode.) Effectively this is the consumer/metric-integration wiring.
+
+#### 20.1.5 Collector pipeline wiring** (§11)
+The mention collector is built standalone, but its downstream chain — `collector → backlog → reconciliation → lexicon → retrieval` — is unbuilt after the first arrow. Its job is **corpus-wide recall** (vocabulary for a retrieval consumer expanding queries). Wiring it today would write rows nothing reads. Note §2's requirement runs through *targeted* enrichment, not the collector, so this doesn't block the pilot.
+
+#### 20.1.6 Context-token disambiguation** (§5.4)
+For homonyms (`ML` → machine learning *and* millilitre), the design is: scope disambiguates first, then **context**. Neither works — scope is inert (K2) and context disambiguation is unbuilt — so global-scope homonyms just return `ambiguous`. This item is the using-surrounding-tokens-to-pick-the-right-sense mechanism.
+
+#### 20.1.7 Double Metaphone** (§6.2)
+The phonetic-key algorithm. The key bundle defines six keys (`exact`, `norm`, `alnum`, `sorted`, `phonetic`, `initials`); **`phonetic` is a stub read by no tier**. Double Metaphone would populate it (match by pronunciation). It's dead — §21 step 9 even removed the dead phonetic-key write.
+
+#### 20.1.8 Resource import** (§13.2–§13.4)
+Seeding the lexicon from curated external vocabularies instead of starting empty: **Wikidata** (CC0, strong structural fit), **CC-CEDICT** (EN↔ZH), **UMLS** (not open — licensing must survive import), and **domain standards glossaries** (IEC 60601 / ISO 80601, likely highest-yield). Includes the binding rule §13.4 — import must **never upgrade relation strength** (a thesaurus `related`/`broad`/`narrow` must not silently become `exact`, i.e. don't flatten "brightness ≈ luminance" into an alias) — plus the §13.3 schema shapes (external-id mapping, source/license registry).
+
+#### 20.1.9 Multi-word and CJK-segmented collection** (§11)
+Two collector gaps: (a) **CJK isn't segmented** — an unpunctuated Chinese run becomes one 50-rune pseudo-token, filling the backlog with junk on this predominantly-Chinese corpus; (b) **single tokens only** — no multi-word surface can ever be observed, which removes exactly the class the `sorted`/`initials` keys were built for.
+
+#### 20.1.10 Backlog admin surfaces** (§12, §20.4)
+REST/UI admin pages for the backlog (`kb.keyword_unresolved`). §12 notes there's no REST surface for the backlog (nor derived keys nor occurrences); §20.4 explicitly keeps `UnresolvedStore.ListUnresolved` alive "for a backlog admin page."
+
+#### 20.1.11 Rewrite-rule auto-promotion** (§13 R7, §10.6)
+When reconciliation learns an alias, R7 **"promote rules"** — write it as a rewrite rule so future lookups hit at tier 3 (free SQL) instead of re-running reconciliation. It's a cost lever. §10.6 notes the current one-string→one-string rule shape can't express the family generalization that would make promotion actually pay.
+
+#### 20.1.12 `merged_into` chase at resolve time** (§14.1 item 3)
+When a caller supplies a concept id that has since been merged (it stored `concept_id = A` before the A→B merge), resolution must follow `merged_into` to return survivor B. Applies to caller-supplied ids, not the surface-lookup path; cycle-guarded.
+
+> ⚠️ **This one is internally inconsistent.** §20.1 lists it as deferred, but the implementation record (§21, step 6, commit `b16b`) and Appendix A Stage 5 both state the chase **is now in place** ("resolution chases the survivor"). So this entry appears stale relative to §21.
+
+#### 20.1.13 I2 live PostgreSQL proof** (§0)
+I2 is the finding that the module has **never been validated live**: "No run against real PostgreSQL with real document text. Every defect was found by reading code, not by a failing test." The deferred item is actually running the module against real PostgreSQL with real document text — i.e., executing the §18.2 acceptance tests against a real DB rather than sqlmock. It's the overarching validation gap that hangs over everything else.
 
 ### 20.2 Defects
 
