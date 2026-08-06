@@ -975,7 +975,7 @@ go build ./... && go vet ./server/api/ontology/... ./server/api/kbhandler/... ./
 go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./server/api/ontology/names/...
 ```
 
-These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Steps 11–13 (REQ-1 tiers 5–6, REQ-2/3 `aligns_to_term`, REQ-4 `metric_key`) are not started: tiers 5–6 await the §22 fuzzy/embedding decisions, `aligns_to_term` awaits §16.1 term-catalog seeding, and `metric_key` awaits metric-side (P4) coordination. Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
+These now carry real assertions: §18.1 exit tests rewritten, per-tier query and scope round-trip coverage added (§18.2), D11 and §9.5 facade covered with sqlmock. Steps 11–12 (REQ-1 tiers 5–6, REQ-2/3 `aligns_to_term`) are not started: tiers 5–6 await the §22 fuzzy/embedding decisions, and `aligns_to_term` awaits §16.1 term-catalog seeding. Step 13 was never this module's work (§2.4) — 🏗️ **APP-SPECIFIC, done separately:** the Document Review app's `metric_key` gap is decided and enforced as of 2026-08-06 (`ComparisonStore.validateMetricKey`, `comparison/store.go`). Pre-existing environment-dependent failures in kbhandler (search-registry/topic-category) and doc-processing remain; the keyword/semid/names packages are green.
 
 ---
 
