@@ -2,6 +2,15 @@
 
 Date: 2026-08-04
 
+> **Superseded (2026-08-06) for the items this session deferred.** Steps 11–12 of spec
+> `2026080403-spec-keyword-canonicalization-and-reconciliation.md` built: **tiers 5–6** (tier 5 fuzzy + tier 6 embedding
+> merge, reconciliation-only per §22 Q2) and the **minimum reconciliation loop** (`keywords.Reconciler` +
+> `cmd/keyword-reconcile`), plus the **`aligns_to_term` bridge** (`AlignmentsStore`, §14.2 merge gate + follow, resolver
+> follow + auto-align) and the **§16.3 metric integration** (`ResolvingMetricsStore` decorator, two new `kb.metrics`
+> columns). See the follow-up handoff `2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term.md`
+> for what shipped and what is still deferred (full R1–R7, `on`-mode wiring, the §16.1 governed-catalog bootstrap, §13.2
+> import). The Track B slice history below remains accurate for what *that* session built.
+
 ## Scope
 
 This session implemented P3 Track B — the keyword lexicon, the second `semid` kernel
