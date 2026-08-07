@@ -25,6 +25,16 @@ Date: July 31, 2026
 > deterministic review-profile selector with rule-level applicability. Chunks G
 > (`classify_document`), H (module proposals/promotion), and I (exit suite, live proof, docs
 > closeout) remain. See the detailed P5 update near the end of this document.
+>
+> **Post-handoff update (2026-08-05 to 2026-08-07):** P3 Track B (keyword lexicon) moved from
+> "built but never live-validated" to live-validated. 2026-08-05: all 13 defects found in the
+> Track B review (§20.2 of the governing spec) fixed; D11 auto-first implemented. 2026-08-06:
+> fuzzy tiers 5–6 + a minimum reconciliation loop, and the `aligns_to_term` bridge into governed
+> metric-definition terms, both built. 2026-08-07: Tier 6 rebuilt on deterministic identity
+> evidence instead of a cosine threshold, plus the governed external-terminology-portfolio
+> tooling (source registry, import/diff/activate/rollback, QUDT/SIRP/IEC-seed/Wikidata/UCUM
+> adapters, an admin download/review/approve UI); **I2 (live PostgreSQL proof) is closed**. See
+> the detailed post-handoff update near the end of this document.
 
 ## Scope
 
@@ -613,9 +623,56 @@ Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md`):
 **Next:** P4 (profiles, the normative ventilator pilot, `extract_metric_definitions`,
 `extract_product_structure`) or P3 Track B follow-up (fuzzy tiers + reconciliation pipeline).
 
+## Post-handoff update (2026-08-05 to 2026-08-07 — P3 Track B live-validated, I2 closed)
+
+The 2026-08-04 entry above ends with a "Deferred by design beyond Track B" list and an I2 gap
+("never live-validated"). Three sessions closed most of that list; this entry records what
+actually changed, not a re-read of the plan docs.
+
+**2026-08-05 — defect remediation (P4 §19, steps 1–9).** The Track B review (`2026080502-bug-keyword-module-review.md`, findings F1–F8) verified 13 defects (K1–K10, N1–N3) in the code delivered
+2026-08-04 — most seriously K6 (resolver open by default on an unset env var) and N1 (normalizer
+destroying acronyms like `AIDS`/`SaaS`). All 13 are fixed, each with a defect-ID-referencing code
+comment at its fix site. Step 8 also implemented **D11 auto-first**: a targeted miss now
+auto-creates a provisional concept instead of leaving the metric unresolved. Step 10 built
+`names.Resolver` (§9.5), the governed-term-over-keyword-lexicon facade.
+
+**2026-08-06 — steps 11–12 (tiers 5–6, minimum reconciliation, `aligns_to_term`).** Tier 5 (fuzzy
+trigram + edit-distance matching) wired into resolution; the offline `keywords.Reconciler` +
+`cmd/keyword-reconcile` built for tier 6 (embedding-based merge, kept reconciliation-only, never
+online — §22 Q2). `core:aligns_to_term` seeded and released; `AlignmentsStore` plus resolver
+alignment-follow connect keyword concepts to governed `metric_definition` terms; the metrics
+pipeline gained a `ResolvingMetricsStore` decorator persisting `keyword_concept_id` and
+`metric_definition_term_id`. Full record: handoff `2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term.md`.
+
+**2026-08-07 — deterministic Tier 6 + governed terminology portfolio.** The embedding-cosine
+merge authority from step 11 was replaced: Tier 6 now requires an authoritative, enabled,
+license-approved `exact_equivalent` identity claim from a governed `(source, external_id,
+release)` mapping before it may merge two concepts — embeddings only rank diagnostic proposals,
+they no longer decide. New tooling: a governed source registry with immutability/authority
+enforcement, an import/diff/activate/rollback runner, adapters for QUDT/SIRP/IEC-seed/Wikidata/UCUM,
+reviewed positive/negative promotion into the keyword identity tables, and an admin UI
+(download → review → approve/disapprove) so an operator can build a real seed release without
+hand-editing rows. **I2 is closed**: `reconcile_identity_integration_test.go` runs against a
+rebuilt `chenweb_test` and proves exact-identity merges, deferral without identity, conflicting-identity
+rejection, one audit row per decision, and family-lock serialization under concurrent writers —
+the first time any part of this module ran against real PostgreSQL with real data rather than
+sqlmock. Full record: plan `ChenWeb/docs/superpowers/plans/2026-08-07-external-terminology-resource-portfolio.md`
+(all 11 tasks complete) and the governing spec's §21 Stage-0/1 entry.
+
+**What is still open** (verified against the governing spec, not assumed from the above): the
+full **R1–R7 reconciliation pipeline** (only the minimum blocking+merge core exists — no
+harvest/prune/assemble/decide stages, no runs/watermark table); **`on`-mode wiring** (resolution
+answers still reach no consumer); and **production catalog activation** — the 2026-08-07 tooling
+downloads/imports/promotes, but no real seed release has been operator-reviewed and published, so
+the observe-path auto-align has no released terms to align *to* yet. None of these are defects;
+they are the deliberately-deferred boundary the governing spec's §20.1 documents.
+
 ## Related documents
 
-- P3 Track B handoff: `KnowledgeStore/doc-repo/hand-offs/202608/2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` — the full build record with architecture diagram, per-chunk file listing, and complete deferred boundary.
+- Keyword module spec (single reference, kept current): `KnowledgeStore/doc-repo/specs/202608/2026080403-spec-keyword-canonicalization-and-reconciliation.md` — §0 status-at-a-glance, §20 defect/deferred record, §21 implementation record with every session's jj commit ids and verification commands.
+- Steps 11–12 handoff: `KnowledgeStore/doc-repo/hand-offs/202608/2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term.md` — tier 5–6, the minimum reconciliation loop, and the `aligns_to_term`/metric-integration bridge (2026-08-06).
+- Terminology portfolio + deterministic Tier 6 plan: `ChenWeb/docs/superpowers/plans/2026-08-07-external-terminology-resource-portfolio.md` — governed source registry, import tooling, adapters, and the admin review/approve UI (2026-08-07, all 11 tasks complete).
+- P3 Track B handoff: `KnowledgeStore/doc-repo/hand-offs/202608/2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` — the full build record with architecture diagram, per-chunk file listing, and complete deferred boundary. **Superseded** for the items steps 11–12 and the 2026-08-07 session built (see the 2026-08-05 to 2026-08-07 update above and that document's own banner).
 - P3 Track B implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080304-plan-semos-p3-trackb-keyword-lexicon.md` — the chunked plan this session executed.
 - P3 Track B implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080402-devdoc-semos-p3-trackb-implementation-log.md` — the running build record.
 - DR16 merged keyword spec: `KnowledgeStore/doc-repo/specs/202608/2026080101-spec-keyword-canonicalization-merged.md` — now partially implemented (observe mode).
