@@ -292,6 +292,81 @@ Cloudflare OS is an AI platform, developed for developing AI apps.
     that sits between Cloudflare OS and an external service. It understands the 
     service's API, its resources, and the operations that can be performed on them.
   - Policy follows what the agent has seen: Controlling the initial read is not enough. Take, for example, the case where an agent reads a sensitive table in a data warehouse and uses it to produce a live dashboard. Sharing the dashboard must not become a way to share the table with people who could not access it directly.
+- Every app is a Worker: when you ask your workspace to
+  build an app, the agent writes two parts: Client code and Server code.
+  The server is loaded on demand as a Dynamic Worker and instantiated
+  as a Durable Object Facet. The facet gives the app its own SQLite
+  database, separate from the Cloudflare OS runtime managing it. Dynamic
+  Workers use lightweight V8 isolates, so every app can have its own 
+  isolated runtime without needing a dedicated server or container
+  sitting around.
+- Shared the app
+- Use any model: every inference call runs through Cloudflare AI Gateway,
+  giving your organization one place to decide which models are available
+  and which model should handle each job.
+- Open source: Cloudflare OS open source.
+
+== Zero-Mem
+`Zero-Mem: Zero-Token Memory Operations for LLM Agents` addresses one of the 
+major inefficiencies of today's LLM agents: almost every memory system repeatedly 
+invokes an LLM to summarize conversations, extract facts, create memory records, 
+or decide which memories to retrieve. Although these intermediate reasoning steps 
+improve long-term memory, they incur substantial token costs, latency, and the 
+risk of losing information through summarization. The paper asks a fundamental 
+question: do memory operations require an LLM at all? The authors argue that they 
+do not. Instead, they propose *Zero-Mem*, a framework in which every memory operation—except the final question answering step—is completely deterministic 
+and consumes *zero LLM input/output tokens*. ([arXiv][1])
+
+Rather than generating summaries or structured memories, Zero-Mem preserves the 
+original interaction history as the authoritative record. It indexes these 
+interactions using two complementary structures. The first is an *entity-context 
+graph*, which connects entities, concepts, and their relationships across 
+conversations, making it easy to retrieve semantically related information 
+regardless of when it occurred. The second is a *temporal hierarchy*, 
+which organizes conversations according to their chronological structure, preserving 
+local conversational context, session state, and nearby interactions. When a user 
+issues a query, the system dynamically balances these two views: graph traversal 
+discovers semantically connected evidence, while temporal traversal reconstructs 
+the surrounding conversational context. A deterministic calibration stage removes
+conflicting evidence before the retrieved context is passed to a single LLM that 
+generates the final answer. ([arXiv][1])
+
+The most interesting contribution is philosophical as much as technical. Most 
+existing agent memory systems—including frameworks such as Mem0, LightMem, LongMem, 
+and many production agents—treat memory as another generative task: they ask an 
+LLM to decide what to remember and later ask another LLM to decide what to 
+retrieve. Zero-Mem instead treats memory as an *information retrieval and data
+organization problem*, not a generation problem. The memory subsystem behaves much 
+more like a search engine or database index than another language model. This 
+avoids information loss caused by summarization, preserves complete provenance 
+because all retrieved evidence comes directly from the original interaction traces, 
+and makes the behavior substantially more deterministic and reproducible. ([arXiv][1])
+
+Experimentally, Zero-Mem achieves competitive accuracy on long-memory and 
+long-context question-answering benchmarks while eliminating all intermediate LLM 
+calls. Using the same final answering model and identical context budget as 
+competing methods, it reduces *memory-operation latency by 57.6%* relative to the 
+fastest baseline because indexing, retrieval, graph traversal, and conflict resolution 
+are entirely deterministic algorithms. Ablation studies show that both the entity 
+graph and the temporal hierarchy contribute significantly, and that dynamically 
+combining the two retrieval views performs better than relying on either one alone. 
+The overall conclusion is that effective long-term agent memory does not 
+require repeatedly asking an LLM to generate memory representations; carefully 
+designed indexing structures and retrieval algorithms can perform the memory 
+management, reserving the LLM solely for the final reasoning task. ([arXiv][1])
+
+From the perspective of *SemOS* work, this paper is particularly interesting because 
+its design philosophy closely matches the direction SemOS has been exploring. Instead 
+of treating memory as generated summaries, Zero-Mem treats memory as *structured access 
+to original artifacts*, using graph structures, hierarchical organization, 
+deterministic retrieval, and evidence preservation. This is conceptually similar to 
+the Virtual FS + BM25 + graph traversal + semantic retrieval architecture: the 
+intelligence lies primarily in *how knowledge is organized and explored*, while the LLM 
+is used only for synthesizing the final answer. The paper therefore provides empirical 
+evidence supporting the idea that improving retrieval and knowledge organization may 
+yield larger gains than adding additional LLM-based memory generation stages. ([arXiv][1])
+
+[1]: https://arxiv.org/abs/2607.29377?utm_source=chatgpt.com "Zero-Mem: Zero-Token Memory Operations for LLM Agents"
 
 
 = References
