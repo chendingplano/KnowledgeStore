@@ -16,12 +16,12 @@
 |---|---|
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
 | **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
-| **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
+| **Fixed (2026-08-05)** | All 13 defects originally verified in §20.2 (K1–K10, N1–N3) — fixed across P4 §19 steps 1–9 (§21); each fix carries a `K`/`N`-numbered code comment at its call site. §20.2's table is historical record of what was found and fixed, not current state. |
 | **Not built** | Full R1–R7 orchestration, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `on`-mode wiring, production seed publication. |
 | **Live-validated (2026-08-07)** | I2 closed: `reconcile_identity_integration_test.go` proves exact-identity merges, deferral without identity, conflict rejection, audit invariants, and family-lock serialization against real PostgreSQL (`chenweb_test`). |
-| **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
+| **Design gap** | **D11 (auto-first)** — closed 2026-08-05, P4 step 8 (§21): a targeted miss now auto-creates a provisional concept (`gloss_source='auto:d11'`) instead of assuming a human drains a queue; reconciliation (step 11, §13) is what later unifies the resulting auto-created duplicates. |
 
-**Do not build on this module until §20.2's K1/K2/K3/K5 and N1 are fixed** — they silently corrupt data a later fix cannot reconstruct. **And do not build the remaining features as originally specified**: D11 changes what tiers 5–6, reconciliation, and `aligns_to_term` are each supposed to *do*.
+**Remaining gaps are tracked in §20.1**: R1–R7 orchestration, `on`-mode wiring, collector pipeline wiring, and production seed publication are the load-bearing ones — see that section for the full deferred list and why each is safe to build around today.
 
 **Phase context.** P1, P2, P4 (generic runtime), and P5 are built. P3 Track A (assertions, evidence, Phase D) is built and live-validated. **P3 Track B — this module — is built but never live-validated**, which is why its defect list is longer than its siblings'. Nothing in §20.2 invalidates Track A or the P4/P5 runtime; the defects are contained inside `ontology/keywords` and `ontology/semid`.
 
@@ -936,6 +936,8 @@ MinScore) — same reason F5 called it latent originally. That test should land 
 (tiers 5–6). The consolidated decisions table row is updated to match.
 
 ### 20.2 Defects
+
+**All 13 fixed 2026-08-05** (P4 §19 steps 1–9, §21) — this table is the historical record of what was found, not an open list.
 
 | # | Defect | Where | Effect | Size |
 |---|---|---|---|---|
