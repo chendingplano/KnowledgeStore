@@ -17,8 +17,8 @@
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
 | **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
 | **Broken** | 13 verified defects (§20.2). Highest impact: K6 (resolver open by default), N1 (normalizer destroys acronyms), K2 (scope ignored), K5 (backlog mis-keyed). |
-| **Not built** | Reconciliation R1–R7, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `on`-mode wiring, resource import. |
-| **Never validated live** | No run against real PostgreSQL with real document text (I2). Every defect was found by reading code, not by a failing test. |
+| **Not built** | Full R1–R7 orchestration, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `on`-mode wiring, production seed publication. |
+| **Live-validated (2026-08-07)** | I2 closed: `reconcile_identity_integration_test.go` proves exact-identity merges, deferral without identity, conflict rejection, audit invariants, and family-lock serialization against real PostgreSQL (`chenweb_test`). |
 | **Design gap** | **D11 (auto-first)** — the shipped design assumes a human drains queues. At 10⁷–10⁸ occurrences nobody can. Revised 2026-08-05; the code does not yet reflect it. |
 
 **Do not build on this module until §20.2's K1/K2/K3/K5 and N1 are fixed** — they silently corrupt data a later fix cannot reconstruct. **And do not build the remaining features as originally specified**: D11 changes what tiers 5–6, reconciliation, and `aligns_to_term` are each supposed to *do*.
@@ -567,9 +567,16 @@ Gaps: ⚠️ unvalidated `norm_key` (K3); ⚠️ `os.Getenv` (K6); 🚧 no REST 
 
 ---
 
-## 13. Reconciliation and vocabulary growth — ⏳ **Deferred**
+## 13. Reconciliation and vocabulary growth — 🛠️ **Tooling implemented; production activation pending operator bootstrap**
 
 Reconciliation is what makes §2's REQ-1 true for **translations and genuinely different words**, which normalization can never do (§5.3). It is not optional polish.
+
+The offline reconciler, governed source registry, stage-1 importers, reviewed
+promotion, and live acceptance are implemented (2026-08-07, §21 Stage 0/1
+entry). What remains is operational, not architectural: the operator must
+supply approved local artifacts, review the coverage backlog, approve the
+acceptance criteria, and publish a versioned seed release before Tier 6 is
+enabled against production corpus data.
 
 ```
 R1 harvest    free extractors (Schwartz–Hearst parentheticals, definitional patterns)
@@ -578,7 +585,8 @@ R3 block      lexical (pg_trgm) ∪ semantic (pgvector) to k candidates — bigg
 R4 assemble   compact pipe-row batches; tag unreviewed LLM glosses to avoid self-confirmation
 R5 decide     structured output, cheap model bulk; escalate ambiguous/high-blast-radius
 R6 validate   deterministic gates — schema, referential, acronym plausibility, role
-              consistency, never-merge, lock, scope, blast radius, confidence, digit veto
+              consistency, never-merge, lock, scope, blast radius, confidence, digit veto,
+              exact-identity authority (authoritative exact_equivalent claim, no conflicting targets)
 R7 apply      transactional write through the kernel; decision log; promote rules; snapshot
 ```
 
@@ -596,6 +604,17 @@ This reverses "candidate-only, never auto-accept," which assumed a human adjudic
 4. **Merging two established concepts is still not automatic** (D10) — a high score proposes an *assignment*, never a structural merge.
 
 Tier 6 requires a **multilingual** embedding model — an English-only model cannot place "luminance" near "亮度", which is the case that motivates the tier. R4's prompt lives in `prompts/` per `ChenWeb/CLAUDE.md`.
+
+> **Revised 2026-08-07 (model-agnostic Tier-6 validation):** tier 5 (fuzzy)
+> remains a deterministic auto-accept path, but tier 6 embeddings no longer
+> auto-accept by cosine alone. Embeddings only rank a bounded candidate set;
+> an automatic tier-6 merge requires at least one authoritative
+> `exact_equivalent` identity claim from a registered, enabled,
+> license-approved identity-authority source (governed `(source,
+> external_id, release)` triple evidence) and no hard veto. High cosine
+> without identity defers; conflicting authoritative targets reject. See
+> `ChenWeb/docs/superpowers/specs/2026-08-07-model-agnostic-tier6-validation-design.md`
+> and the portfolio plan for the governed source/promotion tooling.
 
 ### 13.2 Seeding and external vocabulary
 
@@ -902,6 +921,14 @@ When a caller supplies a concept id that has since been merged (it stored `conce
 #### 20.1.12 I2 live PostgreSQL proof** (§0)
 I2 is the finding that the module has **never been validated live**: "No run against real PostgreSQL with real document text. Every defect was found by reading code, not by a failing test." The deferred item is actually running the module against real PostgreSQL with real document text — i.e., executing the §18.2 acceptance tests against a real DB rather than sqlmock. It's the overarching validation gap that hangs over everything else.
 
+**Resolved 2026-08-07** by the governed-portfolio plan's Task 8:
+`ChenWeb/server/api/ontology/keywords/reconcile_identity_integration_test.go`
+runs against real PostgreSQL (`chenweb_test`, rebuilt and migrated) and proves
+the exact-identity merge independent of cosine, deferral without a reviewed
+mapping, conflicting-identity rejection, one audit row per decision, and
+family-lock serialization under concurrent promotion/reconciliation. The
+§0 "Never validated live" row is updated accordingly.
+
 #### 20.1.13 
 There's no end-to-end regression test for the targeted human_review path yet, because it's still 
 unreachable through real tier scoring today (tiers 0–4 only ever produce 1.0 or 0.8, both ≥ the 0.8 
@@ -995,6 +1022,23 @@ go test ./server/api/ontology/keywords/... ./server/api/ontology/semid/... ./ser
 ```
 
 Green on keywords/semid/names/assertions; build and vet clean. doc-processing retains only its pre-existing environment-dependent failures (the step-11 baseline of ~15; Task 6 confirmed the set did not grow) — none of step 12's commits grow it.
+
+Stage 0/1 (governed terminology portfolio + identity-authorized Tier 6), 2026-08-07, jj commit ids: `8123` keywords: enforce identity evidence scope · `dade` keywords: bound triple evidence reads · `7db0` keywords: make reconciliation writes transaction atomic · `bb21` keywords: make tier 6 identity-authorized and model agnostic · `d363` ontology: add governed terminology import runner · `31e9` ontology: import stage 1 terminology snapshots · `864e` ontology: preserve QUDT semantics and promote reviewed identities · Task-8 closure commit (integration test, docs, coverage report). Migration `20260807000001` adds the governed source registry (authority role, allowed scopes, authoritative relations, content checksum, license review, adapter version, provenance, approval, `identity_authority`), immutability triggers, artifact/catalog/label/relation/negative-decision/UCUM staging tables, and the audited `keyword_identity_deployments` pointer with append-only history. New tooling: `server/api/ontology/terminology` adapters (SIRP, IEC seed, Wikidata, UCUM, QUDT) and `cmd/terminology-import` (import/diff/activate/rollback), `cmd/terminology-coverage`, and reviewed positive/negative promotion into `keyword_external_ids`/`keyword_surface_evidence`/the provenance-linked `never_merge` veto. Tier 6 write authority is now granted only by an enabled, approved, authoritative `exact_equivalent` claim; embeddings only rank diagnostics (see the 2026-08-07 model-agnostic validation spec).
+
+```bash
+cd ChenWeb
+go build ./... && go vet ./server/api/ontology/... ./server/cmd/...
+go test ./server/api/ontology/keywords/... ./server/api/ontology/terminology/... ./server/cmd/terminology-import/... ./server/cmd/keyword-reconcile/... ./server/cmd/qudt-import/...
+TEST_DATABASE_URL='host=/tmp user=cding dbname=chenweb_test sslmode=disable' \
+  go test ./server/api/ontology/keywords/ -run TestReconcileIdentityIntegration
+```
+
+Live acceptance on a rebuilt `chenweb_test`: all project migrations applied
+(guarded Down/Up round-trip verified), all five stage-1 fixtures imported
+twice with idempotent replay, `tier6-primary` enabled on
+`iec-60050-845/2020`, and the integration suite green. The pilot-scope
+coverage report stores the unresolved-pair backlog and reports
+`ready=false` pending operator approval (plan Task 8).
 
 ---
 
