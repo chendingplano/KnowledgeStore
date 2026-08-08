@@ -1,9 +1,9 @@
 # SemOS P5 Rule-Driven Routing Implementation Plan
 
-> **Status (2026-08-03): superseded for status by `2026080303-plan-semos-p5-completion.md`.** The
+> **Status (2026-08-03): superseded for status by `2026080303-plan-ontology-p5-completion.md`.** The
 > checkboxes below were reconciled on 2026-08-03 to reflect implemented-and-verified-after-
 > remediation work. An independent audit (bug `2026080301`, review
-> `2026080302-devdoc-semos-p5-implementation-review.md`) found several of these tasks were not
+> `2026080302-devdoc-ontology-p5-implementation-review.md`) found several of these tasks were not
 > operational as first implemented; the completion plan's Chunks A–H fixed them (resolver wired,
 > promotion transactional, checksums canonical, clearance keyed on `document.doc_kind`, exit
 > criteria corrected), and the boxes are checked only where that work is verified. The four I2
@@ -18,7 +18,7 @@
 
 **Tech Stack:** Go 1.25, PostgreSQL/Goose, Echo v4, `sqlmock`, existing ChenWeb processor/runtime and ontology module/profile stores, `jj`.
 
-**Source of truth:** `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md`
+**Source of truth:** `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-ontology-p5-rule-driven-routing.md`
 
 ---
 
@@ -33,7 +33,7 @@ New focused files:
 - `ChenWeb/server/api/ontology/modules/applicability_proposals.go` — release-carried routing proposals and draft-policy promotion.
 - `ChenWeb/server/api/doc-benchmark/routing_clearance.go` — paired benchmark decision and clearance evidence.
 - migrations `20260801000015` through `20260801000020` — policy predicates, fact observations, review snapshots, clearances, module proposals, audit events.
-- `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md` — evidence and deferred boundary.
+- `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-ontology-p5-implementation-log.md` — evidence and deferred boundary.
 
 Existing files changed surgically:
 
@@ -378,7 +378,7 @@ Existing files changed surgically:
 ### Task I2: Live PostgreSQL and synthetic-corpus proof
 
 **Files:**
-- Create: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md`
+- Create: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-ontology-p5-implementation-log.md`
 
 - [ ] Apply Goose migrations `20260801000015`–`20260801000020` to `chenweb_test` through the normal datasource path and record schema/version evidence.
 - [ ] Create disposable data and prove legacy parity; override precedence; invalid activation rollback; block/fallback alarm dedupe; shadow/partial/cleared enforcement; clearance replacement/revocation and corrupt-multiple fail closed; extraction/review snapshot reload after activation changes; review rule applicability; classifier retries/concurrency; and module promotion without activation.
@@ -392,7 +392,7 @@ Existing files changed surgically:
 - Modify: `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
 - Modify: `KnowledgeStore/doc-repo/adrs/202607/2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (P5 status only; preserve unrelated edits)
 - Modify: `KnowledgeStore/doc-repo/hand-offs/202607/2026073002-handoff-semos-ontology-status.md`
-- Modify: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md`
+- Modify: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-ontology-p5-implementation-log.md`
 
 - [x] Run `go test ./server/api/ontology/semrules ./server/api/doc-processing ./server/api/ontology/profiles ./server/api/ontology/modules ./server/api/doc-benchmark ./server/api/kbhandler -count=1`.
 - [x] Run `go vet ./server/api/ontology/... ./server/api/doc-processing/... ./server/api/doc-benchmark/...` and build `./server/cmd/ontology-compiler` and `./server/cmd/doc-benchmark`.

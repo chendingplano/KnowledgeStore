@@ -6,8 +6,8 @@
 **Verdict:** P5 is **not** complete. I2 is not the only remaining item.
 
 **Supersedes as the authoritative P5 review record:**
-- Bug report `2026080301-bug-semos-p5-rule-driven-routing-not-finished.md` (review A)
-- Fix plan `2026080201-plan-semos-p5-fix-dead-code-exit-test-documentation.md` §1 findings (partially executed; see §6)
+- Bug report `2026080301-bug-ontology-p5-rule-driven-routing-not-finished.md` (review A)
+- Fix plan `2026080201-plan-ontology-p5-fix-dead-code-exit-test-documentation.md` §1 findings (partially executed; see §6)
 
 **Baseline:** ADR `2026072901` (§8.3.8, changelog 2026-08-03) · Spec `2026080102` (§12, 16 acceptance
 criteria) · Plan `2026080103` (A1–I3) · Impl log `2026080107` · Handoff `2026073002`

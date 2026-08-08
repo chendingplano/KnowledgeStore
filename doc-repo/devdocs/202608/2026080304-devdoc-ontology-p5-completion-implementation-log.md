@@ -2,9 +2,9 @@
 
 **Date:** 2026-08-03
 **Status:** Chunks A–H of the completion plan executed and merged to `main`; I2 (live proof) pending
-**Plan:** `2026080303-plan-semos-p5-completion.md`
-**Review basis:** `2026080302-devdoc-semos-p5-implementation-review.md` (defects P5-1…P5-30)
-**Supersedes for status:** `2026080107-devdoc-semos-p5-implementation-log.md` (retracted by its own
+**Plan:** `2026080303-plan-ontology-p5-completion.md`
+**Review basis:** `2026080302-devdoc-ontology-p5-implementation-review.md` (defects P5-1…P5-30)
+**Supersedes for status:** `2026080107-devdoc-ontology-p5-implementation-log.md` (retracted by its own
 supersession notice)
 
 ## Why this log exists

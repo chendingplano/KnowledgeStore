@@ -15,7 +15,7 @@ reaches a terminal state.
 
 ## Resolved (2026-08-03)
 
-- [2026080301 — SemOS P5 rule-driven routing declared complete but is not finished](202608/2026080301-bug-semos-p5-rule-driven-routing-not-finished.md)
+- [2026080301 — SemOS P5 rule-driven routing declared complete but is not finished](202608/2026080301-bug-ontology-p5-rule-driven-routing-not-finished.md)
   — `resolved (superseded by 2026080302; remediation 2026080303, log 2026080304)`.
   Removed from Open: the full-completion/correctness audit of P5 was consolidated into review
   `2026080302`, and every finding was addressed by the completion plan `2026080303` (Chunks A–H,

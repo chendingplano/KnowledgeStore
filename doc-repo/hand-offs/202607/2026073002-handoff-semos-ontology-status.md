@@ -341,8 +341,8 @@ free-text path reserved for pre-structured rows only.
 ## Post-handoff update (2026-08-02 — P5 complete through E2)
 
 The current P5 sources of truth are spec
-`KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` and plan
-`KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md`. Plan tasks
+`KnowledgeStore/doc-repo/specs/202608/2026080102-spec-ontology-p5-rule-driven-routing.md` and plan
+`KnowledgeStore/doc-repo/plan/202608/2026080103-plan-ontology-p5-rule-driven-routing.md`. Plan tasks
 A1–A4, B1–B3, C1–C2, D1–D2, E1, and E2 are implemented and checked off. The user explicitly set
 the present stop boundary at E2; **the next implementation task is E3**.
 
@@ -500,7 +500,7 @@ validation with a live database. All code-level P5 work (G, H, I1, I3) is comple
 
 **Retraction.** The 2026-08-02 updates' repeated "All code-level P5 work (G, H, I1, I3) is
 complete" claim was **wrong**. An independent audit (bug `2026080301`, consolidated into review
-devdoc `2026080302-devdoc-semos-p5-implementation-review.md`, defect register P5-1…P5-30) found
+devdoc `2026080302-devdoc-ontology-p5-implementation-review.md`, defect register P5-1…P5-30) found
 that, among other things: the tier-3 resolver was inert by construction (never populated its
 predicates, so the classifier could never be reached) and unwired (no construction anywhere);
 promotion never ran in practice (fresh release id, outside the transaction, warn-on-failure,
@@ -509,7 +509,7 @@ checksum); clearance coverage was keyed on the file format, not the governed doc
 exit tests wore criterion names without testing the criteria. Impl log `2026080107` overstated
 completion.
 
-The completion plan `2026080303-plan-semos-p5-completion.md` has now been **executed (Chunks A–H)**,
+The completion plan `2026080303-plan-ontology-p5-completion.md` has now been **executed (Chunks A–H)**,
 committed via `jj`, merged to `main` and pushed to `origin/main` (14 commits on top of the prior P5
 work). What is actually true now:
 
@@ -687,9 +687,9 @@ they are the deliberately-deferred boundary the governing spec's §20.1 document
 - P3 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080102-plan-semos-p3-assertions-evidence-and-phase-d-association.md` — the P3 Track A plan (chunks 0–F), including the Track A/B scope split.
 - P3 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md` — the P3 chunks 0–F build record (schema, code, real-data findings, live-Postgres validation); its §12.1 addendum records the `extract_metrics` structured-output closure and the §C2 gold-corpus reconciliation.
 - OpenSpec change `extract-metrics-structured-output`: `ChenWeb/openspec/changes/extract-metrics-structured-output/` — proposal/design/specs/tasks for the structured-first metric normalizer, `value_min`/`value_max`/`condition` schema, and QUDT unit resolution.
-- P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
-- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md` — the original P5 task checklist; superseded for status by the completion plan below.
-- P5 completion plan: `KnowledgeStore/doc-repo/plan/202608/2026080303-plan-semos-p5-completion.md` — the defect-driven remediation plan (Chunks A–H) executed 2026-08-03; the authoritative current status is the 2026-08-03 post-handoff update above, not the impl log's completion claim.
-- P5 audit: `KnowledgeStore/doc-repo/bugs/202608/2026080301-bug-semos-p5-rule-driven-routing-not-finished.md` and its consolidated review `KnowledgeStore/doc-repo/devdocs/202608/2026080302-devdoc-semos-p5-implementation-review.md` — found the resolver inert/unwired, promotion non-operational, checksum/clearance/conflict defects, and mis-mapped exit tests; the basis for the retraction above.
-- P5 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md` — the P5 G/H/I build record (classifier, resolver, proposals, policy promotion, acceptance-criteria tests, verification); its "complete" claim is overstated (see the 2026-08-03 retraction) and its corrections remain a plan-H2 follow-up.
+- P5 rule-driven routing spec: `KnowledgeStore/doc-repo/specs/202608/2026080102-spec-ontology-p5-rule-driven-routing.md` — acceptance contract for facts, bindings, processor gates, clearance, enforcement, audit, and proof.
+- P5 implementation plan: `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-ontology-p5-rule-driven-routing.md` — the original P5 task checklist; superseded for status by the completion plan below.
+- P5 completion plan: `KnowledgeStore/doc-repo/plan/202608/2026080303-plan-ontology-p5-completion.md` — the defect-driven remediation plan (Chunks A–H) executed 2026-08-03; the authoritative current status is the 2026-08-03 post-handoff update above, not the impl log's completion claim.
+- P5 audit: `KnowledgeStore/doc-repo/bugs/202608/2026080301-bug-ontology-p5-rule-driven-routing-not-finished.md` and its consolidated review `KnowledgeStore/doc-repo/devdocs/202608/2026080302-devdoc-ontology-p5-implementation-review.md` — found the resolver inert/unwired, promotion non-operational, checksum/clearance/conflict defects, and mis-mapped exit tests; the basis for the retraction above.
+- P5 implementation log: `KnowledgeStore/doc-repo/devdocs/202608/2026080107-devdoc-ontology-p5-implementation-log.md` — the P5 G/H/I build record (classifier, resolver, proposals, policy promotion, acceptance-criteria tests, verification); its "complete" claim is overstated (see the 2026-08-03 retraction) and its corrections remain a plan-H2 follow-up.
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` and its three ratified inputs: research `2026072302`, spec `2026072702`, ADR `2026072701`.

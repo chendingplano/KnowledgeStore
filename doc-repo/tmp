@@ -1,0 +1,87 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+mv ./specs/202608/2026080102-spec-semos-p5-rule-driven-routing.md ./specs/202608/2026080102-spec-ontology-p5-rule-driven-routing.md
+mv ./plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md ./plan/202608/2026080103-plan-ontology-p5-rule-driven-routing.md
+mv ./plan/202608/2026080303-plan-semos-p5-completion.md ./plan/202608/2026080303-plan-ontology-p5-completion.md
+mv ./plan/202608/2026080201-plan-semos-p5-fix-dead-code-exit-test-documentation.md ./plan/202608/2026080201-plan-ontology-p5-fix-dead-code-exit-test-documentation.md
+mv ./devdocs/202608/2026080107-devdoc-semos-p5-implementation-log.md ./devdocs/202608/2026080107-devdoc-ontology-p5-implementation-log.md
+mv ./devdocs/202608/2026080302-devdoc-semos-p5-implementation-review.md ./devdocs/202608/2026080302-devdoc-ontology-p5-implementation-review.md
+mv ./devdocs/202608/2026080304-devdoc-semos-p5-completion-implementation-log.md ./devdocs/202608/2026080304-devdoc-ontology-p5-completion-implementation-log.md
+mv ./bugs/202608/2026080301-bug-semos-p5-rule-driven-routing-not-finished.md ./bugs/202608/2026080301-bug-ontology-p5-rule-driven-routing-not-finished.md

@@ -7,9 +7,9 @@ Component: P5 rule-driven routing — `server/api/ontology/semrules`, `server/ap
 Model: n/a (code-review audit; the tier-3 classifier would use `CLASSIFY_DOCUMENT_MODEL_NAME`, default `deepseek-chat`, but it is not wired)
 
 > **Resolution notice (2026-08-03).** This bug report is **superseded by** the consolidated review
-> `2026080302-devdoc-semos-p5-implementation-review.md` and **resolved by** the remediation plan
-> `2026080303-plan-semos-p5-completion.md` (Chunks A–H, executed and merged to `main`; build record
-> in `2026080304-devdoc-semos-p5-completion-implementation-log.md`). Every correctness finding in
+> `2026080302-devdoc-ontology-p5-implementation-review.md` and **resolved by** the remediation plan
+> `2026080303-plan-ontology-p5-completion.md` (Chunks A–H, executed and merged to `main`; build record
+> in `2026080304-devdoc-ontology-p5-completion-implementation-log.md`). Every correctness finding in
 > Section B was addressed: the resolver is now supplied its predicates, wired flag-gated into the
 > runtime, and review-side; promotion is transactional and canonical-checksum-correct; clearance
 > coverage keys on `document.doc_kind`; the exit criteria point at real tests; and the work is on
@@ -24,9 +24,9 @@ The working assumption — *"P5 (rule-driven routing) is completely finished exc
 ## Baseline consulted
 
 - ADR `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` (P5 change-log entry 2026-08-03; §8.3.8 exit criterion)
-- Spec `2026080102-spec-semos-p5-rule-driven-routing.md` (especially §12, the 16 acceptance criteria)
-- Plan `2026080103-plan-semos-p5-rule-driven-routing.md` (task checklist A1–I3)
-- Implementation log `2026080107-devdoc-semos-p5-implementation-log.md`
+- Spec `2026080102-spec-ontology-p5-rule-driven-routing.md` (especially §12, the 16 acceptance criteria)
+- Plan `2026080103-plan-ontology-p5-rule-driven-routing.md` (task checklist A1–I3)
+- Implementation log `2026080107-devdoc-ontology-p5-implementation-log.md`
 - Handoff `2026073002-handoff-semos-ontology-status.md` (P5 post-handoff updates)
 
 ## Section A — Completion status: what is actually true

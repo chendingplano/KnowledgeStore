@@ -200,7 +200,7 @@ Add P5 implementation status annotation in the changelog section.
 
 #### C3. Update plan checklist
 
-**File:** `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-semos-p5-rule-driven-routing.md`
+**File:** `KnowledgeStore/doc-repo/plan/202608/2026080103-plan-ontology-p5-rule-driven-routing.md`
 
 Check off completed tasks: G1, G2, H1, H2, I1, I3.
 

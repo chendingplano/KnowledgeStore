@@ -6,7 +6,7 @@
 **Goal:** Close every defect in review `2026080302` so P5 can be declared complete against spec
 `2026080102` §12 and ADR `2026072901` §8.3.8.
 
-**Source of truth:** consolidated review `2026080302-devdoc-semos-p5-implementation-review.md`
+**Source of truth:** consolidated review `2026080302-devdoc-ontology-p5-implementation-review.md`
 (defect ids **P5-1 … P5-30**) · spec `2026080102` · original plan `2026080103`
 
 **Supersedes:** fix plan `2026080201` (partially executed; residue folded in as Chunk H)
