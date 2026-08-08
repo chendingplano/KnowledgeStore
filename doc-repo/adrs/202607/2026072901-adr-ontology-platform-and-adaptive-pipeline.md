@@ -2004,6 +2004,19 @@ loss of a merged id.
 > proof. See the Track B handoff `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` for the
 > complete build record and deferred boundary.
 >
+> **2026-08-05 to 2026-08-07 — most of the above deferral list closed.** Three sessions built
+> directly on the 2026-08-04 slice: all 13 defects the Track B review found were fixed and D11
+> auto-first was implemented (2026-08-05); **fuzzy tiers 5-6** and a minimum reconciliation loop
+> (`keywords.Reconciler`/`cmd/keyword-reconcile`) plus the **`aligns_to_term` bridge** and its
+> metric-integration seam were built (2026-08-06, step 11-12); Tier 6 was then rebuilt to require
+> governed identity evidence rather than a cosine threshold, and the governed external-terminology
+> portfolio (source registry, import/promotion tooling, admin review UI) was added, **closing I2**
+> (2026-08-07). Still deferred exactly as this row says: the full R1-R7 orchestration (only R3
+> blocking + a validate/apply core exist), `on` mode, and the Double Metaphone upgrade. Curated
+> seed content has tooling now but no published production release — an operator action, not a
+> code gap. Current status of record: spec `2026080403-spec-keyword-canonicalization-and-reconciliation.md`
+> §0/§21 (this ADR is not re-synced every session; that spec is).
+>
 > **2026-08-01 correction (post-review):** A same-day implementation review
 > (`2026080106-devdoc-semos-p3-implementation-review.md`) found the "Built and complete" framing
 > above overstated several items: the three Phase D stages were never registered as declared,
