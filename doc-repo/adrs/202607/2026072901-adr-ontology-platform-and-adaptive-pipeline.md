@@ -164,6 +164,38 @@
   observe path to align to) and operator approval of a published production seed release; IEC
   60050-845 stays copyright-gated by design (the tool refuses it; the page shows "Requires
   license").
+* 2026/08/08, first real content in the DR6 pipeline/binding mechanism ("Doc Processing
+  Policies"). §16.1 had flagged that DR6's `kb.pipelines`/`kb.pipeline_bindings`/
+  `kb.pipeline_policies` machinery was fully built but never actually populated — a small,
+  separately specced/planned feature closes that gap for the first time. Design:
+  `ChenWeb/docs/superpowers/specs/2026-08-08-doc-processing-policy-design.md`. Plan:
+  `ChenWeb/docs/superpowers/plans/2026-08-08-doc-processing-policy.md`. **What it built:** a
+  declarative config format (`config.local.toml`'s `[doc-processing-policy-*]` sections plus a
+  `[doc-processing-policy-bindings]` store→policy map, gitignored/local by design — same "config
+  file authors into the DB" pattern `ontology-seed` established for ontology content, not a new
+  mechanism); a new package-internal parser/validator
+  (`docprocessing.DocProcessingPolicySeedConfig`, `server/api/doc-processing/policy_seed_config.go`);
+  a transactional seed function (`docprocessing.SeedDocProcessingPolicies`,
+  `server/api/doc-processing/policy_seed.go`) that upserts `kb.pipelines` rows by name, authors a
+  new draft `kb.pipeline_policies` version with `binding_kind='store_default'` `kb.pipeline_bindings`
+  rows (one system-wide default, `ks_store_id IS NULL`, plus one per bound knowledge store),
+  compiles it through the existing `PolicyCompilerSQLStore`, and activates it — archiving whatever
+  was active before; and a CLI, `server/cmd/doc-processing-policy-seed`, modeled directly on
+  `server/cmd/ontology-seed`. **Verified against the real `miner` staging database** (not just
+  mocks): two policies (`no-entities-relations`, the system-wide default excluding
+  `extract_entity`/`extract_relation`; `all`, bound to the `Research` knowledge store) seed and
+  activate correctly, re-running is idempotent (upsert-by-name, new policy version each run), and
+  direct-SQL resolution checks confirm knowledge store 4 (Research) resolves to `all` and store 5
+  (卫健委标准, unbound) falls through to the system default — matching DR7's precedence exactly.
+  **What this does not yet mean:** activation only takes effect in a running `doc-processor`
+  process after that process restarts (the active policy loads once at startup, per §8.3.4's
+  existing finding) and `DOC_PIPELINE_PLAN_ONLY=false` is set to move from shadow to enforced mode
+  — neither was done on `miner` as part of this work, by deliberate choice, to avoid disrupting the
+  live staging process. Also newly true and worth knowing: activating a policy version is a full
+  *replacement*, not a merge — anything (bindings, gates, rules) authored under the previously
+  active policy stops being consulted the instant a new version activates; the code's doc comments
+  and the CLI's printed output now say so explicitly. §3.7 and §8.3.4 are updated below; §16.1's
+  "named pipelines" row is marked resolved-in-part.
 
 ## 2. Context
 
@@ -629,6 +661,17 @@ modules. `default`, `standards`, `narrative`, and `minimal` are expected startin
 > `store_default`, and `request_override` (`project_migrations/20260731000004`) — not
 > `default`/`standards`/`narrative`/`minimal`, which appear nowhere in seed data or code and remain
 > illustrative only.
+>
+> **2026-08-08 update (later the same day): real, non-illustrative named pipelines now exist.**
+> A separately specced/planned feature ("Doc Processing Policies," see the changelog entry above)
+> added a `config.local.toml`-driven seed tool (`server/cmd/doc-processing-policy-seed`) that
+> authors named pipelines with real processor lists — `no-entities-relations` and `all` on the
+> `miner` staging database — through the exact mechanism this DR describes (`kb.pipelines` rows,
+> a `kb.pipeline_policies` draft→compile→activate lifecycle). This is a different naming scheme
+> again (neither the original `default`/`standards`/`narrative`/`minimal` illustration nor the
+> P1-seeded `legacy_default`/`store_default`/`request_override` placeholders) — operator-chosen
+> names for a real, if still small, deployment. §16.1's corresponding outstanding-work row is
+> marked resolved-in-part.
 
 **Tier 2 — binding policy.** A versioned policy decides which pipeline applies, and may refine
 individual processor decisions.
@@ -644,6 +687,16 @@ kb.pipeline_rules      rule_id, policy_id, priority, target_processor,
                        required_facets, reason_template, source (config|module|human),
                        source_module_release_id, approval_status, approved_by
 ```
+
+> **2026-08-08 status (verified against code): `kb.pipeline_bindings`'s real schema doesn't match
+> the `scope_kind`/`scope_key` columns shown above.** There are no such columns. "Scope" is
+> derived at *read* time by a SQL `CASE` expression over which of `ks_store_id`/`user_id`/
+> `tenant_id`/`input_record_id` is populated on the row (`server/api/doc-processing/
+> pipeline_bindings.go`, `policy_compile.go`) — `binding_kind` is real (`'conditional'` or
+> `'store_default'`), and a `'store_default'` row with `ks_store_id` set is store-scoped, or
+> `ks_store_id IS NULL` is system-wide. `policy_id`, `priority`, `predicate`, `pipeline_id`,
+> `approved_by` and friends are all real columns; only the illustrative `scope_kind`/`scope_key`
+> pairing above is not how it was actually built.
 
 A binding may be as simple as "knowledge store `KS-Project-A` → pipeline `standards@2`" with no
 predicate at all — which is exactly the case C5 could not express — or predicated on document
@@ -2106,6 +2159,19 @@ decisions.
 > `kb.knowledge_store_bindings`. The exit criterion "with no policy activated, byte-identical to
 > today" holds (`legacy_default`); "every run carries an explainable plan" holds via
 > `kb.doc_process_plans`, not `kb.doc_process_runs.plan`.
+>
+> **2026-08-08 update (later the same day):** the "named pipelines, binding policy" bullet moved
+> from "mechanism exists, never populated" to "populated with real content, on staging." A small
+> separately specced/planned feature ("Doc Processing Policies," §1 changelog) added a
+> `config.local.toml`-driven seed CLI that authors real named pipelines and a real activated
+> `kb.pipeline_policies` version on `miner`, verified by direct resolution checks against the live
+> database (not just mocks). This does **not** change the "no ontology dependency"/DAG-planner
+> findings above — the DAG planner is still not built, and this new content flows through the
+> same non-DAG `applyPolicyFilter` intersect-against-request mechanism already documented. It also
+> does not mean this is live/enforced anywhere: `DOC_PIPELINE_PLAN_ONLY` was left at its default
+> (shadow mode) and the running `doc-processor` process on `miner` was deliberately not restarted
+> to pick it up, so today it changes nothing observable in production/staging behavior — only the
+> DB content and the resolution logic's correctness against it are now verified.
 
 #### 8.3.5 P2 — Ontology core and the canonicalization kernel *(parallel with P1)*
 
@@ -2229,6 +2295,38 @@ loss of a merged id.
 > summary, including the precisely-scoped "closing I2" claim (true for the tier-6 identity-authority
 > mechanism against real imported data; **not** true yet for the online resolve path against real
 > document text through the pipeline).
+>
+> **2026-08-08, later the same day — spec-accuracy audit + ambiguity reconciliation.** A
+> user-driven, code-verified accuracy pass over spec `2026080403` (prompted by exactly the "this
+> ADR is not re-synced every session; that spec is" boundary stated above) found and corrected
+> roughly twenty stale claims the 2026-08-05/06/07 dated notes above had not propagated everywhere
+> in the spec body: the §9.1 tier-status table itself (tiers 2/4/5/7-auto-create still shown
+> unbuilt after they had shipped), several §4 design-decision badges left at "Defect"/"not
+> implemented" after their fixes landed (D3, D6, D7, D11), §9.3's description of a since-deleted
+> `kb.keyword_mentions`/`MentionStore`, §10.2's lang-uniqueness gap (fixed by migration
+> `20260805000002` the same day it was reported open), §18.1's test-coverage table (51 tests
+> claimed; 176 keyword-package test functions exist as of this entry, 209 across
+> keywords/semid/names), and §20.1.7's "resource import" entry still marked wholesale Deferred
+> after the terminology-import tooling above was built. No code changed in this part of the pass —
+> only the spec's description of it. Full corrected detail lives in the spec itself; this entry
+> exists only so a reader of *this* ADR isn't misled by the "verified 2026-08-08" framing above
+> into assuming that earlier pass was exhaustive — it wasn't, and this entry's corrections are the
+> proof.
+>
+> **New the same session: ambiguity reconciliation (spec §13.6).** An `ambiguous` verdict (tiers
+> 0-5 tied across more concepts than `KeywordFamily`'s `AutoAcceptPolicy.MaxCandidates` allows)
+> used to pick the lowest concept id as an arbitrary tiebreak and log the tie to
+> `kb.keyword_unresolved`, with nothing ever revisiting it. `Reconciler.ReconcileAmbiguous`
+> (`cmd/keyword-reconcile`'s second pass; migration `20260808000001` adds
+> `kb.keyword_unresolved.candidates`) now re-ranks that tie offline: re-verifies the tied concepts
+> are still live (chasing any merge since the tie was logged), and for a genuine remaining tie,
+> embeds the original query against each live survivor's label and auto-applies only on a clear
+> margin or independent lexical corroboration — the same two-signal discipline already governing
+> tier 6's merges (embeddings rank, they never decide alone). Never merges the tied concepts with
+> each other (stays tier 6's job, D10-conservative) and never rewrites `kb.keyword_occurrences`
+> (append-only by design) — only a new surface on the winning concept and a decision-log entry.
+> sqlmock-tested only, not yet run against a live database — the same I2-class caveat the rest of
+> this module carries.
 >
 > **§8.3.7 contradiction resolved:** `extract_metric_definitions`, `extract_test_methods`, and
 > `extract_product_structure` (listed as "remain to be implemented" in §8.3.7's P4 section) are
@@ -2797,6 +2895,8 @@ and consistent interpretation of measurements across different datasets and appl
 20. `ChenWeb/docs/superpowers/plans/2026-08-07-external-terminology-resource-portfolio.md` (added 2026-08-08)
 21. `ChenWeb/docs/superpowers/specs/2026-08-07-external-terminology-resource-portfolio-design.md` (added 2026-08-08)
 22. `ChenWeb/docs/superpowers/specs/2026-08-07-model-agnostic-tier6-validation-design.md` (added 2026-08-08)
+23. `ChenWeb/docs/superpowers/specs/2026-08-08-doc-processing-policy-design.md` — the "Doc Processing Policies" design, first real content authored into DR6's pipeline/binding mechanism (added 2026-08-08)
+24. `ChenWeb/docs/superpowers/plans/2026-08-08-doc-processing-policy.md` — its implementation plan (added 2026-08-08)
 
 ## 16. Outstanding Implementation Work (Not Yet Finished)
 
@@ -2817,7 +2917,7 @@ found so the reasoning behind it doesn't need to be re-derived.
 | Facet tiers 1–2 | Only tier-3 (`classify_document`) writes facet observations. Tier-1 deterministic and tier-2 (`extract_doc_metadata`-derived) producers have no production call site. | §3.5, §8.3.4 |
 | `kb.knowledge_store_bindings` (DR18 items 1–2 partial, 3–4 absent) | Table doesn't exist; store default pipeline is a column instead. Bound module releases and default review profiles per store are not built at all. | §3.20, Appendix C.1 |
 | Execution-plan UI | `kb.doc_process_plans` and its API (`GET /kb/doc-proc-plans`) are real, but no frontend dashboard panel consumes it yet — API-only. | §3.7, §8.3.4 |
-| Named pipelines `standards`/`narrative`/`minimal` | Illustrative only; never seeded. Actual seeds are `legacy_default`/`store_default`/`request_override`. Decide whether to seed the documented names or correct the doc to match the real ones. | §3.7 |
+| ~~Named pipelines `standards`/`narrative`/`minimal`~~ | **Resolved-in-part 2026-08-08.** Those specific illustrative names are still never seeded and remain fictional. But the underlying gap — the DR6 mechanism existing with no real content — is closed: a separately specced/planned "Doc Processing Policies" feature seeded real, differently-named pipelines (`no-entities-relations`, `all`) and activated a real policy version on the `miner` staging database, verified by direct resolution checks. Still open: this hasn't been enforced anywhere (`DOC_PIPELINE_PLAN_ONLY` untouched, no service restarted), and no frontend authoring UI exists — content is authored via `config.local.toml` + a CLI, not the REST API or an admin page. | §1 changelog, §3.7, §8.3.4 |
 | `kb.scene_objects.object_id` → `scene_block_id` rename | Never done. | §5, Appendix C.7 |
 
 ### 16.2 P2 — Ontology core & canonicalization kernel

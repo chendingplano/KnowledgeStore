@@ -2,7 +2,7 @@
 
 - **DocID:** `doc-2026080403`
 - **Status:** Adopted — **the single reference for the keyword module**
-- **Date:** 2026-08-04; rewritten 2026-08-05; **addendum `doc-2026080404` merged in 2026-08-05**
+- **Date:** 2026-08-04; rewritten 2026-08-05; **addendum `doc-2026080404` merged in 2026-08-05**; accuracy-audited and ambiguity reconciliation (§13.6) added 2026-08-08
 - **Component:** SemOS / ChenWeb — keyword lexicon, the DR15/DR16 keyword identity family
 - **Supersedes:** `2026080101-spec-…-merged.md`, `2026072703-spec-…-2.md`, `2026072301-spec-….md`, and **`2026080404-spec-metric-name-canonicalization-addendum.md`** (merged here; retained on disk as history only)
 - **Design authority:** ADR `2026072901` — DR15 (shared kernel), DR16 (merged keyword design), **DR23 (the governing requirement, §2)**, DR12 (metrics is the pilot slice)
@@ -15,7 +15,7 @@
 | | |
 |---|---|
 | **Built** | 6 tables, 6 CRUD stores, the keyword normalizer, `KeywordFamily` (tiers 0–4), 14 REST endpoints, a standalone mention collector, `KEYWORD_RESOLVER_MODE` gating. P3 Track B, 7 commits, 2026-08-04. |
-| **Works today** | Tier 0 (exact) and tier 1 (normalized) resolution against an existing surface; concept CRUD and lifecycle; the REST authoring surface. |
+| **Works today** | ⚠️ *corrected 2026-08-08, was stale since 2026-08-06* — online resolution through tiers 0–5 (exact, normalized, alnum/sorted, rewrite-rules, initials, fuzzy — tier 3 still byte-equality-narrow); D11 auto-create on a targeted miss; offline tier-6/reconciliation merge (identity-authorized since 2026-08-07); offline ambiguity reconciliation (§13.6, new 2026-08-08); concept CRUD and lifecycle; the REST authoring surface. |
 | **Fixed (2026-08-05)** | All 13 defects originally verified in §20.2 (K1–K10, N1–N3) — fixed across P4 §19 steps 1–9 (§21); each fix carries a `K`/`N`-numbered code comment at its call site. §20.2's table is historical record of what was found and fixed, not current state. |
 | **Not built** | Full R1–R7 orchestration, the online tier-6 resolve path (kept reconciliation-only by design decision, §22 Q2), `on`-mode wiring, production seed publication. |
 | **Live-validated (2026-08-07)** | I2 closed: `reconcile_identity_integration_test.go` proves exact-identity merges, deferral without identity, conflict rejection, audit invariants, and family-lock serialization against real PostgreSQL (`chenweb_test`). |
@@ -23,7 +23,7 @@
 
 **Remaining gaps are tracked in §20.1**: R1–R7 orchestration, `on`-mode wiring, collector pipeline wiring, and production seed publication are the load-bearing ones — see that section for the full deferred list and why each is safe to build around today.
 
-**Phase context.** P1, P2, P4 (generic runtime), and P5 are built. P3 Track A (assertions, evidence, Phase D) is built and live-validated. **P3 Track B — this module — is built but never live-validated**, which is why its defect list is longer than its siblings'. Nothing in §20.2 invalidates Track A or the P4/P5 runtime; the defects are contained inside `ontology/keywords` and `ontology/semid`.
+**Phase context.** P1, P2, P4 (generic runtime), and P5 are built. P3 Track A (assertions, evidence, Phase D) is built and live-validated. **P3 Track B — this module — is built; its defect list is longer than its siblings' because the original delivery (2026-08-04) went untested against real behavior.** That gap is partly closed: `reconcile_identity_integration_test.go` now runs the reconciliation/merge path against real PostgreSQL (I2, closed 2026-08-07, see the row above). The broader online path (tiers 0–5, `names.Resolver`) is still proven only by sqlmock, not a live document corpus. Nothing in §20.2 invalidates Track A or the P4/P5 runtime; the defects are contained inside `ontology/keywords` and `ontology/semid`.
 
 **Badges:** ✅ Built (does what this says) · 🚧 Partial (stated limitation) · ⚠️ Defect (verified wrong, §20.2) · ⏳ Deferred. *A badge describes whether code exists, never whether it is correct.*
 
@@ -58,7 +58,7 @@ Everything in this document exists to satisfy one requirement, stated in the ADR
 
 | # | Requirement | Satisfied by | Status |
 |---|---|---|---|
-| **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ⚠️ tiers 0–1 only; cross-lingual unification unbuilt |
+| **REQ-1** | All spellings and translations of one metric name resolve to **one keyword concept** | tiers 0–4 for variants of one string; **auto-create + reconciliation merge** for genuinely different words and translations (D11, §13) | ✅ **corrected 2026-08-08** — tiers 0–5 built online (tiers 2/4 fixed, K1/N3; tier 5 shipped §19 step 11); D11 auto-create built (§19 step 8); offline tier-6 + reconciliation merge built (§19 step 11, identity-authorized since 2026-08-07) but **not yet proven against a real cross-lingual corpus** (Appendix A) — tier 3's narrow byte-equality matching is the one remaining tier-ladder defect |
 | **REQ-2** | That keyword concept resolves to **one governed `metric_definition` term** | an accepted `aligns_to_term` assertion (§16.2) | ✅ accepted `aligns_to_term` assertion (§16.2) — step 12 (2026-08-06): auto-align on exact pref-label match + merge-follow; still gated on released `metric_definition` terms (§16.1) |
 | **REQ-3** | Every metric artifact carries that **term id**, regardless of how its document phrased the name | `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) | ✅ `names.Resolver` called by the consumer of `extract_metrics`, persisting `metric_definition_term_id` (§16.3) — the minimum loop (exact-label auto-align + merge-follow) is the step-12 deliverable; the governed-catalog bootstrap (§16.1) and standards-glossary import (§13.2) still gate the live §2.2 end-to-end run |
 | **REQ-4** | The comparison matrix's row key is **derived from that term id** | ✅ **decided and enforced (2026-08-06) — `metric_key` *is* the term id; see §2.4** | 🏗️ **APP-SPECIFIC — Document Review app (P4); implemented** |
@@ -122,7 +122,7 @@ name  →  occurrence  →  surface  →  lexform  →  concept
 | Layer | Storage | Where | Status |
 |---|---|---|---|
 | **name** | not this module's | the producer's table (e.g. `kb.metrics.metric_name`) | — |
-| **occurrence** | one table, incomplete | `kb.keyword_mentions` — **no column for the observed string** | ⚠️ K4 |
+| **occurrence** | one table | `kb.keyword_occurrences` (renamed from `kb.keyword_mentions`, §19 step 7) — carries `raw_name`/`norm_key` and links to the decision-log row | ✅ K4 fixed |
 | **surface** | real entity | `kb.keyword_surfaces` — verbatim text, role, alias type | ✅ |
 | **lexform** | **not an entity** — a derived value | the `norm_key` column | ✅ (⚠️ K5 on the backlog) |
 | **concept** | real entity | `kb.keyword_concepts` | ✅ |
@@ -133,13 +133,13 @@ Only two of four are database entities. Lexform is deliberately a *value*: an in
 
 `normalize → candidates → score → adjudicate` lives once, in `ontology/semid/`, instantiated per family. What legitimately differs: `CandidateNodes` (which tables), `AutoAcceptPolicy` (governed vs. not), `Scope`. **Normalization does not differ — see D3.**
 
-### D3. Normalization is shared, not per-family — ⚠️ **Defect**
+### D3. Normalization is shared, not per-family — ✅ **Fixed (2026-08-05, §19 steps 2–4)**
 
 **Lexical normalization depends on the language of the string, never on which family is asking.** A Chinese term label and a Chinese keyword surface need identical treatment; nothing about "being governed" changes what NFKC does.
 
-The code violates this. `keywords.KeywordNormalizer` (ten steps) and `semid.Normalizer`'s built-in (`ToLower` → `TrimSpace` → collapse-whitespace, plus punctuation-stripping at v2) are two implementations of one operation — the second a strict subset of the first. They duplicate outright: `semid.collapseSpace` and `keywords.collapseWhitespace` are byte-identical logic under different names, and the `0x2E80` CJK threshold is hardcoded in both. `NormFunc`, the hook letting a family override the built-in, has **one user** — added so it could bypass a normalizer doing a subset of its own work.
+The code used to violate this: `keywords.KeywordNormalizer` (ten steps) and `semid.Normalizer`'s built-in were two implementations of one operation, duplicated outright, with `NormFunc` as a one-user escape hatch.
 
-**Decision:** one implementation, shared. Delete `NormFunc` and the `semid` built-in; remove `Normalizer()` from `FamilyAdapter`; consolidate the primitives. Profiles, if needed, key on **language and version** — never on family.
+**Decision, implemented:** one implementation, shared — `semid.Normalizer` (`server/api/ontology/semid/normalizer.go`). `NormFunc` and the `semid` built-in are deleted; `Normalizer()` no longer exists on `FamilyAdapter`; the primitives are consolidated.
 
 ### D4. SKOS label roles — ✅ **Built**
 
@@ -149,24 +149,15 @@ The code violates this. `keywords.KeywordNormalizer` (ten steps) and `semid.Norm
 
 *Silently* picking the most frequent candidate produces an error invisible to caller and metrics. Under D11, `ambiguous` is returned **with the top-1 pick** — the caller gets a usable id *and* an explicit contested signal. What is rejected is unrecorded guessing, not deciding.
 
-### D6. Store surfaces; derive keys; version the normalizer — ⚠️ **Defect**
+### D6. Store surfaces; derive keys; version the normalizer — ✅ **Fixed (2026-08-05, §19 step 5)**
 
-Every key is recomputable from `surface + norm_version`, so a normalizer change is a re-index, never data loss. The schema honours this; the write paths do not (K3: caller-supplied `norm_key`; K1: nothing writes derived keys). **Decision:** the server derives all keys on every write path and *rejects* a caller-supplied `norm_key`.
+Every key is recomputable from `surface + norm_version`, so a normalizer change is a re-index, never data loss. **Decision, implemented:** the server derives all keys on every write path and rejects a caller-supplied `norm_key`/`norm_version` (K3, `kbhandler/keyword_handlers.go`); `derivedSurfaceKeys` writes the alnum/sorted/initials/singular rows on every surface write (K1, `surfaces_store.go`), so tiers 2 and 4 read real data.
 
-### D7. Merges are tombstones; no transitive closure — ⚠️ **Defect**
+### D7. Merges are tombstones; no transitive closure — ✅ **Fixed (2026-08-05, §19 step 6)**
 
 Merges set `merged_into` and keep the row. Merges are never transitive — one bad edge must not chain two clusters.
 
-**Merge is implemented twice with disjoint capabilities, neither complete:**
-
-| | `semid.MergeGraph` | `ConceptStore.MergeConcept` |
-|---|---|---|
-| Persistence | **none** (in-memory maps) | Postgres |
-| Refuses `never_merge` / already-merged | yes | **no** |
-| Follows `merged_into` at read time | yes | **no** |
-| Production callers | **0** | the merge endpoint |
-
-**Decision:** delete `MergeGraph`; port its four guardrails into `ConceptStore.MergeConcept` and the resolve path, backed by the persisted `NeverMergeStore`.
+Merge used to be implemented twice with disjoint capabilities (an unused in-memory `semid.MergeGraph` with the guardrails, and the persisted `ConceptStore.MergeConcept` without them). **Decision, implemented:** `semid.MergeGraph` is deleted; its guardrails (refuse `never_merge` / already-merged; follow `merged_into` at read time) are ported into `ConceptStore.MergeConcept`, backed by the persisted `NeverMergeStore`, plus §14.1's surface re-pointing and §14.4's un-merge, built in the same step.
 
 ### D8. Token-economics discipline — ⏳ **Deferred**
 
@@ -188,7 +179,7 @@ A wrong **merge of two established concepts** is structural, invisible, and cont
 
 **This governs merges, not assignment.** Under D11, leaving an assignment undecided is not the safe option, and the older "a missed alias is self-healing" framing is withdrawn for that case — it assumed a human would drain the backlog.
 
-### D11. Auto-first: every path terminates in a decision — 🆕 **Load-bearing, not implemented**
+### D11. Auto-first: every path terminates in a decision — ✅ **Built (2026-08-05, §19 step 8)**
 
 **Scale forces this.** 10⁵–10⁶ documents × ~10² artifacts = 10⁷–10⁸ name occurrences. Reviewing even 0.1% is unaffordable. **Any design where a routine path waits for a person stalls permanently.**
 
@@ -256,11 +247,11 @@ The most dangerous component: fast, invisible, and every over-aggressive rule si
 | 9 | Strip leading articles | `the cloud` → `cloud` | English, **unguarded by language** |
 | 10 | Singularization | **`AIDS` → `aid`**, **`SaaS` → `saa`** | reproduces the failures it was written to avoid (N1) |
 
-Note `显示 亮度` (with a space) → `norm_key` = `显示 亮度`, which does **not** equal `显示亮度`. The `alnum` key would bridge them at tier 2 — but nothing populates that table (K1), so the bridge does not work.
+Note `显示 亮度` (with a space) → `norm_key` = `显示 亮度`, which does **not** equal `显示亮度`. The `alnum` key bridges them at tier 2 (K1 fixed, §19 step 5).
 
-### 6.2 The key bundle — 🚧 computed, never persisted
+### 6.2 The key bundle — ✅ computed and persisted (K1 fixed, §19 step 5)
 
-Six keys: `exact`, `norm` (primary index), `alnum`, `sorted`, `phonetic`, `initials`. Only `norm` is stored (on the surface row). The other four belong in `kb.keyword_surface_keys`, **which no code path writes** (K1) — so tiers 2 and 4 query an empty table. `phonetic` is a stub read by no tier.
+Six keys: `exact`, `norm` (primary index), `alnum`, `sorted`, `phonetic`, `initials` (plus `singular`, added at the same fix). `norm` is stored on the surface row; `alnum`/`sorted`/`initials`/`singular` are written to `kb.keyword_surface_keys` by `derivedSurfaceKeys` on every surface write, so tiers 2 and 4 read real data. `phonetic` remains deliberately unwritten — no tier reads it (Double Metaphone is deferred, §20.1) — so writing rows nothing queries would just be a new dead-key defect.
 
 ### 6.3 Required improvements
 
@@ -378,14 +369,24 @@ at tier 7 costs something once — the reconciler learns the alias and writes a 
 row — and every subsequent occurrence of that string comes back at tier 0 forever 
 after. Mature deployment → millions of lookups/day, near-zero LLM calls.
 
-**Tier by tier**
-* Tier 0 — exact surface match. The verbatim literal. Surfaces are stored un-normalized on purpose, so Luminance and luminance stay distinguishable as separately-observed spellings (§5.2).
-* Tier 1 — norm_key match. The normalized form (NFKC, case-fold, whitespace, dashes, etc. — §6.1). This is where casing/punctuation variants collapse. Together 0 and 1 are the only tiers working today.
-* Tier 2 — alnum/sorted keys. Bridges spacing and word-order noise — the doc's own example is 显示 亮度 vs 显示亮度, which have different norm_keys but the same alnum key. Scored 0.8 because it's a lossy key, not identity. (`alnum`: stripping everything except alphanumeric characters (removing spaces, punctuation, dashes, etc.), `sorted`: sorting the remaining tokens/characters into a canonical order).
-* Tier 3 — rewrite rules, then retry 0–1. Curated substitutions (K8S → Kubernetes) applied before re-running the exact/normalized lookups. This is the human-editable escape hatch for aliases the normalizer can't reach mechanically.
-* Tier 4 — initials bridge. Acronym ↔ expansion (ML ↔ machine learning).
-* Tiers 5–6 — fuzzy, then embeddings. Misspellings (kubernets) at tier 5; cross-lingual identity (luminance ↔ 亮度) at tier 6, which is why the model must be multilingual. These carry continuous scores and, per D11/§13.1, are now allowed to auto-accept — the earlier "suggest-only" stance was withdrawn because at 10⁷–10⁸ occurrences a suggestion nobody acts on equals no answer.
-* Tier 7 — miss. Either park it in kb.keyword_unresolved (collector path) or auto-create a concept (targeted-name path), leaving offline reconciliation to merge it later. This is what makes step 5 of the acceptance test work: the 141st document with a fifth phrasing converges to one row without a human.
+**Tier by tier — exact mechanism and how to verify it (corrected 2026-08-08; every claim below is anchored to a file:line or a named test, so it can be checked directly against `ChenWeb/server/api/ontology/keywords/`, not taken on faith)**
+
+* **Tier 0 — exact surface match.** `SELECT s.concept_id FROM kb.keyword_surfaces WHERE s.surface = $1 AND s.scope = $2 LIMIT 10` (`tier0ExactMatch`, `keywordfamily.go`). Byte-exact match on the verbatim, un-normalized literal — `Luminance` and `luminance` are different rows on purpose (§5.2), so this tier alone never collapses them. Score 1.0 (exact key). **Verify:** `TestCandidateNodesPerTier/tier0_exact` asserts the exact SQL text and args; `TestExitKernelResolutionTiers` (`keyword_exit_test.go`) exercises it end-to-end through the kernel.
+* **Tier 1 — `norm_key` match.** `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.norm_key = $1 AND s.scope = $2 AND s.norm_version = $3 ORDER BY s.confidence DESC LIMIT 10` (`tier1NormKeyMatch`). `norm_key` is the output of the shared normalizer (NFKC → zero-width strip → dash/quote ASCII-fold → whitespace collapse → dotted-initialism collapse → case-fold → possessive strip → article strip, §6.1); the `norm_version` filter (N4) means a query only matches surfaces indexed under the currently-active normalizer version. Score 1.0. **Verify:** `TestCandidateNodesPerTier/tier1_norm`; `TestResolveScopeRoundTrip` proves a surface written at scope `ks` is found at the same scope and not at a different one.
+* **Tier 2 — `alnum`/`sorted`/`singular` alternate keys.** Three sequential lookups against `kb.keyword_surface_keys` (`tier2AlternateKeyMatch` → `lookupByKeyKind`, one JOIN'd SQL query per key kind, first hit wins): `alnum` strips everything but letters/digits (bridges `显示 亮度` ↔ `显示亮度` — the spec's own example); `sorted` canonically reorders tokens/characters; `singular` is the plural→singular bridge (`analyses` finds a stored `analysis`). All three keys are written by `derivedSurfaceKeys` on every surface write (`surfaces_store.go:225`) and filtered by `norm_version`. Score 0.8 (lossy key, not identity). **Verify:** `TestCandidateNodesPerTier/tier2_altkey`.
+* **Tier 3 — rewrite rules, then retry tiers 0–1.** `tier3RewriteMatch` loads enabled rules from `kb.keyword_rewrite_rules`, applies **at most one** rule whose `pattern` equals the **raw, un-normalized** surface **by byte equality** (`rewritten == r.Pattern`), then re-runs tier 0 and tier 1 (not 2, 4, 5, or 6) against the rewritten string. This is why a rule `K8S → Kubernetes` fires for the literal `K8S` but not for `k8s` — the one real remaining defect in the ladder. Score inherited from whichever of 0/1 the retry hits (1.0/1.0, tagged `tier3_rewrite`). **Verify:** `TestCandidateNodesPerTier/tier3_rewrite`.
+* **Tier 4 — initials bridge.** `tier4InitialsMatch` gates on query length (2–8 runes), then looks up the query's own normalized form against stored `initials` keys — `initialsKey()` lower-cases every initial (`semid/normalizer.go`), and the lookup direction is query-into-stored-keys, never the reverse (this ordering is the N3 fix: the original bug looked up the *stored* surface's initials against the query). Bridges `ML` → `machine learning` when `machine learning`'s stored initials key is `ml`. Score 0.8. **Verify:** `TestCandidateNodesPerTier/tier4_initials`.
+* **Tier 5 — fuzzy match (trigram-blocked, edit-distance-scored).** Two distinct steps, not one algorithm:
+  1. **Blocking** (cheap, SQL, indexed): `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.scope = $1 AND s.norm_version = $2 AND similarity(s.norm_key, $3) > $4 ORDER BY similarity(...) DESC LIMIT 20` — Postgres `pg_trgm`'s trigram `similarity()` function, backed by a GIN trigram index on `norm_key` (migration `20260806000001`). This finds *candidates*, not the final score. ✅ **Configurable (2026-08-08)**: the floor is `KeywordFamily.FuzzyBlockMinSimilarity` (defaults to `0.3` via `ensureDefaults`, not hardcoded) — a caller can raise or lower it per instance. **Verify:** `TestFuzzyBlockMinSimilarityDefault`, `TestFuzzyBlockMinSimilarityConfigurable`.
+  2. **Scoring** (Go, `fuzzyCandidateScore` in `keywordfamily.go`, using `runeLevenshtein`/`normalizedSimilarity` in `fuzzy.go`): for each of the ≤20 blocked candidates, compute rune-counted Levenshtein edit distance, apply §9.2's length-banded guardrails (`len≤4`: no fuzzy at all; `5–8`: edit distance ≤1 **and** first rune must match; `≥9`: edit distance ≤2 **and** `normalizedSimilarity ≥ 0.88`), and the three vetoes applied before any threshold — digit (`digitsDiffer`: any digit difference kills the match), canonical (`canonicalPrefExists`: if the query itself is a `pref_label`, skip fuzzy entirely — checked once up front, before blocking even runs), negation/affix (`hasNegationAffixMismatch`: `un-`/`non-`/`de-`/`anti-`/`-less` pairs, e.g. `compliant`/`noncompliant`, checked pairwise so ordinary words starting with `de-` aren't vetoed). The surviving score is `normalizedSimilarity` itself — continuous, `1 − editDistance/longerLength` — carried as `PrecomputedScore`, not the tiered 1.0/0.8. **Verify:** `TestTier5FuzzyMatchGuardrails` and `TestRuneLevenshtein`/`TestNormalizedSimilarity`/`TestDigitsDiffer`/`TestHasNegationAffixMismatch` (`fuzzy_test.go`) test the pure functions in isolation; `TestKeywordFamilyCandidateNodesReachesTier5` and `TestResolveSurfaceTier5AutoAccepts` prove it end-to-end including auto-accept.
+  Misspellings only — `kubernets` finds `kubernetes` because they share enough trigrams to survive blocking and enough edit-distance closeness to survive scoring. It does **not** find cross-lingual matches: `亮度` and `luminance` share zero trigrams.
+* **Tier 6 — offline reconciliation: lexical recheck + governed identity claims decide; embedding is a ranking/diagnostic signal only, never sufficient alone.** Not part of `CandidateNodes` — see the "current reality" note above and §20.1.1/§22 Q2 for why it never runs online. Where it does run, `keywords.Reconciler.Run` (`reconcile.go`, invoked only via `cmd/keyword-reconcile`) scans **exactly the D11 auto-created provisional concepts** (`ConceptStore.ListAutoCreatedProvisional` — `status='provisional' AND gloss_source='auto:d11'`, batch size 500 per run, oldest first) — i.e. concepts that already exist *because* they missed tiers 0–5 online (D11 gave them an identity immediately; reconciliation's job is deciding whether that identity should merge into an existing one). For each candidate, `decideCandidate` (`reconcile.go`) gathers **three independent signals** and combines them in `chooseCandidateDecision`, in this priority order:
+  1. **Lexical recheck** (`recomputeTier5`) — re-runs the *exact same* `fuzzyCandidateScore` edit-distance function tier 5 uses online, but comparing the candidate's `pref_label` against **all `status='active'` concepts** in scope (trigram-blocked via `listTier5Shortlist`, floor `reconcileLexicalBlockMin = 0.30`, top 10). If this finds a single unique best match (`tier5Unique` — no other candidate within `1e-9` of the top score), **that alone is sufficient to propose a merge** — no embedding or identity claim required.
+  2. **Governed identity claims** — evidence from approved external sources (exactly what QUDT/BIPM/UCUM/Wikidata import feeds, §20.1.7). If there is exactly one active concept with an authoritative `exact_equivalent` claim, **that alone is sufficient** — and it wins over/conflicts-checks against the lexical result if both exist.
+  3. **Embeddings** — `EmbeddingClient.EmbedBatch` embeds every concept with `status IN ('active','provisional')` in scope (`ConceptStore.ListConcepts`) fresh, in memory, every run (no persisted vector index — see §22 Q2's "should be" note); ranks same-scope `active` targets by `cosineSimilarity`, top 10 (`reconcileEmbeddingTopK`). **Embeddings never authorize a merge by themselves** (2026-08-07 revision) — a high cosine score with no lexical-unique match and no authoritative claim only upgrades the outcome from `no_candidate` to `deferred` ("insufficient authoritative identity"), i.e. it flags the pair for the audit trail, not a merge.
+
+  **This means, precisely:** two concepts that are lexically close (tier 5 catches them) merge automatically without ever touching identity data. Two concepts in *different scripts* (the flagship `亮度 ↔ luminance` case) share zero trigrams, so signal 1 never fires for them — an automatic merge for that case depends entirely on signal 2, an imported governed crosswalk, **not** on embedding similarity, however high. Embeddings alone do not — and, as designed, cannot — close DR23's cross-lingual acceptance example; they only make the miss visible for later evidence. **Verify:** `TestReconcilerUniqueTier5NoAuthorityMergeThenThreeCandidatePartialFailure` and `TestReconcilerTier5TieLowCosineExactIdentityOutsideTopTenMerges` prove the priority ordering; `TestEmbeddingScoreNeverAuthorizesAndProviderRankNeverTruncates`, `TestEmbeddingOutputFailsClosed` prove embeddings alone never authorize; `TestReconcileIdentityIntegration` (real PostgreSQL, `TEST_DATABASE_URL`-gated) proves an end-to-end merge.
+* **Tier 7 — miss.** Two different outcomes depending on the caller (`ObserveOccurrence`, `keywordfamily.go`): the **collector** path (untargeted) upserts `kb.keyword_unresolved`, keyed on the derived `norm_key` (K5 fixed) — `(surface literal, context)` appended, deduped, capped. The **targeted** path (a producer asserted this field *is* a name) instead runs `autoCreateConcept`: mint a new `provisional` concept whose `concept_id` is a content hash of `(norm_key, scope)` (collision-safe under a concurrent race — `TestAutoCreateConceptConvergesOnExisting` — and merge-tombstone-safe — `TestAutoCreateConceptFollowsMergeOnConflict`), and write the surface itself as that concept's `pref` label. This is what makes step 5 of the acceptance test work without a human: the 141st document with a fifth phrasing gets its own concept immediately (D11), and offline reconciliation (tier 6) is what later proposes merging it into the others. **Verify:** `TestObserveSurfaceTargetedMissAutoCreates`, `TestObserveSurfaceCollectorMissQueuesBacklog` (`autofirst_test.go`).
 
 **What the ladder deliberately does not do**
 It only collapses variants of the same string. Different words for the same 
@@ -396,30 +397,30 @@ even it proposes an assignment, never a structural merge of two established
 concepts (D10).
 
 **Current reality vs. the table**
-Worth reading the status column literally — the ladder is mostly aspirational right now:
 
-* Tier 2 and 4 query `kb.keyword_surface_keys`, which no code path ever writes (defect K1). The table is empty, so both tiers always return nothing.
-* Tier 4 is additionally broken in logic (N3): initials are stored uppercase while every other key is lowercase, and it looks up the query's initials. Fixing K1 alone would make it match every surface starting with the same letter — worse than the current no-op.
-* Tier 3 matches the raw surface with byte equality, so K8S → Kubernetes does not fire for k8s. The rewrite engine applies only a single substitution per lookup. If the input needs two chained rewrites (e.g., rule A transforms part of the string, then Rule B transforms another part), only the first matching fule runs. It does not iterate or chain rules. Worse, after applying the rewrite, the system re-runs the lookup but only re-checks Tier 0 (exact surface match) and Tier 1 (norm_key match). It does not retry against Tiers, 2, 4, 5, or 6. So if the rewritten form would only be found via, say, an alnum/sorted key (Tier 2), it's missed.
-* Tiers 5, 6, and tier 7's auto-create are unbuilt.
+⚠️ **This subsection described the pre-step-11 (2026-08-04/05) state and was not updated when tier 5 and D11 auto-create shipped 2026-08-05/06 — corrected 2026-08-08.** Reading the status column literally, as of today:
 
-So the functioning ladder today is 0 → 1 → 3(narrowly) → 7-backlog. The 
-first-tier-exit rule also means that once tier 2 is populated, it will start 
-shadowing tier 3 for anything it matches — worth keeping in mind when K1 gets fixed.
+* **Tier 2 and 4 are built**, not data gaps: `derivedSurfaceKeys` writes `alnum`/`sorted`/`initials`/`singular` rows to `kb.keyword_surface_keys` on every surface write (K1 fixed, §19 step 5, `surfaces_store.go`), and tier 4's logic bug is fixed (N3, same step): initials are stored lower-cased like every other key, and the lookup direction is corrected — the query's own normalized form is looked up against stored initials, never the reverse. Both are covered by `TestCandidateNodesPerTier`.
+* Tier 3 matches the raw surface with byte equality, so K8S → Kubernetes does not fire for k8s. The rewrite engine applies only a single substitution per lookup and does not chain rules. After applying the rewrite, the system re-runs the lookup but only re-checks Tier 0 and Tier 1 — it does not retry against Tiers 2, 4, 5, or 6. **This one is still unfixed.**
+* **Tier 5 is built and wired**, not unbuilt: `KeywordFamily.CandidateNodes` calls `tier5FuzzyMatch` (trigram-blocked, §9.2-guardrailed, continuous score) as of §19 step 11 (2026-08-06, commit `c92b`/`8acb`), with a kernel-level end-to-end test (`nyyq`). It may auto-accept above threshold per §13.1.
+* **Tier 7's auto-create is built**, not unbuilt: D11 auto-first (§19 step 8, 2026-08-05, commit `b7e0`) auto-creates a provisional concept on a targeted miss (`deferred`) or a weak match (`human_review`); only the collector path still just backlogs.
+* **Tier 6 is built, but deliberately never runs on this online path** — it exists only in the offline `keywords.Reconciler` (§13, §19 step 11) and, since 2026-08-07, its merges require an authoritative identity claim from an approved governed source, not cosine alone (§13.1's 2026-08-07 revision). This was a decision (§22 Q2), not a gap — see §20.1.1.
+
+So the functioning **online** ladder today is 0 → 1 → 2/3/4(narrower defects only) → 5 → 7(auto-create for targeted names; backlog for the collector). Tier 3's byte-equality/single-rewrite/narrow-retry limits are the one remaining tier-ladder defect below tier 5. Tier 6 never runs online by design; it runs offline, batch, identity-gated.
 
 
 | Tier | Method | Score | Status |
 |---|---|---|---|
 | 0 | exact surface match | 1.0 | ✅ |
 | 1 | `norm_key` match | 1.0 | ✅ |
-| 2 | `alnum`/`sorted` key | 0.8 | 🚧 query built, table empty (K1) |
-| 3 | rewrite rules → retry 0–1 | 1.0/0.8 | ✅ |
-| 4 | `initials` bridge | 0.8 | ⚠️ N3 |
-| 5 | fuzzy (trigram + edit distance) | continuous | ⏳ may auto-accept (§13.1) |
-| 6 | embedding (multilingual ANN) | continuous | ⏳ may auto-accept (§13.1) |
-| 7 | miss → backlog / auto-create | — | ✅ backlog; ⏳ auto-create |
+| 2 | `alnum`/`sorted` key | 0.8 | ✅ fixed 2026-08-05 (K1, §19 step 5) |
+| 3 | rewrite rules → retry 0–1 | 1.0/0.8 | ✅ (narrow — byte-equality, single substitution, retries 0–1 only) |
+| 4 | `initials` bridge | 0.8 | ✅ fixed 2026-08-05 (N3, §19 step 5) |
+| 5 | fuzzy (trigram + edit distance) | continuous | ✅ built, online, may auto-accept (§13.1) |
+| 6 | embedding (multilingual ANN) | continuous | ✅ built, **offline/reconciliation-only by design** (§22 Q2); identity-authorized since 2026-08-07 |
+| 7 | miss → backlog / auto-create | — | ✅ backlog; ✅ auto-create (targeted names, D11, §19 step 8) |
 
-`CandidateNodes` exits at the **first tier producing candidates**. **Tier 2 is a data gap; tier 4 is a logic defect.** Tier 3 matches the **raw** surface with byte equality, so a rule `K8S → Kubernetes` does not fire for `k8s`; one rule fires at most; the retry covers tiers 0–1 only.
+`CandidateNodes` exits at the **first tier producing candidates**. Tier 3 matches the **raw** surface with byte equality, so a rule `K8S → Kubernetes` does not fire for `k8s`; one rule fires at most; the retry covers tiers 0–1 only. Tier 3 is the only remaining defect below tier 5 — tiers 2 and 4 (K1/N3) are fixed.
 
 ### 9.2 Fuzzy guardrails (binding)
 
@@ -431,19 +432,19 @@ len ≥ 9       → max edit distance 2, normalized similarity ≥ 0.88
 
 Three absolute vetoes, applied **before any threshold** and overridden by no score: **digit** (strings differing in any digit never match), **canonical** (a query that is itself an exact `pref_label` never fuzzy-matches elsewhere), **negation/affix** (`un-`/`non-`/`de-`/`anti-`/`-less`).
 
-### 9.3 `ResolveSurface` side effects — 🚧 **Partial**
+### 9.3 `ResolveSurface`/`ObserveOccurrence` side effects — ✅ **Built (2026-08-05, §19 steps 6–8)**, split as originally decided
 
-Called by the mention collector and the REST resolve handler:
+⚠️ **This subsection described the pre-step-6/7/8 state** (a single `ResolveSurface` conflating read and write, `kb.keyword_mentions`/`MentionStore`, the old K4/K5 defects, D11 as a future requirement). It was not updated when those steps shipped — corrected 2026-08-08. The read/write split this subsection called for **was implemented exactly as decided, at this layer**, not deferred to §9.5:
 
-1. **Unconditionally** insert a mention row — `artifact_ref`, `context_text` only; `chunk_ref`/`ks_id` null; **no column for the observed string** (K4). Errors discarded.
-2. `Kernel.Resolve` — read-only.
-3. **Unconditionally** append to `kb.semid_decision_log` — captures the string but no artifact reference, and **shares no key with the mention row from the same call**, so "what" and "where" cannot be joined. Errors discarded.
-4. On `auto_accepted`: write the surface row if this exact literal isn't present. Derived keys not written (K1). The `human_review` arm is unreachable today — see the required behavior below.
-5. On `deferred`/`ambiguous`: upsert the backlog — ⚠️ **raw surface passed where the PK expects `norm_key`** (K5).
+- **`KeywordFamily.ResolveSurface`** (`keywordfamily.go:426`) is now **pure** — it runs `kernel().Resolve` plus a `merged_into` chase and writes nothing. This is what §9.5's `names.Resolver.ResolveName` calls.
+- **`KeywordFamily.ObserveOccurrence`** (called via the flat-argument `ObserveSurface`, used by the REST resolve handler and the mention collector) does the writing: calls `ResolveSurface` first, then —
+  1. On a **targeted** name landing `deferred` or `human_review`: D11 auto-creates a provisional concept and assigns it before anything is logged, so the decision row captures the final resolution. `human_review` is no longer dropped — the rejected candidate's method/score is recorded for sampling without being attached (F5 fix, `2026080601-bug`). The **collector** path (untargeted) still just upserts the backlog on a miss.
+  2. Appends one row to `kb.semid_decision_log`.
+  3. Inserts one occurrence row into `kb.keyword_occurrences` (renamed from `kb.keyword_mentions`, `MentionStore` deleted) — carries `raw_name`/`norm_key`, `resolution_status`, and `decision_log_id` linking it to the row from step 2 (K4 fixed — "what" and "where" now join).
+  4. On `auto_accepted`: writes the surface row (with derived keys, K1 fixed) if this exact literal isn't present.
+  5. On `deferred`/`human_review` that wasn't auto-created (collector path), or `ambiguous`: upserts the backlog, keyed correctly on `norm_key` (K5 fixed). `ambiguous` always attaches its top-1 pick to the occurrence and queues the backlog, targeted or not — carrying the tied concept set (`tiedCandidatesFromMatches`) so it isn't just a plain miss row; §13.6's offline ambiguity reconciliation later re-ranks that tie with stronger evidence than the online arbitrary tiebreak.
 
-⚠️ **This conflates read and write.** No caller can ask "what does this resolve to" without writing four rows. **Decision:** split into a pure `ResolveSurface` and an `ObserveSurface`, applying the read/write rule at *every* layer, not only at the facade.
-
-**Three changes D11 requires:** step 5 gains an **auto-create branch for targeted names**, taken on **both `deferred` and `human_review`** (collector misses keep today's backlog-only behaviour) — below-threshold is treated like no-candidate, never like an attach; step 4 must return the **top-1 id on `ambiguous`**, not only on `auto_accepted`; and the currently-unreachable `human_review` arm must route into that auto-create branch instead of being dropped, recording the rejected candidate's method/score for sampling without assigning it.
+§9.5's `names.Resolver` then layers `ResolveName` (read-only, calls `ResolveSurface`), `ObserveName`, and `ResolveAndObserve` (calls `ObserveOccurrence`) on top — a second, higher-level split for a different concern (the governed/lexical layer merge), not a re-implementation of this one.
 
 ### 9.4 Resolver modes — ⚠️ **Defect**
 
@@ -515,12 +516,12 @@ Most production callers use `ResolveAndObserve` — **by choosing it**. The occu
 
 Unique on `(norm_key, concept_id, scope, label_role)`; indexes `(norm_key, scope)`, `(concept_id)`.
 
-⚠️ **The uniqueness key omits `lang`** (§7 item 5), so one concept cannot hold a `pref` surface per language. Fix in schema — the planned data reset makes this free.
+✅ **Fixed (2026-08-05, §19 step 6, migration `20260805000002`).** The uniqueness index is now `(norm_key, concept_id, scope, label_role, lang)` — one concept can hold a `pref` surface per language.
 ⚠️ **`provenance` is a single string and `evidence` a single text field** — they cannot represent two sources independently asserting the same alias, so one source's support cannot be retracted without destroying the other's. §13.3 requires a separate evidence table; design it in when this schema is next touched.
 
 ### 10.3 `kb.keyword_surface_keys`
 
-`(surface_id, key_kind)` PK · `key_value` · `norm_version`. ⚠️ **Empty in every shipped path** (K1).
+`(surface_id, key_kind)` PK · `key_value` · `norm_version`. ✅ Written by `derivedSurfaceKeys`/`UpsertSurfaceKeys` on every surface write (K1 fixed, §19 step 5); `phonetic` remains unwritten by design (§6.2).
 
 ### 10.4 `kb.keyword_mentions` — the occurrence record
 
@@ -530,9 +531,9 @@ Unique on `(norm_key, concept_id, scope, label_role)`; indexes `(norm_key, scope
 
 ### 10.5 `kb.keyword_unresolved` — the backlog
 
-`(norm_key, scope)` PK · `surfaces` JSONB · `contexts` JSONB · `hits` · `status` · `attempts` · `last_attempt` · `priority` · timestamps.
+`(norm_key, scope)` PK · `surfaces` JSONB · `contexts` JSONB · `candidates` JSONB · `hits` · `status` · `attempts` · `last_attempt` · `priority` · timestamps.
 
-⚠️ The caller passes the **raw surface** as `norm_key` (K5). 🚧 `contexts` is keep-last-5, not a reservoir sample. ⚠️ The 200-char cap slices **bytes**, splitting multi-byte CJK into invalid UTF-8.
+✅ Fixed (§19 step 5, K5): the caller now passes the derived `norm_key`, never the raw surface. 🚧 `contexts` is still keep-last-5, not a reservoir sample. ✅ Fixed: the 200-char cap now slices **runes**, not bytes — no more invalid UTF-8 on multi-byte CJK. ✅ **`candidates` added (migration `20260808000001`)**: the tied concept-id/score/method set from an `ambiguous` verdict, NULL for a plain no-candidate miss — distinguishes the two cases this table previously conflated under one row shape, and is what §13.6's ambiguity reconciliation scans on (`WHERE candidates IS NOT NULL`).
 
 ### 10.6 `kb.keyword_rewrite_rules`
 
@@ -652,6 +653,24 @@ new resource release or document occurrence
 
 Snapshot activation: build and validate a candidate release while readers stay on the prior immutable snapshot, then switch atomically. A normalizer-version change rebuilds every derived key. Readers must never observe half an import.
 
+### 13.6 Ambiguity reconciliation — ✅ **Built (2026-08-08)**, sqlmock-tested, not yet run against a live DB
+
+**What it's for.** A `deferred`/`human_review` miss gets an identity immediately (D11, auto-create) and tier 6 (§13, above) later decides whether that identity should merge into an existing one. An `ambiguous` verdict is different: candidates already exist and tied — the online path picks the lowest concept id as an arbitrary tiebreak (§8.3) and logs the tie to `kb.keyword_unresolved` (§9.3) rather than guessing confidently. Until this was built, nothing ever revisited that pick — this closes that gap.
+
+**Mechanism, `Reconciler.ReconcileAmbiguous`** (`reconcile.go`), a second pass alongside `Run` (same binary, `cmd/keyword-reconcile`, both passes run every invocation):
+
+1. Scans `kb.keyword_unresolved` rows where `scope` matches and `candidates IS NOT NULL` (`UnresolvedStore.ListAmbiguous`) — i.e. rows an `ambiguous` verdict wrote, never a plain no-candidate miss. The tied set itself (`candidates` JSONB — concept id, original score, original method) is written by `VerdictAmbiguous`'s branch in `ObserveOccurrence` at the moment the tie is logged (`tiedCandidatesFromMatches` extracts the exact top-score prefix `Adjudicate` itself compared against `MaxCandidates`), added by migration `20260808000001`.
+2. Per row, in one transaction under the keyword identity lock: chases `merged_into` for every originally-tied concept id (`ConceptStore.FollowMerge`) and keeps only distinct, currently-`active` survivors — a concept that merged away since the tie was logged, or is still `provisional`, is not a safe target for this pass's confidence bar (the same active-only restriction §13's tier-6 targets already use).
+   - **Zero survivors:** logged (`no_active_candidate`), row stays `pending`.
+   - **One survivor** (the others merged away or were never active): applied directly, no embedding call needed — outcome `collapsed_by_merge`.
+   - **Two or more survivors:** embeds the query (the backlog row's first recorded surface literal, or `norm_key` if none) and each survivor's `pref_label` in one `EmbedBatch` call, ranks by cosine similarity, and **auto-applies the top pick only if** it clears a margin over the runner-up (`Reconciler.AmbiguousMarginThreshold`, defaults to 0.15) **or** is independently corroborated by tier 5's own edit-distance check (`fuzzyCandidateScore`) picking the same concept — the identical two-signal discipline `chooseCandidateDecision` already applies to merges (§13, above): embeddings rank, they do not decide alone. Neither signal clearing leaves the row `pending`, now embedding-scored in the decision log for the next run or a human.
+3. On an auto-apply (`collapsed_by_merge` or `auto_applied`): writes a new `alt`/`synonym` surface for the query text on the winning concept (`CreateSurface` — idempotent, F3) and marks the backlog row `resolved`. **Never touches `kb.keyword_occurrences`** — occurrences are explicitly append-only (`occurrences_store.go`: "the observe path writes occurrences, never updates or deletes them"), so a past occurrence keeps the answer the system actually gave at the time; only *future* resolves of this literal benefit, by hitting tier 1 against the winner instead of re-tying. **Never merges the tied concepts with each other** — that stays tier 6's job (D10-conservative); this pass only decides which existing concept a query belongs to.
+4. Every outcome — applied or deferred — is logged to `kb.semid_decision_log` (`Family: "keyword_reconcile_ambiguous"`) with the full evidence: original scores, which candidates were still live, each one's embedding score, and which one (if any) passed the lexical check. D11's attributability requirement applies here exactly as it does to tier 6.
+
+**Known limit, stated plainly:** if the tie originated because two concepts *both already carry an exact surface* for the literal (a tier-0/1 tie), writing a new surface on the winner does not remove the loser's competing claim — an identical fresh query can tie again. Genuinely eliminating that requires merging the two concepts, which is a structural decision this pass deliberately does not make (see point 3). The case this pass reliably fixes going forward is a tie that was never backed by an exact/norm-key match on both sides (e.g. a shared fuzzy or homonym-scope tie).
+
+**Verify:** `rankAmbiguousCandidates`'s decision policy — margin-only, margin+lexical, lexical-only-below-margin, neither, embedding-error propagation — is unit-tested against a fake embedding client with no database at all (`reconcile_ambiguous_test.go`, `TestRankAmbiguousCandidates*`). The full transactional wiring (merge-chase, active filter, decision log, backlog status, surface write with real derived keys) is proven with sqlmock for all four outcomes (`TestDecideAmbiguousNoActiveCandidateLeavesRowPending`, `TestDecideAmbiguousDefersWhenNeitherSignalClears`, `TestDecideAmbiguousCollapsedWritesWinnerSurface`). **Not yet run against a live PostgreSQL corpus** — the same I2-class gap the rest of this module carries until proven otherwise (§0).
+
 ---
 
 ## 14. Merge, split, lifecycle — 🚧 **Partial**
@@ -757,11 +776,11 @@ D11 and the ADR's "no LLM activates ontology content" only appear to conflict:
 
 **Human-gate the small catalog; auto-assign the large volume to it.** `aligns_to_term` is an *assignment* — auto-proposed, auto-accepted above a threshold, with method/score/evidence recorded.
 
-⚠️ **Blocked by a schema constraint:** `kb.semantic_assertions.subject_ref_kind` allows only `('object_node','ontology_term','assertion','artifact','literal')` — **no `keyword_concept`** — so a keyword concept cannot be an assertion subject until that CHECK is extended.
+✅ **Fixed (2026-08-06, §19 step 12, migration `20260806000002`).** `kb.semantic_assertions.subject_ref_kind` (and `object_ref_kind`) now include `keyword_concept`; a keyword concept is a legal assertion subject.
 
-⚠️ **The `aligns_to_term` predicate must itself be a released governed term.** Every assertion carries a `predicate_term_id`, and `associate_semantics` already defers any candidate whose predicate is not released (`termExists`). Verified: **`aligns_to_term` is not in `server/cmd/ontology-seed/` today.** It must be seeded into a 4a module — `core` is the natural home, since the relation is not measurement-specific — and released, before the first alignment assertion can be written. This is a small prerequisite, but it is a hard one: without it every alignment defers.
+✅ **Fixed (2026-08-06, §19 step 12).** `core:aligns_to_term` (`Kind: "property"`) is seeded in `server/cmd/ontology-seed/content.go` and released (`core@1.0.0`) — the prerequisite this paragraph used to flag as blocking is resolved.
 
-**Governed-catalog bootstrap for the pilot.** REQ-2 also presumes released `metric_definition` terms exist to align *to*. §16.1's human path (hundreds of terms, reviewed once) and §13.2's standards-glossary import (IEC 60601 / ISO 80601) are both plausible, and the pilot's concrete path is **not yet chosen**. This is a sibling workstream, not keyword-module work — but it gates §2's acceptance test just as firmly as anything in §19, and someone must own it.
+**Governed-catalog bootstrap for the pilot.** REQ-2 also presumes released `metric_definition` terms exist to align *to*. This remains the genuine external gate: §16.1's human path (hundreds of terms, reviewed once) and §13.2's standards-glossary import (IEC 60601 / ISO 80601, and, since 2026-08-07, the built terminology-import adapters — §20.1.7) are both available paths, but whether released `metric_definition` terms actually exist in a given deployment is a live-database question, not a code question — this document cannot answer it from source alone. This is a sibling workstream, not keyword-module work — but it gates §2's acceptance test just as firmly as anything in §19, and someone must own it.
 
 ### 16.2 Why `extract_metrics` and `extract_metric_definitions` don't converge
 
@@ -813,18 +832,20 @@ The `AssociationResolver` *registry* is genuinely generic. The *package* is not:
 **Reconciliation:** auto-attach precision, **false-merge rate** (hard gate), backlog burn-down, human-override rate.
 **Candidate generation:** blocking recall/precision, reduction ratio.
 
-### 18.1 Test coverage today — 🚧 thinner than the counts suggest
+### 18.1 Test coverage today — ✅ **substantially rewritten since this table was written; corrected 2026-08-08**
 
-51 tests pass; build/vet/gofmt clean. Weaker than it appears:
+⚠️ **Stale.** This table described the P3 Track B delivery (2026-08-04), before the P4 §19 fix pass (2026-08-05) rewrote the exit tests and later steps (11, 12, Stage 0/1) added per-tier, alignment, reconciliation, and identity-evidence coverage. As of the most recent addition (§13.6, 2026-08-08), `keywords`/`semid`/`names` together define **209** `Test*` functions across 24 files (`keywords`: 20 files/176 funcs; `semid`: 3 files/20 funcs; `names`: 1 file/13 funcs) — not 51. This count will drift again the next time code changes; treat it as a snapshot method (`grep -rc "^func Test" *_test.go`), not a fact to keep re-copying by hand. Notably:
 
 | File | Funcs | What it verifies |
 |---|---|---|
-| `normalizer_test.go` | 14 | individual steps. **No test asserts an acronym survives singularization** — why N1 shipped. |
-| `concepts_store_test.go` / `surfaces_store_test.go` | 17 | sqlmock CRUD — SQL shape, not semantics |
-| `keywordfamily_test.go` | 9 | constants and `off`/nil-DB early returns. **No test drives a tier against a database.** |
-| `keyword_exit_test.go` | 11 | ⚠️ **assertion-free** — nine bodies are comments; `TestExitCoverageComplete` asserts `len(hardcoded 9-entry map) == 9`. Cannot fail. |
+| `normalizer_test.go` | 10 | individual steps, now including the N1 acronym-survives-singularization case |
+| `concepts_store_test.go` / `surfaces_store_test.go` | 31 | sqlmock CRUD — SQL shape, not semantics (unchanged characterization) |
+| `keywordfamily_test.go` | 11 | constants and `off`/nil-DB early returns |
+| `tiers_test.go` | 4 | **added 2026-08-06 (§19 step 11) — drives each tier (0–5) against sqlmock-expected SQL individually**, closing the "no test drives a tier" gap this table used to note |
+| `keyword_exit_test.go` | 9 | ✅ **rewritten (2026-08-05, §19 step 9) — no longer assertion-free.** Each of the 9 exit criteria (E1–E9) is its own test with real sqlmock expectations and assertions; the old `TestExitCoverageComplete` trivial-count check is gone. |
+| `reconcile_identity_integration_test.go` | 2 | live PostgreSQL (`chenweb_test`), gated on `TEST_DATABASE_URL` — the I2 live-validation proof (§0, §20.1.12) |
 
-Exit criteria E4, E6, E7, E8 are unmet and the structure disguises it.
+This correction only re-verifies the files above; it does not re-audit every one of the 192 functions for assertion quality, so treat this as "the table's headline claims are outdated," not "coverage is now exhaustively verified."
 
 ### 18.2 The required test set
 
@@ -874,8 +895,15 @@ R1–R7 · `on`-mode wiring · collector pipeline wiring · context-token disamb
 
 
 
-#### 20.1.1 Tiers 5–6** (§9.1, §13.1, §22)
-The two top rungs of the resolution tier ladder. **Tier 5** = fuzzy matching (trigram + edit distance) to catch misspellings like `kubernets`. **Tier 6** = multilingual embedding (ANN) to catch cross-lingual identity like `luminance ↔ 亮度` — the case normalization can never reach. Both carry continuous scores and, since D11, *may auto-accept* above a threshold (the old "suggest-only" stance was withdrawn because at 10⁷–10⁸ occurrences a suggestion nobody acts on equals no answer). Tier 6 needs a multilingual model; §22 Q2 even questions whether tier 6 belongs online at all (recommendation: keep it offline/reconciliation-only unless a local model is already in the stack). Build step 11; part of REQ-1.
+#### 20.1.1 Tier 6's online resolve path** (§9.1, §13.1, §22)
+
+⚠️ **Stale — corrected 2026-08-08.** This entry described the pre-step-11 (2026-08-04/05) state and was never updated after step 11 shipped 2026-08-06. Current state:
+
+- **Tier 5** (fuzzy matching, trigram + edit distance, misspellings like `kubernets`) is **built and wired into the online resolve path** (`KeywordFamily.CandidateNodes`) — it is not deferred and does not belong in this list. See §9.1.
+- **Tier 6** (multilingual embedding/ANN, cross-lingual identity like `luminance ↔ 亮度`) is **built**, but as the **offline** `keywords.Reconciler` / `cmd/keyword-reconcile` only (§13). This is §22 Q2's explicit, decided answer — "reconciliation-only" — not a gap: keeping the online resolve path free of the embedding-model runtime dependency. The code says so directly (`keywordfamily.go:92-93`, citing §22 Q2). Since 2026-08-07 (Stage 0/1), an offline tier-6 merge additionally requires an authoritative `exact_equivalent` identity claim from an enabled, approved, governed source — cosine similarity alone no longer merges (§13.1's 2026-08-07 revision).
+- **What is genuinely still deferred** is only the *online* variant of tier 6 — embedding the query synchronously inside `CandidateNodes`. That decision has not been revisited since 2026-08-06. Two local multilingual models (`qwen3-embedding-0-6b`, `nomic-embed-v2-moe` via llama.cpp) are already in `.models.toml` if it ever is.
+
+**On resource import unblocking this:** importing, approving, and promoting external vocabularies (QUDT/BIPM/UCUM/Wikidata, §20.1.7) feeds the *offline* reconciler's identity-evidence store — it makes offline tier-6 merges safer and more authoritative, but it does not change where tier 6 runs. It cannot unblock the online path; only reopening §22 Q2 can.
 
 #### 20.1.2 R1–R7** (§13)
 The seven-stage **reconciliation pipeline** — the offline batch process that unifies *genuinely different words and translations* (which no normalization can do, §5.3):
@@ -912,7 +940,12 @@ For homonyms (`ML` → machine learning *and* millilitre), the design is: scope 
 The phonetic-key algorithm. The key bundle defines six keys (`exact`, `norm`, `alnum`, `sorted`, `phonetic`, `initials`); **`phonetic` is a stub read by no tier**. Double Metaphone would populate it (match by pronunciation). It's dead — §21 step 9 even removed the dead phonetic-key write.
 
 #### 20.1.7 Resource import** (§13.2–§13.4)
-Seeding the lexicon from curated external vocabularies instead of starting empty: **Wikidata** (CC0, strong structural fit), **CC-CEDICT** (EN↔ZH), **UMLS** (not open — licensing must survive import), and **domain standards glossaries** (IEC 60601 / ISO 80601, likely highest-yield). Includes the binding rule §13.4 — import must **never upgrade relation strength** (a thesaurus `related`/`broad`/`narrow` must not silently become `exact`, i.e. don't flatten "brightness ≈ luminance" into an alias) — plus the §13.3 schema shapes (external-id mapping, source/license registry).
+
+⚠️ **Partially stale — corrected 2026-08-08.** This entry described resource import as wholly future work; substantial tooling was built 2026-08-07 (§21, Stage 0/1) and should not be listed as flatly "Deferred."
+
+**Built:** `server/api/ontology/terminology` adapters for SIRP (BIPM), IEC seed, Wikidata, UCUM, and QUDT; `cmd/terminology-import` (import/diff/**activate**/rollback) and `cmd/terminology-coverage`; the governed source registry (authority role, allowed scopes, content checksum, license review, provenance, approval) with immutability triggers; staging tables for artifacts/catalog/labels/relations/negative decisions; and reviewed positive/negative promotion into `keyword_external_ids`/`keyword_surface_evidence`/`never_merge`. This satisfies §13.3's schema shapes and §13.4's binding rule (import never upgrades relation strength — enforced via the relation vocabulary in `SourcePolicy`, `server/api/ontology/keywords/source_policy.go`). Live-tested 2026-08-07: all five stage-1 fixtures imported twice with idempotent replay against a rebuilt `chenweb_test`.
+
+**Still open:** the coverage report's `ready` gate (`server/api/ontology/terminology/coverage.go`) reported `ready=false` as of the last recorded run, pending operator approval — and a source is only *live* for reconciliation once `cmd/terminology-import activate` has run for its `(deployment_key, source, release)`, a distinct step from import + license approval. Whether that gate is now satisfied is a live-database question this document cannot answer from source alone — confirm current `kb.keyword_identity_deployments`/coverage state directly rather than trusting this spec's point-in-time snapshot. **CC-CEDICT** and general-purpose **domain standards glossaries beyond IEC** (e.g. ISO 80601) are not among the built adapters (SIRP/IEC/Wikidata/UCUM/QUDT) and remain unbuilt.
 
 #### 20.1.8 Multi-word and CJK-segmented collection** (§11)
 Two collector gaps: (a) **CJK isn't segmented** — an unpunctuated Chinese run becomes one 50-rune pseudo-token, filling the backlog with junk on this predominantly-Chinese corpus; (b) **single tokens only** — no multi-word surface can ever be observed, which removes exactly the class the `sorted`/`initials` keys were built for.
@@ -939,11 +972,9 @@ mapping, conflicting-identity rejection, one audit row per decision, and
 family-lock serialization under concurrent promotion/reconciliation. The
 §0 "Never validated live" row is updated accordingly.
 
-#### 20.1.13 
-There's no end-to-end regression test for the targeted human_review path yet, because it's still 
-unreachable through real tier scoring today (tiers 0–4 only ever produce 1.0 or 0.8, both ≥ the 0.8 
-MinScore) — same reason F5 called it latent originally. That test should land with step 11 
-(tiers 5–6). The consolidated decisions table row is updated to match.
+#### 20.1.13 End-to-end `human_review` regression test
+
+⚠️ **Reasoning partly stale — corrected 2026-08-08.** This entry's premise — that `human_review` is "unreachable through real tier scoring" because tiers 0–4 only ever produce 1.0 or 0.8 — was true before step 11 and is no longer the full picture: tier 5's continuous fuzzy score can land below the 0.8 `MinScore`, making `human_review` the ordinary below-threshold outcome now (see the code comment at `keywordfamily.go` in the `ObserveOccurrence` verdict switch, which documents exactly this transition). What remains true: as of this correction, no test in `keywords/*_test.go` drives a real below-threshold tier-5 match end-to-end through `ObserveOccurrence` and asserts the D11 auto-create branch fires (only a narrow `statusForVerdict` unit check exists, `occurrences_store_test.go`). That gap is real; the stated reason for it is not.
 
 ### 20.2 Defects
 
@@ -965,7 +996,15 @@ MinScore) — same reason F5 called it latent originally. That test should land 
 | **K9** | `TermFamily.Scope` returns `""` while its comment claims module scoping; SQL then disables the filter | `termfamily.go:37` | term search ignores module | small |
 | **K10** | `TermFamily` `MaxCandidates` at zero value | `termfamily.go:32` | `ambiguous` unreachable | 1 line |
 
-Lower-severity, inline: byte-sliced context truncation and keep-last-5 (§10.5); `norm_version` unfiltered (N4); `surface_id` hashed before role defaulting; unreachable `human_review` arm (§9.3); dead `phonetic` key; `lang`-less uniqueness (§10.2); assertion-free exit tests (§18.1).
+⚠️ **This list is stale — corrected 2026-08-08; all but one item below were fixed, mostly in the same P4 pass, without this line being updated.** Verified against current code:
+
+- ✅ Fixed: `norm_version` unfiltered (N4) — tier 1/2/4 queries now filter on it (`keywordfamily.go`).
+- ✅ Fixed: `surface_id` hashed before role defaulting — the id is now derived *after* the role default (`surfaces_store.go`, comment cites this exact defect).
+- ✅ Fixed: unreachable `human_review` arm (§9.3) — routes into D11 auto-create (F5 fix, `2026080601-bug`).
+- ✅ Avoided, not "dead": `phonetic` key is deliberately never written (§6.2) — the schema permits the kind for if a phonetic tier lands, but nothing writes it, so there is no dead-write defect.
+- ✅ Fixed: `lang`-less uniqueness (§10.2) — migration `20260805000002`.
+- ✅ Fixed: assertion-free exit tests (§18.1) — `keyword_exit_test.go` rewritten with real per-criterion assertions.
+- 🚧 **Still open:** the 200-char context cap now slices runes, not bytes (fixed — no more invalid UTF-8), but the "keep-last-5" sampling in `kb.keyword_unresolved.contexts` is still literally keep-last-5, not a true reservoir sample (§10.5) — the code comment calling it "reservoir sample" is itself imprecise.
 
 **Fix order:** K6 → K2/K5 → N1 → K1/N3/K3 → K8/K9/K10 → K4.
 
@@ -979,7 +1018,7 @@ Explicitly `off` → inert. **Unset** → inert for the collector, *not* for the
 
 | Item | Classification | Decision |
 |---|---|---|
-| `SurfaceKeyStore.UpsertSurfaceKeys` | **Not dead — unfinished feature**; tiers 2/4 already query it | **Wire** (K1) |
+| `SurfaceKeyStore.UpsertSurfaceKeys` | Wired — called from `SurfaceStore.CreateSurface` | **Wired** (K1 fixed, §19 step 5) |
 | `UnresolvedStore.ListUnresolved` | R2/R3 + a backlog admin page | **Keep** |
 | `UnresolvedStore.UpdateUnresolvedStatus` | R7 transitions | **Keep** |
 | `MentionStore.ListMentions` | R1 context harvest + an occurrences admin view | **Keep** |
@@ -1052,12 +1091,38 @@ twice with idempotent replay, `tier6-primary` enabled on
 coverage report stores the unresolved-pair backlog and reports
 `ready=false` pending operator approval (plan Task 8).
 
+Ambiguity reconciliation (§13.6), 2026-08-08: migration `20260808000001` adds `kb.keyword_unresolved.candidates` (JSONB, NULL for a plain miss); `unresolved_store.go` gains `TiedCandidate`, `UpsertUnresolved`'s new `candidates []TiedCandidate` parameter (merged by concept id, capped at 10, `mergeTiedCandidates`), and `ListAmbiguous`; `keywordfamily.go`'s `VerdictAmbiguous` branch now captures the exact top-score tie via `tiedCandidatesFromMatches` and passes it through; `reconcile.go` gains `Reconciler.ReconcileAmbiguous`/`decideAmbiguous`/`rankAmbiguousCandidates` (margin-or-lexical-corroboration auto-apply, active-only merge-chased survivors, never touches append-only `kb.keyword_occurrences`, never merges concepts); `cmd/keyword-reconcile` runs it as a second pass after `Run` every invocation. Design agreed in conversation, not a numbered spec build step.
+
+```bash
+cd ChenWeb
+go build ./... && go vet ./server/api/ontology/keywords/... ./server/cmd/keyword-reconcile/...
+go test ./server/api/ontology/keywords/... ./server/cmd/keyword-reconcile/...
+```
+
+Green. New tests: `TestRankAmbiguousCandidates*` (5, fake embedding client, no DB) cover the decision policy in isolation; `TestDecideAmbiguousNoActiveCandidateLeavesRowPending`, `TestDecideAmbiguousDefersWhenNeitherSignalClears`, `TestDecideAmbiguousCollapsedWritesWinnerSurface` (sqlmock) cover the transactional wiring for three of the four outcomes, the last with surface-key expectations computed from the real normalizer rather than hand-derived. **Not run against a live database** — sqlmock-verified only, same I2-class caveat as the rest of this module.
+
 ---
 
 ## 22. Open questions
 
 1. **Auto-accept thresholds per tier** (§13.1). Not derivable from first principles — measure against the gold set, ship conservative, tune.
 2. **Whether tier 6 belongs online at all.** Tier 6 must embed *the query* at resolve time. A **local** model is CPU work, consistent with §3's non-goal. A **hosted API** puts a network call on every miss — breaking the non-goal, the latency budget, and independence from a third party. Either host a small multilingual model locally, or **restrict tier 6 to reconciliation** (offline, batched) and let the online path stop at tier 5. **Recommendation: reconciliation-only unless a local model is already in the stack** — D11's auto-creation means a first-seen foreign-language name gets an identity immediately regardless, so deferring the merge costs little. **✅ Decided 2026-08-06: reconciliation-only.** Two local multilingual embedding models are already in `.models.toml` (`qwen3-embedding-0-6b`, `nomic-embed-v2-moe` via llama.cpp), but the online resolve path was kept free of that runtime dependency by explicit choice.
+
+   ⚠️ **Note (2026-08-08), because this gets asked whenever new resources land:** the 2026-08-07 identity-authorization work (governed source registry, `terminology-import`, QUDT/BIPM/UCUM/Wikidata adapters, §20.1.7) does **not** revisit this decision and cannot unblock it by itself. That work makes an *offline* tier-6 merge trustworthy (it now requires an authoritative `exact_equivalent` claim from an approved source, not cosine alone — §13.1's 2026-08-07 revision); it says nothing about the per-query embedding cost that is this question's actual subject. Importing, approving, and even activating a source only changes what the offline reconciler is allowed to merge — it does not put an embedding call inside `CandidateNodes`. Unblocking tier 6 online requires reopening this question directly, not more governed data.
+
+   **Is it actually blocked, or just a decision? Both — one policy reason and one real (small) engineering gap:**
+   - **Policy reason (the one §22 Q2 states):** a per-query embedding call adds latency/cost to every resolve that misses tiers 0–5. Not infeasible — a local model already exists (`qwen3-embedding-0-6b`, `nomic-embed-v2-moe`) — but the tradeoff was judged not worth it *given that D11 already removes the downside*: a miss gets a provisional concept immediately either way, so deferring the *merge* decision to a batch job costs convergence speed, not correctness or availability.
+   - **Engineering gap (not previously documented here):** `keywords.Reconciler.embedConcepts` (`reconcile.go`) re-embeds **every live concept's `pref_label` from scratch, in memory, on every reconciliation run** — there is no persisted vector column or index on `kb.keyword_concepts`. Wiring tier 6 into `CandidateNodes` today, naively, would mean either re-embedding the entire concept universe per resolve call (does not scale) or building a persisted ANN index first. This second part **is** a real blocker for a naive implementation — but it is a small, already-solved problem in this exact codebase, not new engineering: `kb.search_artifacts` already has a working, **online**, query-time-embedding pattern to copy — `vector(1536)` column + `pgvector` HNSW cosine index (migration `20260603000001`), embeddings computed once at write/index time, and `computeQueryEmbedding` (`kbhandler/search_embedding_query.go`) embeds the query synchronously inside a request handler with a documented best-effort/fallback contract ("ok=false ... tells the caller to fall back to lexical-only search"). Nothing here is unprecedented in this system; it has just never been applied to `kb.keyword_concepts`.
+
+   **What "online tier 6" should be, if this is reopened** — a concrete, scoped proposal, **not decided or built**:
+   1. Add `pref_label_embedding vector(N)` (+ `embedding_model_id`, for the same reason `reconcile.go` already tags every score with a model id) to `kb.keyword_concepts`, with an HNSW cosine index — same shape as `kb.search_artifacts`'s migration.
+   2. Compute the embedding **at concept write time** (creation, and on `pref_label` change) — not at query time. This is the same principle tiers 0–5 already follow: expensive work happens once, at write time, so every subsequent read is one indexed lookup (§1's economic thesis, extended to embeddings).
+   3. Online tier 6 then costs **one query-time embedding call plus one indexed ANN query** (`ORDER BY pref_label_embedding <=> $1 LIMIT 20`, mirroring tier 5's `similarity() ... LIMIT 20` blocking shape) — not a re-embed of the corpus. Follow `computeQueryEmbedding`'s best-effort contract: on embedding-call failure or timeout, fall back to "tier 6 unavailable this call" (equivalent to today's tier-7 miss), never block or error the whole resolve.
+   4. **Keep two things separate that "tier 6" currently conflates as one:** (a) **surface→concept attachment** — a query with no lexical/fuzzy match gets compared against existing concepts' embeddings; a single unambiguous high-similarity hit, gated the same way tiers 0–5's `AutoAcceptPolicy` already gates auto-accept, attaches the surface to that concept. This is no riskier than what tiers 0–5 already do online, and reversible the same way (surfaces can be re-pointed; nothing structural changes). It is a natural 8th rung on the existing ladder, not new risk. (b) **concept→concept merging** (two already-established identity graphs becoming one) stays reconciliation-only, offline, batched, and identity-authority-gated per D10/§13.1 — that operation's blast radius (§15.1: "silently wrong answers," "manual archaeology") is what actually justifies caution, not the embedding call itself, and cosine-plus-a-provisional-concept is a fundamentally lower-stakes decision than cosine-plus-two-established-concepts.
+   5. Applying D11's own price (§4 D11: attributable, reversible, sampleable) is what would make (4a) safe to auto-accept online, exactly as tier 5 is safe today.
+   6. **Mirror the offline reconciler's own priority order, don't reinvent one.** §9.1's tier-6 entry shows `decideCandidate` never trusts cosine alone even offline — it prefers a unique lexical (tier-5-style) match, then a single authoritative identity claim, and only falls back to "flag for later" on embedding evidence alone. An online (4a) design should keep that same ordering: embeddings rank candidates, but auto-accept should require the *same* kind of corroboration (a tight lexical match or an authoritative claim), not cosine similarity by itself — otherwise online tier 6 would be *less* conservative than the offline path it's modeled on, which defeats the reason offline tier 6 was tightened in the first place (2026-08-07).
+
+   This proposal is recorded here so "what it should be" isn't lost, but it is **not decided and not built** — implementing it means a new migration, a query-time embedding dependency in the resolve hot path (even if local and best-effort), and new tests proving the fallback behavior under embedding-service failure. Treat this paragraph as a design sketch to approve or reject, not as current or committed behavior.
 3. **Is `brightness` the same metric definition as `luminance`?** (§2.3) A domain-owner decision. The module must represent either answer and must never infer it.
 
 ---
@@ -1103,7 +1168,7 @@ R7 merges `kwc_B` into `kwc_L`, and — per §14.1 — **re-points `kwc_B`'s sur
 
 `显示亮度` follows the same path. **Result: one concept, all seven strings.** REQ-1 of §2.1 is satisfied — by auto-creation plus reconciliation, not by normalization and not by a person.
 
-⚠️ **Most of Stage 5 does not work today.** Tier 6 is unbuilt and reconciliation is unbuilt. The §14.1 merge machinery itself is now in place — `MergeConcept` re-points surfaces with `origin_concept`, `UnmergeConcept` reverses it, and resolution chases the survivor — but nothing proposes merges automatically yet. This stage describes the design in §13–§14.
+⚠️ **Corrected 2026-08-08 — this note was stale.** As of 2026-08-06 (§19 step 11), Stage 5's machinery is built: the offline `keywords.Reconciler` (`cmd/keyword-reconcile`) does propose merges automatically — it blocks candidates via `ConceptStore`, scores them with tier 6 embeddings, and (since 2026-08-07) requires an authoritative identity claim before merging, not cosine alone. The §14.1 merge machinery (`MergeConcept` re-pointing surfaces with `origin_concept`, `UnmergeConcept`, survivor-chasing resolution) is also in place and is what R7 calls to execute the proposed merge. **What is not yet proven is this exact scenario end to end against a live, real-world corpus** — the reconciler has been run in its integration test (`reconcile_identity_integration_test.go`, real PostgreSQL) but not, as of the last recorded update, against a genuine 亮度/luminance-style cross-lingual pair using one of the local embedding models. This stage still accurately describes the *design* in §13–§14; it now also describes *shipped* code, not just design.
 
 **Stage 6 — the governed term (§16).** A domain owner creates `mea:luminance` as a `metric_definition` term once, through the human-gated catalog path — hundreds of such terms, reviewed once each. An `aligns_to_term` assertion connects `kwc_L` to it, **auto-proposed and auto-accepted** above threshold, because assignment is not catalog creation (§16.1).
 
