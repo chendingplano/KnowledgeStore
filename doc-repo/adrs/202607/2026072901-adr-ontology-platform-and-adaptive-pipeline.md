@@ -99,6 +99,71 @@
   canonicalization, `2026080403`) had drifted into treating P4's comparison-matrix row key as a
   requirement the platform must itself satisfy. In-place tags added at §3.23, §8.1's comparison
   service row, §8.2's not-a-doc-processor note, §8.3's deferred-data-gate line, and Appendix C.6.
+* 2026/08/08, code-verification revision. Six independent, parallel read-only audits checked this
+  ADR's claims against the actual `ChenWeb` code, migrations, and (where reachable) the live
+  `chenweb_test`/`miner` Postgres databases — not against devdocs or this ADR's own prior status
+  claims. Net result: the routing/gating/blocking machinery (DR6, DR7), Phase D association (DR8),
+  the module compiler and P2 schema (DR2), the DR21 strictness comparator, and P5's `classify_document`
+  resolver are all real, wired, tested code — not aspirational. But several specific claims were
+  **contradicted** by the code and are corrected in place below (marked "verified 2026-08-08"):
+  (1) **no DAG planner exists** — DR5's `Requires`/`Produces`-driven wave scheduler was never built;
+  Phase A/B/C is still a hardcoded loop, confirmed by the code's own comments (§3.6, §8.3.4);
+  (2) of the four core 4a modules, **only `core` is actually released and active** in the live dev
+  database — `document-authority`, `measurement`, and `quantity` exist as seed code but have never
+  been run against it, and the "4151 QUDT terms" figure has no support anywhere in the repository
+  (§8.3.5, Appendix B.2); (3) `kb.knowledge_store_bindings`, `kb.recommendation_policies`, and the
+  `scene_block_id` rename **do not exist** — store defaults live on a `kb.knowledge_store` column
+  instead, DR21 recommendation policy storage was never built, and `kb.scene_objects.object_id` is
+  unchanged (§3.7, §3.20, Appendix C); (4) the DR22 "cached comparison runs" are a write-once
+  persist/read-back log with **no dedup-by-watermark or invalidation logic**, despite the caching
+  language (§8.3.7); (5) seam 8 (`ReviewerToolRegistry`) **has zero registered tools** — completely
+  unbuilt (§3.12, §8.3.7); (6) only tier-3 (`classify_document`) of DR4's three facet tiers actually
+  writes observations in production — tiers 1 and 2 have no wired producer yet (§3.5, §8.3.4);
+  (7) the §8.3.7 vs. Appendix A.1 contradiction over `extract_metric_definitions`,
+  `extract_test_methods`, and `extract_product_structure` is resolved: **Appendix A.1 was right**,
+  all three are built, routed, and writing candidates — §8.3.7's "remain to be implemented" was
+  stale text, now removed. Also confirmed accurate and unchanged by this audit: P5's Chunk I
+  (I2 live-PostgreSQL + synthetic-corpus proof) genuinely has not landed — the live database shows
+  zero rows in every P5-specific table — so P5 is still correctly not marked complete; P6 and P7
+  remain unstarted; and Open Decisions OD2, OD4–OD10 are all exactly where the last revision left
+  them. One finding this ADR itself had not caught up to: a substantial "governed
+  external-terminology portfolio" (source registry, `terminology-fetch`/`terminology-import`/
+  `terminology-coverage` CLIs, a Svelte admin review UI) shipped 2026-08-07 as part of the
+  keyword-lexicon work. **Correction (same day, per the project owner):** this is not
+  undocumented drift — it is a properly planned and specced sub-project of the keyword module,
+  governed by spec `2026080403` §21 and tracked in its own plans, design specs, and handoffs
+  (listed in the next changelog entry). It was simply not yet cross-linked from this ADR's own
+  text before this revision; §8.3.6 and §15 now cite the governing documents directly.
+* 2026/08/08 keyword-lexicon sub-project cross-link (steps 11-12 + external terminology portfolio). 
+  The keyword-lexicon work that shipped 2026-08-06/07 (flagged above as uncross-linked) is a deliberate, documented sub-project — "Keyword Steps 11-12" plus the "External Terminology Portfolio" — governed by spec `2026080403` §21 and tracked in: [1], [2], [3], [4], [5], [6], [7]. **What it built, beyond what the 2026-08-08 code audit already found:** tier-5 fuzzy matching wired into `KeywordFamily.CandidateNodes` (trigram blocking + edit-distance guardrails); an offline `keywords.Reconciler` (`cmd/keyword-reconcile`) for tier-6 merges; the `aligns_to_term` bridge (`AlignmentsStore`, a §14.2 merge conflict-gate + follow, resolver alignment-follow, and observe-path auto-align) plus its metric-pipeline consumer seam
+  (`ResolvingMetricsStore` decorator, `kb.metrics.keyword_concept_id`/`metric_definition_term_id`,
+  migration `20260806000002`); and the governed external-terminology portfolio itself — a source
+  registry and import runner with adapters for QUDT, SIRP, an IEC 60050-845 seed, Wikidata, and
+  UCUM (migration `20260807000001`), plus an automated-download admin page, a Review page
+  (approve/disapprove with operator comments, gating import), and a weekly
+  `terminology_refresh` scheduler job for Wikidata. **Live acceptance, not synthetic:** QUDT
+  3.5.0 imported (1,223 quantity-kind entries, 3,177 labels, 1,342 relations, `skos:closeMatch`
+  retained as non-authoritative); UCUM (305 unit codes); BIPM SIRP (149 entries, 447 labels);
+  Wikidata expanded from a 3-entity pilot to the 1,521 Q-IDs QUDT 3.5.0 links via
+  `wikidataMatch` (7,963 labels, 1,092 broader relations, 837 negative decisions); `亮度` was
+  proven to merge into active `Luminance` by exact identity evidence regardless of embedding
+  cosine score. **The "closing I2" claim, precisely scoped:** a live PostgreSQL run on
+  2026-08-06/07 against the *original* cosine-threshold tier-6 design found it was not
+  model-agnostic (two different embedding models scored the same true match at 0.67 and 0.45
+  against a 0.90 threshold) — this run is what motivated the redesign in
+  `2026-08-07-model-agnostic-tier6-validation-design.md`, replacing raw-cosine authority with
+  deterministic identity evidence. That redesign was then itself live-verified against real
+  PostgreSQL with the real imported terminology data above — this is the scope in which I2 is
+  genuinely closed. It does **not** mean the keyword module's *online* resolve path
+  (`ResolveName`/`ResolveAndObserve`) has been run against real document text flowing through the
+  doc-processing pipeline — the step-11/12 handoff states plainly that this broader,
+  pipeline-level I2 gap (inherited from the original Track B handoff) remains open. **Still
+  deferred, unchanged from the 2026-08-08 code audit:** full R1-R7 reconciliation orchestration,
+  `on`-mode wiring, Double Metaphone, batch adjudication UI, and — the actual production
+  precondition — the §16.1 governed-catalog bootstrap (seeded `metric_definition` terms for the
+  observe path to align to) and operator approval of a published production seed release; IEC
+  60050-845 stays copyright-gated by design (the tool refuses it; the page shows "Requires
+  license").
 
 ## 2. Context
 
@@ -483,6 +548,17 @@ an LLM a judgment question ("should metrics be extracted?"). We ask it a *classi
 over a governed vocabulary ("what kind of document is this?"), cache the answer as a fact, and let
 reviewed rules make the decision.
 
+> **2026-08-08 status (verified against code): only tier 3 is wired in production.** Two facet
+> tables exist — `kb.doc_facets` (simple record-keyed routing facets) and `kb.doc_facet_values`
+> (general path/value/method observation store, migration `20260801000016`) — but
+> `applicability_facts.go` states outright that `FacetMethodDeterministic` (tier 1) "has no
+> production producer yet," and `FacetMethodMetadata` (tier 2, from `extract_doc_metadata`) has no
+> production call site either. Only `classify_document` (tier 3, `FacetMethodClassifier`) actually
+> writes facet observations today. The "cheapest first, tier 3 only when needed" cost model this DR
+> describes is therefore not yet realized — tier 3 is the *only* tier running. `classify_document`
+> itself is real and flag-gated (`CLASSIFY_DOCUMENT_ENABLED`, default off) and is wired into
+> review-scope selection (commit `5017ea3a`, 2026-08-03) — see §8.3.8.
+
 ### 3.6 DR5 — The pipeline becomes a declarative stage DAG with gates; A/B/C is the degenerate case
 
 Processors gain an optional declaration (an optional interface, matching the existing
@@ -514,6 +590,20 @@ branches, loops, and new stage families later, without another controller rewrit
 mechanism through which Phase D, review, and future stages join the pipeline and inherit its
 status reporting, stop handling, tracing, and per-processor logging for free.
 
+> **2026-08-08 status (verified against code): the DAG planner does not exist yet.**
+> `ProcessorSpec` is real (`server/api/doc-processing/processor_plan.go`, 20 real processors
+> declared), but `Requires`/`Produces`/`Class`/`Cost`/`OnUndetermined` are plain strings, not the
+> typed `ArtifactKind`/`ProcessorClass`/`CostClass`/`Decision` this DR describes, there is no
+> `DeclaredProcessor` interface, and no code builds a topological wave schedule from them — the
+> code's own comments say so directly: "`The DAG planner that consumes Requires/Produces arrives
+> in a later phase`" and "`the DR5 Class/Cost/OnUndetermined declarations are metadata only until
+> a runtime DAG enforcer exists to consume them`." Phase A/B/C is still a hardcoded
+> `[]string{"A","B","C"}` loop (`processor_plan.go`), and Phase D is a bespoke channel-based
+> dependency wait, not an instance of this DAG. Gate resolution (run/skip/defer with reason and a
+> SHA256 dependency fingerprint) is real and working (`pipeline_gates.go`), but nothing consumes
+> a deferred node's fingerprint to re-evaluate it later — defer is currently terminal within a run,
+> not retried. See §8.3.4.
+
 ### 3.7 DR6 — Two-tier routing: named pipelines selected by a versioned binding policy, then per-processor gates
 
 Routing is two questions, not one. "Run pipeline A on knowledge store K1" is a *pipeline
@@ -532,6 +622,13 @@ kb.pipelines           pipeline_id, name, version, title, description, status,
 Pipelines are authored as data in the ontology data repository (DR17,
 `policies/pipelines/*.toml`) and compiled and activated by the same mechanism as ontology
 modules. `default`, `standards`, `narrative`, and `minimal` are expected starting pipelines.
+
+> **2026-08-08 status (verified against code):** per the DR2/DR17 storage revision, pipelines are
+> DB rows, not `.toml` files. The seeded pipelines are `legacy_default` (empty processor list,
+> `LegacyEquivalent: true` — this is the actual pipeline that reproduces `required_processors`),
+> `store_default`, and `request_override` (`project_migrations/20260731000004`) — not
+> `default`/`standards`/`narrative`/`minimal`, which appear nowhere in seed data or code and remain
+> illustrative only.
 
 **Tier 2 — binding policy.** A versioned policy decides which pipeline applies, and may refine
 individual processor decisions.
@@ -552,11 +649,19 @@ A binding may be as simple as "knowledge store `KS-Project-A` → pipeline `stan
 predicate at all — which is exactly the case C5 could not express — or predicated on document
 facets for finer control.
 
-Every run writes an immutable **execution plan** into `kb.doc_process_runs.plan`: the policy
-version, the selected pipeline and why, the facet snapshot, and per processor the decision, the
-winning rule id, the reason, and the cost class. "Why did `extract_metrics` not run on record
-4711?" becomes an API call rather than log archaeology, and a run remains reproducible after the
-policy changes.
+Every run writes an immutable **execution plan**: the policy version, the selected pipeline and
+why, the facet snapshot, and per processor the decision, the winning rule id, the reason, and the
+cost class. "Why did `extract_metrics` not run on record 4711?" becomes an API call rather than log
+archaeology, and a run remains reproducible after the policy changes.
+
+> **2026-08-08 status (verified against code):** the plan is not a `kb.doc_process_runs.plan`
+> column — `CreateDocProcessRun` never writes one. It lives in a separate, more granular table,
+> `kb.doc_process_plans` (plan_facts/plan_steps/pipeline_selection/pipeline_binding/pipeline_spec/
+> excluded_by_policy), FK'd to the run, exposed via real endpoints `GET /api/v1/kb/doc-proc-plans`
+> and `/latest` (`kbhandler/doc_proc_log_handler.go`). No frontend dashboard panel consumes this API
+> yet — it is API-only today (`web/src` has no references). `kb.knowledge_store_bindings` also does
+> not exist as a table; the store-default pipeline is instead a `default_pipeline` column added
+> directly to `kb.knowledge_store` (migration `20260731000003`).
 
 ### 3.8 DR7 — Selection precedence; conflicts and undetermined decisions block, loudly
 
@@ -668,6 +773,13 @@ editing the mechanism.**
 Seams 1–4 and 9 ship in P1–P2 and are what make the rest independently developable. A phase that
 adds content through a seam is a data or registration change and can proceed in parallel with
 other phases.
+
+> **2026-08-08 status (verified against code):** seams 1–7 and 9 all exist as real Go registries
+> with at least one real registered instance each (confirmed 2026-08-08). Seam 8
+> (`ReviewerToolRegistry`) does **not exist anywhere in the repo** — zero registered tools, no
+> matching type. A separate, architecturally unrelated `ReviewTool` registry
+> (`server/api/doc-reviews/review-tools.go`, ~9 DB-query tools for the P5 LLM tool-use loop)
+> predates this ADR and should not be conflated with seam 8.
 
 ### 3.13 DR12 — The pilot is one vertical slice: metrics, one domain module, one review question
 
@@ -1109,6 +1221,16 @@ tie-break behavior (ADR 2026070701) until kernel fixtures prove parity on a labe
 adopts first are the kernel's *contracts*: explicit scope, tombstone merges, and the shared
 decision log. Categories follow. Only new families start on the kernel outright.
 
+> **2026-08-08 status (verified against code):** the kernel package lives at
+> `server/api/ontology/semid/`, not `server/api/semid/`. `TermFamily` and `KeywordFamily` are real
+> `FamilyAdapter` instantiations. Adjudication has 4 verdicts in code
+> (`auto_accepted`/`ambiguous`/`deferred`/`human_review`) — no distinct "LLM-batch" verdict exists.
+> DR15.1's claim that the live object family "adopts the kernel's contracts first" is scaffolding
+> only: `kb.object_nodes.merged_into`/`scope_key` columns exist, but the object reconciler
+> (`entity_object_reconciliation.go`) never reads or writes them (0 of 893 live rows populated) —
+> the comment there says plainly it doesn't yet. Merge/split-with-tombstone, no-transitive-closure
+> logic is real and tested, but currently only for the keyword family, not inside `semid` itself.
+
 **DR15.2 — lexical concepts are to ontology terms as object nodes are to ontology classes.**
 A keyword concept is an ungoverned canonical *lexical* identity: fast, high-volume, auto-mergeable
 under guardrails, and good enough for search expansion. A governed ontology term is a reviewed
@@ -1230,6 +1352,15 @@ Purpose-oriented stores (`KB-Blogs`, `KB-Products`, `KB-Marketing-and-Sales`) an
 project-oriented stores (`KS-Project-A`) then differ by data, not by code: a different pipeline,
 a different module set, a different scope — all three expressed as bindings.
 
+> **2026-08-08 status (verified against code):** items 1-2 are real but under different names than
+> planned: the FK on `kb.inputs` is `ks_store_id` (pre-existing, migration `20260425000002`, predates
+> this ADR), not `ks_id`; `requested_pipeline` is real and genuinely set at ingestion
+> (`kbhandler/upload_handler.go`); `facet_summary` (trigger-maintained JSONB) does not exist —
+> `kb.doc_facets`/`kb.doc_facet_values` serve that role instead (§3.5). Items 3-4 (module-release
+> and default-review-profile bindings per store) and the `kb.knowledge_store_bindings` table itself
+> are **not built** — confirmed absent from the repo — consistent with §8.3.7's own "remaining P4
+> work" admission.
+
 ### 3.21 DR20 — Product-hood and part-hood are roles, not classes; the part hierarchy is first-class
 
 A nut is a component inside a machine and a product at the plant that makes it. If `Product` were
@@ -1321,11 +1452,12 @@ reproduces the 36/36 perfect score.
 **Remaining gap, now precisely one thing:** `CorpusDataset` stops at loading, generating, and
 scoring — it is **not wired into the orchestrator/runner/store execution engine** that would
 actually invoke a live doc-processor pipeline and replace `SimulatedActual()` with real output.
-That step needs a real DB, NATS, and LLM credentials this session has no visibility into, and is
-gated regardless on `extract_metrics` emitting structured values and `normalize_assertions`
-existing (both P3, not yet built) — without those, "real" output would still be `SimulatedActual()`
-by another name. Every piece that can be built and verified without live infrastructure now exists
-and is tested.
+That step needs a real DB, NATS, and LLM credentials this session has no visibility into. It was
+originally gated on `extract_metrics` emitting structured values and `normalize_assertions`
+existing (both P3) — **2026-08-08 update: both are now built and verified** (§3.9, §8.3.6), so that
+blocker is cleared; the orchestrator-wiring step itself was not re-audited in the 2026-08-08 code
+verification pass and its current status is unconfirmed. Every piece that can be built and verified
+without live infrastructure now exists and is tested.
 
 **Verdict vocabulary** (extends, and does not replace, spec §12.4):
 
@@ -1387,6 +1519,17 @@ underlying assertions**. Supersession comes from the 4a `document-authority` mod
 **Do not build this as a doc processor.** It reads accepted assertions and produces no artifact
 that belongs to a document. It is computed on demand, cached against the pinned module releases and
 the assertion revision watermark, and invalidated when either moves.
+
+> **2026-08-08 status (verified against code):** `kb.ontology_comparison_runs`/`_cells` (not
+> `kb.comparison_*` — naming drift) persist real rows written by
+> `server/api/ontology/comparison/store.go`, and the strictness comparator itself (`Compare`/
+> `EvaluateFamily`) is real and well-tested (17 test functions covering the verdicts above). But the
+> "cached... and invalidated when either moves" claim in this paragraph is **not yet true**:
+> `CreateOntologyComparisonRun` unconditionally inserts a new run on every call — there is no
+> lookup-by-`(scope, watermark)` dedup and no invalidation logic anywhere in the package (checked
+> exhaustively for cache/invalidate/stale/reuse — zero hits). What exists today is a write-once
+> persist-and-read-back log, not an invalidating cache. `kb.recommendation_policies` (the DR21 rule-1
+> verdict/recommendation split) has no migration and no code — not built at all yet.
 
 ### 3.24 DR23 — "Metric definition" and "profile" are different objects; the application's *Metric Profile* is the former
 
@@ -1554,6 +1697,15 @@ ALTER kb.inputs                ADD ks_id BIGINT REFERENCES kb.knowledge_store(id
                                facet_summary JSONB   -- derived, trigger-maintained
 ```
 
+> **2026-08-08 status (verified against code): as-built differs from this list in five places.**
+> `kb.doc_facets` is real; a second table `kb.doc_facet_values` (migration `20260801000016`) also
+> exists and is the one tier-3 classification actually writes to. `kb.pipelines`/`pipeline_policies`/
+> `pipeline_bindings`/`pipeline_rules` are real (all dated 2026-07-31). `kb.knowledge_store_bindings`
+> **does not exist** — the store default is a `default_pipeline` column on `kb.knowledge_store`
+> instead. `kb.doc_process_runs` never gained a `plan` column — the execution plan lives in a
+> separate table, `kb.doc_process_plans`. `kb.inputs` gained `requested_pipeline` (real) but not
+> `ks_id` (the FK column is the pre-existing `ks_store_id`) or `facet_summary` (does not exist).
+
 **P2 — ontology terms, modules, and the canonicalization kernel**
 
 ```text
@@ -1622,8 +1774,16 @@ kb.comparison_cells            (run_id, row metric_definition_term_id, column au
 kb.recommendation_policies     (versioned policy mapping verdicts → advice; separate from verdicts)
 ```
 
+> **2026-08-08 status (verified against code):** the comparison tables are real but named
+> `kb.ontology_comparison_scopes`/`_runs`/`_cells` (not bare `kb.comparison_*`).
+> `kb.recommendation_policies` has no migration and no code — **not built**.
+
 `kb.scene_objects.object_id` → `scene_block_id` rename (spec §11.4) lands in P1 with the
 identifier-hygiene work.
+
+> **2026-08-08 status (verified against code): this rename has not happened.** The column is still
+> `kb.scene_objects.object_id` — no migration or code reference to `scene_block_id` exists anywhere
+> in the repo.
 
 ## 6. Data Formats
 
@@ -1733,6 +1893,7 @@ policy_version = "2026072901.3"
 | `DOC_PIPELINE_POLICY` | unset | active pipeline policy version; unset = legacy `required_processors` behavior (DR7) |
 | `DOC_PIPELINE_PLAN_ONLY` | `false` | compute and persist the plan, then run the legacy set — shadow mode for validating rules before enforcement |
 | `DOC_FACET_CLASSIFIER_MODEL` | unset | model for tier-3 `classify_document`; unset disables tier 3 (tier 1–2 facets only) |
+| `CLASSIFY_DOCUMENT_ENABLED` | `false` | flag-gates the P5 `classify_document` two-pass resolver (`server/api/doc-processing/classify-document.go`); confirmed real and wired 2026-08-08, not in the original table — added here |
 | `DOC_PIPELINE_ON_CONFLICT` | `block` | `block` fails the run and raises an alarm on an unresolved binding conflict or undetermined gate; `fallback` walks the DR7 escalation ladder and warns |
 | `PG_HOST` / `PG_PORT` / `PG_USER` / `PG_DB_NAME` | local socket, `5432`, `cding`, `chenweb_test` | database the ontology compiler reads and writes; content lives in the DB, not a repository (DR2) |
 | `COMPILER_ARGS` | — | arguments to `mise run ontology-compiler` (`validate`/`release`/`activate`/`rollback`) |
@@ -1751,11 +1912,11 @@ authority.
 |---|---|---|
 | Stage DAG + planner | `ChenWeb/server/api/doc-processing/control.go`, new `plan.go`, `spec.go` | `ProcessorSpec`, DAG build, wave execution, gate application, plan persistence; keep `runProcessorsSequential` as the fallback |
 | Facets | new `facets.go`, `facet_producers.go`; extend `doc-structure-analyzer.go`, `extract-doc-metadata.go` | tier-1/2 producers, `kb.doc_facets` store, `classify_document` processor |
-| Rule engine | new package `server/api/semrules` | predicate AST, operator registry, evaluator with trace, conflict/indeterminate semantics |
+| Rule engine | package `server/api/ontology/semrules` (built at this path, not `server/api/semrules` as originally planned) | predicate AST, operator registry, evaluator with trace, conflict/indeterminate semantics |
 | Policy store | new `pipeline_policy_store.go` | pipeline/binding/rule load, activation, version pinning, conflict detection and alarm |
-| Knowledge stores | `server/api/kbhandler/stores_handler.go`, ingestion handlers | `ks_id` and `requested_pipeline` on ingestion; store bindings CRUD |
-| Canonicalization kernel | new package `server/api/semid` | normalizer profiles, candidate generation, scoring, adjudication, merge/split, decision log; family adapters |
-| Keyword lexicon | new `server/api/semid/lexicon/` + a doc-processing mention collector | DR16 merged design as a kernel instantiation |
+| Knowledge stores | `server/api/kbhandler/stores_handler.go`, ingestion handlers | `ks_store_id` (not `ks_id`) and `requested_pipeline` on ingestion; no store-bindings CRUD table exists (§3.20) |
+| Canonicalization kernel | package `server/api/ontology/semid` (built at this path, not `server/api/semid` as originally planned) | normalizer profiles, candidate generation, scoring, adjudication, merge/split, decision log; family adapters |
+| Keyword lexicon | `server/api/ontology/keywords/` (built at this path, not `server/api/semid/lexicon/`) + a standalone, not-yet-pipeline-wired mention collector (`server/api/doc-processing/keyword_mention_collector.go`) | DR16 merged design as a kernel instantiation |
 | Module compiler | new `server/cmd/ontology-compiler`, `server/api/ontology/` | validate DB-staged content, checksum, release, activate, rollback — for modules *and* pipeline policies |
 | Ontology stores | `server/api/ontology/` | terms, labels, axioms, mappings, candidates, releases |
 | Assertions | `server/api/ontology/assertions/` | assertion + evidence stores, normalizer registry, per-family normalizers |
@@ -1933,6 +2094,19 @@ knowledge store K1" is expressible as one binding; a deliberately conflicting bi
 the run and raises exactly one alarm; shadow mode on the fixture corpus shows the intended skip
 decisions.
 
+> **2026-08-08 status (verified against code): substantially built, but not as a DAG.** Real and
+> working: `ProcessorSpec` declarations (20 processors, though as untyped strings — see DR5), gate
+> resolution with reasons and dependency fingerprints (though deferred gates are never re-evaluated),
+> named pipelines/bindings/rules (`legacy_default`/`store_default`/`request_override`, not
+> `default`/`standards`/`narrative`/`minimal`), `DOC_PIPELINE_ON_CONFLICT` blocking-with-alarm (DR7),
+> `DOC_PIPELINE_PLAN_ONLY` shadow mode, `requested_pipeline` on ingestion, and a persisted execution
+> plan exposed via a real (if dashboard-less) API. **Not built:** the DR5 DAG planner itself — Phase
+> A/B/C is still a hardcoded loop, by the code's own admission (§3.6); tier-1/tier-2 facet producers
+> (only tier-3 `classify_document` writes observations, §3.5); the `scene_block_id` rename;
+> `kb.knowledge_store_bindings`. The exit criterion "with no policy activated, byte-identical to
+> today" holds (`legacy_default`); "every run carries an explainable plan" holds via
+> `kb.doc_process_plans`, not `kb.doc_process_runs.plan`.
+
 #### 8.3.5 P2 — Ontology core and the canonicalization kernel *(parallel with P1)*
 
 > **Status: implemented and validated (2026-08-01).** All six P2 bullets below are built and
@@ -1942,6 +2116,22 @@ decisions.
 > no code change (the DR1 property); a failed validation leaves the previous active release
 > untouched; and the `semid` merge/split fixtures show no transitive closure and no lost merged id
 > (ADR kernel tests 18–21, 23).
+>
+> **2026-08-08 correction (verified against code and the live `miner` database): the "four core 4a
+> modules" claim overstates what's actually installed.** Only `core` (20 governed terms — the ADR's
+> "19" predates an unrelated 2026-08-06 commit that added `core:aligns_to_term`) is released and
+> **active** in the live database. `document-authority` (22 terms) and `measurement` (17 terms) have
+> real seed code (`server/cmd/ontology-seed`, present since 2026-07-31) but **zero rows** in
+> `kb.ontology_modules`/`kb.ontology_terms` — the seed/release step was never run against this
+> instance. `quantity`'s claimed 4151-term QUDT import likewise has zero live rows, and the "4151"
+> figure itself has no supporting evidence anywhere in the repository (not in code, not in a test
+> fixture, not in a devdoc). The mechanism (compiler, validator, checksum, activation, rollback) is
+> real and independently verified working — it is the *content installation* that has not actually
+> been run for three of the four modules. `candidates/p2_exit_test.go` is real and passes (3/3), but
+> covers items 1/3/4 directly and delegates 5/6/7 to other test files rather than duplicating them;
+> the kernel merge/split-no-transitive-closure tests (ADR tests 18–21, 23) live in the **keywords**
+> package, not in `semid/kernel_test.go` itself, which has 7 unrelated scoring tests. The `semid`
+> package path is `server/api/ontology/semid/`, not `server/api/semid/` (§3.17).
 
 * Module compiler, validator, checksum, immutable release, activation pointer, rollback —
   serving both `modules/` and `policies/` from the data repository (DR17).
@@ -2017,6 +2207,35 @@ loss of a merged id.
 > code gap. Current status of record: spec `2026080403-spec-keyword-canonicalization-and-reconciliation.md`
 > §0/§21 (this ADR is not re-synced every session; that spec is).
 >
+> **2026-08-08 code-verification update:** confirmed accurate with corrections. Real, tested, wired
+> code at `server/api/ontology/keywords/` (not `server/api/semid/lexicon/`): 6 deterministic key
+> kinds (phonetic is an explicit stub, as documented — not Double Metaphone yet), tier-5 fuzzy
+> matching is real online SQL (`similarity()` + edit distance), tier-6 is real but deliberately
+> offline-only, `aligns_to_term` correctly never writes `kb.ontology_terms` directly, and R3/R6/R7
+> reconciliation logic is real (R1/R2/R4/R5 — harvest/prune/assemble/LLM-decide — remain genuinely
+> absent, as documented). Corrections: the endpoint count is 15, not 13; `kb.keyword_mentions` was
+> since dropped and replaced by `kb.keyword_occurrences` (a 2026-08-05 design fix); `on` mode is
+> still indistinguishable from `observe` in code (no distinct consumer wiring). More notably: **this
+> ADR itself was uncross-linked from a substantial, real, and properly governed sub-project** — a
+> `terminology-fetch` CLI, a full Svelte admin review UI (approve/disapprove with operator
+> comments), a weekly-refresh scheduler, and real QUDT/UCUM/SIRP/Wikidata adapters with QUDT-linked
+> entity expansion, all shipped 2026-08-06/07. This is not undocumented drift: it is "Keyword Steps
+> 11-12" and the "External Terminology Portfolio," governed by spec `2026080403` §21 and tracked in
+> its own plans (`ChenWeb/docs/superpowers/plans/2026-08-06-keyword-step1[12]-*.md`,
+> `2026-08-07-external-terminology-resource-portfolio.md`), design specs
+> (`ChenWeb/docs/superpowers/specs/2026-08-07-*.md`), and handoffs
+> (`KnowledgeStore/doc-repo/hand-offs/202608/2026080401-*.md`, `2026080601-*.md`) — see the
+> changelog entry immediately following the 2026-08-08 audit entry for the full build/status
+> summary, including the precisely-scoped "closing I2" claim (true for the tier-6 identity-authority
+> mechanism against real imported data; **not** true yet for the online resolve path against real
+> document text through the pipeline).
+>
+> **§8.3.7 contradiction resolved:** `extract_metric_definitions`, `extract_test_methods`, and
+> `extract_product_structure` (listed as "remain to be implemented" in §8.3.7's P4 section) are
+> confirmed **built** — registered as routed `ProcessorSpec`s in the production processor list,
+> writing candidates only (`kb.ontology_candidates` / `kb.semantic_decision_candidates`), exactly as
+> Appendix A.1 already stated. §8.3.7 has been corrected accordingly.
+>
 > **2026-08-01 correction (post-review):** A same-day implementation review
 > (`2026080106-devdoc-semos-p3-implementation-review.md`) found the "Built and complete" framing
 > above overstated several items: the three Phase D stages were never registered as declared,
@@ -2046,16 +2265,27 @@ with zero over-merges of `never_merge` pairs.
 
 **Built (L6/L7 runtime only):** generic versioned profiles/rules, governed lifecycle and release-visible reads,
 immutable review/comparison scopes, pinned-scope review execution and auditable findings,
-DR21/DR22 cached comparison runs/cells, paired `required_assertion_pattern` SHACL output, and
+DR21/DR22 comparison runs/cells (see 2026-08-08 correction below — "cached" overstates it),
+paired `required_assertion_pattern` SHACL output, and
 authenticated authoring/execution/read APIs. All P4 migrations were live-validated on
 `chenweb_test` through `20260801000011`.
 
-**Remaining P4 work:** ADR §8.2's `extract_metric_definitions`, `extract_product_structure`,
-`extract_test_methods`, and the structured-output extension of `extract_provisions` remain to be
-implemented. **Deferred data gate:** the ventilator benchmark/domain module is validation data only. It is not
-part of the generic runtime and remains un-authored until a domain owner supplies a traceable
-worked example and approved source values. 🏗️ **APP-SPECIFIC** — the benchmark belongs to the
-Document Review app, not the ontology platform; see Change Log 2026/08/06.
+**Remaining P4 work (corrected 2026-08-08):** ~~ADR §8.2's `extract_metric_definitions`,
+`extract_product_structure`, `extract_test_methods`... remain to be implemented~~ — **this was
+stale text, contradicted by this ADR's own Appendix A.1 and confirmed built by code verification**
+(all three are registered, routed processors writing candidates only; see §8.3.6). The
+structured-output extension of `extract_provisions` was not re-audited in the 2026-08-08 pass and
+its status is unconfirmed. The real, code-verified remaining gaps are: `kb.recommendation_policies`
+(DR21 rule 1) has no migration or code at all; seam 8 (`ReviewerToolRegistry`) has zero registered
+tools; DR22's comparison runs are a write-once persist/read-back log with no dedup-by-watermark or
+invalidation logic, despite the "cached" language above (§3.23); `kb.knowledge_store_bindings`
+(DR18 items 3–4) does not exist. **Deferred data gate:** the ventilator benchmark/domain module is
+validation data only. It is not part of the generic runtime and remains un-authored until a domain
+owner supplies a traceable worked example and approved source values — **re-confirmed 2026-08-08
+via the live database: `kb.ontology_modules` has 0 rows in the current instance, and no
+pump/ventilator/医疗器械-named module exists in `server/cmd/ontology-seed` or anywhere else in the
+repo.** 🏗️ **APP-SPECIFIC** — the benchmark belongs to the Document Review app, not the ontology
+platform; see Change Log 2026/08/06.
 
 * Profile and rule schema; rule-kind registry with paired evaluator and SHACL emitter (seam 6).
 * The pilot 4b domain module authored end to end: classes, properties, profile, rules,
@@ -2085,6 +2315,19 @@ conflict, and SQL/Go versus SHACL parity on identical fixtures.
 *Exit:* a documented, per-document-kind reduction in processor invocations with no measured loss
 of review recall on the benchmark corpus; every skip explainable from its plan.
 
+> **2026-08-08 status (verified against code, live database, and git history): Chunk I / I2 still
+> has not landed — this ADR's 2026-08-03 "not yet complete" claim remains accurate today, not
+> stale.** `classify_document`'s two-pass resolver, review-scope wiring, `document.doc_kind`-keyed
+> clearance, and transactional checksum-correct promotion (Chunks A–H) are all real, working,
+> tested code — confirmed independently. But four separate sources agree Chunk I never ran: no
+> commit touches any P5 file after 2026-08-03 (`git log`); no devdoc or plan dated after
+> `2026080304` mentions it; the exit-test suite's own comments mark the I2 criteria as unexecuted
+> "live-proof pointers," not real tests; and the live `chenweb_test` database has **zero rows** in
+> `kb.pipeline_routing_clearances`, `kb.doc_facet_values`, and `kb.ontology_applicability_proposals`
+> — i.e. this machinery has never actually run against real data. Every commit from 2026-08-04
+> through 2026-08-07 went into P3 Track B (keyword lexicon) and the terminology-import pipeline
+> instead, not P5.
+
 #### 8.3.9 P6 — Remaining artifact families *(needs P3; independent of P5)*
 
 Summaries, semantic projections, topics, and scene blocks per spec §15 Phase 5 and §16.5:
@@ -2092,12 +2335,20 @@ grounded links, inherited candidates that never gain confidence through repeated
 occurrence identity, and a labeled evaluation corpus with per-method precision thresholds before
 any automatic acceptance.
 
+> **2026-08-08 status (verified against code):** confirmed unstarted, exactly as scoped — nothing
+> beyond pre-existing P3 decision-candidate infrastructure exists; `kb.input_store_membership` (the
+> table OD8 schedules for this phase) does not exist.
+
 #### 8.3.10 P7 — Publication and interoperability *(needs P2–P4)*
 
 Versioned RDF/OWL/SKOS/SHACL artifacts, persistent dereferenceable IRIs, round-trip and parity
 fixtures in CI (including the SQL-versus-SHACL parity gate moved here from spec §16.4.14 per
 DR13), external consistency checks, and — only if a competency question justifies it — a reasoner
 or triple-store projection.
+
+> **2026-08-08 status (verified against code):** confirmed unstarted, except the P4-adjacent SHACL
+> emitters already counted under seam 6 (§8.3.7) — no RDF/OWL/SKOS serialization, dereferenceable
+> IRIs, or triple-store/reasoner code exists anywhere in the repo.
 
 #### 8.3.11 Mapping to the prior phase plans
 
@@ -2334,6 +2585,11 @@ repository hosting credentials remain for later phase documents and approvals.
 
 ## 13. Open Decisions
 
+> **2026-08-08 status:** OD2, OD4–OD10 were checked against the actual code and live database as
+> part of a full code-verification pass and confirmed unmoved — none has been resolved since the
+> last revision. Notably OD8's `kb.input_store_membership` does not exist yet (consistent with P6
+> not having started) and OD9's lexicon scope is still a flat string, not store+domain+document.
+
 | # | Decision | Recommendation |
 |---|---|---|
 | ~~OD1~~ | ~~Which domain module is the pilot~~ | **Resolved 2026-07-29: 呼吸机 / 医疗器械**, driven by the target application. Corpus collection is under way. Open sub-item: the authoritative standard editions that source the profile come from the real-data worked example, not from the application mock — the mock's clause citations and limit values are placeholders |
@@ -2533,6 +2789,107 @@ and consistent interpretation of measurements across different datasets and appl
 13. W3C SHACL, SKOS, PROV-O, OWL 2, OWL-Time; QUDT catalog; SOSA/SSN — as cited in research §18.
 14. UMLS concept/term/string identity layering (CUI/LUI/SUI/AUI) — as cited in research
     `2026072301` §1 and spec `2026072703` §3.1.
+15. [2026080403-spec-keyword-canonicalization-and-reconciliation](/Users/cding/Workspace/KnowledgeStore/doc-repo/specs/202608/2026080403-spec-keyword-canonicalization-and-reconciliation.md) — the governing keyword-module spec (DR15/DR16/DR23 implementation); §21 is the living implementation record (added 2026-08-08)
+16. [2026080401-handoff-semos-p3-trackb-keyword-lexicon](/Users/cding/Workspace/KnowledgeStore/doc-repo/hand-offs/202608/2026080401-handoff-semos-p3-trackb-keyword-lexicon.md) (added 2026-08-08)
+17. [2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term](/Users/cding/Workspace/KnowledgeStore/doc-repo/hand-offs/202608/2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term.md) (added 2026-08-08)
+18. `ChenWeb/docs/superpowers/plans/2026-08-06-keyword-step11-tier5-reconciliation.md` (added 2026-08-08)
+19. `ChenWeb/docs/superpowers/plans/2026-08-06-keyword-step12-aligns-to-term-metric-integration.md` (added 2026-08-08)
+20. `ChenWeb/docs/superpowers/plans/2026-08-07-external-terminology-resource-portfolio.md` (added 2026-08-08)
+21. `ChenWeb/docs/superpowers/specs/2026-08-07-external-terminology-resource-portfolio-design.md` (added 2026-08-08)
+22. `ChenWeb/docs/superpowers/specs/2026-08-07-model-agnostic-tier6-validation-design.md` (added 2026-08-08)
+
+## 16. Outstanding Implementation Work (Not Yet Finished)
+
+**Added 2026-08-08.** This section consolidates every item the 2026-08-08 code-verification pass
+(§1 changelog) and the original phase plan (§8.3) confirm is not yet built or not yet complete,
+into one cross-referenced punch list. It is an **inventory for planning, not a plan** — no
+priority, owner, or sequencing is assigned here. Each phase's own prerequisites (stated in §8.3's
+headers, e.g. "P5 *(needs P1 + P4)*") already constrain the order; use this list as the input to
+that planning pass, not a substitute for it. Every row cites the ADR section where the gap was
+found so the reasoning behind it doesn't need to be re-derived.
+
+### 16.1 P1 — Pipeline plane
+
+| Item | Gap | Ref |
+|---|---|---|
+| DAG planner | The core DR5 mechanism — a topological wave scheduler built from `Requires`/`Produces` — was never built. Phase A/B/C is still a hardcoded loop; `Requires`/`Produces`/`Class`/`Cost`/`OnUndetermined` are untyped strings, not the typed enums DR5 specifies; no `DeclaredProcessor` interface exists. | §3.6, §8.3.4 |
+| Deferred-gate retry | A deferred processor's dependency fingerprint is computed but nothing re-evaluates it later — defer is currently terminal within a run. | §3.6 |
+| Facet tiers 1–2 | Only tier-3 (`classify_document`) writes facet observations. Tier-1 deterministic and tier-2 (`extract_doc_metadata`-derived) producers have no production call site. | §3.5, §8.3.4 |
+| `kb.knowledge_store_bindings` (DR18 items 1–2 partial, 3–4 absent) | Table doesn't exist; store default pipeline is a column instead. Bound module releases and default review profiles per store are not built at all. | §3.20, Appendix C.1 |
+| Execution-plan UI | `kb.doc_process_plans` and its API (`GET /kb/doc-proc-plans`) are real, but no frontend dashboard panel consumes it yet — API-only. | §3.7, §8.3.4 |
+| Named pipelines `standards`/`narrative`/`minimal` | Illustrative only; never seeded. Actual seeds are `legacy_default`/`store_default`/`request_override`. Decide whether to seed the documented names or correct the doc to match the real ones. | §3.7 |
+| `kb.scene_objects.object_id` → `scene_block_id` rename | Never done. | §5, Appendix C.7 |
+
+### 16.2 P2 — Ontology core & canonicalization kernel
+
+| Item | Gap | Ref |
+|---|---|---|
+| `document-authority`, `measurement`, `quantity` 4a modules | Seed/import code exists (since 2026-07-31 for the first two) but has never actually been released and activated against the live database — only `core` is active. | §8.3.5, Appendix B.2 |
+| QUDT import verification | The `quantity` module's claimed 4151-term catalog has never been run/verified against a live instance; the figure has no corroborating evidence in the repo. | §8.3.5, Appendix B.2 |
+| `semid` kernel adjudication | Only 4 verdicts exist in code (`auto_accepted`/`ambiguous`/`deferred`/`human_review`); no distinct "LLM-batch" path as DR15 describes. | §3.17 |
+| DR15.1 object-family kernel adoption | `kb.object_nodes.merged_into`/`scope_key` columns exist but the object reconciler never reads or writes them — contracts are scaffolding, not wired. | §3.17, Appendix C.7 |
+
+### 16.3 P3 Track A — Assertions & Phase D
+
+| Item | Gap | Ref |
+|---|---|---|
+| `kb.artifact_semantic_links` | Not built yet (the ADR's own Appendix A.1 already correctly flags this as future). | Appendix A.1, C.3 |
+| `assertions.RunPhaseD` | Orphaned dead code left over from the pre-fix hardcoded call site — zero callers anywhere in the repo. Safe cleanup, not a functional gap. | §8.3.6 (P3 Track A audit) |
+| Backlog-drain admin surfaces (DR6/DR7 halves) | An admin review page for `kb.semantic_decision_candidates` and LLM auto-resolution for deferred assertions are both still unbuilt. | §8.3.6 |
+| `extract_provisions` structured-output extension | Not re-audited in the 2026-08-08 pass; status unconfirmed either way. | §8.2 |
+
+### 16.4 P3 Track B — Keyword lexicon & external terminology portfolio
+
+| Item | Gap | Ref |
+|---|---|---|
+| Full R1–R7 reconciliation orchestration | Only R3 (blocking) and R6/R7-equivalent (veto + transactional apply/audit) logic exists inside one `Reconciler.Run`. R1 (harvest), R2 (prune), R4 (assemble), R5 (LLM batch-decide), and a runs/watermark table are not built. | §8.3.6, changelog 2026/08/08 (sub-project entry) |
+| `on` mode | Still indistinguishable from `observe` in code — no distinct consumer wiring to retrieval or search payloads. | §7, §8.3.6 |
+| Double Metaphone phonetic key | Current `phoneticKey()` is a documented stub (first char + first 4 consonants). | §8.3.6 |
+| Batch adjudication UI | No admin surface for the `kb.keyword_unresolved` backlog (REST covers concept/surface/rewrite-rule CRUD only). | §8.3.6 |
+| Rewrite-rule auto-promotion | Tier-3 rewrite rules are authored manually only; no promotion from reconciliation decisions. | §8.3.6 |
+| `KEYWORD_RESOLVER_MODE` hot-reload | Read once via `sync.Once` at startup; a mode change needs a process restart. | §7 |
+| §16.1 governed-catalog bootstrap | No released `metric_definition` terms exist yet for the observe-path auto-align to target — this is the external precondition that gates the `aligns_to_term`/metric-integration end-to-end run. | changelog 2026/08/08 (sub-project entry) |
+| Online resolve-path live proof | The keyword module (`ResolveName`/`ResolveAndObserve`) has never been run against real document text flowing through the doc-processing pipeline — distinct from, and *not* closed by, the offline reconciler's live-DB proof (which is done). | changelog 2026/08/08 (sub-project entry) |
+| IEC 60050-845 (IEV) seed content | Deliberately unautomatable (copyright-gated); needs an operator-reviewed manual seed file. | changelog 2026/08/08 (sub-project entry) |
+| Production portfolio activation | Operator must: review/approve the remaining fetched draft (the QUDT-linked Wikidata set), supply the reviewed IEC seed/promotion file, run the corpus/coverage acceptance report, and publish a versioned production seed release — before Tier 6 can be enabled in production. | changelog 2026/08/08 (sub-project entry) |
+| `CollectFromText` mention collector | Still standalone, not wired into the Phase C pipeline — corpus-wide mention recall is absent; only targeted metric-name resolution (`names.Resolver` in the metrics pipeline) is wired today. | §8.3.6 |
+
+### 16.5 P4 — Profiles, review & comparison
+
+| Item | Gap | Ref |
+|---|---|---|
+| `kb.recommendation_policies` | No migration, no code — DR21 rule-1's verdict/recommendation separation isn't built at all. | §3.23, §8.3.7, Appendix B.1, C.6 |
+| Seam 8 (`ReviewerToolRegistry`) | Completely unbuilt — zero registered tools anywhere in the repo. | §3.12, §8.3.7 |
+| DR22 comparison-run caching | Currently a write-once persist/read-back log. Needs real dedup-by-`(scope, watermark)` and invalidation when the watermark or pinned releases move, to match the "cached" claim. | §3.23 |
+| Pilot 4b domain module (呼吸机 / 医疗器械) | Un-authored — `kb.ontology_modules` has 0 rows live. Needs a domain owner to supply a traceable worked example and approved source values (the P4 "deferred data gate"). | §3.13, §8.3.7, Appendix B.3 |
+| Category canonicalization retrofit | Not started; scheduled "P4+," driven by the size of the `kb.category_alias_conflicts` backlog (OD10). | §8.3.7, OD10 |
+| `CorpusDataset` → orchestrator wiring | Still not wired to invoke a live doc-processor pipeline. The original blocker (`extract_metrics`/`normalize_assertions` not built) is now cleared, but the wiring step itself was not re-audited in the 2026-08-08 pass. | §3.22 |
+| Review-scope rerun-reproducibility test | Immutability is real (no update path exists), but no test directly proves a rerun against the same frozen scope reproduces identical findings. | §8.3.7 (P4 audit) |
+
+### 16.6 P5 — Rule-driven routing enforcement *(needs P1 + P4)*
+
+| Item | Gap | Ref |
+|---|---|---|
+| Chunk I / I2 live-PostgreSQL + synthetic-corpus proof | Not run. Zero live rows in `kb.pipeline_routing_clearances`, `kb.doc_facet_values`, and `kb.ontology_applicability_proposals` — this machinery (Chunks A–H, which are real and working) has never executed against real data. | §1 changelog (2026/08/03, 2026/08/08), §8.3.8 |
+
+### 16.7 P6 — Remaining artifact families *(needs P3; independent of P5)*
+
+Entirely unstarted beyond pre-existing P3 decision-candidate infrastructure: grounded links,
+occurrence identity, inherited-candidate confidence discipline, and a labeled evaluation corpus
+with per-method precision thresholds for summaries/projections/topics/scene blocks. `kb.input_store_membership`
+(OD8) does not exist. §8.3.9.
+
+### 16.8 P7 — Publication & interoperability *(needs P2–P4)*
+
+Entirely unstarted except the P4-adjacent SHACL emitters already built under seam 6 for one rule
+kind (`required_assertion_pattern`). No RDF/OWL/SKOS serialization, dereferenceable IRIs, or
+triple-store/reasoner code exists. §8.3.10.
+
+### 16.9 Open Decisions still open
+
+OD2, OD4, OD5, OD6, OD8, OD9, and OD10 remain unresolved exactly as §13 states (re-verified against
+code 2026-08-08 — none has moved). OD1, OD3, and OD7 are already resolved/settled and are not
+outstanding work. See §13 for each decision's current recommendation.
 
 ## Appendix A. New Doc Processors
 
@@ -2550,7 +2907,7 @@ adjudication is currently deterministic-only, that is noted.
 
 | Processor | Build (2026-08-01) | Class | LLM-driven | What it does | New persisted data → table | Phase | Why |
 |---|---|---|---|---|---|---|---|
-| `classify_document` | planned (P1 declaration; tier-3 invocation P5; not yet in the live roster) | mandatory (gated) | `cheap_llm`, tier 3 only — one call over the first N pages, only when tiers 1–2 leave a required facet undetermined and a rule needs it | Classifies a document into the governed facet vocabulary: `doc_kind`, `domain`, `normative_status`, `jurisdiction` | **Yes** — governed document facets, one row per `(record_id, facet_key)` → `kb.doc_facets` | P1 (tier 3: P5) | DR4 routing + profile applicability |
+| `classify_document` | **built and flag-gated (P5, `CLASSIFY_DOCUMENT_ENABLED`, default off) — verified 2026-08-08, superseding this row's earlier "planned/not yet in the live roster" status.** Real two-pass resolver, wired into review-scope selection (commit `5017ea3a`, 2026-08-03). Not yet exercised against live data — see §8.3.8's Chunk I / I2 status. | mandatory (gated) | `cheap_llm`, tier 3 only — one call over the first N pages, only when tiers 1–2 leave a required facet undetermined and a rule needs it | Classifies a document into the governed facet vocabulary: `doc_kind`, `domain`, `normative_status`, `jurisdiction` | **Yes** — governed document facets → `kb.doc_facet_values` (not `kb.doc_facets`, which is a separate, simpler routing-facets table) | P1 (tier 3: P5) | DR4 routing + profile applicability |
 | `normalize_assertions` | built (P3) | routed (Phase C) | `none` — deterministic per-family normalizers (metric, provision) | Turns each artifact family's output (metrics, provisions, later inventory/entity/scene) into candidate qualified assertions with evidence | **Yes** — candidate assertions → `kb.semantic_decision_candidates` (`candidate_kind='assertion'`); never writes assertions directly | P3 | DR8 Phase D stage 1; the step that makes free-text claims comparable |
 | `associate_semantics` | built (P3) | routed (Phase C) | `none` in the current slice — deterministic-only adjudication; a future LLM-scored path can only *feed* candidates, never write | Spec §10.3–§10.7: resolve, validate, adjudicate, persist stage-1 candidates as accepted assertions; resolves units against the `quantity` module | **Yes** — accepted assertions → `kb.semantic_assertions` (DR9 typed refs + normalized value columns); evidence → `kb.assertion_evidence`; conflict/supersession → `kb.assertion_relations` | P3 | DR8 Phase D stage 2; the one authoritative-owner persist step |
 | `project_semantics` | built (P3) | routed (Phase C) | `none` — deterministic SQL/Go derivations | Spec §10.8: build derived edges, search payloads, convenience classifications from accepted assertions; mark and repair stale projections | **Yes** — derived projection `kb.object_nodes.primary_class_term_id` (never authored); build state → `kb.projection_state`; future `kb.artifact_semantic_links` when a family needs `about`/`aligns` links | P3 | DR8 Phase D stage 3; DR10 |
@@ -2606,12 +2963,12 @@ ontology content (ADR §3.3.1).
 | Profiles | `kb.ontology_profiles` | scoped, versioned conformance expectations ("for this class, in this jurisdiction, these metrics are required") | per-profile version | direct API `POST /kb/ontology/profiles`; drafts inactive until included in a release | P4 |
 | Profile rules | `kb.ontology_profile_rules` | typed rule kinds (e.g. `required_assertion_pattern`) with a paired SHACL emitter (seam 6) | per-rule version | direct API `POST /kb/ontology/profile-rules` | P4 |
 | Review scopes | `kb.ontology_review_scopes` | immutable frozen scope (pinned releases, closed dimensions, applicability facts) | immutable | review-scope freeze | P4 |
-| Comparison scopes / runs / cells | `kb.comparison_scopes`, `kb.comparison_runs`, `kb.comparison_cells` | class-anchored comparison matrix (DR22): scope, run with assertion watermark, cells as lists with representative/remainder/verdict/rationale | immutable scopes; cached runs invalidated when watermark or releases move | DR22 application service (not a doc processor) | P4 |
-| Recommendation policies | `kb.recommendation_policies` | versioned verdict→advice policy, stored separately from verdicts (DR21 rule 1) | versioned | authoring | P4 |
-| Document facets | `kb.doc_facets` | one row per `(record_id, facet_key)`; keys and permitted values are governed `document-authority` terms | per record; three tiers cheapest-first | facet producers (tier 1 deterministic; tier 2 from `extract_doc_metadata`; tier 3 `classify_document`) | P1 |
+| Comparison scopes / runs / cells | `kb.ontology_comparison_scopes`, `kb.ontology_comparison_runs`, `kb.ontology_comparison_cells` (verified 2026-08-08: real table names are prefixed `ontology_`, not bare `kb.comparison_*`) | class-anchored comparison matrix (DR22): scope, run with assertion watermark, cells as lists with representative/remainder/verdict/rationale | immutable scopes; runs are **verified 2026-08-08 to be a persist/read-back log, not an invalidating cache** — no dedup-by-watermark, no invalidation logic found anywhere in the package | DR22 application service (not a doc processor) | P4 |
+| Recommendation policies | `kb.recommendation_policies` — **verified 2026-08-08: does not exist, no migration and no code anywhere** | versioned verdict→advice policy, stored separately from verdicts (DR21 rule 1) | versioned | authoring | P4 (not built) |
+| Document facets | `kb.doc_facets` (real, simple record-keyed routing facets) and `kb.doc_facet_values` (verified 2026-08-08: a second, separate table — migration `20260801000016` — that tier-3 `classify_document` actually writes to; tiers 1-2 have no wired producer yet, §3.5) | one row per `(record_id, facet_key)`; keys and permitted values are governed `document-authority` terms | per record; three tiers cheapest-first, though only tier 3 is wired (verified 2026-08-08) | facet producers (tier 1 deterministic; tier 2 from `extract_doc_metadata`; tier 3 `classify_document`) | P1 |
 | Pipeline policies | `kb.pipelines`, `kb.pipeline_policies`, `kb.pipeline_bindings`, `kb.pipeline_rules` | named pipelines, versioned binding policy, per-processor gates (DR6) | versioned; compiled and activated by the same mechanism as ontology modules | policy authoring + compiler | P1 |
-| Knowledge-store bindings | `kb.knowledge_store_bindings` | default pipeline, bound module releases, default review profiles per store (DR18) | — | store-binding CRUD | P1 |
-| Keyword lexicon | `kb.keyword_concepts`, `kb.keyword_surfaces`, `kb.keyword_surface_keys`, `kb.keyword_mentions`, `kb.keyword_unresolved`, `kb.keyword_rewrite_rules` | ungoverned canonical *lexical* identity (DR15.2/DR16): occurrence → surface → lexform → concept | versioned normalizer (bump = re-index, never data loss) | curated seed terms + `never_merge` assertions; pipeline mention collection; reconciliation; `aligns_to_term` to governed terms | P3 (design-only; `KEYWORD_RESOLVER_MODE=observe` first) |
+| Knowledge-store bindings | `kb.knowledge_store_bindings` — **verified 2026-08-08: does not exist**; the store default pipeline is instead a `default_pipeline` column directly on `kb.knowledge_store` | default pipeline, bound module releases, default review profiles per store (DR18) | — | store-binding CRUD | P1 (partially built — default pipeline only, not module releases or review profiles) |
+| Keyword lexicon | `kb.keyword_concepts`, `kb.keyword_surfaces`, `kb.keyword_surface_keys`, `kb.keyword_occurrences` (verified 2026-08-08: replaced `kb.keyword_mentions`, dropped 2026-08-05), `kb.keyword_unresolved`, `kb.keyword_rewrite_rules`, plus 11 more `kb.keyword_*` tables added 2026-08-05..07 for source governance (17 total live) | ungoverned canonical *lexical* identity (DR15.2/DR16): occurrence → surface → lexform → concept | versioned normalizer (bump = re-index, never data loss) | curated seed terms + `never_merge` assertions; pipeline mention collection; reconciliation; `aligns_to_term` to governed terms | P3 — **built and wired 2026-08-04 through 2026-08-07** (verified 2026-08-08), well past "design-only"; see §8.3.6 |
 
 ### B.2 Core 4a modules — installed as data (P2)
 
@@ -2621,6 +2978,17 @@ ontology content (ADR §3.3.1).
 | `document-authority` | document kind, issuer/authority, jurisdiction, edition/version, normative vs informative, effective interval, supersedes/amends/cites; **DR4 facet vocabulary** (facet keys `doc_kind`/`domain`/`normative`/`jurisdiction_facet`/`language`; permitted values `standard`/`specification`/`regulation`/`report`/`manual`/`normative`/`informative`) | 22 | 1.0.0 (d8691f5210c7), active | `ontology-seed` |
 | `quantity` | QUDT catalog: quantity kinds, units, dimension vectors; conversion; value forms + comparators; exact mappings back to source IRIs | 4151 (`quantity:unit_*` / `qk_*` / `dim_*`) | 1.0.0 (47f2276c8c10), active | `qudt-import` (published QUDT TTL as transient generator input) |
 | `measurement` | `metric_definition` (DR23), metric assertion vs definition, observable property, feature of interest, procedure, condition, aggregation window; metric **assertion kinds** `lower_bound_requirement`/`upper_bound_requirement`/`interval_requirement`/`observed_value`/`target`/`reference`/`capability`; `has_quantity_kind`/`has_unit`/`measured_by` | 17 | 1.0.0 (ec54375f8605), active; pins `core@1.0.0`, `quantity@1.0.0` | `ontology-seed` |
+
+> **2026-08-08 status (verified against `server/cmd/ontology-seed` and the live `miner` database):
+> this table describes the target state, not the currently installed state.** Only `core` is
+> actually released and active in the live database — and its true current term count is **20**,
+> not 19 (an unrelated 2026-08-06 commit added `core:aligns_to_term` for the keyword-lexicon
+> bridge). `document-authority` (22 terms) and `measurement` (17 terms) have real, working seed code
+> that has existed since 2026-07-31 but has **never been run** against this instance — zero rows in
+> `kb.ontology_modules`/`kb.ontology_terms` for either. `quantity`'s claimed 4151-term QUDT import
+> likewise has zero live rows, and the "4151" figure has no corroborating evidence anywhere in the
+> repository (code, tests, or devdocs) — treat it as an illustrative estimate, not a verified count,
+> until the import has actually been run and checked.
 
 ### B.3 Domain 4b modules — planned, none authored
 
@@ -2673,7 +3041,12 @@ end.
 | `kb.pipeline_policies` | Versioned binding policies that decide which pipeline applies to a given scope (DR6 tier 2). | `policy_id`, `version`, `status`, `source_ref`, `checksum`, `activated_at`, `activated_by` | DR6 | Policy authoring + compiler activation |
 | `kb.pipeline_bindings` | Pipeline-to-scope bindings within a policy. Each binding maps a scope (system, tenant, knowledge store, user, or document) to a specific pipeline version. | `binding_id`, `policy_id`, `priority`, `scope_kind`, `scope_key`, `predicate JSONB`, `pipeline_id`, `pipeline_version`, `reason_template`, `source`, `approved_by` | DR6, DR7 | Policy authoring |
 | `kb.pipeline_rules` | Per-processor gate rules within a policy. Each rule targets a specific processor with an effect (`require`, `enable`, `skip`, `defer`) and a predicate. | `rule_id`, `policy_id`, `priority`, `target_processor`, `effect`, `predicate JSONB`, `required_facets`, `reason_template`, `source`, `source_module_release_id`, `approval_status`, `approved_by` | DR6, DR7 | Policy authoring; module-supplied rules |
-| `kb.knowledge_store_bindings` | Default pipeline, bound module releases, and default review profiles per knowledge store (DR18). Makes the store both a routing key and a scope key. | store reference, default pipeline, bound releases, default profiles | DR18 | Store-binding CRUD |
+| ~~`kb.knowledge_store_bindings`~~ | **Verified 2026-08-08: does not exist.** The store default pipeline is a `default_pipeline` column added directly to `kb.knowledge_store` (migration `20260731000003`) instead of a separate bindings table. Bound module releases and default review profiles (DR18 items 3-4) are not built at all. | — | DR18 | not built |
+| `kb.doc_facet_values` | **Added 2026-08-08 (verified in code, migration `20260801000016`, missing from the original appendix).** General path/value/method facet-observation store; this is the table `classify_document` (tier 3) actually writes to, distinct from the simpler `kb.doc_facets` above. | `record_id`, `facet_path`, `facet_value`, `method`, ... | DR4 | tier-3 `classify_document` (tiers 1-2 unwired, §3.5) |
+| `kb.doc_process_plans` | **Added 2026-08-08 (verified in code, missing from the original appendix).** Holds the persisted execution plan the ADR describes as `kb.doc_process_runs.plan` (that column was never added — see C.7). FK'd to the run; `plan_facts`/`plan_steps`/`pipeline_selection`/`pipeline_binding`/`pipeline_spec`/`excluded_by_policy`. | run reference, plan_facts, plan_steps, ... | DR6, DR7 | Planner, on every run |
+| `kb.pipeline_routing_clearances` | **Added 2026-08-08 (verified in code, migration `20260801000017`, missing from the original appendix).** P5 clearance records, keyed on governed `document.doc_kind` (fixed from an earlier wrong-dimension defect). | `document_kind`, ... | DR6, P5 | P5 clearance resolution |
+| `kb.pipeline_policy_events` | **Added 2026-08-08 (verified in code, migration `20260801000018`, missing from the original appendix).** | — | DR6, P5 | policy lifecycle |
+| `kb.ontology_applicability_proposals` | **Added 2026-08-08 (verified in code, migration `20260801000022`, missing from the original appendix).** P5 applicability-rule proposals. | — | DR3, P5 | P5 |
 
 ### C.2 New tables — P2 (ontology terms, modules, and canonicalization kernel)
 
@@ -2709,9 +3082,13 @@ end.
 | `kb.keyword_concepts` | Ungoverned canonical *lexical* identity (DR15.2). Fast, high-volume, auto-mergeable under guardrails. Connected to governed ontology terms by `aligns_to_term`. Merges are tombstones (`merged_into`), never deletes. | `concept_id`, `pref_label`, `gloss`, `scope`, `status`, `merged_into`, `gloss_source` | DR15, DR16, L3 | Curated seed; pipeline reconciliation; `aligns_to_term` to governed terms |
 | `kb.keyword_surfaces` | Surface forms linked to keyword concepts. Each surface has a normalized key (`norm_key`) for O(1) lookup, a `label_role` (prefLabel/altLabel/hiddenLabel), an `alias_type` driving mechanical validation, and provenance. | `surface_id`, `concept_id`, `surface`, `norm_key`, `norm_version`, `label_role`, `alias_type`, `lang`, `scope`, `confidence`, `provenance`, `locked`, `evidence` | DR15, DR16, L3 | Pipeline mention collection; reconciliation |
 | `kb.keyword_surface_keys` | Normalized lookup keys for surfaces. Multiple key kinds (exact, trigram, vector) per surface, versioned by `norm_version` so a normalizer bump triggers re-index, not data loss. | `surface_id`, `key_kind`, `key_value`, `norm_version` | DR15, DR16, L3 | Derived from `kb.keyword_surfaces` on normalization |
-| `kb.keyword_mentions` | Observation records: each time a surface form is found in a document artifact, with the artifact reference, chunk, context, and knowledge store. | `mention_id`, `artifact_type`, `artifact_id`, `chunk_id`, `context`, `ks_id`, `surface_id`, `observed_at` | DR15, DR16, L3 | Pipeline mention collector |
+| ~~`kb.keyword_mentions`~~ → `kb.keyword_occurrences` | **Verified 2026-08-08: this table was dropped (K4 fix, 2026-08-05, migration `20260805000003`) and replaced by `kb.keyword_occurrences`.** Same role: observation records for each surface-form occurrence in a document artifact. | `artifact_type`, `artifact_id`, `chunk_id`, `context`, `ks_id`, `surface_id`, `observed_at` | DR15, DR16, L3 | Pipeline mention collector (`CollectFromText` — verified 2026-08-08 still standalone, not wired into the Phase C pipeline; a separate wired path, `names.Resolver` in the metrics pipeline, uses `KeywordFamily` directly for targeted resolution instead) |
 | `kb.keyword_unresolved` | Unresolved surface forms that could not be linked to a concept. Tracks hit count, attempts, and priority for batch adjudication. Negative-cached: an unchanged item is never re-sent to a model. | `norm_key`, `scope`, `surfaces`, `contexts`, `hits`, `status`, `attempts`, `last_attempt`, `priority` | DR15, DR16, L3 | Reconciliation (items that fail to resolve) |
 | `kb.keyword_rewrite_rules` | Pattern-based rewrite rules for surface normalization. Disabled by default (`enabled=false`); enabled per scope after validation. | `rule_id`, `pattern`, `replacement`, `scope`, `enabled` | DR16, L3 | Curated authoring |
+
+> **2026-08-08 note:** this list covers only the original 6 keyword-lexicon tables. 11 more
+> `kb.keyword_*` tables were added 2026-08-05 through 2026-08-07 for source governance and the
+> external-terminology portfolio (17 total live) — not individually enumerated here; see §8.3.6.
 
 ### C.5 New tables — P4 (profiles and review)
 
@@ -2725,23 +3102,23 @@ end.
 
 | Table | Description | Key columns | ADR ref | Authoring / generation |
 |---|---|---|---|---|
-| `kb.comparison_scopes` | Immutable comparison matrix scope: target class or object, metric definition set (the row universe), authority families (the columns), subject organization, as-of date, closed dimensions, precedence policy, and pinned module releases. | `scope_id`, `target_class_term_id`, `target_object_id`, `metric_definition_set JSONB`, `authority_families JSONB`, `subject_organization_id`, `as_of_date`, `closed_dimensions JSONB`, `precedence_policy JSONB`, `pinned_releases JSONB` | DR22, L7 | DR22 application service |
-| `kb.comparison_runs` | Cached comparison run: one execution of a scope against the current assertion watermark. Invalidated when the watermark or pinned releases move. | `run_id`, `scope_id`, `assertion_watermark`, `status`, `cached_at` | DR22, L7 | DR22 application service |
-| `kb.comparison_cells` | One cell in the comparison matrix. A cell is a **list** (not a value): matched assertion IDs with citation and line-span evidence, a display representative, a remainder count, and a verdict with direction and rationale. | `run_id`, `metric_definition_term_id`, `authority_family`, `assertion_ids JSONB`, `representative_assertion_id`, `remainder_count`, `verdict`, `direction`, `rationale` | DR21, DR22, L7 | DR22 application service |
-| `kb.recommendation_policies` | Versioned policy mapping verdicts to advice (DR21 rule 1). Stored separately from verdicts: verdicts are computed comparison facts; recommendations are configured policy over verdicts. | `policy_id`, `version`, `rules JSONB`, `status`, `created_at` | DR21, L7 | Policy authoring |
+| `kb.comparison_scopes` (real name, verified 2026-08-08: `kb.ontology_comparison_scopes`) | Immutable comparison matrix scope: target class or object, metric definition set (the row universe), authority families (the columns), subject organization, as-of date, closed dimensions, precedence policy, and pinned module releases. | `scope_id`, `target_class_term_id`, `target_object_id`, `metric_definition_set JSONB`, `authority_families JSONB`, `subject_organization_id`, `as_of_date`, `closed_dimensions JSONB`, `precedence_policy JSONB`, `pinned_releases JSONB` | DR22, L7 | DR22 application service |
+| `kb.comparison_runs` (real name: `kb.ontology_comparison_runs`) | ~~Cached~~ **verified 2026-08-08: persisted, not cached** — a write-once run record with no dedup-by-watermark and no invalidation logic when the watermark or pinned releases move, despite this description. | `run_id`, `scope_id`, `assertion_watermark`, `status`, `cached_at` | DR22, L7 | DR22 application service |
+| `kb.comparison_cells` (real name: `kb.ontology_comparison_cells`) | One cell in the comparison matrix. A cell is a **list** (not a value): matched assertion IDs with citation and line-span evidence, a display representative, a remainder count, and a verdict with direction and rationale. | `run_id`, `metric_definition_term_id`, `authority_family`, `assertion_ids JSONB`, `representative_assertion_id`, `remainder_count`, `verdict`, `direction`, `rationale` | DR21, DR22, L7 | DR22 application service |
+| ~~`kb.recommendation_policies`~~ | **Verified 2026-08-08: does not exist** — no migration, no code anywhere in the repo. Versioned policy mapping verdicts to advice (DR21 rule 1) remains a design intent only. | `policy_id`, `version`, `rules JSONB`, `status`, `created_at` | DR21, L7 | not built |
 
 ### C.7 Altered existing tables
 
 | Table | Alteration | Phase | ADR ref | Purpose |
 |---|---|---|---|---|
-| `kb.doc_process_runs` | ADD `plan JSONB`, `policy_version TEXT` | P1 | DR6, DR7 | Immutable execution plan: the policy version, selected pipeline and why, facet snapshot, and per-processor decision with winning rule id and reason |
-| `kb.inputs` | ADD `ks_id BIGINT REFERENCES kb.knowledge_store(id)`, `requested_pipeline TEXT`, `facet_summary JSONB` (derived, trigger-maintained) | P1 | DR18, DR6 | Knowledge-store referential integrity, user-requested pipeline override, and derived facet summary for routing |
-| `kb.object_nodes` | ADD `merged_into TEXT`, `scope_key TEXT` | P2 | DR15.1 | Tombstone merge tracking and explicit identity scope (DR15 kernel contracts adopted incrementally) |
-| `kb.object_nodes` | ADD `ontological_level`, `identity_scope`, `external_identifiers JSONB`, `primary_class_term_id` (derived projection) | P2 | DR10, DR15 | Governed ontological level (individual/type/collection/occurrence), identity scope, external identifier bag, and derived class projection (never authored, rebuildable) |
-| `kb.metrics` | ADD `value_min`, `value_max`, `condition`, `value_range_type`, `value_class`, `metric_value`, `metric_unit` | P3 | DR21 | Structured metric output: value form, comparator, normalized value, unit, and condition replace the legacy `threshold_or_target` free text |
-| `kb.provisions` | Extended `public_info` with structured evidence fields | P3–P4 | DR21 | Applicability/scope clauses, authority, and effective interval for profile-rule sourcing |
-| `kb.doc_review_findings` | ADD `review_scope_id`, `profile_rule_id`, `assertion_id` | P4 | DR3, L7 | Links each finding to its frozen review scope, the governing profile rule, and the relevant assertion |
-| `kb.scene_objects` | Column rename: `object_id` → `scene_block_id` | P1 | spec §11.4 | Identifier hygiene: the column carries occurrence identifiers, not canonical object references |
+| ~~`kb.doc_process_runs`~~ | **Verified 2026-08-08: `plan` column was never added** — `CreateDocProcessRun` inserts only `record_id`/`event_id`/`mode`/`run_number`/`processors`/`parameters`. The execution plan instead lives in a new table, `kb.doc_process_plans`, FK'd to the run (Appendix C.1). `policy_version` status not independently re-verified. | P1 | DR6, DR7 | Immutable execution plan: the policy version, selected pipeline and why, facet snapshot, and per-processor decision with winning rule id and reason |
+| ~~`kb.inputs` ADD `ks_id`~~ / `facet_summary` | **Verified 2026-08-08: neither exists.** The FK column is the pre-existing `ks_store_id` (migration `20260425000002`, predates this ADR). `requested_pipeline TEXT` is real and confirmed genuinely set at ingestion. `facet_summary JSONB` does not exist — `kb.doc_facets`/`kb.doc_facet_values` serve that role instead. | P1 | DR18, DR6 | Knowledge-store referential integrity, user-requested pipeline override, and derived facet summary for routing |
+| `kb.object_nodes` | ADD `merged_into TEXT`, `scope_key TEXT` — columns real, but **verified 2026-08-08: unpopulated** (0 of 893 live rows). The object reconciler does not yet read or write them; DR15.1's "adopts the kernel's contracts first" is scaffolding, not wired. | P2 | DR15.1 | Tombstone merge tracking and explicit identity scope (DR15 kernel contracts adopted incrementally) |
+| `kb.object_nodes` | ADD `ontological_level`, `identity_scope`, `external_identifiers JSONB`, `primary_class_term_id` (derived projection) — confirmed real, `primary_class_term_id` confirmed derived-only (one registered projection builder writes it, nothing else does) | P2 | DR10, DR15 | Governed ontological level (individual/type/collection/occurrence), identity scope, external identifier bag, and derived class projection (never authored, rebuildable) |
+| `kb.metrics` | ADD `value_min`, `value_max`, `condition`, `value_range_type`, `value_class`, `metric_value`, `metric_unit` — confirmed built and the primary (not fallback) path | P3 | DR21 | Structured metric output: value form, comparator, normalized value, unit, and condition replace the legacy `threshold_or_target` free text |
+| `kb.provisions` | Extended `public_info` with structured evidence fields — not independently re-verified in the 2026-08-08 pass | P3–P4 | DR21 | Applicability/scope clauses, authority, and effective interval for profile-rule sourcing |
+| `kb.doc_review_findings` | ADD `review_scope_id`, `profile_rule_id`, `assertion_id` — confirmed built; `Persist` hard-errors if the first two are missing, only `assertion_id` is legitimately nullable | P4 | DR3, L7 | Links each finding to its frozen review scope, the governing profile rule, and the relevant assertion |
+| ~~`kb.scene_objects`~~ | **Verified 2026-08-08: this rename never happened.** The column is still `object_id` — no migration or code reference to `scene_block_id` exists anywhere in the repo. | P1 | spec §11.4 | Identifier hygiene: the column carries occurrence identifiers, not canonical object references |
 
 ### C.8 Pre-existing tables referenced but not created or altered by this ADR
 
@@ -2755,14 +3132,29 @@ They are not created or structurally changed by the ontology framework.
 | `kb.search_artifacts` | Layer 1 evidence: LIST-partitioned search index over extracted artifacts. Not renamed or re-partitioned (DR24). |
 | `kb.artifact_connections` | Layer 1 evidence: LIST-partitioned navigation graph. Not renamed or re-partitioned (DR24). |
 | `kb.artifact_categories` | Existing retrieval/navigation categories. Retrofit to `semid` kernel planned P4+ (DR15). |
-| `kb.knowledge_store` | Tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status. Gains binding semantics via `kb.knowledge_store_bindings` (C.1). |
-| `kb.inputs` | Ingestion records. Gains `ks_id`, `requested_pipeline`, `facet_summary` (C.7). |
-| `kb.doc_process_runs` | Pipeline run records. Gains `plan`, `policy_version` (C.7). |
-| `kb.doc_review_findings` | Review findings. Gains `review_scope_id`, `profile_rule_id`, `assertion_id` (C.7). |
-| `kb.metrics` | Extracted metric artifacts. Gains structured value fields (C.7). |
-| `kb.provisions` | Extracted provision artifacts. Gains structured evidence fields (C.7). |
-| `kb.scene_objects` | Scene-block occurrences. Column renamed (C.7). |
+| `kb.knowledge_store` | Tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status. **Verified 2026-08-08: gains a `default_pipeline` column directly (migration `20260731000003`), not a separate `kb.knowledge_store_bindings` table — that table does not exist (C.1).** |
+| `kb.inputs` | Ingestion records. **Verified 2026-08-08: gains `requested_pipeline` (real); the FK is the pre-existing `ks_store_id`, not a new `ks_id`; `facet_summary` does not exist** (C.7). |
+| `kb.doc_process_runs` | Pipeline run records. **Verified 2026-08-08: did not gain a `plan` column** — the plan lives in the new `kb.doc_process_plans` table instead (C.1, C.7). |
+| `kb.doc_review_findings` | Review findings. Gains `review_scope_id`, `profile_rule_id`, `assertion_id` — confirmed built (C.7). |
+| `kb.metrics` | Extracted metric artifacts. Gains structured value fields — confirmed built and is the primary path (C.7). |
+| `kb.provisions` | Extracted provision artifacts. Gains structured evidence fields — not independently re-verified (C.7). |
+| `kb.scene_objects` | Scene-block occurrences. **Verified 2026-08-08: the planned `object_id` → `scene_block_id` rename never happened; column is still `object_id`** (C.7). |
 | `kb.category_alias_conflicts` | Existing category alias conflict records. Referenced in C4 analysis (§2.4). |
 | `alarms_errors` | Existing alarm/error records. DR7 writes pipeline-conflict alarms here. |
 | `kb.scheduled_jobs` | Existing scheduled-job infrastructure. DR8 reuses it for periodic deferred-candidate drains. |
 | `kb.cdm_anchors` | Existing CDM anchor map (page + x/y/w/h per line-file unit). DR25 grounding locator dispatches to it. |
+
+# References
+[1] `ChenWeb/docs/superpowers/plans/2026-08-06-keyword-step11-tier5-reconciliation.md`
+
+[2] `2026-08-06-keyword-step12-aligns-to-term-metric-integration.md`
+
+[3] `2026-08-07-external-terminology-resource-portfolio.md`
+
+[4] `ChenWeb/docs/superpowers/specs/2026-08-07-external-terminology-resource-portfolio-design.md`
+
+[5] `2026-08-07-model-agnostic-tier6-validation-design.md`
+
+[6] `2026080401-handoff-semos-p3-trackb-keyword-lexicon.md` 
+
+[7] `2026080601-handoff-keyword-step11-step12-reconciliation-and-aligns-to-term.md`
