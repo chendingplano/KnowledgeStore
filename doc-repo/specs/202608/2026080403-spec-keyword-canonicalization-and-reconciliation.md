@@ -889,6 +889,16 @@ The seven-stage **reconciliation pipeline** — the offline batch process that u
 
 The reconciler, not the model, owns every write. This is the machinery Appendix A Stage 5 depends on.
 
+| Stage | What it does | Why it's a separate stage |
+|---|---|---|
+| R1 Harvest | Pulls candidate synonym/alias evidence for free — no LLM cost. Parenthetical patterns like "X (also known as Y)" (Schwartz–Hearst extraction), definitional sentence patterns, and external vocab sources like Wikidata. | Free signal should be collected before anything that costs money. |
+| R2 Prune | Dedupes, applies a minimum-frequency floor (don't bother reconciling a word seen once), and keeps a negative-cache keyed by `model@prompt_version` (don't re-ask the LLM the same question under the same prompt). | Cuts junk before it reaches the expensive stages. |
+| R3 Block | For each unresolved concept, finds a bounded candidate set (`k` items) of "things it might be the same as," using cheap lexical (pg_trgm) and semantic (pgvector) similarity. | Called "the biggest cost lever" — avoids comparing every concept to every other concept. |
+| R4 Assemble | Packages blocked candidates into compact batches for an LLM call; tags which labels are LLM-generated-but-unreviewed so later steps don't treat an unconfirmed guess as ground truth. | Batching controls LLM cost; the tagging prevents self-confirmation bias. |
+| R5 Decide | Sends batches to a cheap LLM for a structured-output same/different judgment, in bulk; escalates ambiguous or high-blast-radius cases. | The one stage where a model makes a judgment call. |
+| R6 Validate | Deterministic, non-LLM gates: schema/referential checks, acronym plausibility, role consistency, `never_merge`, locking, scope, blast-radius limits, confidence thresholds, digit veto — plus, as of the 2026-08-07 rebuild, exact-identity authority (must have an authoritative `exact_equivalent` claim, no conflicting targets). | The gate is what makes R5's LLM output safe to act on — nothing R5 says is trusted directly. |
+| R7 Apply | The actual write: transactional, through the kernel, with a decision-log audit entry, rewrite-rule promotion (so future lookups hit cheap tier-3 SQL instead of re-running reconciliation), and a new snapshot published. | "The reconciler, not the model, owns every write." |
+
 #### 20.1.3 `on`-mode wiring** (§9.4, D9)
 `KEYWORD_RESOLVER_MODE=on` removes the gate so resolution answers actually reach consumers. Currently unusable because **no consumer exists**. (The narrower K7 bug — `on` accidentally disabling collection — was fixed in §21 step 1; the remaining problem is deeper: nothing is wired to *consume* results in `on` mode.) Effectively this is the consumer/metric-integration wiring.
 
