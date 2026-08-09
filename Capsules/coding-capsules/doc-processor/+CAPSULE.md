@@ -179,6 +179,7 @@ Currently, it has the following doc processors:
 |17 | normalize_assertions | routed (Phase C) | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
 |18 | associate_semantics | routed (Phase C) | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
 |19 | project_semantics | routed (Phase C) | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
+|20 | classify_document | routed (resolver-invoked) | Yes | after 3 (chunking) | Tier-3 governed-vocabulary classifier (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`). Not wave-dispatched: invoked directly by the two-pass `ApplicabilityResolver`, only for decision-relevant tier-3 paths the base facts leave unresolved. See §7.6. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -188,11 +189,17 @@ Rows 17-19 are DR8 Phase D stages declared as Phase C post-process processors (s
 run in the post-process tier after every Phase B processor has finished, ordered 17 → 18 → 19
 for one record via `PostProcessDependsOn`, and each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
 
+Row 20 (`classify_document`) has no `Processor`/`HandleEvent` implementation and never appears
+in `evt.Operations` or `ChenWeb/server/cmd/doc-processor/main.go`'s registered processor list —
+it cannot be selected via the JetStream `operation` field the way rows 1-19 can. It exists only
+as a `ProcessorSpec` declaration (for registry/policy-tooling visibility and gate eligibility)
+and is dispatched entirely from within `ApplicabilityResolver.Resolve`. See §7.6.
+
 ### 7.1 Processor Categories
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED` (default `false`), so declaring them here changes nothing in default production behavior. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED` (default `false`), so declaring them here changes nothing in default production behavior. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
 
 ```toml
 [doc-processing]
@@ -350,24 +357,34 @@ the outcome of `semrules` predicate evaluation over routing facts, not just the 
 Gate-shadow planning and the persisted execution plan are the audit record; activation reloads the
 in-process binding/gate set immediately after commit (no restart).
 
-**Tier-3 `classify_document`.** A `mandatory_gated`-class processor (registered in
-`productionProcessorSpecs`, excluded from the optional list) invoked by
-`ApplicabilityResolver` between the initial and final applicability passes, only for
-decision-relevant tier-3 paths the base facts leave unresolved. It classifies the governed
-vocabulary (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`) from a bounded sample
-of the already-parsed line file, validates values against the pinned `document-authority`
-vocabulary release, and persists only facet observations. It is inert in production unless
-`CLASSIFY_DOCUMENT_ENABLED=true` (default off — D4); `ClassifyResult.Failed` distinguishes an LLM
+**Tier-3 `classify_document`.** A `routed`-class processor (registered in
+`productionProcessorSpecs` — `DependsOn: ["chunking"]`, `Requires: ["chunks"]`,
+`Produces: ["facets"]` — but excluded from the optional/selectable list, since there is no
+`Processor`/`HandleEvent` implementation for it to select) invoked by `ApplicabilityResolver`
+between the initial and final applicability passes, only for decision-relevant tier-3 paths the
+base facts leave unresolved. It classifies the governed vocabulary
+(`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`) from a bounded sample of the
+already-parsed line file, validates values against the pinned `document-authority` vocabulary
+release, and persists only facet observations. `ClassifyResult.Failed` distinguishes an LLM
 failure from a well-formed empty response, and the stable invocation identity guarantees at most
 one LLM call per (record, attempt). Review-time scope selection uses the same resolver via
 `profiles.ReviewFactEnricher`.
+
+Being `routed`, not mandatory, `classify_document` is configurable the same way as any other
+routed processor: an authored `kb.pipeline_gates`/`kb.pipeline_rules` row with
+`target_processor="classify_document"` can skip it for matching documents (an `effect="skip"`
+row whose predicate is true). There is no construction-time enable flag — the resolver is always
+built when a classifier model is configured (see below); the run/skip decision is made per
+document, per attempt, inside `Resolve` itself via `ResolveProcessorGate`. With no gate row
+authored for it (the default, everywhere, until someone writes one), `ResolveProcessorGate`'s
+"processor_default" (`Enable`) applies, so it still only actually runs when the
+decision-relevant-tier-3-path check above finds something to resolve — never spontaneously.
 
 **Env and config surface:**
 
 | Setting | Effect |
 |---|---|
-| `CLASSIFY_DOCUMENT_ENABLED` | `true` wires the tier-3 resolver into the production runtime (default `false`). |
-| `CLASSIFY_DOCUMENT_MODEL_NAME` + `MODEL_DEF_FILE` | Model profile for the classifier (resolved through the same model-config path as every other LLM extractor). |
+| `CLASSIFY_DOCUMENT_MODEL_NAME` + `MODEL_DEF_FILE` | Model profile for the classifier (resolved through the same model-config path as every other LLM extractor). Missing/invalid config makes `buildProductionResolver` degrade to a nil `Resolver` (logged as a warning), not a construction failure — the only thing that can leave `classify_document` entirely unreachable. |
 | `DOC_PIPELINE_ON_CONFLICT` | `block` (default) or `fallback` for binding/gate conflicts. |
 | `DOC_PIPELINE_MODE` | `plan_only` (default) / `enforced` (the pre-P5 shadow/enforce control). |
 

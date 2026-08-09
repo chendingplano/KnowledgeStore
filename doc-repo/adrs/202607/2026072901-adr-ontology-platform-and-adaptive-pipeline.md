@@ -196,6 +196,29 @@
   active policy stops being consulted the instant a new version activates; the code's doc comments
   and the CLI's printed output now say so explicitly. §3.7 and §8.3.4 are updated below; §16.1's
   "named pipelines" row is marked resolved-in-part.
+* 2026/08/09, facet tiers 1-2 wired; tier 3 converted from mandatory-gated to routed; Doc
+  Processing Policy storage/CRUD confirmed and documented. Three changes, one session:
+  **(1) Facet tiers 1-2 are now real production producers** — `ComputeTier1Facets`
+  (`facet_tier1.go`) and `tier2FacetsFromSource` (`facet_tier2.go`), wired unconditionally into
+  `ControlService.handleEvent` and `ExtractDocMetadataProcessor.HandleEvent` respectively, both
+  persisting to `kb.doc_facet_values`. §16.1's "Facet tiers 1–2" row is resolved. **(2)
+  `classify_document` (tier 3) is no longer `mandatory_gated`/env-flag-gated** — it is now
+  `Class: "routed"` in `productionProcessorSpecs`, like any other routed processor, gated
+  per-document by an ordinary `kb.pipeline_gates`/`kb.pipeline_rules` row
+  (`target_processor="classify_document"`) instead of the deleted `CLASSIFY_DOCUMENT_ENABLED`
+  flag; the resolver is now always constructed, degrading to nil only when no classifier model is
+  configured. **(3) Doc Processing Policy storage/CRUD is confirmed and written up** (§3.7): full
+  create+activate CRUD on `kb.pipeline_policies` (versioned, append-only, no update/delete by
+  design), full CRUD on `kb.pipeline_bindings`/`kb.pipeline_rules` for store↔policy association,
+  and a seeded system-default policy from first boot — closing a documentation gap this ADR itself
+  had left open (the same question had already been asked once). In the course of that
+  verification, found and corrected a **stale self-correction**: the 2026-08-08 status note in §3.7
+  claiming `kb.knowledge_store_bindings` didn't exist and the store-default pipeline was still a
+  `default_pipeline` column was itself already wrong the day it was written — migration
+  `20260731000006` (same day, later in sequence) had already dropped that column in favor of
+  `kb.pipeline_bindings`. §3.5, §3.7, and §16.1 are corrected below; the doc-processor capsule's
+  §7 pipeline table and §7.6 are updated to match
+  (`Capsules/coding-capsules/doc-processor/+CAPSULE.md`).
 
 ## 2. Context
 
@@ -580,16 +603,42 @@ an LLM a judgment question ("should metrics be extracted?"). We ask it a *classi
 over a governed vocabulary ("what kind of document is this?"), cache the answer as a fact, and let
 reviewed rules make the decision.
 
-> **2026-08-08 status (verified against code): only tier 3 is wired in production.** Two facet
-> tables exist — `kb.doc_facets` (simple record-keyed routing facets) and `kb.doc_facet_values`
-> (general path/value/method observation store, migration `20260801000016`) — but
-> `applicability_facts.go` states outright that `FacetMethodDeterministic` (tier 1) "has no
-> production producer yet," and `FacetMethodMetadata` (tier 2, from `extract_doc_metadata`) has no
-> production call site either. Only `classify_document` (tier 3, `FacetMethodClassifier`) actually
-> writes facet observations today. The "cheapest first, tier 3 only when needed" cost model this DR
-> describes is therefore not yet realized — tier 3 is the *only* tier running. `classify_document`
-> itself is real and flag-gated (`CLASSIFY_DOCUMENT_ENABLED`, default off) and is wired into
-> review-scope selection (commit `5017ea3a`, 2026-08-03) — see §8.3.8.
+> **2026-08-08 status (superseded 2026-08-09, see below): only tier 3 was wired in production.**
+> Two facet tables exist — `kb.doc_facets` (simple record-keyed routing facets) and
+> `kb.doc_facet_values` (general path/value/method observation store, migration
+> `20260801000016`) — but `applicability_facts.go` stated outright that
+> `FacetMethodDeterministic` (tier 1) "has no production producer yet," and `FacetMethodMetadata`
+> (tier 2, from `extract_doc_metadata`) had no production call site either. Only
+> `classify_document` (tier 3, `FacetMethodClassifier`) actually wrote facet observations as of
+> this date.
+>
+> **2026-08-09 status (verified against code): tiers 1 and 2 are now wired; tier 3's gate
+> mechanism changed.** `ComputeTier1Facets` (`facet_tier1.go`) runs unconditionally inside
+> `ControlService.handleEvent` right after the line file is parsed — deterministic, no LLM, always
+> on, no configuration. `tier2FacetsFromSource` (`facet_tier2.go`) runs unconditionally inside
+> `ExtractDocMetadataProcessor.HandleEvent` right after it persists `doc_no`/`publish_date` —
+> also deterministic, no LLM, always on. Both persist to `kb.doc_facet_values` via the same
+> `InsertFacetObservation` path tier 3 uses, and both are registered in `productionProcessorSpecs`
+> (`facet_tier1`/`facet_tier2`, `Class: "mandatory"`) purely for registry/policy-tooling
+> visibility — neither has a `Processor`/`HandleEvent` implementation of its own to wave-dispatch;
+> the DAG planner these declarations would eventually feed still does not exist (§3.6). The
+> "cheapest first" cost model is therefore realized in practice now: a decision-relevant fact a
+> tier-1/2 producer already answered is `FactKnown` before the resolver ever considers invoking
+> the classifier (`mergeTier12Facts`, `applicability_resolver.go`).
+>
+> `classify_document` (tier 3) is no longer `mandatory_gated`/flag-gated. It is `Class: "routed"`
+> in `productionProcessorSpecs`, and `CLASSIFY_DOCUMENT_ENABLED` has been deleted from the
+> codebase entirely — the tier-3 resolver is now always constructed (degrading gracefully to nil
+> only when no classifier model is configured, exactly as before). Per-document run/skip control
+> moved from that one global env var to an ordinary `kb.pipeline_gates`/`kb.pipeline_rules` row
+> with `target_processor="classify_document"`, resolved via `ResolveProcessorGate` from inside
+> `ApplicabilityResolver.Resolve` itself (it is not wave-dispatched, so there is no
+> `filterProcessors` pass to gate it through). With no such row authored anywhere yet, behavior is
+> unchanged from before this change: `classify_document` still only actually runs when the
+> pre-existing decision-relevant-tier-3-path check finds something a rule needs. It is wired into
+> review-scope selection unconditionally too, for the same reason. See §7.6 of the doc-processor
+> capsule (`Capsules/coding-capsules/doc-processor/+CAPSULE.md`) for the full current picture, and
+> §16.1 below (this row is now resolved).
 
 ### 3.6 DR5 — The pipeline becomes a declarative stage DAG with gates; A/B/C is the degenerate case
 
@@ -712,9 +761,47 @@ archaeology, and a run remains reproducible after the policy changes.
 > `kb.doc_process_plans` (plan_facts/plan_steps/pipeline_selection/pipeline_binding/pipeline_spec/
 > excluded_by_policy), FK'd to the run, exposed via real endpoints `GET /api/v1/kb/doc-proc-plans`
 > and `/latest` (`kbhandler/doc_proc_log_handler.go`). No frontend dashboard panel consumes this API
-> yet — it is API-only today (`web/src` has no references). `kb.knowledge_store_bindings` also does
-> not exist as a table; the store-default pipeline is instead a `default_pipeline` column added
-> directly to `kb.knowledge_store` (migration `20260731000003`).
+> yet — it is API-only today (`web/src` has no references).
+>
+> **2026-08-09 correction: the previous sentence here (\"`kb.knowledge_store_bindings` does not
+> exist; the store-default pipeline is a `default_pipeline` column\") was itself already stale the
+> day it was written.** Migration `20260731000003` adds that column, but migration
+> `20260731000006` — dated the same day, later in sequence — **drops it again** and replaces it
+> with `kb.pipeline_bindings` (`ks_store_id → pipeline_id`, one row per store per policy version,
+> FK-enforced against `kb.pipelines`; the migration's own comment says it "replaces" the free-text
+> column as "the authored store->pipeline binding the ADR names"). Both edits landed before this
+> status note was recorded, so the note described an intermediate state that no longer existed —
+> a reminder that a same-day "verified against code" timestamp is not a version pin. As of
+> 2026-08-09, re-verified directly against the live `miner` database schema:
+>
+> - **Doc Processing Policy storage.** `kb.pipeline_policies` (id, version, status
+>   `draft|active|archived`, source_ref, checksum, activated_at, activated_by) is the policy
+>   itself — a partial unique index enforces at most one `active` row at a time. Full create +
+>   activate CRUD exists: `POST /kb/pipeline-policies` mints a new draft (`version =
+>   MAX(version)+1`), `POST /kb/pipeline-policies/:id/activate` atomically activates it and
+>   archives whatever was previously active. There is deliberately no update/delete on the policy
+>   row itself: it is a versioned, append-only audit trail (governance data, not a mutable
+>   config row) — you edit a *draft's content* (its bindings/rules) and activate a new version,
+>   rather than mutating a past one.
+> - **Knowledge-store ↔ policy association.** `kb.pipeline_bindings` (`ks_store_id → pipeline_id`,
+>   scoped to `policy_id`, unique per `(ks_store_id, policy_id)`) plus `kb.pipeline_rules` for
+>   conditional matching (`match_input_doc_type`/`match_source_language`/
+>   `match_knowledge_store_binding` → `pipeline_id`, also scoped to `policy_id`, with `priority`).
+>   Both have full CRUD (`GET`/`POST`/`PUT`/`DELETE` at `/kb/pipeline-bindings` and
+>   `/kb/pipeline-rules`).
+> - **System-default policy.** Confirmed: migration `20260731000011_create_kb_pipeline_policies.sql`
+>   seeds a bootstrap policy (`version 1, status active, source_ref 'bootstrap', activated_by
+>   'system'`) if none already exists, so there is always exactly one active policy from first
+>   boot — the "no active policy means legacy behavior" invariant this DR relies on elsewhere
+>   never has to hold in practice, because there is always an active policy.
+> - **`kb.knowledge_store_bindings` — confirmed still does not exist, but that gap no longer
+>   blocks anything this DR needs.** DR18 originally envisioned one bindings table covering four
+>   things: (1) default pipeline, (2) requested-pipeline override, (3) bound governed-module
+>   *releases* per store, (4) default *review profiles* per store. Items 1–2 shipped through the
+>   mechanisms just described (`kb.pipeline_bindings`/`kb.pipeline_rules`, and
+>   `kb.inputs.requested_pipeline`). Items 3–4 — per-store module-release pinning and default
+>   review profiles — were never built under any table name and remain open DR18 work,
+>   independent of pipeline routing; see §16.1.
 
 ### 3.8 DR7 — Selection precedence; conflicts and undetermined decisions block, loudly
 
@@ -1945,8 +2032,8 @@ policy_version = "2026072901.3"
 |---|---|---|
 | `DOC_PIPELINE_POLICY` | unset | active pipeline policy version; unset = legacy `required_processors` behavior (DR7) |
 | `DOC_PIPELINE_PLAN_ONLY` | `false` | compute and persist the plan, then run the legacy set — shadow mode for validating rules before enforcement |
-| `DOC_FACET_CLASSIFIER_MODEL` | unset | model for tier-3 `classify_document`; unset disables tier 3 (tier 1–2 facets only) |
-| `CLASSIFY_DOCUMENT_ENABLED` | `false` | flag-gates the P5 `classify_document` two-pass resolver (`server/api/doc-processing/classify-document.go`); confirmed real and wired 2026-08-08, not in the original table — added here |
+| ~~`DOC_FACET_CLASSIFIER_MODEL`~~ | — | **Never built under this name (2026-08-09 correction).** The real model-selection variables are `CLASSIFY_DOCUMENT_MODEL_NAME` + `MODEL_DEF_FILE`, resolved through the same model-config path every other LLM extractor uses. |
+| ~~`CLASSIFY_DOCUMENT_ENABLED`~~ | — | **Deleted 2026-08-09; do not use to control tier 3.** Was a flag gating whether the P5 `classify_document` two-pass resolver was constructed at all (confirmed real and wired 2026-08-08). `classify_document` is now `Class: "routed"` (§3.5, §16.1) — the resolver is always constructed (degrading to nil only when `CLASSIFY_DOCUMENT_MODEL_NAME`/`MODEL_DEF_FILE` are absent), and per-document run/skip is an ordinary `kb.pipeline_gates`/`kb.pipeline_rules` row with `target_processor="classify_document"`, the same mechanism every other routed processor uses. |
 | `DOC_PIPELINE_ON_CONFLICT` | `block` | `block` fails the run and raises an alarm on an unresolved binding conflict or undetermined gate; `fallback` walks the DR7 escalation ladder and warns |
 | `PG_HOST` / `PG_PORT` / `PG_USER` / `PG_DB_NAME` | local socket, `5432`, `cding`, `chenweb_test` | database the ontology compiler reads and writes; content lives in the DB, not a repository (DR2) |
 | `COMPILER_ARGS` | — | arguments to `mise run ontology-compiler` (`validate`/`release`/`activate`/`rollback`) |
@@ -1987,7 +2074,7 @@ pipeline-table row, status JSON, dashboard registration) and now also declares a
 
 | Processor | Status | Class | Requires → Produces | Phase | Why |
 |---|---|---|---|---|---|
-| `classify_document` | new | mandatory (gated) | facets/metadata → governed document facets | P1 | DR4 routing and profile applicability; identifies standard kind, issuer, jurisdiction, edition |
+| `classify_document` | new | mandatory (gated) — built as `routed` instead (§3.5, §16.1, 2026-08-09) | facets/metadata → governed document facets | P1 | DR4 routing and profile applicability; identifies standard kind, issuer, jurisdiction, edition |
 | `normalize_assertions` | new | routed | artifacts → candidate qualified assertions | P3 | DR8; the step that turns free-text metrics into comparable claims |
 | `associate_semantics` | new | routed | candidates → accepted links/assertions | P3 | DR8, spec §10 |
 | `project_semantics` | new | routed | accepted records → derived edges, payloads | P3 | DR8, spec §10.8 |
@@ -2914,8 +3001,8 @@ found so the reasoning behind it doesn't need to be re-derived.
 |---|---|---|
 | DAG planner | The core DR5 mechanism — a topological wave scheduler built from `Requires`/`Produces` — was never built. Phase A/B/C is still a hardcoded loop; `Requires`/`Produces`/`Class`/`Cost`/`OnUndetermined` are untyped strings, not the typed enums DR5 specifies; no `DeclaredProcessor` interface exists. | §3.6, §8.3.4 |
 | Deferred-gate retry | A deferred processor's dependency fingerprint is computed but nothing re-evaluates it later — defer is currently terminal within a run. | §3.6 |
-| Facet tiers 1–2 | Only tier-3 (`classify_document`) writes facet observations. Tier-1 deterministic and tier-2 (`extract_doc_metadata`-derived) producers have no production call site. | §3.5, §8.3.4 |
-| `kb.knowledge_store_bindings` (DR18 items 1–2 partial, 3–4 absent) | Table doesn't exist; store default pipeline is a column instead. Bound module releases and default review profiles per store are not built at all. | §3.20, Appendix C.1 |
+| ~~Facet tiers 1–2~~ | **Resolved 2026-08-09.** `ComputeTier1Facets`/`tier2FacetsFromSource` are real production producers now (`facet_tier1.go`/`facet_tier2.go`), wired unconditionally into `ControlService.handleEvent` and `ExtractDocMetadataProcessor.HandleEvent` respectively, both writing to `kb.doc_facet_values` via the same path tier 3 uses. As a side effect, tier 3 (`classify_document`) is no longer `mandatory_gated`/env-flag-gated either — it is `Class: "routed"`, gated per-document by an ordinary `kb.pipeline_gates`/`kb.pipeline_rules` row instead of `CLASSIFY_DOCUMENT_ENABLED` (deleted). | §3.5, §8.3.4 |
+| `kb.knowledge_store_bindings` (DR18 items 3–4 absent; items 1–2 resolved by a different mechanism) | Table doesn't exist, and per a 2026-08-09 correction (§3.7), items 1–2 (default pipeline, requested-pipeline override) were never going to live there anyway — they shipped through `kb.pipeline_bindings`/`kb.pipeline_rules` and `kb.inputs.requested_pipeline` instead, both with full CRUD. Only items 3–4 (bound module releases, default review profiles per store) remain genuinely unbuilt, under any table name. | §3.20, §3.7, Appendix C.1 |
 | Execution-plan UI | `kb.doc_process_plans` and its API (`GET /kb/doc-proc-plans`) are real, but no frontend dashboard panel consumes it yet — API-only. | §3.7, §8.3.4 |
 | ~~Named pipelines `standards`/`narrative`/`minimal`~~ | **Resolved-in-part 2026-08-08.** Those specific illustrative names are still never seeded and remain fictional. But the underlying gap — the DR6 mechanism existing with no real content — is closed: a separately specced/planned "Doc Processing Policies" feature seeded real, differently-named pipelines (`no-entities-relations`, `all`) and activated a real policy version on the `miner` staging database, verified by direct resolution checks. Still open: this hasn't been enforced anywhere (`DOC_PIPELINE_PLAN_ONLY` untouched, no service restarted), and no frontend authoring UI exists — content is authored via `config.local.toml` + a CLI, not the REST API or an admin page. | §1 changelog, §3.7, §8.3.4 |
 | `kb.scene_objects.object_id` → `scene_block_id` rename | Never done. | §5, Appendix C.7 |
@@ -3007,7 +3094,7 @@ adjudication is currently deterministic-only, that is noted.
 
 | Processor | Build (2026-08-01) | Class | LLM-driven | What it does | New persisted data → table | Phase | Why |
 |---|---|---|---|---|---|---|---|
-| `classify_document` | **built and flag-gated (P5, `CLASSIFY_DOCUMENT_ENABLED`, default off) — verified 2026-08-08, superseding this row's earlier "planned/not yet in the live roster" status.** Real two-pass resolver, wired into review-scope selection (commit `5017ea3a`, 2026-08-03). Not yet exercised against live data — see §8.3.8's Chunk I / I2 status. | mandatory (gated) | `cheap_llm`, tier 3 only — one call over the first N pages, only when tiers 1–2 leave a required facet undetermined and a rule needs it | Classifies a document into the governed facet vocabulary: `doc_kind`, `domain`, `normative_status`, `jurisdiction` | **Yes** — governed document facets → `kb.doc_facet_values` (not `kb.doc_facets`, which is a separate, simpler routing-facets table) | P1 (tier 3: P5) | DR4 routing + profile applicability |
+| `classify_document` | **built, real two-pass resolver, wired into review-scope selection (commit `5017ea3a`, 2026-08-03). As of 2026-08-09 it is `routed`, gated per-document by an ordinary `kb.pipeline_gates`/`kb.pipeline_rules` row (`target_processor="classify_document"`), not by `CLASSIFY_DOCUMENT_ENABLED` (deleted) — see §3.5, §16.1.** Not yet exercised against live data — see §8.3.8's Chunk I / I2 status. | routed | `cheap_llm`, tier 3 only — one call over the first N pages, only when tiers 1–2 leave a required facet undetermined and a rule needs it | Classifies a document into the governed facet vocabulary: `doc_kind`, `domain`, `normative_status`, `jurisdiction` | **Yes** — governed document facets → `kb.doc_facet_values` (not `kb.doc_facets`, which is a separate, simpler routing-facets table) | P1 (tier 3: P5) | DR4 routing + profile applicability |
 | `normalize_assertions` | built (P3) | routed (Phase C) | `none` — deterministic per-family normalizers (metric, provision) | Turns each artifact family's output (metrics, provisions, later inventory/entity/scene) into candidate qualified assertions with evidence | **Yes** — candidate assertions → `kb.semantic_decision_candidates` (`candidate_kind='assertion'`); never writes assertions directly | P3 | DR8 Phase D stage 1; the step that makes free-text claims comparable |
 | `associate_semantics` | built (P3) | routed (Phase C) | `none` in the current slice — deterministic-only adjudication; a future LLM-scored path can only *feed* candidates, never write | Spec §10.3–§10.7: resolve, validate, adjudicate, persist stage-1 candidates as accepted assertions; resolves units against the `quantity` module | **Yes** — accepted assertions → `kb.semantic_assertions` (DR9 typed refs + normalized value columns); evidence → `kb.assertion_evidence`; conflict/supersession → `kb.assertion_relations` | P3 | DR8 Phase D stage 2; the one authoritative-owner persist step |
 | `project_semantics` | built (P3) | routed (Phase C) | `none` — deterministic SQL/Go derivations | Spec §10.8: build derived edges, search payloads, convenience classifications from accepted assertions; mark and repair stale projections | **Yes** — derived projection `kb.object_nodes.primary_class_term_id` (never authored); build state → `kb.projection_state`; future `kb.artifact_semantic_links` when a family needs `about`/`aligns` links | P3 | DR8 Phase D stage 3; DR10 |
