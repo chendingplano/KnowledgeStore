@@ -177,15 +177,17 @@ Currently, it has the following doc processors:
 |15 | extract_test_methods | routed | Yes | after 3 | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
 |16 | extract_product_structure | routed post-process | No additional LLM | after entity/relation post-process | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
 |17 | normalize_assertions | routed (Phase C) | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
-|18 | associate_semantics | routed (Phase C) | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
-|19 | project_semantics | routed (Phase C) | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. |
+|18 | associate_semantics | routed (Phase C) | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
+|19 | project_semantics | routed (Phase C) | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
 |20 | classify_document | routed (resolver-invoked) | Yes | after 3 (chunking) | Tier-3 governed-vocabulary classifier (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`). Not wave-dispatched: invoked directly by the two-pass `ApplicabilityResolver`, only for decision-relevant tier-3 paths the base facts leave unresolved. See §7.6. |
+|21 | facet_tier1 | routed (registry-only, non-wave-dispatched) | No | none — runs right after the line file is parsed, before Phase A | Tier-1 deterministic document-facet producer (`ComputeTier1Facets`, `facet_tier1.go`). Computes free, deterministic facets (page count, language mix, table-line ratio, numeric-with-unit density, modal-verb density, TOC presence, heading depth, doc-number pattern, file type, figure density) and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; invoked directly from `ControlService.handleEvent`, gated by `facetTier1GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier1"`). See ADR 2026072901 §3.5. |
+|22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
 For instance, 'after 1' means it uses the Blocking Processor's output as its input.
 
-Rows 17-19 are DR8 Phase D stages declared as Phase C post-process processors (see §7.3): they
+Rows 17-19 are DR8 (see [18]) Phase D stages declared as Phase C post-process processors (see §7.3): they
 run in the post-process tier after every Phase B processor has finished, ordered 17 → 18 → 19
 for one record via `PostProcessDependsOn`, and each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
 
@@ -194,6 +196,26 @@ in `evt.Operations` or `ChenWeb/server/cmd/doc-processor/main.go`'s registered p
 it cannot be selected via the JetStream `operation` field the way rows 1-19 can. It exists only
 as a `ProcessorSpec` declaration (for registry/policy-tooling visibility and gate eligibility)
 and is dispatched entirely from within `ApplicabilityResolver.Resolve`. See §7.6.
+
+Rows 21-22 (`facet_tier1`, `facet_tier2`) are, like row 20, `ProcessorSpec`-only declarations with
+no `Processor`/`HandleEvent` implementation of their own — they never appear in `evt.Operations`
+or `main.go`'s registered processor list and cannot be selected via the JetStream `operation`
+field: `facet_tier1` is invoked from `ControlService.handleEvent` right after the line file is
+parsed, and `facet_tier2` from inside `extract_metadata`'s `HandleEvent`. Neither writes a
+`kb.inputs.status` entry (per §12.1's exception for no-op-`HandleEvent` processors); both persist
+directly to `kb.doc_facet_values` via `InsertFacetObservation`.
+
+**2026-08-10 update: both are now `Class: "routed"`, not `mandatory`.** Each is individually
+gated the same way `classify_document` is: `facetTier1GatedOff`/`facetTier2GatedOff`
+(`facet_tier1.go`/`facet_tier2.go`) call `ResolveProcessorGate` against an authored
+`kb.pipeline_rules` row (`target_processor="facet_tier1"`/`"facet_tier2"`). `OnUndetermined` is
+`"run"` and, with no gate row authored (the default), `ResolveProcessorGate`'s
+`"processor_default"` (Enable) applies — so behavior is unchanged from before this became
+gate-able. A gate-resolution error (e.g. a malformed rule) fails open at the call site: it is
+logged and treated as "run", never as a silent loss of load-bearing tier-1/2 facets. The lever
+exists for debugging, testing, and bug fixing — disabling one tier in isolation to narrow down a
+bad heuristic or a metadata-extraction bug — not to change default production behavior. See ADR
+2026072901 §3.5 for the tiered facet design and its 2026-08-09/2026-08-10 status updates.
 
 ### 7.1 Processor Categories
 
@@ -232,7 +254,7 @@ The pipeline uses a three-phase model per record:
 
 - **Phase A (sequential):** the four mandatory processors (`blocking`, `structure_analyzer`/`static_analyzer`, `chunking`, `extract_metadata`) are executed **in dependency order, one at a time**, regardless of the concurrency flag. Their outputs feed downstream processors. The block buffer is cleared after `static_analyzer` (stale pre-analysis blocks); chunk-buffer consumers read only.
 - **Phase B (concurrent):** all configured configurable processors (#5–#16 from the pipeline table, i.e. the configurable processors plus the routed Phase B harvesters `extract_metric_definitions`/`extract_test_methods`/`extract_product_structure`) are **fanned out as concurrent goroutines** under a `sync.WaitGroup`, because they have no cross-dependencies. A per-record mutex serializes all `kb.inputs.status` read-modify-write sequences so concurrent status entries are never lost. Each processor runs to completion independently; a failure in one does not cancel siblings.
-- **Phase C (indexing + Phase D):** after all doc processors finish, it kicks off this phase [Post Process](#post_process), which indexes the artifacts of the artifacts the doc processors generated. The DR8 Phase D stages `normalize_assertions`/`associate_semantics`/`project_semantics` (rows 17-19) run in the same post-process tier as `PostProcessIndexer` processors, ordered after the rest via `PostProcessDependsOn`; each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
+- **Phase C (indexing + Phase D):** after all doc processors finish, it kicks off this phase [Post Process](#post_process), which indexes the artifacts of the artifacts the doc processors generated. The DR8 (see [18]) Phase D stages `normalize_assertions`/`associate_semantics`/`project_semantics` (rows 17-19) run in the same post-process tier as `PostProcessIndexer` processors, ordered after the rest via `PostProcessDependsOn`; each is inert unless `SEMANTIC_ASSOCIATION_ENABLED`.
 
 Controlled by `RUN_DOC_PROCESSOR_CONCURRENT` env var (default `"true"`). Set to `"false"` to fall back to the original sequentially-ordered pipeline.
 
@@ -281,7 +303,7 @@ not abort sibling processors. `MetricsProcessor` is the first adopter (its
 processors still index inline at the end of their Phase B `HandleEvent`; migrate them to
 `PostProcessIndexer` as cross-artifact indexing is added.
 
-**DR8 Phase D stages (rows 17-19).** The three Phase D processors are declared as
+**DR8 (see [18]) Phase D stages (rows 17-19).** The three Phase D processors are declared as
 `PostProcessIndexer` processors with a no-op `HandleEvent` (`server/api/doc-processing/phase_d.go`).
 Their `PostProcessIndex` bodies gate on `SEMANTIC_ASSOCIATION_ENABLED` and `ApiTypes.ProjectDBHandle`,
 then call `assertions.NormalizeAllFamilies`, `AssociateSemantics.Run`, and

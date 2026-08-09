@@ -263,7 +263,109 @@
   fixed here. Appendix A's intro gains a note that `Requires`/`Produces` (unlike everything else
   in this appendix) are Go-only, never persisted (§3.6). Appendix C.1's `kb.pipelines`/
   `kb.pipeline_policies`/`kb.pipeline_rules` rows are corrected to the verified real schema and
-  population status.
+  population status. **Applied and re-verified against the real `miner` staging database**
+  (migration `20260809000001` applied directly; `doc-processing-policy-seed` re-run against
+  `config.local.toml`): `kb.pipelines` rows 4/5 (`all`/`no-entities-relations`) now carry real
+  `description` text separate from `display_name`, and `is_system_default=true` lands on exactly
+  `no-entities-relations` (the config section with `is_default = true`), matching the partial
+  unique index's one-row invariant; `kb.pipeline_rules` went from 0 to **14 rows** (8 for `all`,
+  6 for `no-entities-relations`, one per processor, all `effect='require'`, `active=true`,
+  `approval_status='approved'`, scoped to the newly activated `policy_id=4` / `version=4`).
+* 2026/08/09, `quantity` module gains a second live write path (code only, not yet run). The
+  Review External Resources page's Approve action (`terminologyresourcehandler.ApproveResource`)
+  previously only staged an approved `qudt` resource into the keyword lexicon's immutable
+  external-terminology tables; it now also parses the same downloaded `qudt-all.ttl` artifact for
+  all three QUDT classes (`quantity_kind`/`unit`/`dimension` — the keyword-lexicon adapter only
+  ever kept `quantity_kind`), batch-writes new terms into `kb.ontology_terms` plus their labels
+  (`kb.ontology_term_labels`) and exact source-IRI mappings (`kb.ontology_mappings`) inside the
+  same transaction as the keyword-lexicon import, and then creates and activates a new `quantity`
+  module release if anything is pending (`kb.ontology_module_releases`/`kb.ontology_active_releases`).
+  No migration was needed — `term_kind`'s `quantity_kind`/`unit`/`dimension` values and
+  `kb.ontology_mappings.to_iri` already existed for exactly this purpose. Verified end-to-end
+  against a real (non-mocked) Postgres instance with representative fixtures covering all three
+  term kinds, idempotent re-approval, and resuming after a simulated release-step failure; **not**
+  yet run against the real QUDT catalog by an operator, so this closes the §15.2 gap's *code* half
+  only — `quantity` is still zero live rows and the 4151-term catalog claim is still unverified
+  until someone actually clicks Approve. See `ChenWeb/openspec/changes/external-resource-approve-ontology-terms`
+  for the full proposal/design/spec/tasks, and §15.2's first two rows (updated in place) for the
+  gap this closes.
+* 2026/08/09, keyword-catalog auto-promotion (code, verified live). Approving any external
+  terminology resource now also auto-promotes its staged `kb.keyword_catalog_entries` into flagged,
+  provisional `kb.keyword_concepts` rows (`gloss_source='auto:import:<source>'`) in the background,
+  without requiring a human review step — the same "autonomous, clearly flagged, optionally
+  human-reviewed" principle already applied to the online D11 auto-create path (`gloss_source=
+  'auto:d11'`), extended to the staging-import path. Enabled by default for every resource (no
+  source-authority-based gating — System Admin page access control is treated as the authorization);
+  a new mutable `kb.keyword_source_promotion_policy` table lets an admin opt a specific resource out.
+  Deliberately does **not** touch `Reconciler.Run`/`ReconcileAmbiguous` or their scheduling — that
+  subsystem's autonomy was addressed separately and stays out of this change's scope. Verified live
+  against a real (non-mocked) Postgres instance, including a real discovery along the way: a
+  collision-recovery pattern (insert fails on a content-hash collision, then look up the existing
+  row) cannot run inside one shared transaction against Postgres, since a failed statement aborts the
+  whole transaction — the production code already avoids this (it runs against a plain `*sql.DB`),
+  but an early test draft that wrapped everything in a transaction for cleanup convenience did not,
+  and had to be redesigned. See `ChenWeb/openspec/changes/keyword-catalog-auto-promotion`.
+* 2026/08/10, Appendix C moved to a maintained standalone document; QUDT staging data spot-checked
+  against a real end-to-end run. Appendix C ("List of Database Tables") is replaced with a pointer to
+  `KnowledgeStore/doc-repo/user-manuals/database-tables.md` — a living inventory belongs in an
+  operator-facing reference that gets updated as tables are added, not inside an ADR. The move also
+  closes a real gap: former §C.4 only gestured at "11 more `kb.keyword_*` tables added 2026-08-05
+  through 2026-08-07... not individually enumerated here" instead of listing them; the moved document
+  enumerates all 11 (plus the new `kb.keyword_source_promotion_policy` from the entry above — 18
+  `kb.keyword_*` tables total as of this revision) with real schemas. Separately, spot-checked an
+  operator's report of "many `kb.keyword_catalog_entries.native_payload.symbol` values are empty"
+  after a real QUDT re-download-and-approve: parsing the actual downloaded `qudt-all.ttl` directly
+  confirms this is expected, not a defect — of QUDT's 1223 real `QuantityKind` resources (which
+  matches the live `kb.keyword_catalog_entries` count for `qudt`/`3.5.0` on `miner` exactly), only
+  438 (36%) carry a `qudt:symbol` triple upstream; even common quantities like `Acceleration` have
+  none defined in QUDT's own vocabulary. `Unit` resources are the opposite (2773 of 2928, 95%, have a
+  symbol) — units and quantity kinds are just genuinely different in how completely QUDT populates
+  this field. The separately-reported figure of 1375 `kb.keyword_catalog_entries` rows is fully
+  reconciled: that count is table-wide (`SELECT count(*) FROM kb.keyword_catalog_entries`, no source
+  filter), and `miner` has three sources staged — `qudt`/3.5.0 (1223) + `bipm-sirp-quantity`/1.0.0
+  (149) + `wikidata`/dump-2026-08-08 (3) = 1375 exactly. No discrepancy; QUDT's own figures check out.
+* 2026/08/09, real QUDT Approve run against `miner`; a real bug found, fixed, and verified closed same
+  day. An operator re-downloaded and approved `qudt` on System Admin → Resources → Review External
+  Resources — content was byte-identical to the already-registered 3.5.0 release, so `ApproveResource`
+  took the idempotent-replay branch straight into the governed-term write described in the 2026/08/09
+  entry above. Post-run audit (parsing the real downloaded `qudt-all.ttl` directly through the
+  production parser, cross-checked against `kb.ontology_terms`) found the write only two-thirds
+  correct: `quantity_kind` (1125 = 1223 raw − 98 deprecated) and `unit` (2843 = 2928 raw − 85
+  deprecated) landed exactly as designed, but `dimension` landed **zero** rows. Root cause: `qudt.go`'s
+  `qudtDimensionClass` constant was `http://qudt.org/schema/qudt/DimensionVector`, which does not
+  exist in QUDT's real vocabulary — the real class, confirmed against the downloaded file's own
+  `@prefix qudt:` namespace and its `a qudt:QuantityKindDimensionVector, ...` triples, is
+  `http://qudt.org/schema/qudt/QuantityKindDimensionVector`. `ParseQUDTGraph`'s Pass 1 only collects
+  subjects whose `rdf:type` exactly matches the constant, so all 247 real dimension-vector individuals
+  were silently invisible to the parser — no error surfaced, since `quantity_kind`/`unit` still
+  populated and the empty-graph guard only fires when *no* supported class has any members. Fixed by
+  correcting the one constant (existing tests reference it symbolically and were unaffected); a second
+  write via the same replay path brought `kb.ontology_terms` to **4213** rows across all three kinds
+  (1125/2843/**245**, where 245 = 247 raw − 2 deprecated), `kb.ontology_active_releases` pointing at
+  `quantity` release `1.0.0`. The originally-cited "~4151" figure (§15.2, Appendix B.2) was always
+  speculative and is superseded by this verified 4213. `document-authority` and `measurement` remain
+  unaffected — this closes only the `quantity` half of §15.2's first row. Full detail, including a
+  self-inflicted and same-session-corrected incident where a test run briefly wiped this data by
+  targeting `miner` instead of `chenweb_test`, is in
+  `openspec/changes/external-resource-approve-ontology-terms/tasks.md` §6.1.
+* 2026/08/10, facet tiers 1-2 converted from mandatory to routed/gated (code, verified live). The
+  2026-08-09 entry above wired `facet_tier1`/`facet_tier2` as real production producers but left
+  them `Class: "mandatory"` — unconditional, with no independent selection or gate of their own,
+  unlike `classify_document` (tier 3), which had just been converted from `mandatory_gated` to
+  `routed` in that same session. Closing that asymmetry: both are now `Class: "routed"` in
+  `productionProcessorSpecs` (`processor_plan.go`), each individually gated the same way
+  `classify_document` is — `facetTier1GatedOff`/`facetTier2GatedOff` (`facet_tier1.go`/
+  `facet_tier2.go`) call `ResolveProcessorGate` against an authored `kb.pipeline_rules` row
+  (`target_processor="facet_tier1"`/`"facet_tier2"`), `OnUndetermined: "run"`. With no gate row
+  authored (the default), `ResolveProcessorGate`'s `"processor_default"` (Enable) applies, so
+  behavior is unchanged from before this change; a gate-resolution error fails open (runs) at both
+  call sites rather than silently dropping load-bearing facets over a misconfigured rule. Motivation
+  is operational, not architectural: an individually gate-able tier-1/tier-2 lets an operator
+  disable one in isolation for debugging, testing, or bug fixing without restarting with a
+  different build or touching `s.Facets`/`s.Resolver` wiring — the same lever `CLASSIFY_DOCUMENT_ENABLED`
+  used to provide for tier 3 before it was deleted in favor of this exact mechanism. §3.5 and the
+  doc-processor capsule's §7 pipeline table are updated to match
+  (`Capsules/coding-capsules/doc-processor/+CAPSULE.md`).
 
 ## 2. Context
 
@@ -692,6 +794,24 @@ reviewed rules make the decision.
 > review-scope selection unconditionally too, for the same reason. See §7.6 of the doc-processor
 > capsule (`Capsules/coding-capsules/doc-processor/+CAPSULE.md`) for the full current picture, and
 > §15.1 below (this row is now resolved).
+>
+> **2026-08-10 status (verified against code): tiers 1 and 2 are now `Class: "routed"`, closing the
+> asymmetry with tier 3 the 2026-08-09 entry above left open.** `productionProcessorSpecs`
+> (`processor_plan.go`) declares both `facet_tier1` and `facet_tier2` as `Class: "routed"`,
+> `OnUndetermined: "run"` — no longer `"mandatory"`. Each is individually gated at its (still
+> inline, still not wave-dispatched) call site: `facetTier1GatedOff` (`facet_tier1.go`) inside
+> `ControlService.handleEvent`, and `facetTier2GatedOff` (`facet_tier2.go`) inside
+> `ExtractDocMetadataProcessor.HandleEvent`. Both call `ResolveProcessorGate` against an authored
+> `kb.pipeline_rules` row (`target_processor="facet_tier1"`/`"facet_tier2"`) — the identical
+> mechanism `classify_document` uses, described just above. With no such row authored (the
+> default), `ResolveProcessorGate`'s `"processor_default"` (Enable) applies, so both still run
+> unconditionally by default; a gate-resolution error also fails open (runs) at both call sites, so
+> a malformed rule cannot silently drop load-bearing tier-1/2 facets. The lever this adds is
+> operational: an operator can disable `facet_tier1` or `facet_tier2` independently — e.g. to
+> isolate a bad tier-1 heuristic or a tier-2 metadata-derivation bug — without a restart or a
+> different build, the same debugging/testing/bug-fixing case `CLASSIFY_DOCUMENT_ENABLED` used to
+> serve for tier 3 before its deletion (see above) made this the established mechanism instead of a
+> new per-tier env var. See §7 of the doc-processor capsule for the updated pipeline table.
 
 ### 3.6 DR5 — The pipeline becomes a declarative stage DAG with gates; A/B/C is the degenerate case
 
@@ -3023,18 +3143,19 @@ found so the reasoning behind it doesn't need to be re-derived.
 
 | Item | Gap | Ref |
 |---|---|---|
-| DAG planner | The core DR5 mechanism — a topological wave scheduler built from `Requires`/`Produces` — was never built. What is actually built is `Doc Processing Policy`. A policy is actually a DAG. This is the architecture we are going to use. In the current implementation, no gates are supported and no checking (handle requires and produces) is done yet. This should be good enough for now. Advanced features will be added later one, as needed. Phase A/B/C is still a hardcoded loop; `Requires`/`Produces`/`Class`/`Cost`/`OnUndetermined` are untyped strings, not the typed enums DR5 specifies; no `DeclaredProcessor` interface exists. | §3.6, §8.3.4 |
+| DAG planner | The core DR5 mechanism — a topological wave scheduler built from `Requires`/`Produces` — was never built. What is actually built is `Doc Processing Policy`. A policy is actually a DAG. This is the architecture we are going to use. In the current implementation, no gates are supported and no checking (handle requires and produces) is done yet. This should be good enough for now. Advanced features will be added later one, as needed. Phase A/B/C is still a hardcoded loop; `Requires` / `Produces` / `Class` / `Cost` / `OnUndetermined` are untyped strings, not the typed enums DR5 specifies; no `DeclaredProcessor` interface exists. | §3.6, §8.3.4 |
 | Deferred-gate retry | A deferred processor's dependency fingerprint is computed but nothing re-evaluates it later — defer is currently terminal within a run. | §3.6 |
-| ~~Facet tiers 1–2~~ | **Resolved 2026-08-09.** `ComputeTier1Facets`/`tier2FacetsFromSource` are real production producers now (`facet_tier1.go`/`facet_tier2.go`), wired unconditionally into `ControlService.handleEvent` and `ExtractDocMetadataProcessor.HandleEvent` respectively, both writing to `kb.doc_facet_values` via the same path tier 3 uses. As a side effect, tier 3 (`classify_document`) is no longer `mandatory_gated`/env-flag-gated either — it is `Class: "routed"`, gated per-document by an ordinary `kb.pipeline_rules` row instead of `CLASSIFY_DOCUMENT_ENABLED` (deleted). | §3.5, §8.3.4 |
+| ~~Facet tiers 1–2~~ | **Resolved 2026-08-09.** `ComputeTier1Facets` / `tier2FacetsFromSource` are real production producers now (`facet_tier1.go` / `facet_tier2.go`), wired unconditionally into `ControlService.handleEvent` and `ExtractDocMetadataProcessor.HandleEvent` respectively, both writing to `kb.doc_facet_values` via the same path tier 3 uses. As a side effect, tier 3 (`classify_document`) is no longer `mandatory_gated` / env-flag-gated either — it is `Class: "routed"`, gated per-document by an ordinary `kb.pipeline_rules` row instead of `CLASSIFY_DOCUMENT_ENABLED` (deleted). | §3.5, §8.3.4 |
 | Execution-plan UI | `kb.doc_process_plans` and its API (`GET /kb/doc-proc-plans`) are real, but no frontend dashboard panel consumes it yet — API-only. | §3.7, §8.3.4 |
-| `kb.scene_objects.object_id` → `scene_block_id` rename | Never done. | §5, Appendix C.7 |
+| `kb.scene_objects. object_id` → `scene_block_id` rename | Never done. | §5, Appendix C.7 |
+| ~~`kb.pipeline_rules` never populated~~ | **Resolved 2026-08-09 for the unconditional case.** `SeedDocProcessingPolicies` now writes one unconditional (`require`, always-true predicate) `kb.pipeline_rules` row per processor per policy — verified live on `miner` (14 rows). **Still open:** `config.local.toml`'s `[doc-processing-policy-*]` format has no syntax for a genuine conditional gate (predicate / `required_facets`); authoring one still requires a raw `POST /kb/pipeline-rules` call. | §1 changelog 2026-08-09, Appendix C.1 |
 
 ### 15.2 P2 — Ontology core & canonicalization kernel
 
 | Item | Gap | Ref |
 |---|---|---|
-| `document-authority`, `measurement`, `quantity` 4a modules | Seed/import code exists (since 2026-07-31 for the first two) but has never actually been released and activated against the live database — only `core` is active. | §8.3.5, Appendix B.2 |
-| QUDT import verification | The `quantity` module's claimed 4151-term catalog has never been run/verified against a live instance; the figure has no corroborating evidence in the repo. | §8.3.5, Appendix B.2 |
+| `document-authority`, `measurement`, `quantity` 4a modules | Seed/import code exists (since 2026-07-31 for the first two) but has never actually been released and activated against the live database — only `core` is active. **Added 2026-08-09:** `quantity` now has a second, live write path — approving the `qudt` resource on System Admin → Resources → Review External Resources now also writes `quantity_kind`/`unit`/`dimension` terms into `kb.ontology_terms` and releases+activates the `quantity` module (`terminologyresourcehandler.ApproveResource`, `openspec/changes/external-resource-approve-ontology-terms`), alongside the existing keyword-lexicon staging write. This is a capability, not yet a completed run: no operator has clicked Approve against the real QUDT catalog yet, so `document-authority` and `measurement` are unaffected and `quantity` is still zero live rows as of this note. **RESOLVED (quantity only) 2026-08-09, later same day:** an operator ran the real Approve against `miner`; `quantity` is now active with 4213 live rows (see §1 changelog for the full account, including a bug found and fixed in the same run). `document-authority` and `measurement` remain untouched — this row's gap still stands for those two. | §8.3.5, Appendix B.2 |
+| QUDT import verification | The `quantity` module's claimed 4151-term catalog has never been run/verified against a live instance; the figure has no corroborating evidence in the repo. **Added 2026-08-09:** the Approve action described above is the mechanism that would generate that evidence (it writes governed terms directly into `kb.ontology_terms`, distinct from the "external terminology portfolio" QUDT 3.5.0 import elsewhere in this row's original text, which populates only the keyword lexicon's tables). Still unverified until an operator runs it end-to-end against the real catalog and someone counts the resulting rows. **RESOLVED 2026-08-09, later same day:** verified end-to-end against `miner`. The "4151" figure was never real — the actual, reconciled total is **4213** rows (1125 `quantity_kind` + 2843 `unit` + 245 `dimension`), each figure equal to QUDT 3.5.0's real raw resource count minus its deprecated entries (1223−98, 2928−85, 247−2), confirmed by parsing the downloaded `qudt-all.ttl` directly. See §1 changelog for the bug that made the first run's `dimension` count zero before this. | §8.3.5, Appendix B.2 |
 | `semid` kernel adjudication | Only 4 verdicts exist in code (`auto_accepted`/`ambiguous`/`deferred`/`human_review`); no distinct "LLM-batch" path as DR15 describes. | §3.17 |
 | DR15.1 object-family kernel adoption | `kb.object_nodes.merged_into`/`scope_key` columns exist but the object reconciler never reads or writes them — contracts are scaffolding, not wired. | §3.17, Appendix C.7 |
 | `deontic` 4a module | Defined once in DR1 (§3.2) and never revisited: no seed code, no `kb.ontology_modules` row, no authoring surface. `extract_provisions` writes to the pre-existing, ungoverned `kb.provisions` table instead. | §3.2, Appendix B.2 |
@@ -3230,19 +3351,19 @@ ontology content (ADR §3.3.1).
 **Purpose.** DR1 (§3.2) defines seven 4a modules. This table gives each one's full ownership as
 decided, the doc processor(s) that populate or consume it, the table(s) that actually store its
 data, and its implementation status as of 2026-08-09 — deliberately separating a module's *governed
-vocabulary* (terms released through `ontology-seed`/`qudt-import` into `kb.ontology_terms`) from
+vocabulary* (terms released through `ontology-seed` / `qudt-import` into `kb.ontology_terms`) from
 the *pipeline* that is supposed to depend on it, because for several modules those two are at very
 different stages: a module can have a fully built extraction pipeline writing real data every day
 while its own governing vocabulary has never been released.
 
 | Module | Owns (DR1, §3.2) | Doc processor(s) | Table(s) | Status |
 |---|---|---|---|---|
-| `core` | Referent, information artifact, assertion, evidence, agent, role, valid/transaction time, polarity, confidence, semantic-role predicates. Installed content adds `instance_of`, `plays_role`, the DR20 hierarchy (`part_of`/`component_of`/`variant_of`), `about`, `has_evidence`, `asserted_by`, `has_polarity`, `has_confidence`. | `normalize_assertions` (candidate assertions), `associate_semantics` (accepted assertions, evidence, relations), `project_semantics` (derived projections) — the DR8 Phase D trio | `kb.ontology_terms`/`kb.ontology_term_labels` (module content); `kb.semantic_assertions` (assertion + valid/transaction time + polarity + confidence columns); `kb.assertion_evidence`; `kb.assertion_relations`; `kb.object_nodes` (`ontological_level`, `identity_scope`, `external_identifiers`, `primary_class_term_id`, plus unpopulated `merged_into`/`scope_key`) | **The only 4a module actually released and active** — 20 terms (the ADR's "19" predates the 2026-08-06 `core:aligns_to_term` addition), release 1.0.0, checksum `c983fa57d239`. Its Phase D runtime (the three processors above) is built and live-validated (P3, §8.3.6). `object_nodes.merged_into`/`scope_key` exist but are not yet read or written by the reconciler (DR15.1 gap, §15.2). |
-| `quantity` | Quantity kinds, units, dimensions, conversion, value forms (scalar/interval/bound/tolerance/ratio/formula), comparators, QUDT mappings. | None directly — populated by the `qudt-import` CLI (an offline importer, not a pipeline doc processor); consumed by `associate_semantics` (unit resolution) and indirectly by `extract_metrics`'s structured unit/value fields | `kb.ontology_terms` (`term_kind` = quantity_kind/unit/dimension); `kb.ontology_mappings` (the only module with a direct exact-mapping authoring path, back to QUDT source IRIs) | Seed/import code exists and claims a 4151-term catalog, but **has never been run against the live database — zero rows**, and the 4151 figure is unverified anywhere in the repo (§15.2). Do not confuse with the separate, later "external terminology portfolio" QUDT 3.5.0 import (2026-08-06/07, §1 changelog) — that one succeeded live, but it populated the **keyword lexicon's** external-terminology tables, not this module's `kb.ontology_terms`. |
-| `document-authority` | Document kind, issuer/authority, edition/version, jurisdiction, normative vs informative, effective interval, supersedes/amends/cites, the DR4 document-facet vocabulary (keys `doc_kind`/`domain`/`normative`/`jurisdiction_facet`/`language`; values `standard`/`specification`/`regulation`/`report`/`manual`/`normative`/`informative`). | Tier 1 deterministic facet producers (`ComputeTier1Facets`); tier 2 `extract_doc_metadata`; tier 3 `classify_document` | `kb.ontology_terms` (22 terms, module content); `kb.doc_facets` (simple routing facets); `kb.doc_facet_values` (the general facet-observation store tier 3 actually writes to) | Seed code exists since 2026-07-31, **never run — zero live rows** for the governed vocabulary. As of 2026-08-09 all three facet tiers are wired and writing observations — the pipeline is producing facet values today with **no released module behind it** to validate facet keys/values against. |
-| `deontic` | Modality (required/permitted/recommended/prohibited/declared), actor, action, condition, exception — the provision contract. | None write governed deontic content. `extract_provisions` extracts applicability/scope clauses into `kb.provisions`, a pre-existing, ungoverned table (Appendix A.2/C.8) | No `kb.ontology_modules` row exists for `deontic` | **Design-only.** Defined once in DR1's table and never referenced again anywhere in this ADR — no seed code, no authoring surface (§3.3.2 lists only `core`/`document-authority`/`measurement` for `ontology-seed`), absent from the original version of this appendix. |
-| `measurement` | `metric_definition` vs metric assertion, observable property, feature of interest, procedure, condition, aggregation/window, metric assertion kinds (`lower_bound_requirement`/`upper_bound_requirement`/`interval_requirement`/`observed_value`/`target`/`reference`/`capability`), `has_quantity_kind`/`has_unit`/`measured_by`. | `extract_metrics` (built, the primary structured-value path); `extract_metric_definitions` (candidates only); `extract_test_methods` (candidates only) | `kb.ontology_terms` (17 terms, module content); `kb.metrics` (structured metric data — `value_min`/`value_max`/`condition`/`value_range_type`/`value_class`/`metric_value`/`metric_unit`, the live path); `kb.ontology_candidates` / `kb.semantic_decision_candidates` (definition/procedure candidates awaiting promotion) | Seed code exists since 2026-07-31, **never run — zero live rows**, same as `document-authority`. Unlike `document-authority`, the data path (`kb.metrics`) is fully built and is the primary route today, running without a released `measurement` (or `quantity`) module to validate against. |
-| `occurrence` | Occurrence, participant, action, state, cause, outcome — the scene-block contract. | `generate_scene_blocks` (pre-ADR, unchanged, Appendix A.4) writes scene evidence; no processor writes governed occurrence vocabulary | `kb.scene_objects` (the `object_id` → `scene_block_id` rename never happened, §15.1, Appendix C.7); `kb.search_artifacts` (`scene_block` partition, 2,288 live rows per §8.3.2) | **Design-only**, same pattern as `deontic`. `core`'s installed vocabulary already absorbed a bare `occurrence` term — `kb.object_nodes.ontological_level` accepts `occurrence` as one of its four valid values (individual/type/collection/occurrence, §3.15.23, CQ-I02) — but the fuller scene-block contract (participant/action/state/cause/outcome) DR1 assigns to a separate module was never built. |
+| `core` | Referent, information artifact, assertion, evidence, agent, role, valid/transaction time, polarity, confidence, semantic-role predicates. Installed content adds `instance_of`, `plays_role`, the DR20 hierarchy (`part_of` / `component_of` / `variant_of`), `about`, `has_evidence`, `asserted_by`, `has_polarity`, `has_confidence`. | `normalize_assertions` (candidate assertions), `associate_semantics` (accepted assertions, evidence, relations), `project_semantics` (derived projections) — the DR8 Phase D trio | `kb.ontology_terms`/`kb.ontology_term_labels` (module content); `kb.semantic_assertions` (assertion + valid/transaction time + polarity + confidence columns); `kb.assertion_evidence`; `kb.assertion_relations`; `kb.object_nodes` (`ontological_level`, `identity_scope`, `external_identifiers`, `primary_class_term_id`, plus unpopulated `merged_into` / `scope_key`) | **The only 4a module actually released and active** — 20 terms (the ADR's "19" predates the 2026-08-06 `core:aligns_to_term` addition), release 1.0.0, checksum `c983fa57d239`. Its Phase D runtime (the three processors above) is built and live-validated (P3, §8.3.6). `object_nodes.merged_into` / `scope_key` exist but are not yet read or written by the reconciler (DR15.1 gap, §15.2). |
+| `quantity` | Quantity kinds, units, dimensions, conversion, value forms (scalar / interval / bound / tolerance / ratio / formula), comparators, QUDT mappings. | None directly — populated by the `qudt-import` CLI (an offline importer, not a pipeline doc processor); consumed by `associate_semantics` (unit resolution) and indirectly by `extract_metrics`'s structured unit/value fields | `kb.ontology_terms` (`term_kind` = quantity_kind / unit / dimension); `kb.ontology_mappings` (the only module with a direct exact-mapping authoring path, back to QUDT source IRIs) | Seed/import code exists and claims a 4151-term catalog, but **has never been run against the live database — zero rows**, and the 4151 figure is unverified anywhere in the repo (§15.2). Do not confuse with the separate, later "external terminology portfolio" QUDT 3.5.0 import (2026-08-06/07, §1 changelog) — that one succeeded live, but it populated the **keyword lexicon's** external-terminology tables, not this module's `kb.ontology_terms`. |
+| `document-authority` | Document kind, issuer/authority, edition/version, jurisdiction, normative vs informative, effective interval, supersedes/amends/cites, the DR4 document-facet vocabulary (keys `doc_kind` / `domain` / `normative` / `jurisdiction_facet` / `language`; values `standard` / `specification` / `regulation` / `report`/ `manual` / `normative` / `informative`). | Tier 1 deterministic facet producers (`ComputeTier1Facets`); tier 2 `extract_doc_metadata`; tier 3 `classify_document` | `kb.ontology_terms` (22 terms, module content); `kb.doc_facets` (simple routing facets); `kb.doc_facet_values` (the general facet-observation store tier 3 actually writes to) | Seed code exists since 2026-07-31, **never run — zero live rows** for the governed vocabulary. As of 2026-08-09 all three facet tiers are wired and writing observations — the pipeline is producing facet values today with **no released module behind it** to validate facet keys/values against. |
+| `deontic` | Modality (required / permitted / recommended / prohibited / declared), actor, action, condition, exception — the provision contract. | None write governed deontic content. `extract_provisions` extracts applicability/scope clauses into `kb.provisions`, a pre-existing, ungoverned table (Appendix A.2/C.8) | No `kb.ontology_modules` row exists for `deontic` | **Design-only.** Defined once in DR1's table and never referenced again anywhere in this ADR — no seed code, no authoring surface (§3.3.2 lists only `core` / `document-authority` / `measurement` for `ontology-seed`), absent from the original version of this appendix. |
+| `measurement` | `metric_definition` vs metric assertion, observable property, feature of interest, procedure, condition, aggregation/window, metric assertion kinds (`lower_bound_requirement` / `upper_bound_requirement` / `interval_requirement` / `observed_value` / `target` / `reference`/`capability`), `has_quantity_kind` / `has_unit` / `measured_by`. | `extract_metrics` (built, the primary structured-value path); `extract_metric_definitions` (candidates only); `extract_test_methods` (candidates only) | `kb.ontology_terms` (17 terms, module content); `kb.metrics` (structured metric data — `value_min`/`value_max` / `condition` / `value_range_type` / `value_class` / `metric_value` / `metric_unit`, the live path); `kb.ontology_candidates` / `kb.semantic_decision_candidates` (definition/procedure candidates awaiting promotion) | Seed code exists since 2026-07-31, **never run — zero live rows**, same as `document-authority`. Unlike `document-authority`, the data path (`kb.metrics`) is fully built and is the primary route today, running without a released `measurement` (or `quantity`) module to validate against. |
+| `occurrence` | Occurrence, participant, action, state, cause, outcome — the scene-block contract. | `generate_scene_blocks` (pre-ADR, unchanged, Appendix A.4) writes scene evidence; no processor writes governed occurrence vocabulary | `kb.scene_objects` (the `object_id` → `scene_block_id` rename never happened, §15.1, Appendix C.7); `kb.search_artifacts` (`scene_block` partition, 2,288 live rows per §8.3.2) | **Design-only**, same pattern as `deontic`. `core`'s installed vocabulary already absorbed a bare `occurrence` term — `kb.object_nodes.ontological_level` accepts `occurrence` as one of its four valid values (individual / type / collection / occurrence, §3.15.23, CQ-I02) — but the fuller scene-block contract (participant / action / state / cause / outcome) DR1 assigns to a separate module was never built. |
 | `inventory` | Item type vs item instance, part-of, member-of, location, custodian, catalog/serial identity, quantity-on-hand. | `extract_inventory_items` (pre-ADR, unchanged, Appendix A.4) | `kb.search_artifacts` (`inventory_item` partition, 8,578 live rows per §8.3.2); no structured `kb.inventory_*` table exists | **Design-only**, same pattern. `normalize_assertions`'s spec (Appendix A.1) names "later inventory/entity/scene artifacts" as a future normalizer target, but that normalizer is not built either — only metric and provision normalizers exist (§8.3.6). |
 
 > **2026-08-08/09 status (verified against `server/cmd/ontology-seed`, `server/cmd/qudt-import`, and
@@ -3299,120 +3420,9 @@ evidence; at most they feed the candidate path via the spec §9.3 state machine 
 
 ## Appendix C. List of Database Tables
 
-**Purpose.** This appendix enumerates every database table the SemOS ontology framework creates or
-alters, grouped by the phase that introduces them. For each table it gives a description, the key
-columns, the ADR decision or layer it belongs to, and its authoring or generation surface. Tables
-that predate this ADR and are only referenced (not created or altered) are listed separately at the
-end.
-
-### C.1 New tables — P1 (pipeline plane)
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.doc_facets` | Governed document facets produced by the three-tier cheapest-first classifier (DR4). One row per `(record_id, facet_key)`; keys and permitted values are ontology terms in the `document-authority` module. | `record_id`, `facet_key`, `facet_value`, `value_kind`, `confidence`, `method`, `evidence`, `policy_version`, `run_id` | DR4, L1/L6 | Tier 1 deterministic producers; tier 2 from `extract_doc_metadata`; tier 3 `classify_document` |
-| `kb.pipelines` | Named pipeline definitions: a flat processor allow-list (DR6 tier 1). **Verified 2026-08-09: real schema differs from the row below.** Not versioned, no `status`/`definition JSONB`; the real columns are `id`, `name` (UNIQUE), `display_name`, `processors text[]` (a flat allow-list intersected against the requested processor set at plan time — `applyPolicyFilter`, `processor_plan.go` — not a JSONB definition), `legacy_equivalent`, plus `description` and `is_system_default` (added migration `20260809000001`, closing a gap where `description` was being written into `display_name` — there was no dedicated column — and "is this the system default pipeline" had no persisted column at all, only derivable by joining `kb.pipeline_bindings WHERE binding_kind='store_default' AND ks_store_id IS NULL`). | `id`, `name`, `display_name`, `description`, `processors text[]`, `legacy_equivalent`, `is_system_default`, `create_time`, `modify_time` | DR6 | `doc-processing-policy-seed` CLI (`SeedDocProcessingPolicies`, `policy_seed.go`) from `config.local.toml`'s `[doc-processing-policy-*]` sections; full CRUD also at `/kb/pipelines` |
-| `kb.pipeline_policies` | Versioned, append-only activation envelope for a set of bindings/rules: at most one `active` row at a time (partial unique index); no update/delete on a past version by design. **Verified 2026-08-09: matches this row already** (`id`, `version`, `status`, `source_ref`, `checksum`, `activated_at`, `activated_by`, plus `create_time`/`modify_time`) — and correctly has no `description`/default-flag column: a policy version can bundle bindings across several pipelines at once, so a single name/description/default flag doesn't semantically belong to it. Those concepts live on `kb.pipelines` instead (row above), since `config.local.toml`'s `[doc-processing-policy-*]` sections map 1:1 to pipelines, not to policy versions. | `id`, `version`, `status`, `source_ref`, `checksum`, `activated_at`, `activated_by` | DR6 | `doc-processing-policy-seed` CLI creates + activates a new version on every run (archiving whichever was active); direct API create+activate also exists |
-| `kb.pipeline_bindings` | Pipeline-to-scope bindings within a policy. Each binding maps a scope (system, tenant, knowledge store, user, or document) to a specific pipeline version. | `binding_id`, `policy_id`, `priority`, `scope_kind`, `scope_key`, `predicate JSONB`, `pipeline_id`, `pipeline_version`, `reason_template`, `source`, `approved_by` | DR6, DR7 | Policy authoring |
-| `kb.pipeline_rules` | Per-processor gate rules (DR6 tier 2). Each rule targets a specific processor with an effect (`require`, `enable`, `skip`, `defer`) and a predicate. **Verified 2026-08-09: real schema mostly matches, two differences** — no `reason_template` column; `source`/`source_module_release_id` are actually `module_id`/`released_in_release_id` (no plain `source` text column exists). **Population status, corrected:** this table held **zero rows** through 2026-08-09 — `doc-processing-policy-seed` only ever wrote `kb.pipelines`/`kb.pipeline_bindings`; the `no-entities-relations`/`all` distinction is implemented entirely by each pipeline's `processors` allow-list (Tier 1), not by a gate here. Nothing reached `kb.pipeline_rules` except a raw `POST /kb/pipeline-rules` call, which nobody had made on `miner`. As of this revision, `SeedDocProcessingPolicies` also writes one unconditional row (`require` effect, always-true predicate) per processor named in each policy's `processors` list, so `kb.pipeline_rules` is now a populated Tier-2 mirror of each pipeline's Tier-1 allow-list. Conditional (predicate-bearing) gates still have no config-driven authoring surface and remain reachable only via the CRUD API. | `id`, `name`, `priority`, `policy_id`, `target_processor`, `effect`, `predicate JSONB`, `predicate_checksum`, `required_facets JSONB`, `active`, `module_id`, `released_in_release_id`, `approval_status` | DR6, DR7 | `doc-processing-policy-seed` CLI (unconditional rows, as of 2026-08-09); `POST /kb/pipeline-rules` for conditional gates |
-| ~~`kb.knowledge_store_bindings`~~ | **Verified 2026-08-08: does not exist.** The store default pipeline is a `default_pipeline` column added directly to `kb.knowledge_store` (migration `20260731000003`) instead of a separate bindings table. Bound module releases and default review profiles (DR18 items 3-4) are not built at all. | — | DR18 | not built |
-| `kb.doc_facet_values` | **Added 2026-08-08 (verified in code, migration `20260801000016`, missing from the original appendix).** General path/value/method facet-observation store; this is the table `classify_document` (tier 3) actually writes to, distinct from the simpler `kb.doc_facets` above. | `record_id`, `facet_path`, `facet_value`, `method`, ... | DR4 | tier-3 `classify_document` (tiers 1-2 unwired, §3.5) |
-| `kb.doc_process_plans` | **Added 2026-08-08 (verified in code, missing from the original appendix).** Holds the persisted execution plan the ADR describes as `kb.doc_process_runs.plan` (that column was never added — see C.7). FK'd to the run; `plan_facts`/`plan_steps`/`pipeline_selection`/`pipeline_binding`/`pipeline_spec`/`excluded_by_policy`. | run reference, plan_facts, plan_steps, ... | DR6, DR7 | Planner, on every run |
-| `kb.pipeline_routing_clearances` | **Added 2026-08-08 (verified in code, migration `20260801000017`, missing from the original appendix).** P5 clearance records, keyed on governed `document.doc_kind` (fixed from an earlier wrong-dimension defect). | `document_kind`, ... | DR6, P5 | P5 clearance resolution |
-| `kb.pipeline_policy_events` | **Added 2026-08-08 (verified in code, migration `20260801000018`, missing from the original appendix).** | — | DR6, P5 | policy lifecycle |
-| `kb.ontology_applicability_proposals` | **Added 2026-08-08 (verified in code, migration `20260801000022`, missing from the original appendix).** P5 applicability-rule proposals. | — | DR3, P5 | P5 |
-
-### C.2 New tables — P2 (ontology terms, modules, and canonicalization kernel)
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.ontology_modules` | Module identity and declared dependencies. One row per module (e.g. `core`, `quantity`, `document-authority`, `measurement`, `pump`). | `module_id`, `owner`, `depends_on`, `created_at` | DR1, DR2 | `ontology-seed`; `qudt-import`; API registration |
-| `kb.ontology_module_releases` | Immutable release snapshots. Each release carries the full payload snapshot of approved content, a deterministic content checksum, and pinned dependency releases. | `release_id`, `module_id`, `version`, `payload JSONB`, `content_checksum`, `pinned_deps JSONB`, `released_at`, `released_by` | DR2 | DB-native compiler `release` (validate → snapshot → checksum → pin deps → insert → tag `included_in_release` → supersede prior) |
-| `kb.ontology_active_releases` | Activation pointer: at most one active release per module, enforced by a partial unique index. Rollback inserts a new row pointing at an older release; nothing is deleted. | `module_id`, `release_id`, `activated_at`, `activated_by` | DR2 | `activate` / `rollback` (audited) |
-| `kb.ontology_terms` | Governed ontology terms. Each term has a `term_kind` (class, property, individual, concept, metric_definition, quantity_kind, unit, dimension) and is versioned; an accepted change inserts a new version row, never mutating a released row. | `term_id`, `module_id`, `term_kind`, `definition`, `version`, `status`, `source_candidate_id`, `included_in_release`, `released_in_release_id`, `create_by`, `modify_by` | DR2, L3 | `ontology-seed` (curated 4a); `qudt-import` (quantity); candidate → promote; API `POST /kb/ontology/terms` |
-| `kb.ontology_term_labels` | Language labels for governed terms. `label_role` = prefLabel/altLabel/hiddenLabel; one prefLabel per term+language. | `term_id`, `version`, `lang`, `label_role`, `label_text` | DR2, L3 | `ontology-seed`; `qudt-import`; API; promotion |
-| `kb.ontology_axioms` | Compiler-approved axiom kinds over governed term refs. Each axiom is versioned. The only authoring path is candidate → promote (`promoteAxiom`); there is no direct route. | `axiom_id`, `module_id`, `axiom_kind`, `term_refs`, `version`, `status`, `source_candidate_id` | DR2, L3 | **Only** candidate → promote |
-| `kb.ontology_mappings` | Mappings to governed terms or external IRIs. `relation` = exact/close/broad/narrow/related; exact mappings require approval. | `mapping_id`, `module_id`, `source_term_id`, `target_iri`, `relation`, `version`, `status`, `evidence` | DR2, L3 | `qudt-import` (only direct path); general mappings via promotion |
-| `kb.ontology_candidates` | Proposals from LLM, import, or discovery. Follows the spec §9.3 state machine: `discovered → draft → in_review → approved → included_in_release` (+ rejected/deferred/superseded). `candidate_kind` = term/label/mapping/axiom/profile/profile_rule/module_change. | `candidate_id`, `candidate_kind`, `fingerprint` (UNIQUE, dedup), `status`, `module_id`, `proposed_content JSONB`, `source`, `created_at` | DR2, L3 | LLM/import/discovery output; promotion requires human-approved change set |
-| `kb.semid_decision_log` | Shared canonicalization decision log across all identity families (objects, keywords, categories, ontology terms). Append-only audit of every normalization, candidate-generation, scoring, and adjudication decision. | `input`, `output`, `verdict`, `model`, `prompt_version`, `actor`, `tokens`, `created_at` | DR15, DR17 | `semid` kernel (all families) |
-| `kb.semid_never_merge` | Negative merge assertions: explicit declarations that two nodes must never be merged, across any identity family. | `family`, `node_a`, `node_b`, `reason`, `actor` | DR15, DR16 | Curated seed; human assertion |
-| `kb.semid_snapshots` | Normalizer version snapshots. Records the state of each family's normalizer at a given version so that a normalizer bump triggers a re-index, never data loss. | `family`, `normalizer_version`, `counts`, `promoted_at` | DR15, DR16 | Kernel on normalizer version bump |
-
-### C.3 New tables — P3 (assertions and semantic association)
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.semantic_assertions` | First-class qualified assertions with typed subject/object references (DR9) and normalized value columns. Carries modality, time, status, confidence, and evidence. The one authoritative owner store for accepted semantic claims. | `assertion_id`, `subject_ref_kind`, `subject_ref_id`, `subject_object_id`, `object_ref_kind`, `object_ref_id`, `object_object_id`, `predicate_term_id`, `value_form`, `numeric_value`, `lower_value`, `upper_value`, `comparator`, `unit_term_id`, `quantity_kind_term_id`, `raw_text`, `assertion_kind`, `status` | DR8, DR9, L5 | `associate_semantics` processor (Phase D stage 2) |
-| `kb.assertion_evidence` | One-to-many evidence records supporting or contradicting an assertion. Each evidence row cites the source artifact, line span, chunk, and producing run. | `evidence_id`, `assertion_id`, `source_record_id`, `artifact_type`, `artifact_id`, `source_line_spans`, `evidence_kind`, `run_id` | DR8, L5 | `normalize_assertions` / `associate_semantics` |
-| `kb.assertion_relations` | Conflict and supersession relations between assertions. Records when one assertion supersedes or conflicts with another, with the governing reason. | `relation_id`, `assertion_a_id`, `assertion_b_id`, `relation_kind` (conflict/supersedes), `reason`, `governing_release_id` | DR8, L5 | `associate_semantics` / `project_semantics` |
-| `kb.semantic_decision_candidates` | Candidate semantic decisions awaiting adjudication. Used by `normalize_assertions` (candidate_kind=`assertion`), structural candidates, and metric↔procedure links. Follows deferral and retry semantics (spec §10.9). | `candidate_id`, `candidate_kind`, `status`, `dependency_fingerprint`, `proposed_content JSONB`, `created_at`, `attempts` | DR8, L5 | `normalize_assertions`, `extract_product_structure`, `extract_test_methods` |
-| `kb.artifact_semantic_links` | Links from extracted artifacts to governed ontology terms: `about_term` (the artifact is about this term), `describes_occurrence` (the artifact describes this occurrence), `aligns_to_term` (a keyword concept aligns to this governed term). | `link_id`, `artifact_type`, `artifact_id`, `link_kind`, `term_id`, `confidence`, `evidence` | DR8, L5 | `project_semantics` |
-| `kb.projection_state` | Tracks the authoritative reference, projection version, and stale flag for each derived projection (e.g. `kb.object_nodes.primary_class_term_id`). Enables mark-and-repair of stale projections. | `projection_kind`, `authoritative_ref`, `projection_version`, `stale`, `last_computed_at` | DR8, DR10, L5 | `project_semantics` |
-
-### C.4 New tables — P3 (keyword lexicon, DR15/DR16 instantiation)
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.keyword_concepts` | Ungoverned canonical *lexical* identity (DR15.2). Fast, high-volume, auto-mergeable under guardrails. Connected to governed ontology terms by `aligns_to_term`. Merges are tombstones (`merged_into`), never deletes. | `concept_id`, `pref_label`, `gloss`, `scope`, `status`, `merged_into`, `gloss_source` | DR15, DR16, L3 | Curated seed; pipeline reconciliation; `aligns_to_term` to governed terms |
-| `kb.keyword_surfaces` | Surface forms linked to keyword concepts. Each surface has a normalized key (`norm_key`) for O(1) lookup, a `label_role` (prefLabel/altLabel/hiddenLabel), an `alias_type` driving mechanical validation, and provenance. | `surface_id`, `concept_id`, `surface`, `norm_key`, `norm_version`, `label_role`, `alias_type`, `lang`, `scope`, `confidence`, `provenance`, `locked`, `evidence` | DR15, DR16, L3 | Pipeline mention collection; reconciliation |
-| `kb.keyword_surface_keys` | Normalized lookup keys for surfaces. Multiple key kinds (exact, trigram, vector) per surface, versioned by `norm_version` so a normalizer bump triggers re-index, not data loss. | `surface_id`, `key_kind`, `key_value`, `norm_version` | DR15, DR16, L3 | Derived from `kb.keyword_surfaces` on normalization |
-| ~~`kb.keyword_mentions`~~ → `kb.keyword_occurrences` | **Verified 2026-08-08: this table was dropped (K4 fix, 2026-08-05, migration `20260805000003`) and replaced by `kb.keyword_occurrences`.** Same role: observation records for each surface-form occurrence in a document artifact. | `artifact_type`, `artifact_id`, `chunk_id`, `context`, `ks_id`, `surface_id`, `observed_at` | DR15, DR16, L3 | Pipeline mention collector (`CollectFromText` — verified 2026-08-08 still standalone, not wired into the Phase C pipeline; a separate wired path, `names.Resolver` in the metrics pipeline, uses `KeywordFamily` directly for targeted resolution instead) |
-| `kb.keyword_unresolved` | Unresolved surface forms that could not be linked to a concept. Tracks hit count, attempts, and priority for batch adjudication. Negative-cached: an unchanged item is never re-sent to a model. | `norm_key`, `scope`, `surfaces`, `contexts`, `hits`, `status`, `attempts`, `last_attempt`, `priority` | DR15, DR16, L3 | Reconciliation (items that fail to resolve) |
-| `kb.keyword_rewrite_rules` | Pattern-based rewrite rules for surface normalization. Disabled by default (`enabled=false`); enabled per scope after validation. | `rule_id`, `pattern`, `replacement`, `scope`, `enabled` | DR16, L3 | Curated authoring |
-
-> **2026-08-08 note:** this list covers only the original 6 keyword-lexicon tables. 11 more
-> `kb.keyword_*` tables were added 2026-08-05 through 2026-08-07 for source governance and the
-> external-terminology portfolio (17 total live) — not individually enumerated here; see §8.3.6.
-
-### C.5 New tables — P4 (profiles and review)
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.ontology_profiles` | Scoped, versioned conformance expectations: "for this class, in this jurisdiction, these metrics are required." Drafts are inactive until included in a release. | `profile_id`, `module_id`, `version`, `title`, `applies_to_class_term_id`, `authority JSONB`, `closed_dimensions JSONB`, `status`, `included_in_release` | DR3, L6 | Direct API `POST /kb/ontology/profiles` |
-| `kb.ontology_profile_rules` | Typed rule kinds (e.g. `required_assertion_pattern`) with a paired SHACL emitter (DR11 seam 6). Each rule belongs to a profile and is versioned. | `rule_id`, `profile_id`, `version`, `rule_kind`, `quantifier`, `property_term_id`, `quantity_kind_term_id`, `severity`, `predicate JSONB`, `status` | DR3, DR11, L6 | Direct API `POST /kb/ontology/profile-rules` |
-| `kb.ontology_review_scopes` | Immutable frozen review scope: pinned module releases, closed dimensions, applicability facts, and the as-of date. Once written, never mutated. | `scope_id`, `profile_id`, `profile_version`, `pinned_releases JSONB`, `closed_dimensions JSONB`, `applicability_facts JSONB`, `as_of_date`, `frozen_at` | DR3, L7 | Review-scope freeze (L7 governance plane) |
-
-### C.6 New tables — P4 (target application, DR21–DR22) — 🏗️ Document Review app, not platform
-
-| Table | Description | Key columns | ADR ref | Authoring / generation |
-|---|---|---|---|---|
-| `kb.comparison_scopes` (real name, verified 2026-08-08: `kb.ontology_comparison_scopes`) | Immutable comparison matrix scope: target class or object, metric definition set (the row universe), authority families (the columns), subject organization, as-of date, closed dimensions, precedence policy, and pinned module releases. | `scope_id`, `target_class_term_id`, `target_object_id`, `metric_definition_set JSONB`, `authority_families JSONB`, `subject_organization_id`, `as_of_date`, `closed_dimensions JSONB`, `precedence_policy JSONB`, `pinned_releases JSONB` | DR22, L7 | DR22 application service |
-| `kb.comparison_runs` (real name: `kb.ontology_comparison_runs`) | ~~Cached~~ **verified 2026-08-08: persisted, not cached** — a write-once run record with no dedup-by-watermark and no invalidation logic when the watermark or pinned releases move, despite this description. | `run_id`, `scope_id`, `assertion_watermark`, `status`, `cached_at` | DR22, L7 | DR22 application service |
-| `kb.comparison_cells` (real name: `kb.ontology_comparison_cells`) | One cell in the comparison matrix. A cell is a **list** (not a value): matched assertion IDs with citation and line-span evidence, a display representative, a remainder count, and a verdict with direction and rationale. | `run_id`, `metric_definition_term_id`, `authority_family`, `assertion_ids JSONB`, `representative_assertion_id`, `remainder_count`, `verdict`, `direction`, `rationale` | DR21, DR22, L7 | DR22 application service |
-| ~~`kb.recommendation_policies`~~ | **Verified 2026-08-08: does not exist** — no migration, no code anywhere in the repo. Versioned policy mapping verdicts to advice (DR21 rule 1) remains a design intent only. | `policy_id`, `version`, `rules JSONB`, `status`, `created_at` | DR21, L7 | not built |
-
-### C.7 Altered existing tables
-
-| Table | Alteration | Phase | ADR ref | Purpose |
-|---|---|---|---|---|
-| ~~`kb.doc_process_runs`~~ | **Verified 2026-08-08: `plan` column was never added** — `CreateDocProcessRun` inserts only `record_id`/`event_id`/`mode`/`run_number`/`processors`/`parameters`. The execution plan instead lives in a new table, `kb.doc_process_plans`, FK'd to the run (Appendix C.1). `policy_version` status not independently re-verified. | P1 | DR6, DR7 | Immutable execution plan: the policy version, selected pipeline and why, facet snapshot, and per-processor decision with winning rule id and reason |
-| ~~`kb.inputs` ADD `ks_id`~~ / `facet_summary` | **Verified 2026-08-08: neither exists.** The FK column is the pre-existing `ks_store_id` (migration `20260425000002`, predates this ADR). `requested_pipeline TEXT` is real and confirmed genuinely set at ingestion. `facet_summary JSONB` does not exist — `kb.doc_facets`/`kb.doc_facet_values` serve that role instead. | P1 | DR18, DR6 | Knowledge-store referential integrity, user-requested pipeline override, and derived facet summary for routing |
-| `kb.object_nodes` | ADD `merged_into TEXT`, `scope_key TEXT` — columns real, but **verified 2026-08-08: unpopulated** (0 of 893 live rows). The object reconciler does not yet read or write them; DR15.1's "adopts the kernel's contracts first" is scaffolding, not wired. | P2 | DR15.1 | Tombstone merge tracking and explicit identity scope (DR15 kernel contracts adopted incrementally) |
-| `kb.object_nodes` | ADD `ontological_level`, `identity_scope`, `external_identifiers JSONB`, `primary_class_term_id` (derived projection) — confirmed real, `primary_class_term_id` confirmed derived-only (one registered projection builder writes it, nothing else does) | P2 | DR10, DR15 | Governed ontological level (individual/type/collection/occurrence), identity scope, external identifier bag, and derived class projection (never authored, rebuildable) |
-| `kb.metrics` | ADD `value_min`, `value_max`, `condition`, `value_range_type`, `value_class`, `metric_value`, `metric_unit` — confirmed built and the primary (not fallback) path | P3 | DR21 | Structured metric output: value form, comparator, normalized value, unit, and condition replace the legacy `threshold_or_target` free text |
-| `kb.provisions` | Extended `public_info` with structured evidence fields — not independently re-verified in the 2026-08-08 pass | P3–P4 | DR21 | Applicability/scope clauses, authority, and effective interval for profile-rule sourcing |
-| `kb.doc_review_findings` | ADD `review_scope_id`, `profile_rule_id`, `assertion_id` — confirmed built; `Persist` hard-errors if the first two are missing, only `assertion_id` is legitimately nullable | P4 | DR3, L7 | Links each finding to its frozen review scope, the governing profile rule, and the relevant assertion |
-| ~~`kb.scene_objects`~~ | **Verified 2026-08-08: this rename never happened.** The column is still `object_id` — no migration or code reference to `scene_block_id` exists anywhere in the repo. | P1 | spec §11.4 | Identifier hygiene: the column carries occurrence identifiers, not canonical object references |
-
-### C.8 Pre-existing tables referenced but not created or altered by this ADR
-
-These tables are part of the deployed SemOS system and are referenced by this ADR for context.
-They are not created or structurally changed by the ontology framework.
-
-| Table | Role in this ADR |
-|---|---|
-| `kb.artifact_objects` | Layer 1 evidence: per-record artifact-to-object mentions. The `semid` kernel adopts its contracts incrementally (DR15.1). |
-| `kb.object_nodes` | Layer 2 referent identity: canonical referents with reconciliation, merge audit, and ambiguous-tie handling (ADR 2026070701). Gains extension columns (C.7). |
-| `kb.search_artifacts` | Layer 1 evidence: LIST-partitioned search index over extracted artifacts. Not renamed or re-partitioned (DR24). |
-| `kb.artifact_connections` | Layer 1 evidence: LIST-partitioned navigation graph. Not renamed or re-partitioned (DR24). |
-| `kb.artifact_categories` | Existing retrieval/navigation categories. Retrofit to `semid` kernel planned P4+ (DR15). |
-| `kb.knowledge_store` | Tenant, `ks_type`, `ks_name`, `ks_sources`, sync mode, status. **Verified 2026-08-08: gains a `default_pipeline` column directly (migration `20260731000003`), not a separate `kb.knowledge_store_bindings` table — that table does not exist (C.1).** |
-| `kb.inputs` | Ingestion records. **Verified 2026-08-08: gains `requested_pipeline` (real); the FK is the pre-existing `ks_store_id`, not a new `ks_id`; `facet_summary` does not exist** (C.7). |
-| `kb.doc_process_runs` | Pipeline run records. **Verified 2026-08-08: did not gain a `plan` column** — the plan lives in the new `kb.doc_process_plans` table instead (C.1, C.7). |
-| `kb.doc_review_findings` | Review findings. Gains `review_scope_id`, `profile_rule_id`, `assertion_id` — confirmed built (C.7). |
-| `kb.metrics` | Extracted metric artifacts. Gains structured value fields — confirmed built and is the primary path (C.7). |
-| `kb.provisions` | Extracted provision artifacts. Gains structured evidence fields — not independently re-verified (C.7). |
-| `kb.scene_objects` | Scene-block occurrences. **Verified 2026-08-08: the planned `object_id` → `scene_block_id` rename never happened; column is still `object_id`** (C.7). |
-| `kb.category_alias_conflicts` | Existing category alias conflict records. Referenced in C4 analysis (§2.4). |
-| `alarms_errors` | Existing alarm/error records. DR7 writes pipeline-conflict alarms here. |
-| `kb.scheduled_jobs` | Existing scheduled-job infrastructure. DR8 reuses it for periodic deferred-candidate drains. |
-| `kb.cdm_anchors` | Existing CDM anchor map (page + x/y/w/h per line-file unit). DR25 grounding locator dispatches to it. |
+**Moved 2026-08-10** to `KnowledgeStore/doc-repo/user-manuals/database-tables.md`. A living table
+inventory belongs in an operator-facing reference that gets updated as tables are added, not inside
+an ADR whose job is to record a decision and its history — this appendix had already drifted (its
+keyword-lexicon governance section, C.4, only gestured at 11 undocumented `kb.keyword_*` tables with a
+footnote instead of enumerating them; the moved document fills that gap). See the linked document for
+the current, maintained table inventory.
