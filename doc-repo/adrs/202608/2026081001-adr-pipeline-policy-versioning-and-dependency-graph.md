@@ -298,6 +298,13 @@ before that gate ever evaluates — there is nothing left to defer.
   current fallback-to-`enable`/`skip` behavior and the retry-later plumbing
   around `DeferredPaths` are removed.
 
+### 3.10 DR10 - Doc Process DAG
+The term `Doc Process DAG` is an object. It consists of:
+- A doc process pipeline, stored as a row in `kb.pipelines`
+- It may be bound to a knowledge store. The binding is defined by a 
+  row in `kb.pipeline_bindings`
+- The DAG is defined by one or more `kb.pipeline_rules`
+
 ## 4. Consequences
 
 - `kb.pipeline_policies` and its two handler endpoints disappear entirely —
