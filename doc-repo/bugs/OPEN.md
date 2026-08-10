@@ -26,6 +26,18 @@ reaches a terminal state.
 
 ## Open
 
+- [2026081001 — kb.pipelines vs kb.pipeline_policies schema semantics Q&A](202608/2026081001-bug-pipeline-policies-vs-pipelines-schema-review.md)
+  — `open`. Discussion ahead of a frontend pipeline-policy management page. One change agreed
+  (add `kb.pipeline_policies.description`) but not yet built. Still genuinely open: `kb.pipelines`
+  rows are fully mutable in place (add or remove processors, or delete the row) with **zero audit
+  trail** — no asymmetric add-only restriction was found, contrary to an initial assumption.
+  Needs a decision between making `kb.pipelines` immutable/versioned vs. mutable-but-audited
+  before the frontend's pipeline-edit UI is built. Also confirmed `kb.pipeline_policies.checksum`
+  hashes the *entire* `kb.pipelines` table (not just the policy's own referenced pipelines), so
+  any pipeline edit anywhere changes what a recompile of any policy's checksum would produce —
+  though in practice nothing ever recompiles/compares an already-activated policy's checksum, so
+  this is currently inert rather than actively broken. Worth revisiting the checksum's scope
+  alongside the immutability decision.
 - [2026073003 — extract_metrics recall investigation wrap-up: final state and disposition](202607/2026073003-bug-extract-metrics-recall-investigation-wrapup.md)
   — `open, paused by decision`. Closes out the three-stage investigation started in
   2026073001/2026073002. One root cause fixed with high confidence (scope-language
