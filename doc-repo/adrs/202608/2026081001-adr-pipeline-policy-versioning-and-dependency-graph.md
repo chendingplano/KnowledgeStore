@@ -322,8 +322,12 @@ The term `Doc Process DAG` is an object. It consists of:
   (today's `ExecutionOrder()` stays a fixed phase-bucket concatenation until
   that lands); a frontend for authoring conditional gate predicates (DR5).
 
+## 5. Implementations
+Refer to [4] for the implementations.
+
 ## 5. References
 
 1. `2026081001-bug-pipeline-policies-vs-pipelines-schema-review.md` (`doc-repo/bugs/202608/`) — the investigation this ADR is built on.
 2. `2026072901-adr-ontology-platform-and-adaptive-pipeline.md` §3.7 DR6 (`doc-repo/adrs/202607/`) — original two-tier routing design this ADR revises in light of how it was actually built and used.
 3. `ChenWeb/docs/superpowers/specs/2026-08-08-doc-processing-policy-design.md` — the `config.local.toml`-driven bootstrap seed tool, which stays as a one-time bootstrap path (prior-session decision) and will need updating to target the post-retirement schema.
+4. `KnowledgeStore/doc-repo/impl/202608/2026081001-impl-doc-process-dag-management.md`

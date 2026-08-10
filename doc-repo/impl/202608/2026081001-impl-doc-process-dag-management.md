@@ -7,6 +7,9 @@
 
 ## Change Logs
 * 2026/08/10, Document created.
+* 2026/08/10, Bug fix: list responses dropped the `processors` key for DAGs
+  with an empty processor set (Go `omitempty`), crashing the DAG page render
+  (frozen "Loading…"). The field is now always emitted (`[]` for empty sets).
 
 ## Purpose
 
@@ -61,6 +64,17 @@ Implemented as a full REST surface (all behind the existing JWT/Kratos auth):
 - `PUT  /api/v1/kb/doc-process-dags/:name` — modify
 - `DELETE /api/v1/kb/doc-process-dags/:name` — delete (all versions + rules + bindings)
 - `GET  /api/v1/kb/doc-process-processors` — the `docprocessing.RegisteredProcessors()` catalog for the page's editor
+
+> **Contract guarantee (fix, 2026-08-10):** the list/detail responses always
+> emit the `processors` array, including `[]` for DAGs whose processor set is
+> empty (the three legacy rows `legacy_default`, `store_default`,
+> `request_override` have `{}` in `kb.pipelines`). Previously the field used
+> Go's `omitempty`, which dropped the key entirely for those rows; the
+> frontend's `DocProcessDag` type requires `processors`, so the render threw a
+> `TypeError` and Svelte 5 aborted the reactive flush, leaving the page on
+> "Loading…" forever. The fix removes `omitempty` from the field. No frontend
+> change was needed — the backend now guarantees the array (defensive `?? []`
+> was intentionally not added per surgical-change guidance).
 
 The browser page (`doc-process-dag-view.svelte`) provides search with
 debounce, summary cards (total DAGs, current default, processor count), a DAG

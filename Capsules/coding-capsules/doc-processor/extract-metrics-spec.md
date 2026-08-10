@@ -403,6 +403,22 @@ For each metric, add a record to `kb.artifact_connections`:
   - `relation_method = 'object_id'`
   - `source_record_id = kb.artifact_objects.source_record_id`
 
+### 3.5.2 Ontology Candidate Harvest
+
+After the final metric rows are saved to `kb.metrics`, every metric that carries a
+`formula_or_definition` value is converted into a governed ontology candidate
+(`kb.ontology_candidates`, `candidate_kind = 'term'`, `term_kind = 'metric_definition'`,
+module `measurement`) via `harvestMetricDefinitions`. The `formula_or_definition` field
+holds the metric's *definition*: the statement that says what the metric means, including a
+formula that defines it (a formula that defines a metric is a definition). A bare value or
+threshold is an assertion, not a definition, and is not harvested.
+
+The harvest is **mode-independent**: it runs in both the chunk-batch (concurrent) path
+(`FinalizeChunkBatch`) and the sequential fallback path (`HandleEvent`), so converting
+extracted metrics to ontology candidates does not depend on `RUN_DOC_PROCESSOR_CONCURRENT`.
+Candidate creation is idempotent by fingerprint, so re-running a record never duplicates
+review work.
+
 ### 3.6 Thinking Behavior
 
 Metrics extraction must force thinking off for all passes:

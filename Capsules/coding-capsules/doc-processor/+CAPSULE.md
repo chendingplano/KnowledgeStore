@@ -158,30 +158,30 @@ entries). They are populated from the LLM client's `LastJSONUsage()` via
 ## 7. Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.
 Currently, it has the following doc processors:
-| Seqno | Processor Name | Type | Require LLMs | Dependence | Explanation |
-|---|---|---|---|---|---|
-|1 | blocking | mandatory | No | after 1 | Blocking Processor. Refer to [6]. This processor is always executed. |
-|2 | structure_analyzer | mandatory | No | none | Doc Structure Static Analyzer. Refer to [1] |
-|3 | chunking | mandatory | No | after 2 | Chunking Processor. Refer to [2]|
-|4 | extract_metadata | mandatory | Yes | after 1 | Extract Doc Metadata Processor. Refer to [3] for its spec |
-|5 | extract_metrics | configurable | Yes | after 3 | Extract Metrics Processor. Refer to [4] for its spec |
-|6 | extract_provisions | configurable | Yes | after 3 (default) or after 1 (EXTRACT_PROVISIONS_INPUT="blocks") | Extract provisions. Refer to [5] |
-|7 | extract_semantic_projections | configurable | Yes | after 3 | Extract semantic projections. Refer to [11] |
-|8 | generate_summaries | configurable | Yes | after 3 | Generate summaries. Refer to [7] |
-|9 | generate_topics | configurable | Yes | after 3 | Generate topics. Refer to [8] |
-|10 | generate_scene_blocks | configurable | Yes | after 3 | Generate scene blocks. Refer to [9] |
-|11 | extract_entity_relation | configurable | Yes | after 3 | Extract entities and relations. Refer to [13] |
-|12 | extract_inventory_items | configurable | Yes | after 3 | Extract inventory item objects. Refer to [15] |
-|13 | review_document | configurable | Yes | after 3 | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
-|14 | extract_metric_definitions | routed | Yes | after 3 | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. |
-|15 | extract_test_methods | routed | Yes | after 3 | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
-|16 | extract_product_structure | routed post-process | No additional LLM | after entity/relation post-process | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
-|17 | normalize_assertions | routed (Phase C) | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
-|18 | associate_semantics | routed (Phase C) | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
-|19 | project_semantics | routed (Phase C) | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
-|20 | classify_document | routed (resolver-invoked) | Yes | after 3 (chunking) | Tier-3 governed-vocabulary classifier (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`). Not wave-dispatched: invoked directly by the two-pass `ApplicabilityResolver`, only for decision-relevant tier-3 paths the base facts leave unresolved. See §7.6. |
-|21 | facet_tier1 | routed (registry-only, non-wave-dispatched) | No | none — runs right after the line file is parsed, before Phase A | Tier-1 deterministic document-facet producer (`ComputeTier1Facets`, `facet_tier1.go`). Computes free, deterministic facets (page count, language mix, table-line ratio, numeric-with-unit density, modal-verb density, TOC presence, heading depth, doc-number pattern, file type, figure density) and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; invoked directly from `ControlService.handleEvent`, gated by `facetTier1GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier1"`). See ADR 2026072901 §3.5. |
-|22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
+| Seqno | Processor Name | Type | Stage | Require LLMs | Dependence | Explanation |
+|---|---|---|---|---|---|---|
+|1 | blocking | mandatory | 0 | No | none | Blocking Processor. Refer to [6]. This processor is always executed. |
+|2 | structure_analyzer | mandatory | 0 | No | none | Doc Structure Static Analyzer. Refer to [1] |
+|3 | chunking | mandatory | 0 | No | `structure_analyzer` | Chunking Processor. Refer to [2]|
+|4 | extract_metadata | mandatory | 1 | Yes | `chunking` | Extract Doc Metadata Processor. Refer to [3] for its spec |
+|5 | extract_metrics | configurable | 2 | Yes | `chunking` | Extract Metrics Processor. Refer to [4] for its spec. Save to `kb.metrics` |
+|6 | extract_provisions | configurable | 2 | Yes | `chunking` | Extract provisions. Refer to [5]. Set EXTRACT_PROVISIONS_INPUT == "blocks" to change it to be block-based processing |
+|7 | extract_semantic_projections | configurable | 2 | Yes | `chunking` | Extract semantic projections. Refer to [11] |
+|8 | generate_summaries | configurable | 2 | Yes | `chunking` | Generate summaries. Refer to [7] |
+|9 | generate_topics | configurable | 2 | Yes | `chunking` | Generate topics. Refer to [8] |
+|10 | generate_scene_blocks | configurable | 2 | Yes | `chunking` | Generate scene blocks. Refer to [9] |
+|11 | extract_entity_relation | configurable | 2 | Yes | `chunking` | Extract entities and relations. Refer to [13] |
+|12 | extract_inventory_items | configurable | 2 | Yes | `chunking` | Extract inventory item objects. Refer to [15] |
+|13 | review_document | configurable | 2 | Yes | `chunking` | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
+|14 | extract_metric_definitions | routed | 2 | Yes | `chunking` | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. Results saved in `kb.ontonogy_candidates` |
+|15 | extract_test_methods | routed | 2 | Yes | `chunking` | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
+|16 | extract_product_structure | routed post-process | 3 | No | `extract_entity_relation` | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
+|17 | normalize_assertions | routed (Phase C) | 3 | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
+|18 | associate_semantics | routed (Phase C) | 4 | No | after 17 | DR8 Phase D stage 2: resolve, validate, adjudicate, and persist stage-1 candidates as accepted assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
+|19 | project_semantics | routed (Phase C) | 5 | No | after 18 | DR8 Phase D stage 3: build derived projections from accepted assertions and log the spec §10.9 association-run report. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
+|20 | classify_document | routed (resolver-invoked) | 2 | Yes | `chunking` | Tier-3 governed-vocabulary classifier (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`). Not wave-dispatched: invoked directly by the two-pass `ApplicabilityResolver`, only for decision-relevant tier-3 paths the base facts leave unresolved. See §7.6. |
+|21 | facet_tier1 | routed (registry-only, non-wave-dispatched) | 1 | No | none | Tier-1 deterministic document-facet producer (`ComputeTier1Facets`, `facet_tier1.go`). Computes free, deterministic facets (page count, language mix, table-line ratio, numeric-with-unit density, modal-verb density, TOC presence, heading depth, doc-number pattern, file type, figure density) and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; invoked directly from `ControlService.handleEvent`, gated by `facetTier1GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier1"`). See ADR 2026072901 §3.5. |
+|22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | 1 | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
