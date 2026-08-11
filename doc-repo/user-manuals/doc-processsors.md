@@ -267,6 +267,8 @@ The two stages in this section don't extract facts *about your specific document
 
 Everything these two stages produce is a **candidate** — a proposed dictionary entry sitting in a review queue. A human curator has to review and approve it before it becomes part of the system's official, governed vocabulary. Nothing these stages find becomes "official" on its own; that's a deliberate safeguard against bad or ambiguous AI-sourced content polluting a shared reference.
 
+**Duplicate check:** Before a new candidate is added, the system checks whether its name — or any of the alternate names it's known by — matches another candidate that's still waiting for review, even if the two were worded differently or disagree on which name is the "main" one and which is an alternate. When it finds a likely match, it flags the two candidates to each other, so a curator looking at one can see there's probably a duplicate rather than approving both and ending up with two separate, redundant entries in the shared vocabulary. This check runs today, but there's no dedicated screen yet that shows you when a flag like this has been found — for now it just protects the underlying data, ahead of a review screen that will surface it directly.
+
 ### 9.1 Metric definitions (`extract_metric_definitions`)
 
 **What it does:** Looks specifically for places where a document formally *defines* a measurable concept — its name, its aliases, and what kind of value it takes (a number, a range, a pass/fail) — as opposed to §6.1, which grabs the actual numbers a document *reports*. Where a "Definitions" section states, for example, that "load (载荷) is the force applied to a structure, measured in kN," this stage proposes a candidate dictionary entry: term = load, unit = kN, alias = 载荷.
