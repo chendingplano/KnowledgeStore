@@ -26,6 +26,18 @@ reaches a terminal state.
 
 ## Open
 
+- [2026081101 — kb.ontology_candidates fingerprint dedup is exact-match only](202608/2026081101-bug-ontology-candidates-fingerprint-dedup.md)
+  — `open`. Reprocessing input_record 416 produced two near-duplicate `metric_definition`
+  candidates (ids 16, 17) that weren't deduped because `label` and the sole `alias` swapped
+  between extraction runs, changing both the fingerprint and the derived `term_id`. Traced the
+  full downstream impact: `normalize_assertions`/`associate_semantics`/`project_semantics` never
+  read this table at all (separate pipeline), so no automated damage today. The real risk is at
+  promotion — two candidates with different `term_id`s (this case) promote cleanly into separate
+  `kb.ontology_terms` rows with **no error**, silently duplicating governed vocabulary. Also found
+  no frontend/reviewer UI exists for this table yet, so nothing would currently surface the
+  duplication to a human either. Fix design (deterministic identity key over `{label} ∪ aliases`,
+  surfaced via the existing but unused `candidate_matches` column) scoped as a follow-up openspec
+  change.
 - [2026081001 — kb.pipelines vs kb.pipeline_policies schema semantics Q&A](202608/2026081001-bug-pipeline-policies-vs-pipelines-schema-review.md)
   — `open`. Discussion ahead of a frontend pipeline-policy management page. One change agreed
   (add `kb.pipeline_policies.description`) but not yet built. Still genuinely open: `kb.pipelines`
