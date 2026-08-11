@@ -2,8 +2,11 @@
 
 Date: 2026-08-11
 
-Status: open — root-caused and reviewed this session; design for a fix follows in a separate
-openspec change, not yet built.
+Status: fixed-unverified — root-caused and reviewed 2026-08-11; fix designed and implemented the
+same day as ChenWeb openspec change `ontology-candidate-dedup`
+(`ChenWeb/openspec/changes/ontology-candidate-dedup/`), migration
+`20260811000005_add_identity_key_to_ontology_candidates.sql` applied live to the dev DB, unit
+tests passing. Not yet verified against a real duplicate scenario end-to-end (see "Still owed").
 
 Scope: `kb.ontology_candidates`, its `fingerprint` uniqueness mechanism, the writers that feed it
 (`extract_metric_definitions`, `extract_metrics`'s inline harvest, `extract_test_methods`), and
@@ -125,12 +128,25 @@ None of these are applied to `kb.ontology_candidates` today. A design for closin
 
 ## Still owed
 
-- Decide and build the identity-key + `candidate_matches`-surfacing fix (openspec change, in
-  progress as of this doc).
+- ~~Decide and build the identity-key + `candidate_matches`-surfacing fix~~ — done: see
+  `ChenWeb/openspec/changes/ontology-candidate-dedup/` (proposal/design/specs/tasks all complete,
+  all 17 implementation tasks checked off in `tasks.md`). `candidates.IdentityKey` computes a
+  module + term_kind + normalized-{label}∪aliases key for `candidate_kind='term'` rows;
+  `CandidateStore.CreateCandidate` records soft matches into `candidate_matches` for any
+  non-terminal-status row sharing that key, never blocking the insert. Unit-tested (sqlmock) for
+  the exact label/alias-swap reproduction below, plus the term_kind-collision, terminal-status,
+  fingerprint-reuse, and non-term-candidate-kind edge cases.
+- **Live end-to-end verification not yet done.** What would confirm this is genuinely fixed:
+  reprocess a document that previously produced a label/alias-swapped duplicate pair (or
+  synthesize one via the API) against the live/dev DB and confirm the second candidate's
+  `candidate_matches` actually references the first, not just the sqlmock-level unit tests. Rows
+  16/17 themselves predate this column and were not backfilled (`identity_key` is computed at
+  insert time only — see design.md's Migration Plan) — they will not retroactively show a match
+  against each other unless a backfill is run separately.
 - Determine whether rows 16/17 came from two runs of the same processor or from
   `extract_metrics`'s inline harvest + `extract_metric_definitions` firing once each in a single
   run — check `discovery_method`/`create_time` on both rows. Affects whether there's a *second*,
-  independent bug (unnecessary duplicate writers) beyond the dedup-key gap.
+  independent bug (unnecessary duplicate writers) beyond the dedup-key gap this fix addresses.
 - No reviewer UI exists for `kb.ontology_candidates` at all (confirmed this session) — out of scope
-  for this bug, but the dedup fix's value is capped until a human can actually see
-  `candidate_matches` surfaced somewhere.
+  for this bug and for `ontology-candidate-dedup`, but the fix's value is capped until a human can
+  actually see `candidate_matches` surfaced somewhere.
