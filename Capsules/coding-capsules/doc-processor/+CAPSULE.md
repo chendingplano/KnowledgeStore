@@ -173,7 +173,7 @@ Currently, it has the following doc processors:
 |11 | extract_entity_relation | configurable | 2 | Yes | `chunking` | Extract entities and relations. Refer to [13] |
 |12 | extract_inventory_items | configurable | 2 | Yes | `chunking` | Extract inventory item objects. Refer to [15] |
 |13 | review_document | configurable | 2 | Yes | `chunking` | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
-|14 | extract_metric_definitions | routed | 2 | Yes | `chunking` | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. Results saved in `kb.ontonogy_candidates` |
+|14 | extract_metric_definitions | routed | 2 | Yes | `chunking` | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. Results saved in `kb.ontology_candidates`. Refer to [20] for its spec |
 |15 | extract_test_methods | routed | 2 | Yes | `chunking` | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
 |16 | extract_product_structure | routed post-process | 3 | No | `extract_entity_relation` | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
 |17 | normalize_assertions | routed (Phase C) | 3 | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
@@ -698,6 +698,25 @@ Status JSON:
 }
 ```
 
+### 9.11 Extract Metric Definitions
+When: When the extract metric definitions ([20]) processor finishes (runs under the
+per-chunk batching coordinator, like §9.5/§9.10; see [20] §5 for the per-chunk workflow).
+
+Status JSON:
+```json
+{
+  "operation": "extract_metric_definitions",
+  "proc_status": "success | failed | active | stopped",
+  "start_time": "yyyymmdd hh:mm:ss",
+  "progress": "..."
+}
+```
+
+`progress` is present only when the coordinator passes a non-empty progress string.
+Unlike the legacy per-processor status writers (e.g. §9.4/§9.5), this entry is written by
+the shared `persistProcessorRuntimeStatus`/`upsertProcessorRuntimeStatus` coordinator path
+and does not currently include `error` or `ms_used`.
+
 ## 10 Handle Stop Request
 
 A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
@@ -898,3 +917,5 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 [19] SemOS P3 implementation log, §12 (the Phase D `ProcessorSpec` declaration fix that made
   rows 17-19 real, routed processors):
   `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md`
+
+[20] Extract Metric Definitions Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metric-definitions-spec.md`
