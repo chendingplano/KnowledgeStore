@@ -354,6 +354,16 @@ both `mea:*` terms at `status = 'included_in_release'`.
     freshly migrated database — with no manual seed step — and verifies the
     expected assertion/evidence rows. This test is what would have caught the
     bootstrap hole.
+11. Make `authorModule` re-author a curated term whose latest version is
+    neither `approved` nor `included_in_release`. Added by the follow-up
+    review below (finding H); this is a startup-crash path.
+12. Repair the `miner` activation pointers: every curated module's active
+    release is an older, superseded one while the current curated content
+    sits in an inactive release. Added by the follow-up review below.
+13. Decide how a curated term is retracted. Deleting a term from
+    `content.go` leaves it `included_in_release` forever, and the runtime
+    gate accepts any released version. `mea:exact_value` is in exactly this
+    state in `miner` today. Added by the follow-up review below.
 
 ## Implementation
 
@@ -753,3 +763,191 @@ noted in this report: the fresh-database integration acceptance test,
 `doc-processing-policy-seed` startup integration, the missing deontic
 predicate vocabulary, retrying existing governed-term deferrals, and the
 `exact_value` vocabulary/allowlist decision.
+
+## Follow-up review (2026-08-13)
+
+Review of commit `228f4a35fb90` against findings A–G above. The bootstrap paths
+were exercised against real, freshly created PostgreSQL databases with the
+`kb.ontology_*` migrations applied, driving `SeedCuratedModules` and
+`EnsureCuratedModules` directly. That was necessary rather than optional: the
+regression coverage added in `228f` is entirely SQL-mock or source-text based
+and does not reach the paths it claims to protect. `go build ./server/...` and
+`go vet ./server/...` are clean, and the `seed`, `modules`, and `ontology-seed`
+test packages pass, exactly as the implementation follow-up states.
+
+**Verdict: A, B, D, E, and G are correctly fixed. C and F are half-fixed but
+recorded as done. One new defect of the same family (H below) is a harder
+failure than anything in A–G — it can hold both binaries in a permanent
+`os.Exit(1)` loop — and it is a regression introduced by the B fix.**
+
+### A, B, D, E, G: verified fixed
+
+- **A — dependency-closure validation.** `validateAndBuildSnapshot` calls
+  `validateDepsForModule` (`modules/validate.go:203`). Verified live: with a
+  `dangling` module registered whose declared dependency `nowhere` does not
+  exist, an unrelated module still releases *and* still accepts a subsequent
+  content edit. The dangling module's own release still fails, correctly.
+- **B — reverted content.** Verified live on a scratch database: an
+  original → edit → revert cycle produced
+  `1.0.0+seed.e19557dced1c.r2` with the reverted term at
+  `included_in_release`. A fourth run added no module, term, label, or release
+  rows, so the state is stable rather than churning.
+- **D — release version base.** `curatedReleaseVersion` uses `mc.Version` as
+  the base with a `"1.0.0"` fallback (`seed/seed.go:289`).
+- **E — stale module metadata.** Verified live: `title`, `owner`, and
+  `depends_on` are reconciled from curated content, and the reconciled
+  `DependsOn` is honored by release-time dependency pinning.
+- **G — release ordering.** `latestReleaseVersion` orders by
+  `released_at DESC, id DESC`.
+
+### H. New blocking defect: a non-approved curated term cuts a release on every start
+
+`authorModule` decides whether to re-author a term by comparing kind, module,
+and definition only (`seed/seed.go:143`) — it never inspects status. The label
+path directly below it is status-aware (`hasLabel`, `seed/seed.go:196`), as are
+`curatedContentReleased` (`seed/seed.go:378`) and
+`stageContentForNewCuratedRelease` (`seed/seed.go:225`). A curated term left in
+any other status is therefore never repaired, `curatedContentReleased` returns
+false forever, and staging skips the broken term because its latest version is
+not `included_in_release`.
+
+Reproduced live by superseding one curated term of a two-term module and then
+restarting the seed four times:
+
+```text
+restart 1: err=<nil> releases=2 termrows=3
+restart 2: err=<nil> releases=3 termrows=4
+restart 3: err=<nil> releases=4 termrows=5
+restart 4: err=<nil> releases=5 termrows=6
+
+sup:x v1 superseded            <- never repaired
+sup:y v1..v5 included_in_release
+release 1.0.0+seed.4e2feb306402
+release 1.0.0+seed.4e2feb306402.r2 .r3 .r4 .r5
+```
+
+One new `.rN` release plus one new version row for every healthy sibling term,
+on every service start, without bound. When the affected term is the module's
+last curated term, the release cannot be built at all:
+
+```text
+== all-superseded restart err=release alltest@1.0.0+seed.765680673cf3.r2:
+   module "alltest" has no approved terms to release
+```
+
+`EnsureCuratedModules` returns that error, so **both binaries `os.Exit(1)` on
+every start** — the same posture findings 1 and A were filed to eliminate.
+
+This needs no database surgery to trigger.
+`POST /api/v1/kb/ontology/terms/:term_id/:version/status` (`routes.go:472`)
+with `{"to": "superseded"}` is an allowed transition from
+`included_in_release` (`terms/terms_store.go:92`), so an ordinary governance
+action on a curated term arms it. Before `228f` this was impossible:
+`releaseAndActivate` returned as soon as the derived-version release existed.
+The B fix armed it.
+
+Fix: make `authorModule` re-author a term whose latest version's status is
+neither `approved` nor `included_in_release`, matching what the label path
+already does. Tracked as remediation item 11.
+
+### C and F are only half fixed
+
+**C.** The `pending_activation` warning exists and is logged by `deepdoc`,
+`doc-processor`, and the CLI. But activation itself still never advances:
+`releaseAndActivate` (`seed/seed.go:353`) returns the warning and leaves the
+pointer where it is. Verified live — a content edit released as release id 5
+while the activation pointer stayed on id 4. Every consumer that reads the
+pointer rather than term status keeps serving the first snapshot forever:
+`ReleaseStore.LoadActiveModuleReleases`, the profile and profile-rule loaders,
+and `VocabularyReleaseSQLStore.ActiveDocumentAuthorityReleaseID`
+(`doc-processing/applicability_resolver.go:27`), which pins
+`classify_document`'s governed vocabulary and does not filter superseded
+releases. The hardening review's consumer-impact sentence — "a
+`document-authority` content edit will therefore never reach
+`classify_document`" — is still true. The implementation follow-up lists C as
+addressed and the Disposition does not carry it forward as open work.
+
+**F.** The `mise` verifier's term check now matches the runtime gate, which is
+the half that was fixed. The module-level check still requires an *active*
+release and prints that release's version, so with C open it reports
+`ok core@1.0.0` indefinitely while curated content moves on. Confirmed in the
+legacy-deploy simulation below. Item 8 therefore still has two conditions in
+play, not one.
+
+### Corrections to this report
+
+**1. The activation-pointer inconsistency is not hypothetical — it is already
+in `miner`.** The hardening review's "Effect on disposition" predicted that
+deploying would leave the `1.0.0` releases "marked superseded while still being
+the active ones". On a clean deploy of `228f` that does not happen:
+`PreserveActive` protects the active release, and a simulated deploy over a
+legacy `1.0.0` bootstrap left `1.0.0` active *and* unsuperseded. But the
+prediction is nonetheless the live state of `miner` today, because the
+10:34 run predates `PreserveActive`:
+
+```text
+module               active release      superseded_by   current content
+core                 id=1  1.0.0         -> 10           id=15 (inactive)
+document-authority   id=8  1.0.0         -> 11           id=11 (inactive)
+measurement          id=9  1.0.0         -> 12           id=16 (inactive)
+```
+
+Every curated module's active release is a superseded one, and the release
+carrying the current curated content is inactive. The runtime gate is still
+green — `mea:measured_by` and `mea:lower_bound_requirement` both have
+`included_in_release` versions — so `associate_semantics` is unaffected. But
+`classify_document` and the profile loaders are pinned to the pre-hardening
+snapshot. This needs an explicit repair step, not a deployment note. Tracked as
+remediation item 12.
+
+**2. Removing a term from `content.go` does not retract it, and that has
+already happened.** `mea:exact_value` is `included_in_release` in `miner`
+(released 11:10 in release id 13) but is no longer present in `content.go`.
+There is no path back: the seed only ever adds. This is finding B's mirror
+image. It also confirms empirically what the hardening review said about
+remediation item 6 — the term is released and still inert, because
+`governedMetricAssertionKinds` (`assertions/associate_semantics.go:170`)
+excludes `exact_value` and is consulted before `termExists`. Tracked as
+remediation item 13.
+
+### Smaller items
+
+- **Reverting only module metadata is silently not re-released.**
+  `curatedContentReleased` inspects terms and labels only, so reverting
+  `Title`, `Owner`, or `DependsOn` resolves the derived version back to an
+  existing release, finds the content released, and cuts nothing. The newest
+  release's dependency pins then stay stale. A narrow B-shaped hole left open.
+- **`validateDeps` is now dead production code**, reachable only from its own
+  three tests (`modules/validate.go:113`). Same shape as finding D, which this
+  commit removed.
+- **Staging cost is per release, not per changed term.** Every new
+  content-derived release copies an approved version of *every* curated term.
+  `miner` is already at 80 term rows for `core`'s 20 terms and 76 for
+  `document-authority`'s 38.
+- **`NextPatchVersion`'s comment is now wrong.** It still says "highest
+  existing release version" (`modules/releases_store.go:305`) after the G fix
+  made the underlying lookup recency-based. Only `quantity` uses it, so no
+  behavior breaks.
+- **`ontology-seed`'s package doc is now wrong.** It still states that
+  "existing modules, terms, labels, and releases are skipped rather than
+  overwritten" (`cmd/ontology-seed/main.go:11-14`). Re-running now updates
+  module metadata, versions terms and labels, and can cut new releases.
+- **New coverage does not reach the new code paths.** Nothing exercises
+  `curatedContentReleased` or the revert flow end to end;
+  `TestNextCuratedReleaseVersionReleasesRevertedContentAgain` tests only the
+  version-string helper. The fresh-database integration test is still missing,
+  which the implementation follow-up does acknowledge. Finding H would have
+  been caught by a behavioral test over `authorModule` status handling.
+- **Warning logging uses a dynamic message as the log key.**
+  `logger.Warn(warning.String(), ...)` in both binaries, and
+  `dependency_module_id` is emitted empty for `pending_activation`.
+
+### Effect on disposition
+
+Finding H should block rollout. It is a startup-crash path armed by an ordinary
+governance action, and it is a regression this commit introduced rather than a
+pre-existing trap. C should either be finished — advance activation when the
+current pointer was itself set by `ontology-seed`, preserving operator-selected
+activations — or moved explicitly to the follow-up list with an owner, since F
+cannot be reconciled while C is open. The `miner` activation-pointer repair
+(item 12) is independent of the code and can be done now.
