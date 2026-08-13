@@ -2,14 +2,14 @@
 title: Metric Assertions and Semantic Processing
 language: en
 format: markdown
-version: 1.0
+version: 1.1
 status: current
 author: Not specified
 owner: Not specified
 audience: SemOS users, metric reviewers, and system operators
-create-time: 2026-08-13T06:07:41-05:00
-last-modify-time: 2026-08-13T06:07:41-05:00
-keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline
+create-time: 2026-08-13T06:49:10-05:00
+last-modify-time: 2026-08-13T06:49:10-05:00
+keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline, projections, classifications
 ---
 
 # Metric Assertions and Semantic Processing
@@ -80,7 +80,19 @@ These paths answer different questions:
 ## 4. Key concepts
 
 ### 4.1 Metric
-(TBD)
+
+A **metric** is a measurable property, indicator, or specification value described in a document. Examples include luminance, noise level, response time, temperature, a percentage, a score, or a permitted range.
+
+A metric occurrence normally contains more than a name. It can include:
+
+- the name of the property being measured;
+- the object or situation to which it applies;
+- a value, range, limit, target, or qualitative result;
+- a unit or measurement form;
+- a condition or measurement context; and
+- source text showing where the information came from.
+
+The extracted metric row is document evidence. It is not automatically an accepted semantic assertion. The later Phase D stages determine how that occurrence should be represented and whether it can be accepted.
 
 ### 4.2 Metric name
 
@@ -131,13 +143,52 @@ comparator: >=
 ```
 
 ### 4.6 Doc Processor
-(TBD)
+
+A **doc processor** is one named stage in the document-processing pipeline. Each processor has one main responsibility and may read the document or an earlier processor's output, then save a result for later stages.
+
+Examples include:
+
+- `extract_metrics`, which extracts measurable values;
+- `extract_provisions`, which extracts requirements and rules; and
+- the three Phase D processors described in this manual.
+
+The word “processor” describes a pipeline responsibility, not a single database table. One processor can read from one table and write to another, and some processors only create candidates or derived data rather than authoritative facts.
+
+The three semantic processors run after the main extraction processors and are chained in a fixed order:
+
+```text
+normalize_assertions → associate_semantics → project_semantics
+```
 
 ### 4.7 Artifacts
-(TBD)
+
+An **artifact** is a structured piece of evidence produced by document extraction. It represents something found in a particular document; it is not automatically a governed ontology term or an accepted assertion.
+
+Examples include:
+
+- a metric row in `kb.metrics`;
+- a provision in `kb.provisions`;
+- an extracted entity or relation; and
+- an inventory or scene record stored by the relevant extraction processor.
+
+Artifacts normally retain source information such as the input document, artifact identifier, source lines, and extracted text. Normalizers read artifacts and use them to propose semantic candidates. This separation lets the system preserve the original extraction even when later semantic interpretation is incomplete or deferred.
 
 ### 4.8 Consistent Assertion Shape
-(TBD)
+
+A **consistent assertion shape** is the common structure used to express different kinds of claims in a comparable way. It does not mean that every assertion has every field populated. It means that the same kinds of information have predictable places when they are available.
+
+For a metric, the shape can include:
+
+- a subject reference, such as the object being measured;
+- a predicate, such as `mea:measured_by`;
+- an assertion kind, such as `lower_bound_requirement` or `observed_value`;
+- a value form, numeric value, range bounds, and comparator;
+- a unit and, when resolved, a quantity-kind term;
+- conditions and qualifiers;
+- the original raw text; and
+- evidence and provenance connecting the claim back to the artifact and source document.
+
+`normalize_assertions` places an artifact into this common shape as a candidate. `associate_semantics` validates the candidate and persists it as an accepted assertion when the required references and governed terms are available.
 
 ## 5. The three semantic processors
 
@@ -196,7 +247,35 @@ For metric candidates, it:
 - preserves the metric name, value, unit, condition, and source text as assertion information;
 - writes accepted assertions to `kb.semantic_assertions`;
 - records evidence in `kb.assertion_evidence`; and
-- records status changes, deferrals, and conflict or supersession information.
+- records status changes and deferrals; the assertion model also supports conflict or supersession relations when those relations are established.
+
+#### What is the assertion-kind term?
+
+The **assertion-kind term** is an ontology term that names the type of claim being made. It is not the candidate row and it is not the candidate table.
+
+For example, if the candidate payload says:
+
+```text
+assertion_kind: lower_bound_requirement
+```
+
+the association stage looks for the governed ontology term:
+
+```text
+mea:lower_bound_requirement
+```
+
+That term is stored in `kb.ontology_terms`. In the current metric association path, the term must be an available released term (`status = 'included_in_release'`) before the metric assertion can be accepted. The candidate itself remains in `kb.semantic_decision_candidates`; it carries the proposed assertion kind but is not the assertion-kind term.
+
+The two records have different jobs:
+
+| Item | What it is | Current storage |
+|---|---|---|
+| Candidate | A proposed claim waiting for validation | `kb.semantic_decision_candidates` |
+| Assertion-kind term | A governed vocabulary term describing the claim type | `kb.ontology_terms` |
+| Accepted assertion | The validated claim about a particular subject | `kb.semantic_assertions` |
+
+The predicate is a separate governed term. For a metric, the current path commonly checks `mea:measured_by` as the predicate and `mea:<assertion_kind>` as the assertion-kind term.
 
 This stage is conservative. If required context or governed terms are unavailable, it defers the candidate rather than creating a misleading accepted fact.
 
@@ -208,17 +287,66 @@ An accepted assertion is the authoritative semantic record for the claim. A defe
 
 `project_semantics` is the third semantic stage. It reads accepted assertions and builds derived, rebuildable information for efficient use by the application.
 
-It can:
+It does not normally change the accepted assertion. Instead, it materializes a convenient result elsewhere, records which accepted assertion supports that result, and rebuilds it when the authoritative assertion changes.
 
-- update convenience classifications;
-- build derived edges and search payloads;
-- maintain projection state;
-- mark a projection stale when rebuilding fails; and
-- repair stale projections later.
+#### What “update convenience classifications” means
 
-It does not replace the accepted assertion. The accepted assertion remains the authoritative record; projections are derived views that can be rebuilt.
+An object can have one or more accepted classification assertions, for example:
 
-The current implementation has a classification projection for object nodes. Additional metric-specific projections can be added as the system grows.
+```text
+object A  --core:instance_of-->  display_module
+```
+
+The assertion in `kb.semantic_assertions` is the authoritative record. A convenience classification is a directly readable field maintained for common lookups, so the application does not need to search all accepted assertions every time it wants an object's primary class.
+
+In the current implementation, `project_semantics`:
+
+1. finds objects whose accepted `core:instance_of` assertions have evidence from the input record;
+2. examines all accepted `core:instance_of` assertions for each affected object;
+3. chooses the earliest accepted governed classification deterministically as the primary classification;
+4. writes that term id to `kb.object_nodes.primary_class_term_id`; and
+5. records the source assertion id and revision in `kb.projection_state`.
+
+Several classifications can remain accepted in `kb.semantic_assertions`. `primary_class_term_id` is only a read-optimized pointer to one of them; it is not the authoritative list of all classifications. If no accepted classification remains, the projection clears the convenience field.
+
+#### What “derived edges” means
+
+An edge is a relationship represented as a link between two things, such as:
+
+```text
+object A  --instance_of-->  governed term B
+artifact X --about------->  object A
+```
+
+In the general design, a projection builder would read accepted assertions, select a relationship that is useful for querying, and write a rebuildable link or other derived representation. The derived relationship is calculated from accepted assertions; it is not independently authored and it must not become a second source of truth.
+
+The current implementation does not yet materialize a generic derived-edge table for all semantic relationships. The currently registered projection is the object classification projection described above. A future artifact-to-semantic link projection is expected to use a table such as `kb.artifact_semantic_links` when that family is implemented.
+
+Do not confuse these possible derived edges with `kb.assertion_relations`. `kb.assertion_relations` records relationships between authoritative assertions, such as conflict or supersession, as part of association handling. It is not the current output of `project_semantics`.
+
+#### Current outputs of `project_semantics`
+
+For the current registered classification projection, the outputs are:
+
+| Output | Purpose |
+|---|---|
+| `kb.object_nodes.primary_class_term_id` | A convenient primary classification for an object |
+| `kb.projection_state` | Provenance and freshness information: projection kind, target, authoritative table, assertion id/revision, and stale status |
+| stale status on projection state | Records that a rebuild failed and that repair is required later |
+
+The processor also emits a run report containing counts such as targets examined, projections built, projections repaired, and errors. That report is operational telemetry, not semantic source data.
+
+#### Does it only modify the output of `associate_semantics`?
+
+No. It **reads** accepted output from `associate_semantics` and uses it as the authoritative source, but it writes separate derived outputs. It does not normally rewrite:
+
+- `kb.semantic_decision_candidates`;
+- accepted rows in `kb.semantic_assertions`; or
+- the original extraction rows in `kb.metrics`.
+
+If a projection build fails, the accepted assertion remains authoritative and the projection is marked stale in `kb.projection_state`. A later repair can replay the deterministic projection without re-extracting the document or re-adjudicating the assertion.
+
+The projection registry is designed to support more projection kinds later, including derived search payloads or artifact-semantic links. Those are design extension points, not all current outputs of the present implementation.
 
 #### What to expect
 
@@ -367,8 +495,9 @@ This manual is based on:
 
 The ADR and capsule remain authoritative for implementation status, routing rules, schema details, and future changes.
 
-## 13. Change Log
+## Change Log
 
 | Version | Timestamp | Author / responsible party | Reason | Summary |
 |---|---|---|---|---|
+| 1.1 | 2026-08-13T06:49:10-05:00 | Not specified | Clarification and completion | Defined metric, doc processor, artifacts, and consistent assertion shape; explained assertion-kind terms, convenience classifications, derived edges, projection outputs, and the current implementation boundary. |
 | 1.0 | 2026-08-13T06:07:41-05:00 | Not specified | Initial manual | Explained the three semantic processors, their metric relationship, execution status, and the current indirect linkage between metric identities and accepted assertions. |
