@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: SemOS users, metric reviewers, and system operators
 create-time: 2026-08-13T06:49:10-05:00
-last-modify-time: 2026-08-13T06:49:10-05:00
+last-modify-time: 2026-08-13T16:35:53-05:00
 keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline, projections, classifications
 ---
 
@@ -207,6 +207,26 @@ For metrics, it currently:
 - writes candidates to `kb.semantic_decision_candidates`.
 
 It does not directly create an accepted semantic assertion.
+
+#### Candidate status
+
+`kb.semantic_decision_candidates.status` describes the processing state of a
+proposed claim. It does **not** say whether the source metric was extracted
+correctly. The source metric remains preserved even when its candidate cannot
+yet be accepted.
+
+| Status | What it means | How it is determined |
+|---|---|---|
+| `candidate` | The proposed claim is ready for semantic association. | `normalize_assertions` assigns this status when it creates a valid new candidate. |
+| `in_review` | Association processing has claimed the candidate and is evaluating it. In this path, this is temporary processing state, not a human-review queue. | `associate_semantics` changes an eligible `candidate` to `in_review` before resolving it. A later run may resume a candidate left in this state by an interrupted run. |
+| `accepted` | The candidate has produced an accepted semantic assertion. | After validation succeeds, `associate_semantics` writes the assertion and its evidence, records the resulting assertion identifier on the candidate, and marks the candidate `accepted`. |
+| `deferred` | The candidate is retained, but the system cannot safely accept it yet. | `associate_semantics` assigns this status when required information or governed vocabulary is unavailable, for example an unresolved subject, an unparsed value with no supported assertion kind, or a required term that is not released. The reason is recorded with the candidate. |
+| `rejected` | The candidate is unusable because its stored proposal is structurally invalid. | `associate_semantics` assigns this status when it cannot read a malformed proposed payload. |
+| `superseded` | An older candidate revision has been replaced by a newer proposal for the same logical identity. | Candidate proposal handling assigns this status when the proposed payload changes and a new revision is created. |
+
+Association normally selects only `candidate` and temporary `in_review` rows.
+A deferred row is therefore visible as unresolved work; it must be made
+eligible for another attempt after the recorded dependency has been resolved.
 
 #### Example
 
@@ -499,5 +519,6 @@ The ADR and capsule remain authoritative for implementation status, routing rule
 
 | Version | Timestamp | Author / responsible party | Reason | Summary |
 |---|---|---|---|---|
+| 1.1 | 2026-08-13T16:35:53-05:00 | Not specified | Clarification | Added the semantic decision-candidate status lifecycle, including how each status is assigned and retry eligibility. |
 | 1.1 | 2026-08-13T06:49:10-05:00 | Not specified | Clarification and completion | Defined metric, doc processor, artifacts, and consistent assertion shape; explained assertion-kind terms, convenience classifications, derived edges, projection outputs, and the current implementation boundary. |
 | 1.0 | 2026-08-13T06:07:41-05:00 | Not specified | Initial manual | Explained the three semantic processors, their metric relationship, execution status, and the current indirect linkage between metric identities and accepted assertions. |
