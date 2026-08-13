@@ -2254,7 +2254,7 @@ policy_version = "2026072901.3"
 | `DOC_PIPELINE_ON_CONFLICT` | `block` | `block` fails the run and raises an alarm on an unresolved binding conflict or undetermined gate; `fallback` walks the DR7 escalation ladder and warns |
 | `PG_HOST` / `PG_PORT` / `PG_USER` / `PG_DB_NAME` | local socket, `5432`, `cding`, `chenweb_test` | database the ontology compiler reads and writes; content lives in the DB, not a repository (DR2) |
 | `COMPILER_ARGS` | — | arguments to `mise run ontology-compiler` (`validate`/`release`/`activate`/`rollback`) |
-| `SEMANTIC_ASSOCIATION_ENABLED` | `false` | enable Phase D stages |
+| `SEMANTIC_ASSOCIATION_ENABLED` | `true` | enable Phase D stages |
 | `KEYWORD_RESOLVER_MODE` | `off` | `off` \| `observe` (record mentions and unresolved, resolve nothing) \| `on` |
 | `KEYWORD_NORMALIZER_VERSION` | `1` | bumping triggers a re-index, never data loss (DR16) |
 

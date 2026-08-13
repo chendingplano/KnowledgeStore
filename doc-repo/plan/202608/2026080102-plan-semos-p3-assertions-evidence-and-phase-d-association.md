@@ -75,7 +75,7 @@ In scope (Track A):
 - `kb.artifact_semantic_links` (`about_term`, `describes_occurrence`, `aligns_to_term` — the last one unused until the keyword family exists, but the column/predicate space is declared now so Track B does not need a migration to add it later)
 - `kb.projection_state` (authoritative ref, projection version, stale flag) and the `ProjectionBuilderRegistry` (seam 7)
 - `AssertionNormalizerRegistry` (seam 5) plus two normalizer instances: metric, provision — reading the *existing* `extract_metrics`/`extract_provisions` output (including best-effort parsing of `threshold_or_target` free text) rather than requiring those processors to change their emitted schema first
-- the three Phase D stages (`normalize_assertions.go`, `associate_semantics.go`, `project_semantics.go`) wired into `ControlService` after Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED` (default `false`)
+- the three Phase D stages (`normalize_assertions.go`, `associate_semantics.go`, `project_semantics.go`) wired into `ControlService` after Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED` (default `true`)
 - `kb.object_nodes.primary_class_term_id` maintenance via `project_semantics` (closes the P2 chunk E deferral)
 - association-run telemetry (spec §10.9) and the deferred/ambiguous backlog drain, reusing the ADR `2026070701` DR5/DR6/DR7 pattern (bulk endpoint, admin review page, confidence-gated LLM) rather than a new mechanism
 - exit-criteria tests: spec §16.2 items 1, 3-7 and §16.3 items 2-17 that are in scope for Track A (item 1 was already closed by P2; items specific to keyword resolution are out of scope)

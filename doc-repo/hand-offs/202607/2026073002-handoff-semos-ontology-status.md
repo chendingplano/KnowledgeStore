@@ -210,7 +210,7 @@ as of 2026-08-01, per plan `2026080102-plan-semos-p3-assertions-evidence-and-pha
 - the `AssertionNormalizerRegistry` (DR11 seam 5) with metric and provision normalizer instances,
   each self-registering (no edits to the registry or the Phase D stage required to add one);
 - Phase D stages 1–2 (`normalize_assertions`, `associate_semantics`), wired into the pipeline after
-  Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED` (default off — currently inert in production).
+  Phase C, gated by `SEMANTIC_ASSOCIATION_ENABLED` (default true).
 
 Live-validated against **real gold-corpus data already in `chenweb_test`** (not only synthetic
 fixtures), which surfaced genuine findings recorded in the P3 implementation log

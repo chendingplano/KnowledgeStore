@@ -27,7 +27,7 @@ All six decisions are answered. Recorded here because several change what gets b
 | **D1** | Merge before or after fixing? | **Merge first.** Confirmed. It is a fast-forward bookmark move, not a rebase — see Task 0.1 for the root cause. |
 | **D2** | P5-6 interim document kind, until the classifier works. | **Empty / fail closed.** Spec §9 mandates that a missing document kind leaves the subject shadow-only. Keeping `input_doc_type` fails *open* toward over-enforcement. Zero regression risk given D3's disposable-data ruling. |
 | **D3** | P5-5 checksum parity direction. | **Fix-forward only; no backfill.** Existing rows are disposable and will be discarded, so no backfill migration is written. The runtime loader recomputes canonically and fails loudly on mismatch; the writer is corrected so fresh databases are right from the start. |
-| **D4** | `classify_document` live, or behind a flag? | **Flag, default off** (`CLASSIFY_DOCUMENT_ENABLED=false`), mirroring `SEMANTIC_ASSOCIATION_ENABLED` from P3. Wiring is provable without LLM spend; Chunk I flips it for the proof run. |
+| **D4** | `classify_document` live, or behind a flag? | **Flag, default off** (`CLASSIFY_DOCUMENT_ENABLED=true`), mirroring `SEMANTIC_ASSOCIATION_ENABLED` from P3. Wiring is provable without LLM spend; Chunk I flips it for the proof run. |
 | **D5** | Activation liveness. | **Implement in-process reload.** Restart-to-apply silently defeats E2's atomic activation and regresses P1. |
 | **D6** | Scope. | **Full plan, Chunks 0–I.** |
 

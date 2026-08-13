@@ -217,6 +217,8 @@ exists for debugging, testing, and bug fixing — disabling one tier in isolatio
 bad heuristic or a metadata-extraction bug — not to change default production behavior. See ADR
 2026072901 §3.5 for the tiered facet design and its 2026-08-09/2026-08-10 status updates.
 
+About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
+
 ### 7.1 Processor Categories
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.

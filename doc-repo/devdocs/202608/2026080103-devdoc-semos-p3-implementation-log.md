@@ -83,7 +83,7 @@ After both fixes, live validation against `input_record_id=2`'s 8 real metric ro
 
 ### C4 — Phase D wiring
 
-`ChenWeb/server/api/doc-processing/normalize_assertions.go` — `SemanticAssociationEnabledFromEnv()` (mirrors the existing `DocPipelineModeFromEnv` pattern) and `ControlService.runNormalizeAssertions`, called from `control.go` immediately after Phase C (`runPostProcessIndexing`), gated by `SEMANTIC_ASSOCIATION_ENABLED` (default `false`, matching the ADR config table — this is a purely additive, currently-inert code path in production).
+`ChenWeb/server/api/doc-processing/normalize_assertions.go` — `SemanticAssociationEnabledFromEnv()` (mirrors the existing `DocPipelineModeFromEnv` pattern) and `ControlService.runNormalizeAssertions`, called from `control.go` immediately after Phase C (`runPostProcessIndexing`), gated by `SEMANTIC_ASSOCIATION_ENABLED` (default `true`, matching the ADR config table — this is a purely additive, currently-inert code path in production).
 
 ### C5 — Live-Postgres validation
 

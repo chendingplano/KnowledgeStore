@@ -85,7 +85,7 @@ mechanism versus "two writers fired once each in one run."
 (`extract_metrics`/`extract_provisions` → `kb.metrics`/`kb.provisions` →
 `normalize_assertions` [reads `kb.metrics`/`kb.provisions` directly] →
 `kb.semantic_decision_candidates` → `associate_semantics` → `kb.semantic_assertions` →
-`project_semantics`), gated by `SEMANTIC_ASSOCIATION_ENABLED` (default off) and unrelated to the
+`project_semantics`), gated by `SEMANTIC_ASSOCIATION_ENABLED` (default true) and unrelated to the
 term/definition candidates this table holds.
 
 **Where duplication does matter:** the promotion step, human-driven. `promoteTerm`
