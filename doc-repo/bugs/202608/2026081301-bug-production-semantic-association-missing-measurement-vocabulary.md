@@ -1014,3 +1014,168 @@ vocabulary/allowlist decision (item 6), the deontic predicate vocabulary
 `doc-processing-policy-seed` startup integration (item 1, second half), and the
 fresh-database integration test (item 10) remain open as tracked follow-up
 work.
+
+## Follow-up review, round 2 (2026-08-13)
+
+Review of commit `841a37fa` against the round-1 follow-up review above.
+Verified against a live table-level replica of `miner`'s `kb.ontology_*`
+tables plus fresh scratch PostgreSQL databases -- not by reading the diff
+alone. `go build ./server/...` and `go vet ./server/...` are clean; the
+`seed`, `modules`, and `ontology-seed` test packages pass; the `keywords`
+resolver-mode failures remain and are unrelated, as prior rounds also found.
+
+**Verdict: H, C, and F are correctly fixed, and the `miner` disposition is
+accurate. Nothing here blocks rollout.** Two bullets in the round-1
+implementation follow-up describe fixes more broadly than the code delivers,
+and the C fix leaves one new (minor, undocumented) artifact. Corrections below;
+no further code change is required before deploying `841a37fa`.
+
+### Findings H, C, F: reconfirmed live
+
+- **H.** Superseding `mea:measured_by` on a `miner` replica and running the
+  seed 4x produced one repair release and zero additional term/label/release
+  rows on runs 2-4 -- the unbounded `.rN` churn the round-1 review reported is
+  gone. Superseding every curated term in a module (the "last curated term"
+  case) also now produces one repair release instead of
+  `has no approved terms to release`.
+- **C.** Reconfirmed all three sub-claims live: a seed-owned pointer advances
+  to the newest release; an operator-selected pointer (`activated_by` set to
+  something other than `ontology-seed`) is preserved with a
+  `pending_activation` warning on every run and churns no rows; and an
+  edit-then-revert cycle activates the newest `.rN` release, never the stale
+  release `GetRelease` returns for the reverted-to derived version.
+- **F.** `mise.toml`'s verifier now selects the newest release by
+  `released_at DESC, id DESC` and fails on zero `included_in_release` terms,
+  matching the runtime gate.
+- **`miner` disposition.** Reconfirmed: `core` id=15, `document-authority`
+  id=11, `measurement` id=16 are each the newest release, unsuperseded, and
+  `activated_by = ontology-seed`. Three consecutive `EnsureCuratedModules`
+  runs against a replica carrying `miner`'s actual ontology rows produced no
+  warnings and left every count and pointer unchanged -- startup is a
+  verified no-op against `miner` today, not merely an inference from the code.
+
+### Correction 1: the metadata-revert fix covers `DependsOn` only, not `Title` or `Owner`
+
+The round-1 implementation follow-up describes the B-shaped fix as "reverting
+`Title`, `Owner`, or `DependsOn`" being re-released. `curatedContentReleased`
+closes this only through `dependencyPinsMatch`
+(`seed/seed.go:433`), which compares the newest release's dependency pins
+against `mc.DependsOn` -- `Title` and `Owner` are not part of that comparison
+and are not carried in the release payload at all.
+
+Reproduced live: edited `core`'s `Title`, ran the seed (cut release id 17 at
+the edited-title-derived version and activated it), reverted `Title`, ran the
+seed twice more. No new release was cut and id 17 remained active
+permanently; the module row itself *was* correctly reconciled back to
+`Core semantic module` by finding E. Severity is low -- the release payload
+never carried `Title`/`Owner` to begin with, so the only externally visible
+effect is that the active release's version string no longer derives from
+the current curated content -- but the bullet claims three fields fixed and
+the code fixes one.
+
+### Correction 2: finding H does not match the label path's status handling
+
+The round-1 follow-up describes H's fix as "matching the status-aware label
+path" (`hasLabel`, `seed/seed.go:207`). `hasLabel` treats a label at `draft`
+or `in_review` as already present and does not re-author it, while
+`curatedTermStatusUsable` (finding H's fix) re-authors a term at any status
+other than `approved` or `included_in_release`, including `draft` and
+`in_review`. The term path is deliberately the stricter of the two -- a
+`draft` latest version left unrepaired would leave `curatedContentReleased`
+false forever -- so this is the right behavior, just not what "matching"
+claims. Wording only; no code change indicated.
+
+### New item: activation advance strands the previously active release unsuperseded
+
+`PreserveActive` (added for finding 5) exempts the currently active release
+from supersession when a new release is created; finding C's fix then moves
+the activation pointer off of it. The exempted release keeps
+`superseded_by_release_id IS NULL` forever once activation advances past it.
+Reproduced in both the H-repair and revert-flow experiments: `core` ended up
+with releases 17 and 18 both unsuperseded, and `measurement` with 16 and 17
+both unsuperseded. Nothing in the Go code reads `superseded_by_release_id`
+outside `releases_store.go`, so there is no behavioral impact, but the column
+is on the release API surface and "newest = not superseded" stops being a
+usable signal for it. Not required before rollout; worth a line item if
+`superseded_by_release_id` is ever relied on externally.
+
+### New item: the F verifier undercounts what it needs to
+
+Two related gaps in the `mise.toml` verifier's module-level check, neither
+severe enough to block rollout since the explicit `mea:measured_by` /
+`mea:lower_bound_requirement` checks immediately below it are what actually
+cover the runtime gate:
+
+- Its `count(*)` counts term *version* rows, not distinct `term_id`s.
+- It greens the module as soon as *any* one term in it is released -- for
+  `measurement`, the orphaned `mea:exact_value` (item 13) alone would satisfy
+  it.
+
+### New item: activation now advances regardless of which path created the newer release
+
+Finding C's fix advances a seed-owned pointer to "the newest release" without
+checking who created that release. If `ontology-compiler` or the QUDT API
+path cuts a newer release for a curated module while the activation pointer
+is still seed-owned, the next service startup will activate that
+non-seed-authored release. Plausibly intended, but the round-1 follow-up
+bullet does not mention this as part of C's behavior change.
+
+### Correction to the Disposition section
+
+The Disposition states item 12 (the `miner` activation-pointer repair) "was
+re-verified against the live database and no repair is needed." That is the
+state today, but it is not the state the prior review recorded: that round
+found `core` active on id=1 (superseded), `document-authority` on id=8, and
+`measurement` on id=9, with releases 15/11/16 already existing but inactive.
+Between that review and this one, the pointers moved to 15/11/16 -- which is
+exactly what finding C's activation-advance code does on startup, not a
+correction to the earlier finding. The record should show item 12 was
+resolved by running the fixed seed, not that it was never actually wrong.
+
+### Item 10 implemented: fresh-database integration test
+
+Added `server/api/ontology/seed/seed_integration_test.go`
+(`TestEnsureCuratedModulesFreshDatabaseLifecycle`), gated on
+`TEST_DATABASE_URL` like this repo's other PostgreSQL integration tests but,
+unlike them, never reusing a shared already-migrated database: it opens the
+supplied DSN only as a connection template, `CREATE DATABASE`s a uniquely
+named scratch database, runs the full `project_migrations` set against it
+with `goose.Up`, and drops it in cleanup. A shared `chenweb_test` database
+already carries an imported `quantity` module from prior runs, which would
+silently skip the deferral path this test exists to check -- and per prior
+guidance in this workspace, other tests unconditionally wipe
+`module_id='quantity'` rows in that database, making it unsafe to share state
+with in either direction.
+
+The test drives the exact sequence this report's review rounds kept
+reconstructing by hand:
+
+1. `EnsureCuratedModules` on a freshly migrated, empty database releases
+   `core` and `document-authority`, defers `measurement` with exactly the
+   `deferred_dependency` warning, and does not even register the
+   `measurement` module row.
+2. Re-running while deferred is a no-op: identical module/release/term/label/
+   active-release counts before and after.
+3. Authoring a minimal `quantity` module, term, release, and activation (a
+   stand-in for the QUDT import) and re-running releases `measurement` with
+   no warnings, and both `mea:measured_by` and `mea:lower_bound_requirement`
+   reach `included_in_release` -- checked with the identical SQL
+   `AssociateSemantics.termExists` runs, not a proxy for it.
+4. Two further re-runs of a fully bootstrapped database are a no-op.
+
+Run live against local PostgreSQL: all four subtests pass
+(`go test ./server/api/ontology/seed/... -run
+TestEnsureCuratedModulesFreshDatabaseLifecycle -v`), the test skips cleanly
+with `TEST_DATABASE_URL` unset, and no scratch database is left behind after
+a passing run. This is the acceptance gate finding 1 and finding H should
+have had; item 10 is no longer open.
+
+### Effect on disposition
+
+No blocking defects. Corrections 1 and 2 and the three new items above are
+report-accuracy and hygiene notes, not rollout blockers. Item 10 is closed.
+Remaining open items are unchanged from the round-1 disposition: item 13
+(retracting a curated term), the `exact_value` vocabulary/allowlist decision
+(item 6), the deontic predicate vocabulary (item 5), deferred governed-term
+retry (item 7), and the `doc-processing-policy-seed` startup integration
+(item 1, second half).
