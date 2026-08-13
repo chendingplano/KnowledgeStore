@@ -366,6 +366,34 @@
   used to provide for tier 3 before it was deleted in favor of this exact mechanism. §3.5 and the
   doc-processor capsule's §7 pipeline table are updated to match
   (`Capsules/coding-capsules/doc-processor/+CAPSULE.md`).
+* 2026/08/12, **§3.24 (DR23) superseded in part by ADR `2026081201`.** A
+  same-day session set out to document `extract_metric_definitions`,
+  debugged why it under-extracted on a real document, and then checked
+  DR23's assumptions directly against the live database: `kb.ontology_terms`
+  has zero `metric_definition` rows (the `measurement` module is empty);
+  `kb.keyword_concepts`/`kb.metrics.keyword_concept_id` have never resolved
+  a real extracted metric (`KEYWORD_RESOLVER_MODE` defaults `off` and is
+  unset in this deployment — `0` of `7,040` metric rows carry either
+  identifier); and the only write path to `kb.ontology_terms`
+  (`CandidateStore.PromoteToContent`) hard-requires human approval of a
+  candidate that the low-recall harvester was unlikely to generate in the
+  first place. Separately, **§2.1's "a domain has on the order of hundreds
+  of real distinct metrics" is retracted as unfounded** — "domain" is not
+  formally defined anywhere in this ADR or the code, so the claimed bound
+  depends on an undrawn boundary and could be off by orders of magnitude
+  (a "ventilator" domain vs. a "medical equipment" domain). ADR `2026081201`
+  decides: `metric_definition` term creation must be automatic, not
+  human-gated, extending the keyword module's already-shipped D11 auto-first
+  policy and the 2026/08/09 "keyword-catalog auto-promotion" precedent one
+  layer up, from concept to governed term (new `kb.ontology_terms.status =
+  'auto-promoted'`); `extract_metric_definitions` is retired from the
+  default pipeline (code and capsule doc kept, not deleted) since its
+  gating role — deciding *whether* a metric gets a definition — no longer
+  applies once every metric resolves to a term unconditionally. See ADR
+  `2026081201-adr-auto-promoted-governed-terms.md` for the full decision;
+  this entry exists so a reader of *this* ADR is not misled by §3.24's
+  original framing into assuming human-gated term creation is still the
+  design.
 
 ## 2. Context
 
@@ -1845,6 +1873,22 @@ the assertion revision watermark, and invalidated when either moves.
 > verdict/recommendation split) has no migration and no code — not built at all yet.
 
 ### 3.24 DR23 — "Metric definition" and "profile" are different objects; the application's *Metric Profile* is the former
+
+> **2026-08-12 correction, see ADR `2026081201`.** This section's premise that new
+> `metric_definition` terms are created through human review (via
+> `extract_metric_definitions` candidates → curator approval → promotion) is superseded.
+> Checked against the live database: `kb.ontology_terms` has zero `metric_definition` rows,
+> the keyword resolver has never resolved a real extracted metric
+> (`KEYWORD_RESOLVER_MODE` defaults off), and the harvester's low recall meant few
+> candidates were ever generated for a human to review in the first place. Separately,
+> this section's "a domain has on the order of hundreds of real distinct metrics" is
+> retracted as unfounded — "domain" is not formally defined anywhere, so the bound depends
+> on an undrawn boundary. ADR `2026081201` decides `metric_definition` term creation must be
+> automatic (a new `kb.ontology_terms.status = 'auto-promoted'`, synthesized from the
+> triggering metric's own extracted fields), extending the keyword module's already-shipped
+> D11 auto-first policy one layer up, and retires `extract_metric_definitions` from the
+> default pipeline. The "row identity" / "aligns_to_term" mechanics below are unchanged —
+> only *how a term comes to exist* changes.
 
 The proposed application uses "Metric Profile" for the record holding a metric's canonical name,
 preferred name, alternative names, definition, description, value type, and range type. This ADR

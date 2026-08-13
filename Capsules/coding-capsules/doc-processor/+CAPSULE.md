@@ -173,7 +173,7 @@ Currently, it has the following doc processors:
 |11 | extract_entity_relation | configurable | 2 | Yes | `chunking` | Extract entities and relations. Refer to [13] |
 |12 | extract_inventory_items | configurable | 2 | Yes | `chunking` | Extract inventory item objects. Refer to [15] |
 |13 | review_document | configurable | 2 | Yes | `chunking` | Document review: LLM-powered multi-aspect review pipeline. On-demand only (Phase C). Refer to [16] — ADR 2026061801 |
-|14 | extract_metric_definitions | routed | 2 | Yes | `chunking` | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. Results saved in `kb.ontology_candidates`. Refer to [20] for its spec |
+|14 | extract_metric_definitions | routed, **retired from default selection 2026-08-12** | 2 | Yes | `chunking` | Proposes governed `metric_definition` candidates from explicit definitions; metric values alone are excluded. Results saved in `kb.ontology_candidates`. No longer selected by default (ADR 2026081201 — every metric now auto-resolves a governed term regardless); still selectable via explicit `operation`/Dev Mode. Refer to [20] for its spec |
 |15 | extract_test_methods | routed | 2 | Yes | `chunking` | Proposes procedure-term and explicit metric-to-procedure (`mea:measured_by`) candidates with source spans. |
 |16 | extract_product_structure | routed post-process | 3 | No | `extract_entity_relation` | Converts only explicit `part_of`/`component_of` relations with reconciled object endpoints into structural decision candidates. |
 |17 | normalize_assertions | routed (Phase C) | 3 | No | after 5, 6; runs in the post-process tier | DR8 Phase D stage 1: the registered seam-5 normalizers turn each artifact family's output into candidate qualified assertions. Inert unless `SEMANTIC_ASSOCIATION_ENABLED`. Refer to [18] |
@@ -221,7 +221,7 @@ bad heuristic or a metadata-extraction bug — not to change default production 
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED` (default `false`), so declaring them here changes nothing in default production behavior. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) are executed only when they are listed in `config.toml` under `[doc-processing].required_processors`. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED` (default `false`), so declaring them here changes nothing in default production behavior. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
 
 ```toml
 [doc-processing]
@@ -699,8 +699,9 @@ Status JSON:
 ```
 
 ### 9.11 Extract Metric Definitions
-When: When the extract metric definitions ([20]) processor finishes (runs under the
-per-chunk batching coordinator, like §9.5/§9.10; see [20] §5 for the per-chunk workflow).
+**Retired from default selection 2026-08-12 (ADR 2026081201) — this status entry now only
+appears when explicitly requested via `operation`/Dev Mode.** When it does run (under the
+per-chunk batching coordinator, like §9.5/§9.10; see [20] §5 for the per-chunk workflow):
 
 Status JSON:
 ```json

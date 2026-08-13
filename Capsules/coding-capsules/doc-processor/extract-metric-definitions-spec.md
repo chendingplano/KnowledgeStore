@@ -1,5 +1,18 @@
 # 1. Extract Metric Definitions Processor
 
+> **RETIRED from the default pipeline, 2026-08-12 — see ADR `2026081201`
+> (`KnowledgeStore/doc-repo/adrs/202608/2026081201-adr-auto-promoted-governed-terms.md`).**
+> Every metric now resolves to a governed `metric_definition` term automatically
+> (auto-created, `status='auto-promoted'`, if none exists yet) regardless of whether the
+> source document contains explicit defining text — the low-recall problem this document's
+> §8 already described. This processor's gating role (deciding *whether* a metric gets a
+> definition) no longer applies. **Not deleted:** code, tests, and prompt are unchanged and
+> it remains runnable via an explicit `operation`/Dev Mode request; it is simply no longer
+> selected by the default pipeline. The rest of this document describes its (unchanged)
+> behavior when explicitly invoked, and remains useful background for anyone who runs it
+> manually or considers using its output to enrich an auto-promoted term's `definition`
+> field later (ADR `2026081201` §5 OD3, not yet built).
+
 This is a Doc Processor (`spec-doc-processor.md`, `+CAPSULE.md`). It harvests the
 **definition** of a metric and proposes each one as a review-only `metric_definition` term
 candidate.
