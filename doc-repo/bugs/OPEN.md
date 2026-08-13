@@ -13,6 +13,13 @@ reaches a terminal state.
 
 ## Open
 
+- [2026081301 — production `associate_semantics` has no released measurement vocabulary](202608/2026081301-bug-production-semantic-association-missing-measurement-vocabulary.md)
+  — `miner` contains auto-promoted metric-definition terms but no curated
+  `measurement` module release or released `mea:*` assertion vocabulary. Normal
+  services use `miner`; ontology bootstrap is separate and the standalone seed
+  CLI has a `PG_USER`/`PG_USER_NAME` mismatch plus a `chenweb_test` default.
+  Existing governed-term deferrals also lack a retry drain.
+
 ## Resolved (2026-08-03)
 
 - [2026080301 — SemOS P5 rule-driven routing declared complete but is not finished](202608/2026080301-bug-ontology-p5-rule-driven-routing-not-finished.md)
