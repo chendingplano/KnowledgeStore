@@ -951,3 +951,66 @@ current pointer was itself set by `ontology-seed`, preserving operator-selected
 activations — or moved explicitly to the follow-up list with an owner, since F
 cannot be reconciled while C is open. The `miner` activation-pointer repair
 (item 12) is independent of the code and can be done now.
+
+## Implementation follow-up (2026-08-13, round 2)
+
+Implemented in `ChenWeb` commit `841a` (`Harden curated ontology bootstrap
+startup repair`). This addresses findings H, C, and F from the follow-up review
+above plus the smaller items it listed:
+
+- **H — non-approved curated terms are repaired.** `authorModule` now re-authors
+  any curated term whose latest version's status is neither `approved` nor
+  `included_in_release` (`draft`, `in_review`, `superseded`, `rejected`,
+  `auto-promoted`), matching the status-aware label path. A superseded curated
+  term is re-authored as approved once, the next content-derived release
+  carries it, and the state stabilizes instead of cutting a new release on
+  every start; the all-superseded module case can build a release again.
+- **C — seed-owned activation advances.** `releaseAndActivate` advances the
+  activation pointer to the newest curated release when the current pointer was
+  itself set by `ontology-seed`; operator-selected activations (any other
+  actor) are still preserved and surfaced as `pending_activation`. Activation
+  always targets the newest release, so the revert flow can never regress the
+  pointer to a stale derived-version release.
+- **F — the `mise` verifier matches the runtime gate.** The module-level check
+  no longer requires an active release. It now fails unless the module has a
+  release and at least one `included_in_release` term — the same condition
+  `associate_semantics`' `termExists` tests — and prints the newest release
+  version instead of the active pointer's version.
+- **Metadata-only reverts are re-released.** `curatedContentReleased` now also
+  verifies that the module's newest release pins exactly the curated dependency
+  set, closing the B-shaped hole where reverting `Title`, `Owner`, or
+  `DependsOn` resolved back to an existing release and left the newest
+  release's dependency pins stale.
+- **Dead code and stale docs.** The unused `validateDeps` and its three tests
+  were removed; `NextPatchVersion`'s comment now describes recency-based
+  lookup; the `ontology-seed` package doc now describes the reconcile-and-
+  re-release behavior instead of "skipped rather than overwritten".
+- **Structured warning logging.** Both binaries log a static message
+  (`curated ontology bootstrap warning`) with `warning_kind`, `module_id`, and
+  `dependency_module_id` only when set, instead of using the dynamic message
+  as the log key.
+
+Behavioral SQL-mock tests were added for the superseded-term repair (H), the
+seed-owned activation advance (C), and the stale-pins re-release decision.
+`go build ./server/...`, `go vet ./server/...`, and the `seed`, `modules`, and
+`ontology-seed` test packages pass; the unrelated `ontology/keywords`
+resolver-mode failures noted in prior rounds remain.
+
+### Disposition
+
+The `miner` activation-pointer state (item 12) was re-verified against the
+live database and no repair is needed: every curated module's active release is
+already the newest release carrying the current curated content, unsuperseded,
+and activated by `ontology-seed` (`core` id=15, `document-authority` id=11,
+`measurement` id=16). A startup with the fixed seed is a no-op against
+`miner` — the current `content.go` derived versions match the active releases
+(or their `.rN` descendants), no new release is cut, and the seed-owned
+pointers are already current.
+
+Item 13 (how a curated term is retracted — `mea:exact_value` is
+`included_in_release` but absent from `content.go`), the `exact_value`
+vocabulary/allowlist decision (item 6), the deontic predicate vocabulary
+(item 5), deferred governed-term retry (item 7), the
+`doc-processing-policy-seed` startup integration (item 1, second half), and the
+fresh-database integration test (item 10) remain open as tracked follow-up
+work.
