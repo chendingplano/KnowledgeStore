@@ -218,11 +218,11 @@ yet be accepted.
 | Status | What it means | How it is determined |
 |---|---|---|
 | `candidate` | The proposed claim is ready for semantic association. | `normalize_assertions` assigns this status when it creates a valid new candidate. |
-| `in_review` | Association processing has claimed the candidate and is evaluating it. In this path, this is temporary processing state, not a human-review queue. | `associate_semantics` changes an eligible `candidate` to `in_review` before resolving it. A later run may resume a candidate left in this state by an interrupted run. |
+| `in_review` | Association processing has claimed the candidate and is evaluating it. In this path, this is temporary processing state, not a human-review queue. | `associate_semantics` changes an eligible `candidate` to `in_review` before resolving it. A later run may resume a candidate left in this state by an interrupted run. Refer to the next section for `associate_semantics`. |
 | `accepted` | The candidate has produced an accepted semantic assertion. | After validation succeeds, `associate_semantics` writes the assertion and its evidence, records the resulting assertion identifier on the candidate, and marks the candidate `accepted`. |
 | `deferred` | The candidate is retained, but the system cannot safely accept it yet. | `associate_semantics` assigns this status when required information or governed vocabulary is unavailable, for example an unresolved subject, an unparsed value with no supported assertion kind, or a required term that is not released. The reason is recorded with the candidate. |
 | `rejected` | The candidate is unusable because its stored proposal is structurally invalid. | `associate_semantics` assigns this status when it cannot read a malformed proposed payload. |
-| `superseded` | An older candidate revision has been replaced by a newer proposal for the same logical identity. | Candidate proposal handling assigns this status when the proposed payload changes and a new revision is created. |
+| `superseded` | An older candidate revision has been replaced by a newer proposal for the same logical identity. | Candidate proposal handling assigns this status when the proposed payload changes and a new revision is created. It is assigned at normalization time. Whenever a new revision (such as the same document re-extracts metrics), is proposed for the same `logical_identity_key, the prior revision is flipped to `supersedded` and given superseded_by = <new row id>. Records in 'superseded' are no longer used in the system.|
 
 Association normally selects only `candidate` and temporary `in_review` rows.
 A deferred row is therefore visible as unresolved work; it must be made
