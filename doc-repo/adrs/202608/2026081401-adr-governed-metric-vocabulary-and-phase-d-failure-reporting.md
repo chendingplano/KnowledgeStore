@@ -35,6 +35,14 @@
   passes; `go build ./...`/`go vet ./...` clean across the workspace. User manual bumped to a new
   `metric-assertion-semantic-processing-v1.2-en.md` file (this KnowledgeStore's one-file-per-version
   convention — v1.1 left unmodified).
+* 2026/08/15, §7's "no admin UI" open question closed: the "Resolve Metric Range Types" admin page
+  (System Admin → Database Maintenance) shipped via `ChenWeb/openspec/changes/resolve-metric-range-types/`,
+  in the shape §7 anticipated — a triage list for `status != 'approved'` rows with a canonical-bucket
+  approve/correct action, mirroring "Resolve Ambiguous Objects". Applying a correction sets the entry
+  to `approved` and clears `value_range_type_error` on every already-flagged `kb.metrics` row sharing
+  that `raw_value`; it does not itself re-run `normalize_assertions`/`associate_semantics` — a later
+  backlog-drain pass is still what produces the accepted `kb.semantic_assertions` row (see §7's third
+  bullet, still applicable).
 
 ## 2. Context
 
@@ -358,12 +366,12 @@ fixed short TTL, invalidated on write, is sufficient given the table's small siz
   `metric_normalizer.go` is a small hardcoded map against an apparently much larger observed
   vocabulary) but was not surveyed or scoped into this ADR — worth its own investigation before
   deciding whether it reuses `kb.metric_value_range_type_map`'s pattern or needs its own table.
-- No admin UI is proposed here for triaging `status='proposed'` rows — operators can query the
-  table directly for now. If this becomes a routine workflow, an admin page listing proposed
-  rows by `occurrence_count`, with the DR6 best-effort `canonical_bucket` guess shown for quick
-  approve/correct (same shape as the existing "Resolve Ambiguous Objects" page for
-  `kb.object_nodes` reconciliation) would close the loop the way that page does for object
-  reconciliation.
+- ~~No admin UI is proposed here for triaging `status='proposed'` rows~~ **Resolved 2026-08-15**:
+  the "Resolve Metric Range Types" admin page (System Admin → Database Maintenance) now lists
+  `kb.metrics` rows with a `value_range_type_error`, shows the DR6 best-effort `canonical_bucket`
+  guess on the corresponding `kb.metric_value_range_type_map` entry, and lets an operator
+  approve/correct it in the same shape as "Resolve Ambiguous Objects" — see
+  `ChenWeb/openspec/changes/resolve-metric-range-types/` and §1's 2026/08/15 changelog entry.
 - Retrying a record whose `extract_metrics` or `associate_semantics` failed on a `'proposed'`
   string will fail identically until the string is approved in the table — the retry mechanism
   (§2.2) is necessary but not sufficient; triage has to happen first.
