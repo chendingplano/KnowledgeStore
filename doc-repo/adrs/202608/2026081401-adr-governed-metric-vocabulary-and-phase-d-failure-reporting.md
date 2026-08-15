@@ -42,7 +42,9 @@
   to `approved` and clears `value_range_type_error` on every already-flagged `kb.metrics` row sharing
   that `raw_value`; it does not itself re-run `normalize_assertions`/`associate_semantics` — a later
   backlog-drain pass is still what produces the accepted `kb.semantic_assertions` row (see §7's third
-  bullet, still applicable).
+  bullet, still applicable). Formalized as its own decision record + implementation record: ADR
+  `2026081501` and Implementation `2026081501`
+  (`KnowledgeStore/doc-repo/{adrs,impl}/202608/2026081501-{adr,impl}-resolve-metric-range-types-admin-page.md`).
 
 ## 2. Context
 
@@ -370,8 +372,9 @@ fixed short TTL, invalidated on write, is sufficient given the table's small siz
   the "Resolve Metric Range Types" admin page (System Admin → Database Maintenance) now lists
   `kb.metrics` rows with a `value_range_type_error`, shows the DR6 best-effort `canonical_bucket`
   guess on the corresponding `kb.metric_value_range_type_map` entry, and lets an operator
-  approve/correct it in the same shape as "Resolve Ambiguous Objects" — see
-  `ChenWeb/openspec/changes/resolve-metric-range-types/` and §1's 2026/08/15 changelog entry.
+  approve/correct it in the same shape as "Resolve Ambiguous Objects" — see ADR `2026081501` /
+  Implementation `2026081501`, `ChenWeb/openspec/changes/resolve-metric-range-types/`, and §1's
+  2026/08/15 changelog entry.
 - Retrying a record whose `extract_metrics` or `associate_semantics` failed on a `'proposed'`
   string will fail identically until the string is approved in the table — the retry mechanism
   (§2.2) is necessary but not sufficient; triage has to happen first.
