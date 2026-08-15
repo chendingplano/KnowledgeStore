@@ -1,7 +1,7 @@
 # ADR 2026081401 — Governed, DB-Backed Metric Vocabulary Mapping and Phase D Failure Reporting
 
 **Date:** 2026-08-14 \
-**Status:** Proposed \
+**Status:** Implemented \
 **Component:** ChenWeb — `kb.metrics`, `kb.semantic_decision_candidates`, `kb.inputs`, `kb.doc_proc_logs`, `server/api/ontology/assertions/{metric_normalizer.go,associate_semantics.go}`, `server/api/doc-processing/{phase_d.go,control.go,doc_proc_log_store.go,extract-metrics.go}` \
 **Authors:** Chen Ding (with Claude) \
 **Related:** ADR `2026081201` (auto-promoted governed terms — precedent pattern), ADR `2026072901` §8 DR8 (Phase D stage declaration), commit `56b6` (interim hardcoded-synonym stopgap this ADR supersedes) \
@@ -21,6 +21,20 @@
   `unmapped`/`mapped` to `proposed`/`approved` to match — a proposal can now carry a best-effort
   guessed `canonical_bucket` for a human to confirm or correct, not just a bare unclassified
   string.
+* 2026/08/14, implemented via OpenSpec change `ChenWeb/openspec/changes/governed-metric-vocabulary-mapping/`
+  (proposal/design/specs/tasks). All decisions (DR1-DR6) shipped as designed, with one deviation
+  from §8's literal call-site plan: `DocProcLogger.LogAssertionMappingMiss` is called from
+  `associate_semantics`'s call site in `phase_d.go` (`AssociateSemanticsProcessor.PostProcessIndex`),
+  not from inside `assertions.AssociateSemantics.Run` itself — `server/api/ontology/assertions`
+  cannot import `server/api/doc-processing` (the reverse import already exists, e.g.
+  `phase_d.go`/`extract-metrics.go`), so `Run` only returns `AssociateReport.MappingMisses` and
+  the aggregate error; the one call site that already has both the report and a `DocProcLogger`
+  does the logging. `extract_metrics`'s own DR6 call site needed no such change (same package as
+  `DocProcLogger`). Full test suite (unit + the `ValueRangeTypeMapper`/`AssociateSemantics.Run`/
+  `runPostProcessIndexing`/`MetricsProcessor.checkValueRangeTypeMappings` coverage §11 calls for)
+  passes; `go build ./...`/`go vet ./...` clean across the workspace. User manual bumped to a new
+  `metric-assertion-semantic-processing-v1.2-en.md` file (this KnowledgeStore's one-file-per-version
+  convention — v1.1 left unmodified).
 
 ## 2. Context
 
@@ -359,15 +373,19 @@ fixed short TTL, invalidated on write, is sufficient given the table's small siz
   cost. Worth its own design pass if the approve/correct ratio in practice turns out lopsided
   enough to be worth improving.
 
-## 8. Implementation (Code Changes — plan, not yet built)
+## 8. Implementation (Code Changes — implemented 2026-08-14, see §1 changelog)
 
 - `server/api/ontology/assertions/metric_normalizer.go` — replace `CanonicalMetricValueRangeType`
   with a DB-backed lookup type (e.g. `ValueRangeTypeMapper`), cached; `resolveMetricValue` tags
   `proposed_payload` per §3.3.
 - `server/api/ontology/assertions/associate_semantics.go` — `AssociateReport` gains
   `MappingMisses int`; `processMetric` branches on the payload tag; `Run` returns a non-nil
-  aggregate error when `MappingMisses > 0`; call `DocProcLogger.LogAssertionMappingMiss` once
-  per run when misses occurred.
+  aggregate error when `MappingMisses > 0`. **As implemented:** the
+  `DocProcLogger.LogAssertionMappingMiss` call itself lives in
+  `server/api/doc-processing/phase_d.go`'s `AssociateSemanticsProcessor.PostProcessIndex`, not
+  inside `Run` — `assertions` cannot import `docprocessing` (the reverse import already exists),
+  so `Run` only surfaces `MappingMisses`/the error, and the one call site that already has both
+  the report and a `DocProcLogger` performs the log write.
 - `server/api/doc-processing/doc_proc_log_store.go` — `EntryTypeAssertionMappingMiss` constant,
   `LogAssertionMappingMiss` helper, add to `allowedDocProcLogEntryType`.
 - `server/api/doc-processing/control.go` — `runPostProcessIndexing`
