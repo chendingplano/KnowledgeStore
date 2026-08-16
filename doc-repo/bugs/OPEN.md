@@ -13,6 +13,15 @@ reaches a terminal state.
 
 ## Open
 
+- [2026081602 — ChenWeb admin pages surface a raw 401 error instead of redirecting to /login](202608/2026081602-bug-chenweb-401-no-redirect-to-login.md)
+  — `open`, root-caused, fix scoped, not yet implemented. Two gaps: `checkAuthStatus()` in
+  `shared/svelte/stores/auth.svelte.ts` never redirects on a failed `/auth/me` check, and 11
+  near-identical `req<T>()` fetch helpers across `ChenWeb/web/src/lib/components/home3/*-client.ts`
+  (plus `userManagementService.ts`) throw a plain `Error` on any 401 that the calling page renders as
+  a banner. `dbstore.ts`'s `checkSystemResp` has the same gap for `db_store` consumers app-wide.
+  Recommended fix: one shared `redirectToLoginIfUnauthorized` helper in `shared/svelte`, wired into
+  all of the above. Open questions: redirect-back URL, whether `tax` shows the same symptom, whether
+  `CustomHttpStatus.NotLoggedIn` (557) should also redirect.
 - [2026081301 — production `associate_semantics` has no released measurement vocabulary](202608/2026081301-bug-production-semantic-association-missing-measurement-vocabulary.md)
   — `miner` contains auto-promoted metric-definition terms but no curated
   `measurement` module release or released `mea:*` assertion vocabulary. Normal
