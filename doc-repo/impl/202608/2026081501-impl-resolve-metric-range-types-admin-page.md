@@ -5,13 +5,22 @@
 **Component:** ChenWeb — `server/api/kbhandler/metric_range_type_errors_handler.go`,
 `server/api/ontology/assertions/metric_normalizer.go`, `server/api/routes.go`,
 `project_migrations/20260815000002_add_kb_metrics_range_type_error_index.sql`,
-`web/src/lib/components/home3/resolve-metric-range-types-{view.svelte,client.ts}`,
-`web/src/lib/components/home3/{nav-rail.svelte,content-panel.svelte}` \
+`web/src/lib/components/home3/resolve-metric-range-types-{view.svelte,client.ts,shelf-store.svelte.ts}`,
+`web/src/lib/components/home3/{nav-rail.svelte,content-panel.svelte,context-shelf.svelte}` \
 **Authors:** Chen Ding (with Claude)
 
 ## Change Logs
 
 * 2026/08/15, document created, at implementation completion.
+* 2026/08/15, DR10 added: the requester's first live click-through found the results list not
+  stretching to match the Right panel, and the Map Block unreachable behind a multi-page PDF.
+  Root-caused to a missing `height:100%; overflow:hidden` layout chain and fixed same day,
+  alongside relocating the Map Block to the Context Info shelf. See DR10 below.
+* 2026/08/15, DR11 added: a second live click-through found that clicking a metric neither moved
+  the PDF to the matching page nor highlighted it, and the PDF panel flashed/reloaded on every
+  click. Root-caused to `selectRow` unconditionally refetching and remounting `PdfViewWindow` on
+  every row click; fixed same day by porting `metric-mgmt-view.svelte`'s same-record navigation
+  pattern. See DR11 below.
 
 ## Purpose
 
@@ -43,12 +52,14 @@ the fix applying retroactively to every already-flagged row sharing that raw val
 ```
 kb.metrics rows with value_range_type_error != NULL
   -> Left panel: search (record id / date range / error type) + results list
+     (stretches to match the Right panel's height — DR10)
   -> select a row
       -> Right panel: Information Block (name/desc/context/value/type/range type/error)
       -> Right panel: PDF Display, highlighted via the same raw-line/bbox mechanism
-         the existing Metrics page uses (no new storage needed)
-  -> Map Block (full width, below): every kb.metric_value_range_type_map entry,
-     invalid (status != 'approved') ones first
+         the existing Metrics page uses (no new storage needed); properly bounded to
+         page-at-a-time rendering instead of stacking every page — DR10
+  -> Context Info shelf (right-hand panel, always visible regardless of PDF length — DR10):
+     every kb.metric_value_range_type_map entry, invalid (status != 'approved') ones first
       -> set/correct canonical_bucket, click Apply
           -> entry saved as status='approved'
           -> in-process governed-lookup cache invalidated immediately
@@ -59,7 +70,7 @@ kb.metrics rows with value_range_type_error != NULL
 No schema changes were required beyond one new index — both `kb.metrics.value_range_type_error`
 and `kb.metric_value_range_type_map` already existed from ADR `2026081401`.
 
-## DR1–DR9 → Implementation
+## DR1–DR11 → Implementation
 
 ### DR1 — Page placement: nav-gated, no new route, no new middleware
 
@@ -201,6 +212,127 @@ CREATE INDEX IF NOT EXISTS idx_kb_metrics_range_type_error
 Applied automatically by the running `mise dev`/air dev server on rebuild (workspace convention);
 confirmed live via `\d kb.metrics` against the `miner` database post-rebuild (see Verification).
 
+### DR10 — Root-cause layout fix + Map Block moved to the Context Info shelf
+
+Found via the requester's first live click-through (in an authenticated browser session) on
+2026-08-15, immediately after the page shipped:
+
+- `resolve-metric-range-types-view.svelte`'s root changed from `min-height:100%` (unbounded,
+  natural document flow) to `height:100%; overflow:hidden` plus `display:flex;
+  flex-direction:column` — matching the pattern already used by
+  `resolve-ambiguous-objects-view.svelte` and `metric-mgmt-view.svelte`'s
+  `.metric-mgmt`/`.doc-frame-wrap`. The Left/Right split became `flex:1; min-height:0`; the
+  results list changed from `max-height:640px; overflow-y:auto` to `flex:1; min-height:0;
+  overflow-y:auto`; the PDF wrapper changed from a hardcoded `min-height:600px` to `min-height:0`
+  inside the now-bounded row. This alone fixes both reported symptoms: `PdfViewWindow` now gets
+  the definite-height ancestor its internal `height:100%`/`overflow:hidden` chain requires, so it
+  paginates one page at a time in its own scrollable box instead of stacking every page of the
+  source document; and the results list now stretches via flex to match the info/PDF column's
+  height instead of stopping at a fixed 640px.
+- New file `resolve-metric-range-types-shelf-store.svelte.ts` — mirrors
+  `finding-shelf-store.svelte.ts`'s content/shelf bridging pattern exactly (`active` flag set on
+  mount / cleared on destroy, `$state`-held `entries`/`loading`/`error`, plus
+  `loadRangeTypeMapEntries`/`applyRangeTypeMapEntry` functions; an `onCorrected` callback lets the
+  view refresh its errored-metrics list after a shelf-side correction).
+- `resolve-metric-range-types-view.svelte` no longer owns any Map Block state — `mapEntries`,
+  `mapLoading`, `mapError`, `mapBucketDraft`, `mapApplying`, `mapApplyResult`, `mapApplyError`,
+  `newEntryRawValue`, `newEntryBucket`, `addingEntry`, `addEntryError`, `addEntryResult`,
+  `loadMapEntries`, `applyMapEntry`, `addNewEntry`, and `sortedMapEntries` were all removed; the
+  `errorTypeOptions` derived now reads `rangeTypeMapShelf.entries` instead of a local `mapEntries`.
+  `CANONICAL_BUCKET_OPTIONS` and the Apply/Add-Entry icon imports (`RefreshCwIcon`, `CheckIcon`,
+  `PlusIcon`) were also dropped from this file — the design tokens `surface2`, `colorWarn`,
+  `colorOk` and the `@keyframes spin` rule went with them, since nothing left in the file used
+  them.
+- `context-shelf.svelte` renders the Map Block: a new `{:else if rangeTypeMapShelf.active}` title
+  and body branch (parallel to the pre-existing `findingShelf.active` branch) shows a compact
+  vertical list — raw_value, status badge, an `<input list>` bucket combobox seeded from
+  `CANONICAL_BUCKET_OPTIONS`, and an Apply button per entry — plus an Add New Entry mini-form,
+  replacing DR2's five-column grid table (too wide for the shelf's ~280–400px width). Per-entry
+  draft/apply-status state (`mapBucketDraft`, `mapApplying`, `mapApplyResult`, `mapApplyError`) and
+  the add-entry form state live in `context-shelf.svelte` itself, not the store — the store holds
+  only data shared across the content/shelf boundary, matching how `FindingDetailsPanel` owns its
+  own local UI state around `findingShelf`'s shared data. A `$effect` + `untrack` seeds
+  `mapBucketDraft` for newly-seen entries without clobbering an in-progress edit on reload. The
+  refresh-icon spinner uses Tailwind's `animate-spin` utility (already used elsewhere in this
+  codebase, e.g. `doc-review-findings-view.svelte`) rather than a new hand-rolled `@keyframes`
+  rule.
+
+### DR11 — `selectRow` no longer remounts `PdfViewWindow` for same-record clicks
+
+`resolve-metric-range-types-view.svelte`'s `selectRow` (previously ~24 lines) was restructured:
+
+```ts
+async function selectRow(id: number) {
+	selectedId = id;
+	const row = rows.find((r) => r.id === id);
+	if (!row) return;
+
+	if (currentInput?.id === row.input_record_id) {
+		// Source document already loaded -- just move the PDF display to the
+		// target page and repaint the highlight, without refetching or
+		// remounting PdfViewWindow (matches metric-mgmt-view.svelte's
+		// selectMetric, which avoids the same remount/reload trap).
+		const spans = normalizeSpans(row);
+		if (spans.length > 0) docPage = spans[0].page_number;
+		highlightSelectionVersion += 1;
+		return;
+	}
+
+	pdfLoading = true;
+	pdfError = '';
+	try {
+		const [inputRes, linesRes] = await Promise.all([
+			getKbInput(row.input_record_id),
+			getRawLines(row.input_record_id)
+		]);
+		currentInput = inputRes.record;
+		rawLines = linesRes.lines;
+		const spans = normalizeSpans(row);
+		docPage = spans.length > 0 ? spans[0].page_number : 1;
+		highlightSelectionVersion += 1;
+	} catch (e) {
+		pdfError = e instanceof Error ? e.message : String(e);
+		currentInput = null;
+		rawLines = [];
+	} finally {
+		pdfLoading = false;
+	}
+}
+```
+
+Two changes from the original:
+
+- **New early-return branch** for `row.input_record_id === currentInput?.id`: updates only
+  `docPage`/`highlightSelectionVersion` (both cheap `$state` writes), never touching `pdfLoading`,
+  `currentInput`, or `rawLines`. Since the template's `{:else if pdfLoading}` branch is what swaps
+  `PdfViewWindow` out for a text placeholder, and `PdfViewWindow` never unmounts on this path, the
+  already-loaded `pdf.js` document and its rendered canvases stay alive; `SharedPdfViewer`'s
+  `page`- and `highlightVersion`-tracking `$effect`s (not its document-loading `$effect`) pick up
+  the change and scroll/repaint against the already-rendered pages immediately.
+- **Fetch path unchanged except the `docPage` fallback**: previously, if the newly selected row's
+  `source_line_spans` failed to resolve any page (`spans.length === 0`), `docPage` was left at
+  whatever it had been — silently showing the *previous* document's page number in the *new*
+  document. It now falls back to `1`, matching `loadMetricsForRecord`'s `docPage = 1` reset in
+  `metric-mgmt-view.svelte`.
+
+Root cause this fixes: every row click was going through the fetch path unconditionally, including
+clicks on a different metric from the *same* source document — a common case, since one
+mis-mapped `value_range_type` routinely produces several errored `kb.metrics` rows against the same
+document. `pdfLoading = true` (set before the `await`) is flushed to the DOM while the network
+request is in flight, swapping `PdfViewWindow` out for the placeholder `<div>` and running its
+`onDestroy`, which tears down the loaded PDF document and its `PDFWorker`
+(`shared-pdf-viewer.svelte`'s `onMount` cleanup). When the fetch resolves, `pdfLoading = false`
+remounts a *brand-new* `PdfViewWindow`/`SharedPdfViewer` instance, which reloads the PDF from the
+network via `pdfLib.getDocument(...)` from scratch — the visible flash. Because this teardown/reload
+cycle restarts on every click, rapid successive clicks (ordinary list-browsing behavior) kept
+resetting the in-flight load before its scroll-to-page/highlight step — which only runs once
+rendering finishes — ever got a chance to complete, which is what read as "clicking a metric
+doesn't navigate or highlight."
+
+No backend change was needed — `source_line_spans` was already selected and scanned correctly by
+`ListMetricRangeTypeErrors` (confirmed by reading `metric_range_type_errors_handler.go`); the bug
+was entirely in the frontend's per-click fetch/remount logic.
+
 ## Files Changed
 
 ### Schema
@@ -223,13 +355,22 @@ confirmed live via `\d kb.metrics` against the `miner` database post-rebuild (se
 
 ### Frontend
 
-- `web/src/lib/components/home3/resolve-metric-range-types-client.ts` (new, 124 lines) — typed API
+- `web/src/lib/components/home3/resolve-metric-range-types-client.ts` (124 lines) — typed API
   client (`listMetricRangeTypeErrors`, `listValueRangeTypeMapEntries`,
-  `upsertValueRangeTypeMapEntry`), `CANONICAL_BUCKET_OPTIONS`, `isInvalidMapEntry`.
-- `web/src/lib/components/home3/resolve-metric-range-types-client.test.ts` (new, 134 lines) —
-  `node:test`-based client tests (see Tests).
-- `web/src/lib/components/home3/resolve-metric-range-types-view.svelte` (new, 628 lines) — the page
+  `upsertValueRangeTypeMapEntry`), `CANONICAL_BUCKET_OPTIONS`, `isInvalidMapEntry`. Unchanged by
+  DR10 — both the new store and `context-shelf.svelte` import from it directly.
+- `web/src/lib/components/home3/resolve-metric-range-types-client.test.ts` (134 lines) —
+  `node:test`-based client tests (see Tests). Unchanged by DR10.
+- `web/src/lib/components/home3/resolve-metric-range-types-view.svelte` (628 lines originally; DR10
+  removed the Map Block section and its state/handlers and reworked the root/row/list/PDF-wrapper
+  layout to a bounded `height:100%; overflow:hidden` flex column; DR11 restructured `selectRow` to
+  skip the fetch/remount path when the clicked row's source record is already loaded) — the page
   itself.
+- `web/src/lib/components/home3/resolve-metric-range-types-shelf-store.svelte.ts` (new, DR10) —
+  content/shelf bridge for the Map Block, mirroring `finding-shelf-store.svelte.ts`.
+- `web/src/lib/components/home3/context-shelf.svelte` (DR10) — new `rangeTypeMapShelf.active`
+  title/body branch rendering the Map Block as a compact list, plus its local
+  draft/apply-status/add-entry state.
 - `web/src/lib/components/home3/nav-rail.svelte` (+1 line) — nav entry.
 - `web/src/lib/components/home3/content-panel.svelte` (+4 lines) — import, dispatch branch,
   no-footer exclusion.
@@ -254,6 +395,17 @@ New, by file:
 - `resolve-metric-range-types-client.test.ts` — 9 tests covering `buildRangeTypeErrorsQuery`,
   `listMetricRangeTypeErrors`, `listValueRangeTypeMapEntries`, `upsertValueRangeTypeMapEntry`
   (success + server-error surfacing), `isInvalidMapEntry`.
+
+**DR10 (2026/08/15 follow-up):** no new automated tests were added — it is a layout/composition
+change (CSS flex sizing, moving existing markup from one component to another via a new `$state`
+store) with no new business logic to unit-test. Verification relied on `svelte-check` and direct
+Vite module compilation (see Verification below).
+
+**DR11 (2026/08/15 follow-up):** no new automated tests were added. `selectRow`'s logic is `$state`-
+coupled Svelte component code with no existing component-level test harness for this page (only
+`resolve-metric-range-types-client.test.ts`'s pure-function tests and the Go handler tests exist
+today) — same test-coverage gap DR10 already noted for this file. Verification relied on
+`svelte-check` and direct Vite module compilation (see Verification below).
 
 ## Verification
 
@@ -290,29 +442,57 @@ Results:
   `.../kb/metrics/range-type-errors` both returned `401` (not `404`) with no session cookie —
   confirms both routes are correctly registered and gated by the standard auth middleware exactly
   as designed (DR1), with no extra role check.
-- **Not done:** an authenticated browser click-through of the actual page (search, select-record
-  PDF-highlight, Apply/Add-Entry flows). No authenticated session was available in this
-  environment; this remains a manual verification step before considering the page fully done.
+- **2026-08-15 update:** the requester completed the authenticated browser click-through in their
+  own session and found the two DR10 defects (results list not extending to match the Right
+  panel's height; Map Block unreachable behind a multi-page PDF). Both are now fixed. This
+  environment still has no seeded dev/test credentials (real Kratos auth only — see below), so the
+  DR10 fix has been verified via `svelte-check` (clean across the workspace; the one pre-existing
+  error is the same unrelated `doc-processor-dashboard-state.test.ts` noted above) and by
+  requesting each of the three changed files directly from the running Vite dev server (port
+  `5173`) to confirm they transform without error and contain no leftover references to the
+  removed Map Block state (`grep` for `mapEntries`/`CANONICAL_BUCKET_OPTIONS`/
+  `upsertValueRangeTypeMapEntry` in the compiled `resolve-metric-range-types-view.svelte` module
+  returned zero matches). A final visual re-confirmation in the requester's existing authenticated
+  session is the last step (see Recommended Follow-up).
+- **2026-08-15 update (DR11):** the requester's second click-through found clicking a metric never
+  moved the PDF to the matching page or highlighted it, and the panel flashed/reloaded on every
+  click. Fixed via the `selectRow` restructuring above. Same credential constraint as DR10 applied,
+  so verification used the same two checks: `bun run check` (svelte-check) — clean for this file,
+  same single pre-existing unrelated `doc-processor-dashboard-state.test.ts` error as before, no
+  new errors or warnings — and fetching the compiled module directly from the running Vite dev
+  server (`curl http://localhost:5173/src/lib/components/home3/resolve-metric-range-types-view.svelte`),
+  confirming it transforms without error and that the new early-return branch and its explanatory
+  comment appear in the compiled output. A final visual re-confirmation in an authenticated browser
+  session is still pending, same as DR10 (see Recommended Follow-up).
+- No dev-login bypass or seeded dev/test credentials exist anywhere in this codebase or the
+  sibling `Kratos` project — auth is real (`AUTH_USE_KRATOS=true`, backed by Ory Kratos). `/development`
+  itself has no server-side route guard (`hooks.server.ts`'s `PROTECTED_ROUTES` is just
+  `['/dashboard']`), but `dashboard.svelte`'s shell does its own auth check and redirects to
+  `/login` when no session cookie is present, which is what an unauthenticated `curl`/Playwright
+  request to `/development` hits.
 
 ## Documentation Impact
 
 - ADR `2026081401` — §1 gained a 2026/08/15 changelog entry; §7's "no admin UI" bullet marked
   `~~struck~~` and annotated "Resolved 2026-08-15," pointing to this ADR/implementation pair.
-- ADR `2026081501` (this implementation's companion) — records the same DR1–DR9 in decision-record
-  form.
+- ADR `2026081501` (this implementation's companion) — records the same DR1–DR10 in decision-record
+  form, including DR10's supersession of DR2's original Map Block placement.
 - No other existing document was found to reference this gap or this table pair besides ADR
   `2026081401` itself.
 
 ## Recommended Follow-up
 
+- Re-confirm the DR10 fix (list height, Map Block reachability) and the DR11 fix (click-to-navigate,
+  no reload flash) in an authenticated browser session — the requester found both sets of bugs via
+  click-through; both fixes have only been confirmed via `svelte-check` and Vite compilation so
+  far, not visually.
 - Decide whether "Apply" should also surface a way to trigger `normalize_assertions`/
   `associate_semantics` reprocessing for the records it just corrected, rather than relying
   entirely on the existing backlog-drain mechanism to eventually pick them up (ADR `2026081501` §5).
 - Add real pagination to the Map Block / errored-metrics list if either grows past the current
-  500-row cap / current few-dozen-entry scale.
+  500-row cap / current few-dozen-entry scale — more pressing for the Map Block after DR10, since
+  the shelf is narrower than the old full-width table.
 - A "mark ambiguous" action from the Map Block, so operators no longer need direct DB access for
   that one status transition.
-- Complete a manual, authenticated click-through of the page in a browser — not done as part of
-  this implementation (see Verification).
 - Revisit DR8's duplicated PDF-highlight logic for extraction into a shared util if a third admin
   page ever needs the same source-highlighting mechanism.
