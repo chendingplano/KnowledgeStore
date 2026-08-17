@@ -1,336 +1,548 @@
-# ADR 2026081701 — Canonical Metric Classes, Normalized Instances, and Semantic Relations
+# ADR 2026081701 — Ontology Object Classes, Normalized Metric Instances, and Semantic Relations
 
 **Date:** 2026-08-17 \
 **Status:** Proposed \
-**Component:** ChenWeb — ontology terms, keyword concepts, semantic assertions, assertion evidence, assertion relations, metric comparison, and Review Document \
+**Component:** ChenWeb — ontology terms, class contracts, keyword concepts, semantic assertions, assertion evidence, assertion relations, metric processing, and Review Document \
 **Authors:** Chen Ding (with Codex) \
 **Related:** ADR `2026072901` (ontology platform and adaptive pipeline), ADR `2026081201` (auto-promoted governed terms), ADR `2026081401` (governed metric vocabulary and Phase D failure reporting), user manual `metric-assertion-semantic-processing-v1.2-en.md` §6.11 \
-**Tags:** ontology, metrics, semantic identity, class-instance model, assertion relations, autonomous resolution, Review Document
+**Tags:** ontology, object class, object instance, metrics, semantic identity, evidence, evolving schema, autonomous resolution, Review Document
 
 ## 1. Change Log
 
-* 2026/08/17, ADR proposed after investigating user manual §6.11 and the live implementation.
-  The investigation confirmed that metric occurrences sharing a governed metric term still create
-  separate assertion identities, assertion relations are not produced, and Review Document uses
-  similarity retrieval rather than canonical ontology identity.
+* 2026/08/17, initial proposal after investigating user manual §6.11 and the live implementation.
+* 2026/08/17, rewritten after review stopped during DR3. The rewrite:
+  * recognizes that existing `kb.ontology_terms` rows are vocabulary identities rather than usable
+    ontology object classes;
+  * makes the class, instance, evidence, and occurrence layers explicit;
+  * adopts an evidence-first logical pipeline;
+  * defines one current assertion candidate per atomic metric occurrence while retaining generic
+    many-to-many evidence storage;
+  * defines ontology classes as evolving, versioned contracts synthesized from observed instances,
+    without treating every observed value as valid;
+  * makes same-class recognition a primary architectural decision; and
+  * resolves reviewer Issues 01–06 and Thoughts 01–04.
 
 ## 2. Context
 
-### 2.1 The missing class-instance distinction
+### 2.1 The implemented term layer is not an ontology object-class layer
 
-The current implementation treats several different identities as if they were interchangeable:
+The original proposal assumed that a `kb.ontology_terms` row with
+`term_kind = 'metric_definition'` defined the semantics and syntax of one metric class. The live
+implementation does not support that assumption.
 
-* a raw metric occurrence in `kb.metrics`;
-* a keyword concept in `kb.keyword_concepts`;
-* a governed metric definition in `kb.ontology_terms`;
-* a normalized claim in `kb.semantic_assertions`; and
-* the evidence that a source artifact provides for a normalized claim.
+For example, term row `12428`, `measurement:auto:kwc_fe55f891fd00`, has a preferred label
+`其他垃圾收运频率`, but no definition, value type, range type, permitted units, axioms, mappings, or
+profile rules. Its associated keyword-to-term alignment assertion says only that it was
+auto-created. The normalized metric assertion separately contains the value, unit, comparator, and
+raw text, but the supposed class does not define what those fields mean or which forms are valid.
 
-These objects serve different purposes and must not share one occurrence-derived identity.
+A production survey on 2026/08/17 found 182 auto-promoted `metric_definition` terms. Fifty-five were
+completely label-only, only 45 had definitions, and only seven identified permitted units. Even
+populated rows frequently copied free-text properties from one occurrence rather than defining a
+governed class contract.
 
-For example:
+Therefore, the existing `kb.ontology_terms` table is an identity and vocabulary registry. It can
+identify that a term exists and store its labels and lifecycle, but a row alone is not an ontology
+object class. Treating it as one would build instance identity and comparison on an empty semantic
+foundation.
+
+### 2.2 The required ontology has two semantic layers and two provenance layers
+
+The design requires four distinct objects:
+
+```text
+source occurrence        evidence/link           normalized instance       object class
+kb.metrics M  ---------> kb.assertion_evidence -> kb.semantic_assertions A -> kb.ontology_terms T
+                                                      instance_of -----------^
+                                                                            |
+                                                     kb.ontology_class_contracts
+```
+
+The layers have different responsibilities:
+
+| Layer | Responsibility |
+|---|---|
+| Source occurrence | What one document-processing run extracted, including source wording, spans, model, prompt, and confidence. |
+| Evidence | Why a normalized instance exists and which occurrence supports or contradicts it. |
+| Ontology object instance | A normalized claim with subject, value, conditions, modality, and value state. Multiple source occurrences may support the same instance. |
+| Ontology object class | A stable semantic identity plus a versioned contract defining the instance's attributes, logical datatypes, constraints, and comparison semantics. |
+
+For metrics, `kb.metrics` is the source-occurrence store and `kb.semantic_assertions` is reused as
+the ontology object-instance store. This does not make every semantic assertion a metric. The table
+remains generic, and only assertion kinds representing normalized object instances carry an
+`instance_of` class relationship.
+
+### 2.3 Motivating example
+
+Assume:
 
 ```text
 A: display luminance >= 250 cd/m2
 B: display luminance >= 300 cd/m2
 ```
 
-Both A and B instantiate the same logical metric, **Display Luminance**. They are not the same
-claim: B is a stronger lower-bound requirement than A. The ontology must therefore represent one
-metric class, two normalized instances, and a relation between the instances.
-
-The intended model is analogous to a class and its instances:
+The correct representation is:
 
 ```text
-metric-definition class: Display Luminance
-├── normalized assertion A: display luminance >= 250 cd/m2
-└── normalized assertion B: display luminance >= 300 cd/m2
-    └── stronger_than -> assertion A
+ontology object class T: Display Luminance
+  contract:
+    quantity: luminance
+    logical value type: numeric luminance quantity
+    permitted dimension/unit family: cd/m2
+    comparison rule: lower-bound requirement
 
-kb.metric occurrence A --evidence--> assertion A
-kb.metric occurrence B --evidence--> assertion B
+ontology object instance A:
+  instance_of T
+  normalized value: >= 250 cd/m2
+
+ontology object instance B:
+  instance_of T
+  normalized value: >= 300 cd/m2
+
+relation:
+  B stronger_than A
+  A weaker_than B       # inverse projection
+
+metric occurrence A -> evidence A -> instance A
+metric occurrence B -> evidence B -> instance B
 ```
 
-`kb.metrics` remains the occurrence and extraction-provenance store. It is not the canonical
-ontology instance store.
+A and B are instances of the same class but are different claims. If another document contains the
+same normalized claim as A, its occurrence may provide additional evidence for instance A rather
+than create a duplicate instance.
 
-### 2.2 Confirmed implementation defect
+### 2.4 Three identity questions must not be conflated
 
-`MetricNormalizer` currently assigns every metric candidate an occurrence-derived logical key:
+The system must answer three different questions:
+
+1. **Same occurrence:** Is a newly extracted metric the same source artifact as a metric from an
+   earlier processing of the same document?
+2. **Same normalized instance:** Do two occurrences express the same subject, metric class, value,
+   unit, comparator, conditions, modality, and applicability?
+3. **Same ontology class:** Do differently named or structured artifacts instantiate the same
+   logical metric or other ontology object class?
+
+The Phase-2 metric merge mechanism addresses question 1. Canonical assertion identity addresses
+question 2. Keyword and ontology reconciliation address question 3. A positive result at one level
+does not automatically answer either of the other levels.
+
+### 2.5 Current assertion identity does not converge equivalent occurrences
+
+`MetricNormalizer` currently creates a decision candidate with the occurrence-derived logical key:
 
 ```text
 metric:<input-record-id>:<metric-id>
 ```
 
-`associate_semantics` copies that key directly into `kb.semantic_assertions`. Assertion persistence
-then creates or revises an assertion only by that key. Two source metrics therefore cannot converge
-on one canonical assertion even when they have the same subject, metric definition, normalized
-value, unit, and conditions.
+`associate_semantics` copies that identity into `kb.semantic_assertions`. Consequently, two source
+metrics cannot converge on one normalized assertion even when their semantic payloads are identical.
+The class term is carried only in qualifier JSON and does not participate through a typed,
+versioned `instance_of` relationship.
 
-The governed `metric_definition_term_id` is carried only as qualifier JSON on the assertion. It is
-not a typed, indexed relationship that participates in assertion identity.
+The current relation table also cannot represent the required relation set, and the association
+pipeline does not populate it. Same-class instances therefore remain isolated rows.
 
-The current relation table is also insufficient. `kb.assertion_relations` permits only
-`conflicts_with`, `supersedes`, and `superseded_by`, and the association pipeline does not populate
-it. It cannot represent identical, equivalent, stronger, weaker, syntactically incompatible,
-missing-value, or presently unknown relation cases.
+### 2.6 Review Document is the minimum competency test
 
-### 2.3 Production evidence
+Review Document must be able to process a document, find the normalized instance for every metric
+occurrence, find its ontology class, retrieve other instances of that class, and compare their
+source evidence. Today it primarily discovers peers through lexical/vector similarity, shared
+categories, and object anchors.
 
-A read-only survey of the staging `miner` database on 2026/08/17 found:
+Similarity is useful for candidate discovery. It cannot guarantee same-class identity or explain
+why two artifacts are comparable. If the ontology subsystem cannot support the Review Document
+class-to-instance traversal, its most important semantic relationship is missing.
 
-* 7,074 rows in `kb.metrics`;
-* 89 metrics with both `keyword_concept_id` and `metric_definition_term_id`;
-* 71 non-deleted metric evidence rows pointing to 71 distinct assertion rows;
-* no assertion with evidence from more than one metric occurrence;
-* seven governed metric terms each referenced by two different assertion logical identities; and
-* zero rows in `kb.assertion_relations`.
+### 2.7 Human design is ideal but cannot be mandatory
 
-This proves that term convergence, where it occurs, does not produce assertion convergence or
-instance relations.
+Human domain experts should define and lock important ontology classes. It is not practical to
+require human design for every class discovered in a large and continuously changing corpus.
 
-### 2.4 Review Document is using similarity, not ontology identity
+The system therefore needs a hybrid model:
 
-Review Document's metric reviewer currently retrieves peers through:
+* curated class contracts for critical artifacts;
+* deterministic synthesis and evolution where evidence is sufficient;
+* statistical and LLM-assisted proposals for ambiguity that deterministic rules cannot resolve;
+* versioned policy-controlled autonomous activation; and
+* optional human correction, locking, merge, or split at any time.
 
-1. live lexical/vector similarity;
-2. shared metric categories; and
-3. shared object anchors.
-
-Its review payload and retrieval queries do not use `metric_definition_term_id` or accepted
-`kb.semantic_assertions` as the primary matching identity. Similarity is useful for discovery, but
-it cannot guarantee that two artifacts instantiate the same logical metric, nor can it explain a
-match through a governed semantic decision.
-
-This conflicts with ADR `2026072901`'s intended competency question CQ-M02: assertions measuring
-the same property or quantity kind must group under one governed metric/property while similar but
-different metrics remain separate.
-
-### 2.5 Auto-promotion can obstruct its own repair
-
-ADR `2026081201` creates one auto-promoted metric-definition term for every keyword concept without
-an existing alignment. The term ID is derived from the concept ID. If two equivalent concepts exist,
-the system therefore creates two terms.
-
-Concept merging currently refuses to merge concepts that are aligned to different governed terms.
-That guard assumed different governed terms were reliable evidence of different meanings. Once terms
-are auto-created from unreconciled concepts, the assumption is circular:
-
-```text
-fragmented concepts
--> different auto-promoted terms
--> different accepted alignments
--> concept merge rejected
--> fragmentation cannot repair itself
-```
-
-ADR `2026081201` explicitly left duplicate auto-promoted-term reconciliation undecided. This ADR
-resolves that open decision.
-
-### 2.6 Human review cannot be a runtime dependency
-
-Mandatory review of every concept, term, assertion, or relation would make high-volume document
-processing operationally unusable. Human involvement must remain available but optional.
-
-Autonomy introduces false-merge and false-relation risks. Those risks must be managed through
-confidence, evidence, reversibility, sampling, and explicit uncertainty—not by blocking normal
-processing until a person acts.
-
-Some semantic decisions cannot be made deterministically. LLM use is acceptable and important for
-those cases. Deterministic mechanisms should be used first because they are cheaper, reproducible,
-and easier to audit; LLM adjudication should handle the remaining semantic ambiguity.
+Human involvement is never a runtime prerequisite for ordinary document processing.
 
 ## 3. Decision
 
-### 3.1 DR1 — `kb.ontology_terms` defines metric classes
+### 3.1 DR1 — Establish ontology object class and object instance as first-class concepts
 
-A row in `kb.ontology_terms` with `term_kind = 'metric_definition'` represents one canonical logical
-metric class. It defines the common semantic contract for its instances, including, where known:
+The terms **ontology object class** and **ontology object instance** are normative throughout the
+design and implementation.
 
-* preferred and alternative labels;
-* definition and scope;
-* observable property and quantity kind;
-* permitted value datatypes and value forms;
-* permitted units or dimensional constraints;
-* expected ranges and assertion kinds;
-* default conditions and applicability; and
-* relationships to broader, narrower, exact, close, or related metric classes.
+An ontology object class defines the shared semantic and syntactic contract for a family of
+instances. An ontology object instance is a normalized claim that explicitly instantiates one
+class; it is not the source occurrence, and multiple occurrences may support it.
 
-All names that mean the same logical metric must resolve to exactly the same canonical term ID.
-For example, approved uses of `display luminance`, `显示亮度`, and a domain-approved abbreviation
-must resolve to one metric-definition term, not parallel terms.
+For the metric pilot:
 
-Lexical similarity alone does not prove identity. Resolution uses the layered policy in DR8.
+* `kb.ontology_terms`, together with the class-contract records defined in DR2, identifies and
+  defines the ontology object class;
+* `kb.semantic_assertions` stores normalized metric instances;
+* `kb.assertion_evidence` connects instances to source occurrences; and
+* `kb.metrics` preserves extraction and document provenance.
 
-### 3.2 DR2 — Reuse `kb.semantic_assertions` as normalized metric instances
-
-`kb.semantic_assertions` is the normalized instance store. A separate
-`kb.ontology_term_instances` table is not introduced because it would duplicate assertion values,
-conditions, lifecycle, revisions, evidence, and provenance and create competing sources of truth.
-
-Every metric assertion must carry a direct, typed relationship to its metric class:
+The generic class reference on `kb.semantic_assertions` is:
 
 ```text
-kb.semantic_assertions.metric_definition_term_id
-kb.semantic_assertions.metric_definition_term_version
+instance_of_term_id
+instance_of_term_version
 ```
 
-The `(term_id, version)` pair references the governed term version used when the assertion was
-normalized. Canonical identity and grouping use the stable `term_id`; the version records the exact
-class definition under which the decision was made. That normalization-time version is immutable.
-Using a later compatible term version is a read projection; adopting changed class semantics requires
-an explicit re-normalization decision and, when decision-relevant, a new assertion revision.
+The name `parent_term_id` is rejected because instantiation is not taxonomy or containment.
+`metric_definition_term_id` is rejected on the generic assertion table because the table also holds
+provisions, entities, inventory items, and other assertion families. `artifact_definition_term_id`
+is rejected because not every assertion is an artifact instance.
 
-Class resolution is represented independently from value state through a governed
-`class_resolution_state_term_id`, initially `resolved`, `unresolved`, `ambiguous`, or `conflict`.
-The resolution decision records candidate term IDs, method, confidence, evidence, rationale, and
-producer provenance. During migration the class columns may be nullable for historical rows. A new
-accepted metric assertion requires `class_resolution_state = resolved` and a governed class
-reference. An unresolved, ambiguous, or conflicting normalized occurrence remains `deferred` or
-otherwise explicitly non-accepted; it remains queryable and available to Review Document fallback
-but cannot participate in canonical class convergence. A string inside `qualifiers` is not
-sufficient for either class identity or resolution state.
+The class reference is nullable for assertion kinds that encode relations or other claims without
+an applicable object class. An accepted normalized metric instance requires exactly one resolved
+metric class.
 
-### 3.3 DR3 — Keep occurrences and evidence; converge identical normalized instances
+### 3.2 DR2 — Treat `kb.ontology_terms` as the class identity header and add a real class contract
 
-`kb.metrics` remains unchanged as the extraction occurrence store. Each occurrence retains its own:
+`kb.ontology_terms` remains the stable identity, term kind, module, version, label, lifecycle, and
+governance header. A new versioned class-contract store supplies the missing semantics:
 
-* `metric_id` and source record;
-* source line spans and source wording;
-* extraction run, model, and prompt;
-* confidence and raw structured fields; and
-* keyword and governed-term resolution results.
+```text
+kb.ontology_class_contracts
+  term_id
+  term_version
+  contract_schema_version
+  definition_state
+  class_kind
+  contract_payload
+  synthesis_method
+  confidence
+  policy_version
+  provenance
+  lifecycle/status
+```
 
-`kb.assertion_evidence` links those occurrences to normalized assertions.
+There is exactly one authoritative class-contract record for each `(term_id, term_version)`.
+`contract_schema_version` versions the serialization format only; it is not a second semantic
+version. Any decision-relevant change to class meaning, attributes, logical datatypes, constraints,
+or comparison rules creates a new `kb.ontology_terms` version and its corresponding contract. Thus
+`instance_of_term_id/version` identifies the exact semantic contract used for normalization.
 
-When two independently extracted occurrences normalize to the same canonical claim, they converge
-on one `kb.semantic_assertions` logical identity and create separate evidence rows. New evidence by
-itself does not create an assertion revision.
+The detailed schema will be specified by OpenSpec, but `contract_payload` must be able to define:
 
-The identity decision remains auditable. Candidate IDs, prior assertion IDs, matching method,
-confidence, rationale, and redirects from any absorbed duplicate are retained. `identical_to` is a
-temporary or exceptional relation when immediate convergence is unsafe—for example, while context
-or lifecycle scope remains unresolved. The steady-state representation contains one canonical
-assertion, not duplicate assertion rows connected only by `identical_to`.
+* the class's meaning and applicability;
+* attribute identifiers, labels, and definitions;
+* logical datatypes, which define semantic value spaces rather than Go, SQL, or JSON storage types;
+* attribute cardinality and required, optional, or conditional presence;
+* permitted units, dimensions, value forms, and special values;
+* normalization and canonical serialization rules;
+* constraints, tolerances, defaults, and cross-attribute rules;
+* known errors, exceptions, and missing-value interpretations;
+* assertion modalities and valid-time/applicability behavior;
+* rules for equivalence, stronger/weaker comparison, conflict, and incomparability; and
+* broader, narrower, exact, close, or related class mappings.
 
-Assertion convergence is represented by `kb.semantic_assertion_redirects`, not only by changing
-evidence foreign keys. Each redirect records the absorbed assertion logical identity, canonical
-assertion logical identity, identity-decision reference, effective/reversed lifecycle, rationale,
-and before/after evidence membership. One absorbed identity has at most one active redirect;
-redirects are acyclic; readers follow the chain to one canonical survivor; and compaction may
-shorten a chain without deleting its decision history.
+For example, a logical datatype may state that normal values are integers while named exceptional
+values are also permitted. It is not limited to a programming-language primitive.
 
-### 3.4 DR4 — Canonical claim identity is semantic, not occurrence-derived
+An ontology class is therefore the aggregate of its term identity, observed class profile, class
+contract, labels, axioms, mappings, and applicable profile rules. The observed profile preserves
+the structural superset discovered in the corpus; the contract identifies which parts currently
+have authoritative meaning. A `kb.ontology_terms` row without a class contract is not silently
+presented as a complete class.
 
-Metric candidates may retain occurrence-derived keys because each candidate records one source
-proposal. Accepted assertion identity must instead be computed from canonical semantic content.
+Class definition state is separate from term lifecycle:
 
-The versioned canonical-key input contains, where applicable:
+```text
+identity_only -> partially_defined -> class_ready
+```
 
-* canonical subject/referent identity;
-* canonical `metric_definition_term_id`;
-* predicate and governed assertion kind;
-* normalized value, interval, or state-specific identity payload;
+Auto-promotion may create `identity_only`. A class becomes `class_ready` only after its contract
+passes versioned completeness and coherence validation. That promotion may be autonomous under
+policy; human approval is optional.
+
+### 3.3 DR3 — Use an evidence-first logical pipeline and a dependency-safe persistence order
+
+The logical ontology-processing flow for a metric is:
+
+```text
+1. kb.metrics occurrence
+      -> evidence proposal
+2. evidence proposal
+      -> candidate normalized assertion (ontology object instance)
+3. candidate assertion
+      -> resolve or create ontology object class
+4. class-aware validation
+      -> accepted/deferred instance + authoritative evidence link
+5. accepted same-class instances
+      -> semantic relations and Review Document projections
+```
+
+Evidence is logically prior to an assertion: the system must not invent an instance with no source
+support. Physical database insertion follows referential integrity. Because
+`kb.assertion_evidence.assertion_id` is non-null, the transactional writer first finds or creates
+the assertion row and then inserts or restores its evidence row. This storage order does not change
+the logical provenance order.
+
+The complete physical order is:
+
+1. persist or reuse the occurrence-derived `kb.semantic_decision_candidates` row containing the
+   evidence proposal and class-independent instance payload;
+2. resolve an existing class, or create its term identity and observed profile and synthesize a
+   class-contract proposal;
+3. activate a new ontology-term version and corresponding contract only if policy and class
+   validation permit it;
+4. once a usable class version exists, transactionally find or create the normalized
+   `kb.semantic_assertions` row with `instance_of_term_id/version`; and
+5. in the same transaction, insert or restore `kb.assertion_evidence` and record the candidate's
+   resulting assertion.
+
+An unresolved or insufficiently defined class leaves the evidence-bearing decision candidate
+deferred. The authoritative store never inserts an accepted, classless metric assertion and later
+patches in its class.
+
+The current `kb.semantic_decision_candidates` record already carries the source artifact, source
+spans, proposed payload, method, and confidence. It serves as the evidence-bearing proposal during
+resolution; a separate pre-assertion evidence table is not required unless OpenSpec finds that the
+candidate lifecycle cannot preserve all required evidence.
+
+Class resolution is deliberately two-pass:
+
+1. occurrence normalization builds the best class-independent candidate shape and preserves all raw
+   evidence; and
+2. after class resolution, the candidate is validated and normalized again against the selected
+   class contract.
+
+This avoids a circular dependency: a class can be discovered from instances, while an accepted
+instance still receives class-aware validation. An unresolved class leaves the candidate queryable
+and deferred; it does not block completion of the document pipeline.
+
+### 3.4 DR4 — One atomic metric occurrence has at most one current candidate assertion
+
+The metric extraction contract is one atomic metric claim per `kb.metrics` row. Under that contract:
+
+* one metric occurrence creates at most one **current** assertion decision candidate;
+* unchanged reprocessing reuses the current candidate and updates `last_seen`;
+* changed reprocessing creates a new candidate revision and supersedes the previous revision;
+* an accepted current candidate resolves to at most one current semantic assertion; and
+* an active metric occurrence supports at most one current metric-instance assertion.
+
+Historical candidate revisions and historical evidence may still exist for audit. “At most one”
+therefore applies to the current lifecycle state, not to all rows ever written. When changed
+reprocessing maps the same metric occurrence to a different current assertion, the transaction
+soft-deletes the prior supporting evidence link with a supersession reason and creates the new one.
+For `artifact_type = 'metric'`, one current occurrence therefore has at most one active
+(`deleted = false`, `evidence_role = 'supports'`) occurrence-to-instance link. Contradictory evidence
+uses its separate evidence role and does not become the metric's current normalized-instance link.
+
+If one extracted row contains multiple independent metric claims, the extraction is malformed and
+must be split into multiple `kb.metrics` occurrences before ontology association. The ontology
+pipeline must not silently fan one metric row into unrelated current assertions.
+
+The database relationship remains generic and many-to-many through `kb.assertion_evidence` because:
+
+* many occurrences may support one normalized assertion;
+* non-metric artifact families may legitimately produce several assertions from one artifact; and
+* history, contradictory evidence, and future composite artifacts must remain representable.
+
+Consequently, this ADR does not add `kb.metrics.assertion_id` or
+`kb.metrics.metric_assertion_id` as an authoritative foreign key. A `primary_assertion_id` may be
+exposed as a rebuildable current-state projection for query convenience, but the evidence table is
+the source of truth.
+
+### 3.5 DR5 — Build evolving classes from instance observations, but do not equate observation with validity
+
+The system adopts the proposed corpus-driven class-construction method with an essential safety
+boundary.
+
+For every candidate instance, the processor collects its observed structure, including known fields
+such as value, logical value type, range form, unit, condition, subject, and modality, plus
+domain-specific attributes such as `normal speed`, `red-zone speed`, or `value when used outside`.
+Observed attributes are normalized and reconciled using the same cheapest-first identity principles
+as keyword reconciliation.
+
+The ontology class aggregate preserves a **structural superset** of the attributes recognized
+across its instances in its observed profile. As more documents are processed, new legitimate
+attribute definitions may be promoted into later authoritative ontology-term versions and their
+corresponding contracts. The authoritative contract is a validated synthesis of that superset, not
+its raw union: every observation remains known, but every observed value, datatype, unit, or
+attribute is not automatically permitted.
+
+The implementation separates:
+
+```text
+observed class profile                    authoritative class contract
+append-only/derived corpus evidence  ->   versioned governed semantics
+```
+
+The observed profile records:
+
+* candidate attribute names and normalized identities;
+* observed logical datatypes, units, value forms, and cardinalities;
+* frequency and document/domain distribution;
+* examples and source evidence;
+* co-occurrence and conditional patterns;
+* contradictions and outliers; and
+* confidence and the method that grouped each observation.
+
+The authoritative contract records what the system currently accepts as the class definition. A
+malformed string in one document must not expand a numeric datatype into “numeric or arbitrary
+string,” because doing so would hide a datatype conflict. It instead remains an observed outlier or
+`datatype_mismatch` until deterministic rules, an LLM-assisted proposal, policy, or a human decision
+changes the class contract.
+
+Class synthesis must also decide whether a newly observed field is:
+
+* an attribute of the existing class;
+* an alias for an existing attribute;
+* a condition or applicability qualifier;
+* a related but separate metric class;
+* a specialized subclass/profile; or
+* erroneous or presently unresolved.
+
+For example, `normal speed` and `red-zone speed` might be conditional attributes of a speed class,
+or they might be separate metrics related to a common equipment class. The system must preserve the
+ambiguity until contextual and corpus evidence support one model.
+
+Class evolution produces a new immutable ontology-term version with one corresponding contract.
+Existing assertions retain the exact `instance_of_term_id/version` under which they were normalized.
+Compatible versions may be projected as current; decision-relevant changes trigger revalidation or
+a new assertion revision.
+
+### 3.6 DR6 — Make same-class recognition the primary cross-document resolution problem
+
+The most difficult and important operation is deciding whether different artifacts instantiate the
+same ontology class. Class creation must not become “one new label, one new class,” and class growth
+must not merge merely similar concepts.
+
+The resolver reuses the existing keyword Tier-0 through Tier-6 machinery for names:
+
+* Tier 0: exact surface identity;
+* Tier 1: current normalized-key identity;
+* Tier 2: alternate keys such as alphanumeric, sorted, and singular forms;
+* Tier 3: governed rewrite rules and retry of earlier deterministic tiers;
+* Tier 4: initials/acronym bridges;
+* Tier 5: guarded fuzzy matching; and
+* Tier 6: offline multilingual embedding and governed terminology identity evidence.
+
+The exact deployed tier definitions and thresholds remain owned by the keyword subsystem; this ADR
+does not create a competing normalization stack.
+
+Name identity is necessary but not sufficient for class identity. Class resolution additionally
+uses:
+
+* stable source identifiers and existing redirects;
+* approved keyword-concept and term mappings;
+* quantity kind, observable property, unit dimension, and subject compatibility;
+* attribute-shape and logical-datatype compatibility;
+* conditions, modality, applicability, and domain scope;
+* ontology neighborhood and external governed terminology evidence;
+* corpus co-occurrence and distribution;
+* lexical/vector candidate generation; and
+* LLM adjudication when deterministic and statistical evidence remain ambiguous.
+
+Resolution follows the proven Phase-2 hybrid pattern: deterministic blocking and matching first,
+then LLM calls only for the bounded ambiguous set. The existing Phase-2 metric reprocessing matcher
+is reused as an implementation pattern and evidence source, not as proof of class identity: it was
+designed to recognize the same occurrence within one document, whereas class identity operates
+across documents and contexts.
+
+Candidate decisions are `same`, `different`, `uncertain`, or `conflicted`, with method, confidence,
+evidence, policy version, and reversibility. Low-cost negative gates—different quantity dimension,
+incompatible subject kind, explicit `never_merge`, or incompatible applicability—must reject unsafe
+candidates before embeddings or LLM calls.
+
+### 3.7 DR7 — Reuse `kb.semantic_assertions` as normalized object instances
+
+A separate `kb.ontology_term_instances` table is not introduced. It would duplicate the assertion's
+subject, value, conditions, lifecycle, revisions, evidence, and provenance.
+
+Every normalized metric instance carries:
+
+```text
+instance_of_term_id
+instance_of_term_version
+class_resolution_state_term_id
+value_state_term_id
+```
+
+The class-resolution decision separately preserves observed class candidates, canonical class,
+method, confidence, rationale, producer/model/prompt where applicable, and decision policy. The
+normalization-time class version is immutable.
+
+Initial class-resolution states are `resolved`, `unresolved`, `ambiguous`, and `conflict`. A new
+accepted metric instance requires `resolved` and a `class_ready` contract, unless a named policy
+explicitly permits a partially defined class for a low-risk use. Other cases remain queryable as
+candidate or deferred and remain available to Review Document's fallback paths.
+
+### 3.8 DR8 — Make normalized claim identity semantic rather than occurrence-derived
+
+Candidate identity remains occurrence-derived because it identifies one source proposal. Accepted
+instance identity is computed from canonical semantic content.
+
+For metrics, the versioned canonical identity includes, where applicable:
+
+* canonical subject/referent;
+* canonical `instance_of` class after redirect resolution;
+* predicate and assertion kind/modality;
+* normalized value, interval, or explicit value state;
 * canonical unit and quantity kind;
 * comparator and boundary inclusivity;
-* condition, procedure, modality, polarity, and applicability scope;
-* valid-time interval; and
-* other fields explicitly registered as identity-bearing by the metric-class contract.
+* conditions, procedure, polarity, and applicability;
+* valid time; and
+* class-contract fields marked identity-bearing.
 
-It excludes:
+It excludes source record, metric ID, wording, spans, extraction run, model, prompt, confidence, and
+display labels.
 
-* input record ID and `metric_id`;
-* source wording and line spans;
-* extraction run, producer, model, and prompt;
-* confidence; and
-* mutable display labels.
+`kb.semantic_claim_identities` provides concurrency-safe find-or-create for the canonical payload
+and points to the current assertion revision. Equal digests are reused only after canonical payload
+bytes compare equal. Changed processor versions alone do not create new semantic identity; changed
+semantic output may do so.
 
-Value-state identity is explicit:
+When two occurrences produce the same canonical claim, they converge on one normalized assertion
+and retain independent evidence rows. New evidence alone does not create an assertion revision.
+Absorbed historical assertion identities remain resolvable through audited, acyclic assertion
+redirects.
 
-| Value state | Identity-bearing value payload |
+### 3.9 DR9 — Represent missing and malformed values as meaningful instance states
+
+A missing or malformed value must not make an artifact disappear. Initial governed value states
+include:
+
+| State | Meaning |
 |---|---|
-| `present` | Canonical typed value/interval, datatype, comparator, inclusivity, unit, and quantity kind. |
-| `missing` | The `missing` state plus subject, class, and applicability context; there is no fabricated value. |
-| `unparsed` | Stable fingerprint of normalized raw value and declared/inferred datatype. Different raw values must not collapse. |
-| `datatype_mismatch` | Offending typed/raw value fingerprint, observed datatype, and expected class datatype. |
-| `not_applicable` | The state plus the explicit non-applicability scope and conditions. |
-| `unknown` | Stable unresolved-value fingerprint when source content exists; otherwise the state plus semantic context. |
-
-Only states where no source value exists may omit the object literal/value payload. Unparsed and
-datatype-mismatch instances preserve the offending value and datatype for later adjudication.
-Parser, validation-rule, model, prompt, and decision versions remain normalization provenance and do
-not enter semantic identity. If reprocessing produces a different semantic value or state, that
-changed semantic result—not the processor version itself—creates a new claim.
-
-Canonical claim identity is stored in a dedicated identity registry,
-`kb.semantic_claim_identities`, containing a stable claim ID, canonical-key version, canonical
-payload, digest, and current canonical assertion ID. This registry is not a second instance store:
-`kb.semantic_assertions` remains the normalized instance and revision record, while the registry
-supplies concurrency-safe logical identity and owns the pointer to its one current assertion. The
-database enforces one identity per `(identity_scope, canonical_key_version, digest)`. The initial
-`identity_scope` is the ChenWeb project database; any future shared multi-tenant database must add
-the tenant/project key before enabling canonical writes. On a digest hit, the canonical payload bytes
-must compare equal before reuse; unequal payloads are a collision error, never an automatic merge.
-Assertions reference the stable claim ID, and historical assertion revisions may share it, but only
-the registry's locked current pointer is authoritative for new evidence and relations.
-
-The current `logical_identity_key` contract is changed for metric assertions: it identifies the
-canonical claim, not the originating occurrence. Assertion revisions represent governance or
-decision-relevant revisions of that same claim. A change to an identity-bearing semantic component
-creates a different claim and, where appropriate, a relation to the prior claim; it is not merely
-a new revision under the old occurrence key.
-
-Physically, the new claim-identity foreign key and identity registry are authoritative. The existing
-assertion `logical_identity_key` is populated from the stable claim ID during compatibility rollout,
-becomes read-only legacy data, and may be removed after all consumers migrate. Decision-candidate
-`logical_identity_key` remains occurrence-derived because it identifies a source proposal, not an
-accepted canonical claim.
-
-Association performs a transactional find-or-create through the identity registry and then inserts
-or restores the occurrence's evidence. Concurrent processing of the same claim must converge safely.
-
-### 3.5 DR5 — Every resolved occurrence has an explicit governed value state
-
-A missing or malformed value is meaningful information and must not cause an occurrence to vanish
-from semantic processing.
-
-Metric assertions gain a governed value-state reference. Initial terms include:
-
-| Value state | Meaning |
-|---|---|
-| `present` | A usable normalized value or interval is present. |
+| `present` | A usable normalized value or interval exists. |
 | `missing` | The metric is present but an expected value is absent. |
-| `unparsed` | Source value exists but normalization could not parse it. |
-| `datatype_mismatch` | The occurrence's datatype conflicts with the metric-class contract. |
-| `not_applicable` | The source explicitly states that the metric does not apply. |
-| `unknown` | The processor cannot yet classify the value state. |
+| `unparsed` | Source value exists but normalization cannot parse it. |
+| `datatype_mismatch` | Observed datatype conflicts with the selected class contract. |
+| `not_applicable` | The source explicitly says the metric does not apply. |
+| `unknown` | Available evidence does not yet support another state. |
 
-These are governed ontology terms, not a closed database enum. New value states can be added without
-schema surgery. The assertion schema permits no object literal only when the governed value state
-means that no source value exists; DR4 defines the required payload for every other state.
+Unparsed and mismatched instances preserve the offending raw value and observed datatype. Missing
+and unknown instances retain subject, class candidates, applicability, and source evidence. These
+states are ontology terms rather than a closed database enum.
 
-A missing-value instance participates in Review Document. It can support findings such as “the
-required metric is mentioned but no value is supplied,” distinct from “the metric is absent from the
-document.” A datatype mismatch is a syntactic conflict even when no determination about real-world
-correctness is possible.
+“Metric absent” is different from “metric present with missing value.” Absence can be concluded only
+relative to a named, versioned profile or class contract that declares the metric expected in the
+review scope.
 
-### 3.6 DR6 — Persist first-class, governed relations among instances
+### 3.10 DR10 — Persist governed relations among same-class instances
 
-Assertions sharing a canonical metric class form an instance set. Members of the set may be:
+Instances of one canonical class may be:
 
-* identical and therefore converged;
+* identical and converged;
 * equivalent after normalization or unit conversion;
 * stronger or weaker;
 * conflicting;
-* syntactically incompatible, including datatype mismatch;
-* missing, unparsed, or unknown in value state;
-* incomparable because conditions, scopes, or dimensions differ; or
-* related in ways not yet known when this ADR is written.
+* syntactically conflicting;
+* missing, unparsed, or unknown;
+* incomparable because conditions, scopes, subjects, dimensions, or modalities differ; or
+* related by future relation kinds not known today.
 
-`kb.assertion_relations.relation_term_id` becomes the authoritative relation type. The legacy
-`relation_kind` column is mapped during migration, becomes read-only compatibility data for one
-release, and is then removed; there is no indefinite dual-write contract. Initial relation terms
-include:
+`kb.assertion_relations.relation_term_id` becomes the authoritative governed relation type. Initial
+terms include:
 
 ```text
 core:equivalent_to
@@ -343,509 +555,434 @@ core:supersedes
 core:superseded_by
 ```
 
-The vocabulary is extensible without changing a database CHECK constraint.
+Every relation records endpoints, direction, relation term, applicability context, derivation
+method/rule version, confidence, structured comparison evidence, rationale, producer provenance,
+lifecycle, and supersession or reversal history.
 
-Each relation records:
+Comparison is class-contract-driven:
 
-* both assertion IDs;
-* relation term and direction;
-* status and lifecycle;
-* derivation method and rule version;
-* confidence;
-* rationale and structured comparison evidence;
-* producer/model/prompt when an LLM participated;
-* creation and modification actors/times; and
-* supersession or reversal history.
+1. validate same canonical class or an explicitly comparable mapped class;
+2. validate compatible subject, dimension, assertion modality, conditions, applicability, and time;
+3. normalize units and values under the relevant class contract;
+4. apply the registered comparison rule; and
+5. persist one active verdict per relation family, endpoint pair, context, and rule set.
 
-Only one direction is stored. Inverse relations are governed metadata and are derived at read time.
-For symmetric relations, endpoints are stored in ascending assertion-ID order. For directional
-relations, the stored direction carries the declared meaning (`stronger_than`, for example) and its
-inverse is projected; an inverse term cannot be independently inserted for the reversed endpoints.
+For requirement constraints, satisfying-set containment defines stronger and weaker. For example,
+`>= 300 cd/m2` is stronger than `>= 250 cd/m2`. Numeric ordering alone does not define
+stronger/weaker for observations. A datatype mismatch is first an instance value state; it becomes a
+pairwise syntactic conflict only when a governed comparison rule establishes the relevant context.
 
-Relation terms belong to governed relation families. The semantic-comparison family contains
-`equivalent_to`, stronger/weaker, conflict, syntactic conflict, and incomparable verdicts. At most
-one active semantic-comparison verdict exists for the same canonical endpoint pair, applicability
-context, and governing comparison decision/rule set—not merely one per relation term. Supersession
-and other orthogonal families have their own uniqueness contracts. Re-evaluation supersedes the
-prior family verdict. If active rules disagree, the comparison decision becomes explicitly
-`uncertain`/`conflicted`; the system does not persist several contradictory authoritative verdicts.
+The relation does not declare either source correct or incorrect. Review Document may flag the
+difference and separately present source authority and applicability.
 
-For the motivating example, both assertions belong to the Display Luminance class and have the same
-subject and compatible conditions:
+### 3.11 DR11 — Reconcile duplicate classes through mappings and redirects
 
-```text
-A = lower bound 250 cd/m2
-B = lower bound 300 cd/m2
+All names and concepts determined to mean the same logical class resolve to one canonical
+`kb.ontology_terms.term_id`. Auto-promoted terms are candidates for reconciliation, not evidence
+that two meanings differ.
 
-B stronger_than A
-A weaker_than B
-```
+`kb.ontology_mappings` records exact, close, broad, narrow, and related semantic decisions. Exact
+identity additionally creates an operational `kb.ontology_term_redirects` record from absorbed term
+to canonical survivor. Terms are not hard-deleted.
 
-The relation says nothing by itself about which source artifact is correct. Review Document may flag
-the difference and use authority, applicability, or other evidence to assess it later.
+Term reconciliation and keyword-concept reconciliation are coordinated. Distinct curated or
+explicitly `never_merge` terms may block a merge. Distinct auto-promoted terms trigger class
+identity adjudication rather than circularly preventing concept repair.
 
-Relation derivation uses satisfying-set semantics after strict comparability gates:
+Because class identity participates in claim identity, a term merge re-resolves affected evidence,
+recomputes normalized claim identities, converges equal assertions, writes redirects, recomputes
+relations, and rebuilds projections. Reversal replays each evidence row through the superseding
+class decision rather than guessing how previously merged assertions should split.
 
-1. Resolve both instances to the same canonical metric class or to an explicitly comparable governed
-   mapping.
-2. Require compatible canonical subjects, quantity dimensions, conditions, applicability scope,
-   modality, and valid time. A configured rule may declare a specific difference comparable; absent
-   such a rule, the result is `incomparable_with` rather than a guessed ordering.
-3. Interpret comparable requirement/capability constraints as sets of satisfying values. Equal sets
-   are equivalent; a strict subset is stronger; a strict superset is weaker; disjoint sets conflict
-   only when both constraints are expected to apply simultaneously; all other cases are incomparable.
-4. Do not apply stronger/weaker semantics to observations merely because their point values differ.
-   Comparable observations are equivalent when canonically equal within a governed tolerance. They
-   conflict only when a rule establishes the same measurement event/context and mutually exclusive
-   values; otherwise they are distinct observations.
-5. A class-contract datatype failure is first a per-assertion `datatype_mismatch` value state. A
-   pairwise `syntactically_conflicts_with` relation is created only when a governed rule compares it
-   with another instance under the same class and applicability context.
-6. Missing, unparsed, and unknown values do not receive stronger/weaker relations until their values
-   become comparable.
+### 3.12 DR12 — Use deterministic processing first and LLMs for bounded ambiguity
 
-The comparison rule registry is keyed by assertion kind/modality, comparator/value form, quantity
-dimension, condition/applicability policy, and rule version. This makes relation results testable and
-prevents interval mathematics from being applied to semantically different assertion kinds.
+Class resolution, class synthesis, instance convergence, and relation derivation use this ordered
+strategy:
 
-### 3.7 DR7 — Canonicalize duplicate metric classes through mappings plus redirects
+1. **Deterministic:** stable IDs, redirects, exact keyword tiers, governed mappings, canonical
+   serialization, units/dimensions, logical datatype checks, and comparison rules.
+2. **Rule/statistical:** guarded fuzzy matching, structural signatures, corpus statistics,
+   embeddings, and ontology-neighborhood evidence.
+3. **LLM adjudication:** determine likely same-class identity, attribute meaning, class shape,
+   applicability distinctions, or relation semantics for the bounded ambiguous set.
+4. **Policy activation:** accept, reject, retain uncertainty, or defer according to risk, evidence,
+   confidence, and versioned thresholds.
 
-`kb.ontology_mappings` remains the governed store for `exact`, `close`, `broad`, `narrow`, and
-`related` term mappings. It is extended as needed to carry method, confidence, evidence, and producer
-provenance consistently with assertion relations.
+An LLM produces a structured proposal and evidence. A governed policy-owned writer activates it;
+LLM code does not directly mutate active class contracts or canonical identities. This preserves an
+auditable ownership boundary without turning human approval into a mandatory gate.
 
-An accepted exact mapping is the semantic decision that two term IDs represent the same logical
-metric. Operational canonicalization additionally requires a redirect/merge record:
+LLM cost is controlled through deterministic negative gates, candidate blocking, batching, caching,
+reuse of prior decisions, and re-adjudication only when decision-relevant evidence changes.
+
+### 3.13 DR13 — Make Review Document class-first with labeled fallback
+
+For every metric occurrence in a document under review, Review Document performs:
 
 ```text
-kb.ontology_term_redirects
-    absorbed_term_id
-    canonical_term_id
-    decision/mapping reference
-    reason and provenance
-    effective and reversal state
+kb.metrics
+  -> current kb.assertion_evidence
+  -> current kb.semantic_assertions instance
+  -> instance_of canonical kb.ontology_terms class
+  -> all current instances of that class
+  -> their kb.assertion_evidence and source artifacts
+  -> governed comparisons and one Comparison Matrix row
 ```
 
-Terms are not hard-deleted. Reads follow redirects to the canonical survivor, while history can
-still explain which original term an occurrence used and why it was redirected.
+“Current `kb.assertion_evidence`” means the active supporting link for the current metric occurrence:
+`artifact_type = 'metric'`, matching `input_record_id` and `artifact_id`,
+`evidence_role = 'supports'`, and `deleted = false`. Its assertion is resolved through any active
+assertion redirect to the claim registry's current assertion. The current accepted candidate for
+the occurrence must point to that same assertion. Reprocessing changes this link through DR4's
+transactional soft-supersession rule; historical evidence is excluded from the current traversal
+but remains auditable.
 
-Observed and canonical class references are distinct. The class-resolution decision preserves the
-immutable concept/term IDs observed at processing time; `kb.metrics.metric_definition_term_id` and
-the assertion's canonical class reference are current materialized resolutions. Repointing updates
-the current resolution but never erases the observed reference or decision history.
+Candidate retrieval order is:
 
-Term redirects have the following invariants:
-
-* one active redirect per absorbed term;
-* no self-redirects or cycles;
-* redirect-chain resolution under the ontology identity mutation lock;
-* deterministic path compression as a projection only, with original decisions retained;
-* no redirect from a canonical survivor while active dependents are being rewritten; and
-* reversal implemented as a new superseding decision, not deletion of history.
-
-Survivor selection is deterministic where possible: released and explicitly curated terms outrank
-auto-promoted terms; otherwise the oldest stable eligible term wins. A decision may override that
-ordering with a recorded rationale.
-
-Concept reconciliation and term reconciliation execute as one coordinated identity transaction.
-Two auto-promoted terms derived from two candidate concepts are not sufficient evidence that the
-concepts differ. The existing concept-merge conflict gate is changed:
-
-* distinct curated or explicitly `never_merge` terms may block a concept merge;
-* distinct auto-promoted terms trigger term-identity adjudication;
-* an accepted same-metric decision redirects one term, merges/repoints the concepts and alignments,
-  and updates dependent metric/assertion canonical references; and
-* a rejected identity decision records `never_merge` or an appropriately scoped negative decision.
-
-After canonical assertion writes are cut over, a forward term merge never updates only the
-assertion's class column. Because the class term is part of canonical claim identity, the identity
-transaction operates evidence-first: for every affected evidence occurrence it resolves the new
-canonical class, recomputes the canonical claim payload, creates or finds the destination claim
-identity, converges evidence and current assertions, writes assertion redirects, supersedes obsolete
-identity current pointers and affected relations, and then rebuilds projections. If formerly
-distinct classes produce an identical claim after the merge, their assertions converge in that
-transaction. Partial class-reference rewrites that leave old claim digests or payloads active are
-forbidden.
-
-During initial migration, before shadow claim identities are validated, term reconciliation creates
-term redirects, immutable resolution decisions, and current class-resolution projections only. It
-does not rekey or converge legacy assertions. Phase 3 computes shadow claim identity against those
-redirect-resolved classes; Phase 4 performs the first historical convergence. This separates safe
-initial migration from the post-cutover steady-state transaction above.
-
-Reversal after assertion convergence is a controlled split. The system replays each evidence row's
-immutable observed class reference through the superseding class-resolution decision, recomputes its
-canonical claim payload, creates or finds the resulting claim identity/assertion, and transactionally
-reassigns evidence. It then supersedes affected assertion redirects and relations and rebuilds
-dependent projections. The before/after evidence-membership snapshot on the original merge decision
-is the audit and recovery boundary; a term redirect alone is never assumed sufficient to reconstruct
-the split.
-
-### 3.8 DR8 — Resolve autonomously through deterministic, statistical, and LLM stages
-
-The canonical metric resolver uses the following ordered stages:
-
-1. **Deterministic:** stable IDs and redirects, exact governed mappings, normalized labels and
-   aliases, exact class contracts, canonical units, value/datatype rules, and canonical claim keys.
-2. **Rule/statistical:** fuzzy lexical matching, embeddings, shared quantity kind, compatible
-   subjects, class applicability, ontology neighborhood, and corpus evidence.
-3. **LLM adjudication:** decide whether unresolved candidates express the same logical metric,
-   identify missing distinctions, classify value state, or propose instance relations when the
-   earlier stages are insufficient.
-4. **Policy decision:** accept, reject, keep uncertain, or defer based on evidence, confidence,
-   risk class, and configured thresholds.
-
-Human review is optional at every stage. It can merge, split, override, or lock decisions but is not
-a prerequisite for document processing or ordinary semantic availability.
-
-The existing principle that an LLM does not directly write active governed content is retained as an
-ownership boundary, not as a requirement for human approval. An LLM produces a structured proposal
-and evidence; a deterministic, versioned policy engine owns the autonomous activation decision.
-This permits meaningful LLM use while keeping activation attributable, reproducible from recorded
-inputs where possible, and reversible.
-
-Uncertain output does not disappear and does not fail the whole document. It remains queryable with
-resolution state and confidence. Consumers choose risk-appropriate thresholds. Review Document may
-show or use uncertain candidates explicitly; it must not silently present them as exact identity.
-
-### 3.9 DR9 — Review Document uses ontology identity first and similarity as fallback
-
-Review Document retrieves comparable metric instances in this order:
-
-1. same canonical `metric_definition_term_id` after redirect resolution;
-2. governed exact/close/broad/narrow/related metric mappings appropriate to the review task;
-3. compatible subject, quantity kind, class applicability, and ontology neighborhood;
+1. same canonical class after redirect resolution;
+2. governed exact/close/broad/narrow mappings allowed by the review rule;
+3. structurally compatible subjects, quantity kinds, class contracts, and ontology neighborhoods;
 4. lexical/vector similarity; and
-5. LLM adjudication for remaining high-value ambiguity.
+5. LLM adjudication for high-value residual ambiguity.
 
-The first channel is authoritative class membership. Later channels discover candidates; they do
-not silently turn similarity into identity. Retrieval and comparison are separate stages: every
-retrieved pair must pass DR6's subject, dimension, assertion-kind/modality, condition, applicability,
-and valid-time gates before Review Document presents a semantic comparison. A retrieved but
-non-comparable candidate may still be shown as context, explicitly labeled with its discovery method
-and failed comparability gates.
+Class membership is authoritative. Later channels discover candidates and are labeled as fallback;
+they do not silently turn similarity into identity. Every candidate pair must pass subject,
+dimension, modality, condition, applicability, and time gates before semantic comparison.
 
-Mapping traversal is task-scoped and directional. `exact` may join canonical candidate sets;
-`close` only proposes a candidate; `broad` and `narrow` are traversed only when the selected review
-rule declares that direction useful; `related` never establishes comparability by itself. Candidates
-found through multiple channels are deduplicated by canonical assertion identity while preserving
-all contributing discovery reasons.
+Review Document distinguishes equivalent, stronger, weaker, conflicting, syntactically conflicting,
+missing, unparsed, incomparable, unresolved-class, and similarity-only results. If ontology
+processing is incomplete, the application continues through its existing fallback paths and shows
+the resolution state. Semantic enrichment is not an availability dependency.
 
-Review payloads include canonical metric term ID, normalized assertion ID, value state, relation
-type/status/confidence, and evidence provenance. Review Document must distinguish:
+### 3.14 DR14 — Make every decision idempotent, observable, and reversible
 
-* metric absent;
-* metric present with missing value;
-* metric present with unparsed value;
-* datatype or syntactic conflict;
-* semantically stronger/weaker/equivalent constraints;
-* unresolved or uncertain class identity; and
-* a likely similar metric found only through fallback retrieval.
+Every class, instance-identity, and relation decision records:
 
-“Metric absent” is asserted only relative to a named, versioned ontology profile or other governed
-applicability contract that declares the metric expected for the subject and review scope. Without
-that expected set, Review Document may say only “no occurrence found in the searched scope.” This
-keeps corpus retrieval failure from becoming a false completeness finding.
+* inputs and candidates considered;
+* observed and canonical identities;
+* deterministic, statistical, and LLM methods used;
+* policy, thresholds, rule, model, and prompt versions;
+* evidence, confidence, and rationale;
+* what was merged, redirected, rejected, or left uncertain;
+* how the decision can be superseded or reversed; and
+* which projections require rebuilding.
 
-If semantic processing is incomplete, Review Document continues through its existing fallback paths
-and labels the resolution state. Semantic enrichment improves correctness but does not become a
-hard availability dependency.
+Re-running unchanged versioned inputs does not create duplicate candidates, classes, instances,
+evidence links, or relations. Changed evidence creates a new decision or revision only when it is
+decision-relevant.
 
-### 3.10 DR10 — Make identity and relation processing idempotent, reversible, and observable
+## 4. Disposition of Review Issues and Additional Thoughts
 
-Every identity or relation decision must answer:
+### 4.1 Issues 01–06
 
-* what was compared;
-* what canonical class and instances resulted;
-* which deterministic rules, statistical signals, or LLM calls participated;
-* which policy and thresholds produced the verdict;
-* what evidence supports it;
-* what was merged, redirected, or left unresolved;
-* how to reverse or supersede the decision; and
-* which downstream projections require rebuilding.
+| Review item | Disposition |
+|---|---|
+| Issue 01 | Confirmed. DR1 and the diagrams explicitly distinguish ontology object classes, normalized instances, evidence, and source occurrences. The actual table name is `kb.semantic_assertions`. |
+| Issue 02 | Confirmed that metrics resolve through instances rather than directly treating terms as instances. A singular `kb.metrics.assertion_id` is not authoritative; DR4 retains the normalized evidence link. |
+| Issue 03 | Confirmed. DR13 makes the Review Document traversal a minimum competency and acceptance test, using `kb.assertion_evidence` rather than a singular metric foreign key. |
+| Issue 04 | Confirmed. DR1–DR2 define the two ontology layers and a real semantic/syntactic class contract. |
+| Issue 05 | Confirmed concern. The generic field is `instance_of_term_id/version`, not a metric-specific name or the ambiguous `parent_term_id`. |
+| Issue 06 | Confirmed that the current direct term column is not the future authoritative instance path. Rejected renaming it to singular `metric_assertion_id`; the evidence association remains authoritative. |
 
-Processors are idempotent. Re-running the same versioned inputs does not create duplicate terms,
-assertions, evidence, or relations. Changed semantic inputs create explicit new decisions and
-targeted projection invalidation rather than untraceable mutation.
+### 4.2 Thoughts 01–04
 
-## 4. Alternatives Considered
+| Thought | Disposition |
+|---|---|
+| Thought 01 | Confirmed with a lifecycle qualification: one atomic metric occurrence has at most one current candidate assertion and one current resulting assertion. Reprocessing may create superseded historical candidate/evidence revisions. |
+| Thought 02 | Confirmed logically. Metrics produce evidence-bearing proposals, which produce normalized instances, which resolve to classes. Physical inserts remain dependency-safe because authoritative evidence has a non-null assertion foreign key. |
+| Thought 03 | Adopted with the observed-profile/authoritative-contract boundary in DR5. Classes evolve as structural supersets of recognized attributes, but anomalous observations do not automatically become permitted semantics. |
+| Thought 04 | Confirmed as the central difficulty. DR6 separates occurrence, instance, and class identity; reuses the keyword tiers and Phase-2 deterministic-first hybrid pattern; and reserves LLM adjudication for bounded ambiguity. |
 
-### 4.1 Create `kb.ontology_term_instances`
+## 5. Alternatives Considered
 
-Rejected. A dedicated instance table provides attractive class-instance naming but duplicates most
-of `kb.semantic_assertions`: subject, value, conditions, lifecycle, revisioning, evidence, and
-provenance. Linking the new instance back to an assertion would create two sources of truth and an
-additional consistency boundary without adding required semantics.
+### 5.1 Continue treating a term row as a complete class
 
-### 4.2 Add a generic ontology-instance layer between terms and assertions
+Rejected. The live row commonly contains only identity and a label. Optional free-text
+`definition`, `value_type`, and `range_type` columns cannot express the required attribute,
+constraint, logical datatype, applicability, exception, and comparison semantics.
 
-Deferred. A generic `ontology_instances` abstraction could eventually serve non-metric domains, but
-the required identity and lifecycle contracts are not yet demonstrated across those domains. Metrics
-already have a suitable first-class instance object in `kb.semantic_assertions`.
+### 5.2 Make the authoritative class contract the raw union of observed instances
 
-### 4.3 Keep occurrence-derived assertions and connect all duplicates with relations
+Rejected. A raw union maximizes recall but turns malformed values and extraction errors into valid
+class semantics. It would make datatype and constraint conflicts progressively disappear. The
+observed profile remains inclusive; the authoritative contract remains governed and versioned.
 
-Rejected. This preserves unnecessary duplicate canonical claims, makes every query traverse a
-duplicate graph, and allows contradictory lifecycle states for what should be one normalized
-instance. Exact identity should converge; relations represent genuine semantic differences or
-temporary uncertainty.
+### 5.3 Create `kb.ontology_term_instances`
 
-### 4.4 Require human approval for semantic identity
+Rejected. It would duplicate most of `kb.semantic_assertions` and create two sources of truth for
+instance values, conditions, lifecycle, revisions, evidence, and provenance.
 
-Rejected. It makes throughput proportional to reviewer capacity and leaves the ontology unusable at
-document-processing scale. Human correction remains valuable, but evidence, policy, confidence,
-sampling, and reversibility manage autonomous risk.
+### 5.4 Add `kb.metrics.metric_assertion_id`
 
-### 4.5 Use only deterministic rules
+Rejected as the authoritative relationship. It would encode a metric-specific one-to-one
+assumption in a system whose generic provenance relationship is many-to-many. A current projection
+can provide equivalent query convenience without replacing `kb.assertion_evidence`.
 
-Rejected. Deterministic normalization handles values, units, aliases, and many comparisons well but
-cannot reliably decide all cross-language, context-sensitive, or domain-specific equivalence cases.
-LLM adjudication is an explicit supported stage, not an accidental side channel.
+### 5.5 Define every class manually
 
-### 4.6 Use embeddings as semantic identity
+Rejected as a universal requirement. It produces the best result for critical classes but cannot
+keep pace with corpus scale. The selected design permits curated, autonomous, and hybrid classes
+under the same versioned contract.
 
-Rejected. Embeddings are a candidate-generation signal. They are valuable for recall but cannot by
-themselves justify exact identity, redirects, or assertion convergence.
+### 5.6 Automatically promote every observed attribute and value
 
-## 5. Implementation Sequence
+Rejected. It is inexpensive but makes one erroneous source redefine the class. New observations
+produce evidence and proposals, not unconditional semantic expansion.
 
-Implementation must be proposed and tracked through a separate OpenSpec change. The intended order
-is:
+### 5.7 Use only deterministic identity rules
 
-### Phase 1 — Schema and governed vocabulary
+Rejected. Deterministic methods are the default and must run first, but cross-language,
+context-sensitive, and domain-specific equivalence cannot always be resolved deterministically.
 
-1. Seed governed class-resolution-state, value-state, and assertion-relation terms.
-2. Add typed metric-class, class-resolution-state, value-state, and claim-identity references to
-   semantic assertions.
-3. Create the semantic claim-identity registry and semantic-assertion redirects.
-4. Make governed `relation_term_id` the assertion-relation source of truth and add decision metadata,
-   confidence, evidence, lifecycle, supersession, and reversal support.
-5. Add ontology-term redirects, immutable class-resolution decisions, and required mapping
-   provenance.
-6. Add shadow canonical payload/key columns and indexes without changing production reads or writes.
+### 5.8 Use embeddings or an LLM as the identity authority
 
-### Phase 2 — Metric-class reconciliation
+Rejected. Both are valuable candidate-generation or adjudication mechanisms. Neither alone is an
+auditable, stable canonical identity decision.
 
-1. Detect duplicate auto-promoted and curated metric terms using deterministic signals first.
-2. Run statistical/LLM adjudication only for unresolved candidates.
-3. Apply autonomous policy decisions and create exact mappings plus redirects.
-4. Create term redirects, immutable resolution decisions, and current metric/keyword class-resolution
-   projections. Do not rekey or converge legacy assertions in this phase; Phase 3 must first compute
-   and validate their redirect-resolved shadow identities.
-5. Change the concept merge gate so auto-promoted term differences invoke reconciliation rather than
-   automatically blocking a merge.
+## 6. Implementation Sequence
 
-### Phase 3 — Shadow canonical assertion identity
+Implementation is tracked through a separate OpenSpec change. The order is:
 
-1. Compute canonical keys without changing writes.
-2. Populate the identity registry and assign shadow claim IDs, reusing one registry row only after
-   canonical payload equality is verified.
-3. Report exact convergence groups, class fragmentation, collisions, stronger/weaker pairs,
-   conflicts, missing values, datatype mismatches, and unresolved cases.
-4. Sample outcomes and tune deterministic, statistical, LLM, and policy thresholds.
-5. Version all identity inputs and rules and produce a complete assertion/evidence redirect plan.
+### Phase 0 — Protect the current system and characterize the corpus
 
-### Phase 4 — Converge history, enforce uniqueness, then cut over writes
+1. Mark existing label-only and incomplete metric terms with a derived definition state.
+2. Produce completeness reports for all current `metric_definition` terms.
+3. Inventory metric attributes and identify core fields, candidate domain fields, conflicts, and
+   likely related submetrics.
+4. Establish baseline tests for Phase-2 occurrence matching and Review Document retrieval.
 
-1. Enter the bounded identity-migration write mode so old and new writers cannot race.
-2. Converge historical duplicates, attach evidence to survivors, and create assertion redirects with
-   before/after evidence membership.
-3. Validate that every claim identity has at most one current assertion and that every digest reuse
-   has byte-equal canonical payload.
-4. Install and validate the identity-registry uniqueness constraint and current-assertion ownership
-   contract.
-5. Switch association writes to transactional identity-registry find-or-create under a row/advisory
-   lock, then leave migration mode.
-6. Derive and persist instance relations with idempotent rule ownership.
-7. Rebuild affected semantic projections and comparison data.
+### Phase 1 — Class-contract and instance-of foundation
+
+1. Create the versioned ontology class-contract and observed-profile stores.
+2. Add generic `instance_of_term_id/version`, class-resolution state, and value state to semantic
+   assertions.
+3. Seed governed state and relation terms.
+4. Add completeness/coherence validation and identity-only/partial/class-ready projections.
+5. Preserve current metric term columns as compatibility/observed-resolution data during rollout.
+
+### Phase 2 — Evidence-first metric candidate pipeline
+
+1. Enforce one atomic metric occurrence to one current candidate invariant.
+2. Make the candidate payload an explicit evidence-bearing proposal.
+3. Resolve class after initial occurrence normalization.
+4. Revalidate and normalize against the class contract before acceptance.
+5. Preserve unresolved candidates without blocking the document pipeline.
+
+### Phase 3 — Class observation, synthesis, and same-class recognition
+
+1. Aggregate observed attribute profiles from metric candidates and accepted instances.
+2. Normalize attribute names through the existing keyword resolution system.
+3. Apply deterministic class identity and negative gates.
+4. Use statistical/LLM adjudication only for bounded ambiguous candidates.
+5. Create or evolve ontology-term versions and their corresponding class contracts through
+   policy-controlled activation.
+6. Reconcile duplicate auto-promoted terms and repair keyword/term alignments.
+
+### Phase 4 — Canonical instance identity and relations
+
+1. Compute shadow semantic claim identities.
+2. Report convergence groups, collisions, mismatches, and unresolved cases.
+3. Converge identical instances without losing independent evidence.
+4. Persist redirects and switch writes to concurrency-safe canonical find-or-create.
+5. Derive governed same-class relations incrementally.
 
 ### Phase 5 — Review Document integration
 
-1. Add canonical term/assertion/value-state/relation fields to review queries and payloads.
-2. Make canonical class membership the first retrieval channel.
-3. Retain current object/category/vector paths as explicitly labeled fallbacks.
-4. Expose missing, malformed, stronger/weaker, equivalent, conflicting, incomparable, and uncertain
-   outcomes in findings and operator diagnostics.
+1. Implement the DR13 class-to-instance traversal.
+2. Add class, instance, value-state, relation, and evidence fields to review payloads.
+3. Make canonical class membership the first retrieval channel.
+4. Retain and label structural, lexical, vector, and LLM fallbacks.
+5. Expose class completeness and resolution uncertainty in diagnostics.
 
-## 6. Migration and Backfill Safety
+## 7. Migration and Backfill Safety
 
 Migration is additive until shadow validation passes.
 
-* Existing `kb.metrics` rows and source provenance are never deleted or coalesced.
-* Existing assertions remain addressable through redirects after convergence.
-* Observed class references and resolution decisions remain immutable even when current canonical
-  references are repointed.
-* Backfill operates in bounded, restartable batches with dry-run counts and decision reports.
-* Term reconciliation processes dependencies transactionally and records the before/after graph.
-* Assertion convergence records before/after evidence membership; reversal replays evidence through
-  the superseding class decision and recomputes claim identities rather than guessing how to split.
-* Redirects are single-active-target, acyclic, lock-protected, and reversible only through a
-  superseding decision.
-* Canonical-key collisions are treated as diagnostic failures until their canonical serialization is
-  shown to be equal; hash equality alone never merges data.
+* Existing `kb.metrics` occurrences and source provenance are not deleted or coalesced.
+* Existing term IDs remain addressable through redirects.
+* Existing assertion IDs remain addressable through assertion redirects.
+* Historical candidate revisions and their resulting assertions remain auditable.
+* Observed class profiles never overwrite authoritative class contracts.
+* Class-contract changes create new ontology-term versions rather than silent in-place semantic
+  mutation.
+* Backfill runs in bounded, restartable batches and emits dry-run decision reports.
+* Term merge/split replays evidence and recomputes claim identity and relations.
+* Redirects are single-active-target, acyclic, lock-protected, and reversible by superseding
+  decisions.
 * Review Document retains fallback retrieval throughout rollout.
 
 Required pre-cutover reports include:
 
-* terms and concepts proposed to converge;
-* assertions proposed to converge and their evidence counts;
-* assertions sharing a class but receiving semantic relations instead of convergence;
-* unresolved class and value states;
-* relation counts by method, confidence, and status;
-* changes to Review Document candidate sets; and
-* reversible identifiers for every proposed absorbed term/assertion.
+* identity-only, partially defined, and class-ready term counts;
+* observed attributes proposed for each class and their evidence distribution;
+* class versions proposed to change and why;
+* terms and concepts proposed to merge, split, or keep distinct;
+* assertions proposed to converge and their evidence membership;
+* instances receiving relations rather than convergence;
+* unresolved classes, values, attributes, and comparison cases;
+* LLM call volume, cache reuse, cost, and decision yield; and
+* changes to Review Document candidate and comparison sets.
 
-## 7. Acceptance Criteria
+## 8. Acceptance Criteria
 
-### 7.1 Class identity
+### 8.1 Class foundation
 
-* Approved aliases and translations of the same logical metric resolve to exactly one canonical
-  `kb.ontology_terms.term_id` after redirect resolution.
-* Similar-looking metrics with different quantity kinds, scopes, or definitions remain distinct.
-* Duplicate auto-promoted terms can be reconciled without the existing concept-alignment gate
-  creating a circular block.
-* A post-cutover term merge recomputes affected claim identities and converges assertions that become
-  identical; no assertion retains a canonical payload keyed by the absorbed class.
+* A `class_ready` metric term has a validated, versioned class contract; a label-only term cannot be
+  reported as class-ready.
+* The contract can express logical datatypes, attribute meaning/cardinality, conditions, units,
+  constraints, errors, exceptions, missing states, and comparison rules.
+* New corpus attributes appear first in the observed profile and do not silently become valid
+  contract fields or values.
+* A legitimate new attribute can create a new ontology-term version and corresponding class contract
+  with evidence and provenance.
+* Existing instances remain tied to their normalization-time class version and can be revalidated.
 
-### 7.2 Instance identity and evidence
+### 8.2 Occurrence and candidate lifecycle
 
-* Two occurrences with identical canonical subject, metric class, normalized value, unit, and
-  conditions resolve to one semantic assertion with two evidence rows.
-* Source record, metric ID, wording, spans, model, and prompt remain independently queryable.
-* New evidence does not create an assertion revision.
-* Two different unparsed strings or datatype-mismatched values do not converge merely because they
-  share subject, class, and value state.
-* Every absorbed assertion identity resolves to one acyclic canonical redirect target and can be
-  split through recorded evidence membership and superseding class decisions.
+* One atomic metric occurrence has at most one current assertion candidate.
+* Unchanged reprocessing reuses the candidate; changed reprocessing supersedes it with a new
+  revision.
+* A compound metric extraction is split rather than producing multiple unrelated current assertions
+  from one metric row.
+* Historical revisions remain auditable and are not used as current state.
 
-### 7.3 Instance relations
+### 8.3 Class and instance identity
 
-* `display luminance >= 300 cd/m2` is `stronger_than` `display luminance >= 250 cd/m2` when subject
-  and applicability are compatible; the inverse is queryable as `weaker_than`.
-* Unit-equivalent values, such as compatible canonical representations of the same luminance, either
-  converge or receive an explainable `equivalent_to` relation when convergence is intentionally
-  deferred.
-* Different value datatypes produce a syntactic conflict when the class contract requires one
-  datatype.
+* Approved aliases and translations of one logical metric resolve to one canonical term after
+  redirect resolution.
+* Same-label metrics with different quantity kinds, subject meanings, or applicability remain
+  distinct.
+* Two semantically identical occurrences converge on one normalized assertion with independent
+  evidence.
+* Two different values of the same class remain different instances and receive an appropriate
+  relation where comparable.
+* Duplicate auto-promoted terms can be reconciled without concept alignments creating a circular
+  merge block.
+
+### 8.4 Missing, malformed, and contradictory observations
+
+* A metric with no value produces a queryable `missing` instance or candidate rather than
+  disappearing.
+* An observed string where the class expects a numeric logical value produces
+  `datatype_mismatch`; it does not automatically broaden the class datatype.
+* Outlier attributes and values remain linked to evidence and can later be promoted, corrected, or
+  rejected.
 * Conflicts are flagged without declaring either source correct or incorrect.
-* Unknown future relation terms can be introduced without altering a database relation-kind CHECK.
-* Requirement stronger/weaker results follow satisfying-set subset rules; observations do not inherit
-  stronger/weaker semantics from numeric ordering.
-* Exactly one authoritative active semantic-comparison verdict exists per canonical endpoint pair,
-  applicability context, and governing rule set; inverse relations are derived at read time and
-  contradictory rule outputs become an uncertain/conflicted decision.
 
-### 7.4 Missing and uncertain information
+### 8.5 Relations
 
-* A metric occurrence with no value creates or links to a `missing`-state normalized instance rather
-  than disappearing.
-* Missing metric and present metric with missing value are distinguishable.
-* Unparsed, datatype-mismatch, not-applicable, unknown, and unresolved-class outcomes remain
-  queryable and do not block the document pipeline.
-* An accepted metric assertion always has a resolved class; unresolved-class normalized rows remain
-  explicitly non-accepted and are available to fallback retrieval.
+* `display luminance >= 300 cd/m2` is `stronger_than`
+  `display luminance >= 250 cd/m2` when subject and applicability are compatible.
+* Unit-equivalent values converge or receive an explainable `equivalent_to` relation when
+  convergence is intentionally deferred.
+* Observations do not inherit stronger/weaker semantics merely from numeric order.
+* Incompatible conditions or dimensions produce `incomparable_with`, not a guessed ordering.
+* Future relation terms can be added without changing a closed database enum.
 
-### 7.5 Autonomous operation
+### 8.6 Autonomous operation
 
-* No normal semantic-processing stage requires human approval.
-* Deterministic methods run before statistical or LLM methods.
-* LLM proposals can be autonomously activated only through a versioned policy decision with full
-  provenance; LLM code does not bypass the governed write path.
-* Human corrections can override and lock decisions, and every autonomous merge/relation is
+* No ordinary processing stage requires human approval.
+* Deterministic identity and negative gates run before statistical or LLM methods.
+* LLM calls operate only on bounded ambiguous candidates and are cached by versioned inputs.
+* Autonomous class or identity activation occurs only through a recorded policy decision.
+* Human corrections can override and lock decisions; all autonomous merges and contract changes are
   reversible or supersedable.
 
-### 7.6 Review Document
+### 8.7 Review Document
 
-* Review Document retrieves same-class metric instances before similarity-only candidates.
-* It explains whether a candidate came from canonical identity, governed mapping, structural
-  compatibility, similarity, or LLM adjudication.
-* It identifies equivalent, stronger, weaker, conflicting, syntactically conflicting, missing,
-  unparsed, incomparable, and uncertain outcomes.
-* It continues operating through labeled fallback retrieval when ontology processing is incomplete.
+* Starting from a `kb.metrics` occurrence, Review Document can retrieve its current normalized
+  instance through evidence, its canonical class through `instance_of`, and all comparable
+  instances and their source metrics.
+* Same-class retrieval precedes similarity-only candidate discovery.
+* Results explain class identity, comparison relation, value state, confidence, and evidence.
+* The application distinguishes missing value from metric absence.
+* Unresolved ontology processing does not block review; fallbacks are visibly labeled.
 
-### 7.7 Competency and regression tests
+### 8.8 Competency and regression tests
 
-The OpenSpec change must implement at least:
+The OpenSpec change must include:
 
 * CQ-M02 positive and negative fixtures from ADR `2026072901`;
-* multilingual and alias-based class convergence;
+* label-only term rejected as class-ready;
+* observed-profile expansion without automatic contract expansion;
+* ontology-term/class-contract version evolution and revalidation;
+* Phase-2 same-document reprocessing with unchanged and changed metric payloads;
+* multilingual and alias class convergence;
 * same-label/different-quantity negative identity;
-* post-cutover term merge causing claim rekeying and assertion convergence;
-* exact assertion convergence with multiple evidence;
+* exact assertion convergence with multiple evidence rows;
 * unit-normalized equivalence;
-* lower- and upper-bound stronger/weaker relations;
-* interval overlap, disjointness, and incomparability;
-* distinct-unparsed-value identity, datatype conflict, and missing-value cases;
-* autonomous deterministic and LLM-assisted decisions;
-* human override, evidence-aware assertion split, term/assertion redirect reversal, redirect-cycle
-  rejection, and `never_merge` behavior;
-* idempotent concurrent processing; and
-* Review Document canonical-first and fallback behavior.
+* lower/upper-bound and interval relation cases;
+* missing, unparsed, datatype mismatch, conflict, and incomparability;
+* deterministic, statistical, and LLM-assisted class decisions;
+* merge, split, redirect reversal, cycle rejection, and `never_merge`; and
+* the complete Review Document traversal in DR13.
 
-CQ-M02 and the class-to-instance query are release gates, not documentation-only aspirations.
+## 9. Consequences
 
-## 8. Consequences
+### 9.1 Positive
 
-### 8.1 Positive
+* The ontology gains a real class layer instead of treating labels as definitions.
+* Classes can grow from corpus evidence without requiring a human for every discovery.
+* Bad observations remain visible without poisoning the class contract.
+* Same occurrence, same instance, and same class become separate auditable decisions.
+* Equivalent claims converge without losing provenance.
+* Meaningful differences become relations rather than isolated rows.
+* Review Document gains deterministic class-first comparison and retains similarity recall.
 
-* Ontology classes, normalized instances, occurrences, and evidence gain clear ownership boundaries.
-* The same logical metric has one canonical governed identity.
-* Equivalent source claims converge without losing provenance.
-* Meaningful differences become queryable relations instead of isolated rows.
-* Missing and syntactically invalid values become first-class review signals.
-* Review Document gains deterministic semantic grouping while retaining broad similarity recall.
-* Autonomous processing remains operationally viable, with LLM assistance where necessary.
+### 9.2 Costs and risks
 
-### 8.2 Costs and risks
+* Versioned class contracts and observed profiles add schema and lifecycle complexity.
+* Class synthesis can misclassify an attribute, condition, submetric, or error.
+* A false class merge affects more downstream objects than a false similarity match.
+* LLM adjudication adds cost, latency, and nondeterminism.
+* Class evolution can trigger expensive instance revalidation and relation recomputation.
+* Pairwise comparison can become quadratic without class-specific blocking and incremental updates.
 
-* Canonicalization and redirects add migration and query complexity.
-* A false class merge has wider impact than a false similarity match.
-* LLM adjudication introduces cost, latency, and nondeterminism.
-* Canonical claim identity must be versioned carefully as conditions and applicability mature.
-* Relation derivation can become quadratic within large class-instance sets unless candidate blocking
-  and incremental recomputation are designed explicitly.
-* Historical backfill may expose previously hidden contradictions and stale projections.
+These risks are managed by separating observation from authority, deterministic-first resolution,
+negative gates, bounded LLM use, versioned policy, shadow computation, complete provenance, and
+reversible decisions.
 
-These risks are mitigated through staged shadow computation, bounded candidate generation,
-confidence/risk policy, complete provenance, reversible redirects, and optional human correction.
-
-## 9. Relationship to Earlier Decisions
+## 10. Relationship to Earlier Decisions
 
 ### ADR `2026072901`
 
-This ADR implements and sharpens its intended metric-definition row identity and CQ-M02 behavior.
-It retains the principle that an LLM does not directly bypass governed activation, while clarifying
-that human approval is not required: a deterministic policy engine may autonomously activate an
-LLM-supported decision.
+This ADR implements and sharpens the class/instance intent and CQ-M02 behavior. It retains the
+governed write boundary while clarifying that policy-controlled autonomous activation does not
+require a human reviewer.
 
-Any wording that implies ontology candidates must wait for mandatory human activation is superseded
-for this metric identity/relation workflow by DR8.
+Any earlier wording that treats a term identity row as a complete class or implies mandatory human
+activation is superseded for this workflow.
 
 ### ADR `2026081201`
 
-This ADR retains automatic metric-term creation but resolves OD2: reconciliation must detect and
-merge/redirect duplicate auto-promoted terms, not only keyword concepts. Distinct auto-promoted
-alignments no longer automatically prove that two concepts differ.
+Automatic term creation remains permitted, but it creates an `identity_only` class candidate unless
+a validated contract is also synthesized. Duplicate auto-promoted terms must be reconciled rather
+than used as circular evidence that keyword concepts differ.
 
 ### ADR `2026081401`
 
-Governed `value_range_type` mapping remains part of deterministic normalization. This ADR adds the
-higher-level class contract, canonical instance identity, governed value state, and relations that
-consume the normalized result.
+Governed `value_range_type` mapping remains part of deterministic occurrence normalization. This ADR
+adds the higher-level logical datatype, class contract, observed profile, class identity, value
+state, and comparison semantics.
 
 ### User manual §6.11
 
-This ADR adopts §6.11's defect finding and replaces occurrence-derived assertion identity with the
-class-instance-evidence model defined here.
+This ADR adopts §6.11's defect finding and replaces occurrence-derived isolation with an explicit
+occurrence–evidence–instance–class model and governed relations among instances.
 
-## 10. Open Questions for the OpenSpec Design
+## 11. Open Questions for OpenSpec
 
-The following are implementation questions, not unresolved architectural direction:
+These are implementation details rather than unresolved architectural direction:
 
-1. The initial confidence/risk thresholds for autonomous exact term merges and LLM-assisted
-   decisions.
-2. The precise canonical serialization and versioning contract for conditions, procedures, and
-   time applicability.
-3. How Review Document presents uncertain and conflicting instance sets without overwhelming users.
+1. The physical normalization of class-contract attributes versus a versioned JSON contract.
+2. The precise completeness rules for each class kind and risk tier.
+3. The initial thresholds for autonomous class identity, class evolution, and LLM-assisted
+   activation.
+4. The canonical serialization of conditions, procedures, applicability, and domain-specific
+   attributes.
+5. Whether the current decision-candidate table carries sufficient pre-assertion evidence or needs
+   a dedicated evidence-proposal table.
+6. How Review Document presents incomplete class contracts and uncertain comparisons without
+   overwhelming users.
 
-These questions must be resolved in the implementation design and tested before production cutover.
+These questions must be resolved and tested before production cutover.
