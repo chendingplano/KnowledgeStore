@@ -4,7 +4,7 @@
 **Status:** Proposed \
 **Component:** ChenWeb — ontology terms, class contracts, keyword concepts, semantic assertions, assertion evidence, assertion relations, metric processing, and Review Document \
 **Authors:** Chen Ding (with Codex) \
-**Related:** ADR `2026072901` (ontology platform and adaptive pipeline), ADR `2026081201` (auto-promoted governed terms), ADR `2026081401` (governed metric vocabulary and Phase D failure reporting), user manual `metric-assertion-semantic-processing-v1.2-en.md` §6.11 \
+**Related:** ADR `2026072901` (ontology platform and adaptive pipeline), ADR `2026081201` (auto-promoted governed terms), ADR `2026081401` (governed metric vocabulary and Phase D failure reporting), ADR `2026081801` (lossless semantic processing and knowledge preservation), review `2026081802` (Issues 16–26), user manual `metric-assertion-semantic-processing-v1.2-en.md` §6.11 \
 **Tags:** ontology, object class, object instance, metrics, semantic identity, evidence, evolving schema, lossless processing, autonomous resolution, Review Document
 
 ## 1. Change Log
@@ -25,6 +25,17 @@
   * specifies class validation capabilities, class-resolution decisions, claim identities, and
     assertion-relation storage; and
   * defines online and offline duplicate-class reconciliation.
+* 2026/08/18, revised after review `2026081802`, resolving Issues 16–26. This revision:
+  * makes `semantic_claim_identities.claim_id` the value and sole authority behind
+    `semantic_assertions.logical_identity_key`, and defines assertion-revision semantics;
+  * adds database-enforced current-evidence cardinality and explicit term/assertion redirect
+    schemas;
+  * reconciles assertion fields and multidimensional states with ADR `2026081801`, including a
+    persisted-but-unendorsed `represented` lifecycle status;
+  * defines governed autonomous approval for exact mappings, `identity_scope`, `decision_key`, and
+    claim-registry uniqueness;
+  * requires a current-term compatibility view and prohibits base-table reads after cutover; and
+  * adds full-corpus Phase 0 measurement, bounded relation/review fan-out, and capacity gates.
 
 ## 2. Context
 
@@ -44,6 +55,12 @@ A production survey on 2026/08/17 found 182 auto-promoted `metric_definition` te
 completely label-only, only 45 had definitions, and only seven identified permitted units. Even
 populated rows frequently copied free-text properties from one occurrence rather than defining a
 governed class contract.
+
+The 2026/08/18 review verified those values and found 7,074 metric occurrences across 58 input
+records, while the current semantic-decision path had processed metrics from only one input record.
+Only 89 metric rows (1.3%) carried `metric_definition_term_id`, and only 71 metric semantic
+assertions existed. The design must therefore treat provisional-class creation and duplicate-class
+reconciliation as normal-path capacity concerns, not exceptional cleanup.
 
 Therefore, the existing `kb.ontology_terms` table is an identity and vocabulary registry. It can
 identify that a term exists and store its labels and lifecycle, but a row alone is not an ontology
@@ -152,6 +169,12 @@ Some current normalization and mapping failures stop subsequent semantic process
 source-backed metric precisely when the knowledge base most needs to preserve and explain the
 problem. A failed mapping may indicate a malformed source, but it may instead reveal an incomplete
 mapping table, parser, vocabulary, or class contract.
+
+The 2026/08/18 review found that 40 of 43 deferred metric candidates were
+`no_governed_assertion_kind_term:*`, while all 89 deferred provision candidates were
+`no_governed_deontic_predicate`. The current deferral population is therefore predominantly a
+vocabulary-coverage gap—the exact condition in which retaining a sourced instance and structured
+finding is more informative than dropping semantic continuation.
 
 SemOS must preserve sourced claims without automatically endorsing them as correct. Raw values,
 unparsed values, missing values, contract violations, ambiguous class candidates, and conflicting
@@ -271,6 +294,14 @@ kb.ontology_class_contract_capabilities
 term versions migrate into the append-only revision store. `current_contract_revision_id` identifies
 the current class contract. Old revisions remain queryable but are not parallel current class
 identities.
+
+Phase 1 also creates `kb.ontology_terms_current`, a compatibility view that preserves the current
+consumer read shape while storage migrates from `(term_id, version)` rows to stable headers and
+append-only revisions. Every caller that means “current term” must migrate to the view or an
+equivalent terms-store API before cutover. After cutover, application consumers must not read
+`kb.ontology_terms` directly; repository lint/static checks and integration tests enforce that rule.
+The view is retired only through a later reviewed decision after every consumer uses the stable
+header/revision API.
 
 `contract_payload` is the authoritative semantic definition of the class. It must express:
 
@@ -407,6 +438,11 @@ shape in memory and transactionally creates or reuses the semantic assertion and
 existing table remains temporarily for migration and for other artifact workflows that genuinely
 manage competing proposals; it may be retired globally only after those consumers are audited.
 
+This creates an intentional, bounded interim divergence: metrics use the lossless direct-instance
+path, while provision and any other unaudited families may continue using decision candidates.
+ADR `2026081801` Phase 4 owns their migration; no new artifact family may adopt decision-candidate
+staging without a separate cardinality and retention decision.
+
 Class identity alternatives and their decisions are stored in DR7's append-only resolution table,
 not by duplicating every metric into a generic staging row.
 
@@ -427,9 +463,19 @@ The processor must:
 * retry targeted decisions when mappings, contracts, or identity evidence improve.
 
 A failed mapping does not prove that the source is wrong. It may reveal an incomplete map, parser,
-vocabulary, or contract. The system therefore records precise states such as
-`mapping_unresolved`, `unparsed`, `datatype_mismatch`, `contract_violation`, `class_provisional`,
-`class_ambiguous`, and `source_conflict` rather than applying one global `incorrect` label.
+vocabulary, or contract. The system therefore records precise states in independent dimensions
+rather than applying one global `incorrect` label:
+
+| Dimension | Example findings/states |
+|---|---|
+| Mapping resolution | `mapping_unresolved` |
+| Value | `unparsed`, `datatype_mismatch` |
+| Conformance | `contract_violation` |
+| Class identity | `class_provisional`, `class_ambiguous` |
+| Inter-source/inter-instance conflict | `source_conflict` |
+
+These labels are findings or dimension-specific states; they are not values of one flat assertion
+status. ADR `2026081801` DR9 is the normative cross-family state model.
 
 Admission into `kb.semantic_assertions` means “this source-backed claim is represented,” not “this
 claim is true or conforms to its class.” Consumers make risk-appropriate decisions from the
@@ -531,6 +577,13 @@ kb.semantic_class_resolution_decisions
   create_time/create_by
 ```
 
+`decision_key` is the deterministic encoding/hash of the resolution decision scope:
+`identity_scope`, source artifact family, stable source occurrence identity, resolver purpose, and
+governed policy scope. It excludes the selected candidate, score, method, model output, and other
+decision results. Reconsideration of the same question therefore retains the same `decision_key`;
+a different occurrence or resolution purpose does not. The database enforces one current decision
+per `decision_key` with a partial unique index on active/non-superseded rows.
+
 The table is append-only. `input_record_id`, `source_artifact_type`, `source_artifact_id`,
 `assertion_id`, and `selected_term_id` are required for an instance-resolution decision.
 Class resolution is computed in memory first; the transaction then finds or creates the assertion
@@ -551,15 +604,20 @@ specific value or validation state.
 A separate `kb.ontology_term_instances` table is not introduced because it would duplicate the
 assertion's subject, value, conditions, lifecycle, revisions, evidence, and provenance.
 
-Every metric instance carries, directly or through its current validation records:
+ADR `2026081801` DR6 owns the normative minimum field set for raw-preserved semantic assertions.
+For metrics, that field set is projected here together with this ADR's optional normalization audit
+reference:
 
 ```text
 instance_of_term_id
-normalized_against_contract_revision_id
 class_identity_state_term_id
+mapping_resolution_state_term_id
 value_state_term_id
 conformance_state_term_id
-processing_error_details
+raw_text/raw_payload
+normalized value fields when available
+processing_error_details or linked outcome IDs
+normalized_against_contract_revision_id  # optional immutable audit reference from DR2
 ```
 
 The state term IDs refer to governed records in `kb.ontology_terms`, normally in a core
@@ -593,6 +651,17 @@ Conformance state initially includes `conforms`, `contract_violation`, and `not_
 Applications choose whether to include, warn about, or exclude each combination of identity,
 definition, value, conformance, and error states.
 
+The pre-existing `kb.semantic_assertions.status` remains a separate governance/lifecycle axis. A new
+`represented` status means “durably persisted from source, not endorsed.” Lossless ingestion writes
+raw-preserved and newly normalized source claims as `represented`; it does not route them through
+`accepted`. A claim selected for governance transitions from `represented` to `candidate`; the
+existing `candidate → in_review → accepted / rejected / deferred` path then applies. Represented
+claims may also become `superseded` or `unsupported` through ordinary lifecycle processing.
+`accepted` retains its existing meaning of positive governance/endorsement. Consumers must use the
+independent state dimensions for parse, mapping, class, and conformance questions and must not infer
+them from `status`. The migration adds `represented` to the database constraint and state machine
+before enabling lossless writes, and audits every consumer that filters on `status = 'accepted'`.
+
 ### 3.9 DR9 — Make normalized claim identity semantic rather than occurrence-derived
 
 A **normalized claim** is the semantic content represented by a `kb.semantic_assertions` logical
@@ -618,7 +687,7 @@ A new table provides concurrency-safe find-or-create:
 
 ```text
 kb.semantic_claim_identities
-  claim_id
+  claim_id                       # stable textual logical identity
   identity_scope
   canonical_key_version
   canonical_payload
@@ -626,6 +695,18 @@ kb.semantic_claim_identities
   current_assertion_id
   create_time
 ```
+
+`identity_scope` is a governed namespace for canonical identity rules, not an arbitrary caller
+string. Its initial values identify an artifact-instance family and policy domain, for example
+`metric_instance:global`; module- or tenant-scoped values are introduced only when the same
+canonical payload is intentionally allowed to denote different claims across those boundaries.
+The scope participates in identity and cannot change without a canonical-key migration.
+
+The database enforces uniqueness on
+`(identity_scope, canonical_key_version, canonical_digest)`. Digest collision handling locks the
+candidate row and compares canonical payload bytes; unequal bytes do not reuse a claim and are
+reported as an invariant violation requiring a key-version/digest migration. This unique constraint,
+not application-only checking, is the concurrency guard for find-or-create.
 
 `canonical_payload` is a deterministic serialization of the identity-bearing semantic fields. For
 example:
@@ -648,6 +729,25 @@ system first resolves or creates its class, builds the canonical payload, and fi
 claim identity and assertion. Several metric occurrences can therefore support the same
 `kb.semantic_assertions` row through separate evidence records. New evidence alone does not create
 an assertion revision.
+
+`semantic_claim_identities.claim_id` is written verbatim to
+`semantic_assertions.logical_identity_key`. The registry is the sole authority for logical claim
+identity and current assertion lookup; no occurrence-derived identity remains authoritative.
+Migration computes claims for existing `metric:<input-record-id>:<metric-id>` keys, rewrites each
+assertion's `logical_identity_key`, converges equal claims through evidence preservation and
+assertion redirects, and validates the existing `(logical_identity_key, revision)` uniqueness
+contract before cutover.
+
+An assertion revision is created only when assertion-owned, non-identity-bearing interpretation or
+governance data changes while the canonical payload bytes—and therefore `claim_id`—remain equal.
+Examples include conformance re-evaluation, validation/error references,
+`normalized_against_contract_revision_id`, and lifecycle status. New evidence, confidence
+aggregation, or `last_seen` alone updates/links evidence and projections without creating a
+revision. A change to any identity-bearing field creates or resolves to a different claim identity;
+the former claim is connected by an explicit assertion redirect or semantic relation when policy
+requires, not disguised as a revision. The registry's `current_assertion_id` and the highest
+revision for its `logical_identity_key` must agree transactionally; the registry is authoritative
+if corruption is detected, and consistency checks block cutover or writes until repaired.
 
 An identity-bearing contract change follows DR2's canonical-key migration. It cannot silently alter
 find-or-create behavior. The old key version remains authoritative until shadow recomputation,
@@ -723,6 +823,17 @@ comparison context.
 Relations do not declare which source is correct. Review Document presents the difference,
 conformance, source authority, and applicability separately.
 
+Relation derivation is always blocked before pair generation by canonical class/comparable mapping,
+subject, relation family, modality, applicability, valid-time overlap, value state, and the
+class-contract comparison signature. A policy version supplies finite limits; unbounded all-pairs
+evaluation is prohibited. The initial safety defaults are at most 200 ranked peer candidates for
+one changed instance and at most 10,000 pair evaluations for one class/relation-family job. Ranking
+is deterministic: exact applicability/subject context first, then current and decision-relevant
+instances, then evidence quality/recency, with stable assertion ID as the tie-breaker. Work beyond a
+limit is checkpointed for bounded continuation or recorded as an explicit incomplete/no-verdict
+outcome; it is never silently omitted. Phase 0 may lower these defaults before activation, but may
+raise them only with measured capacity evidence and a new policy version.
+
 ### 3.11 DR11 — Reconcile duplicate classes online and incrementally
 
 The end-to-end order is:
@@ -759,6 +870,44 @@ identity additionally creates `kb.ontology_term_redirects` from absorbed term to
 survivor. Terms are not hard-deleted. Distinct curated or explicitly `never_merge` terms may block
 a merge; distinct auto-promoted terms trigger adjudication rather than circularly proving that two
 concepts differ.
+
+Autonomous exact mappings do not bypass the existing approval contract. The governed policy actor
+writes `kb.ontology_mappings.approval_status = 'approved'` and records its `policy_version`, decision
+ID, method, evidence, and actor provenance in the same transaction as the redirect. Human approval
+is one permitted policy actor, not a runtime prerequisite. The governing ontology mapping spec §9.1
+must be amended before this path is enabled so “explicit approval” includes a recorded autonomous
+policy decision; otherwise the mapping remains `pending` and no redirect activates.
+
+Redirect storage is explicit:
+
+```text
+kb.ontology_term_redirects
+  id
+  absorbed_term_id
+  canonical_term_id
+  mapping_id/decision_id
+  status                         # active or superseded
+  reason/evidence
+  policy_version
+  supersedes_redirect_id
+  create_time/create_by
+
+kb.semantic_assertion_redirects
+  id
+  absorbed_assertion_id
+  canonical_assertion_id
+  claim_identity_decision_id
+  status                         # active or superseded
+  reason/evidence
+  canonical_key_version
+  supersedes_redirect_id
+  create_time/create_by
+```
+
+Each table enforces at most one active target per absorbed ID, prohibits self-redirects, rejects
+cycles under a transaction/lock, and preserves superseded history. Assertion redirect targets must
+equal the target claim registry's `current_assertion_id`; term redirect targets must be current
+stable term headers.
 
 Because class identity participates in claim identity, a term merge re-resolves affected evidence,
 recomputes canonical claim identities, converges equal assertions, writes assertion redirects,
@@ -818,6 +967,13 @@ Class membership is authoritative. Later channels discover candidates and are la
 they do not silently turn similarity into identity. Every pair must pass subject, dimension,
 modality, condition, applicability, and time gates before semantic comparison.
 
+Review Document must not load an unbounded class fan-out. It returns at most 200 same-class or
+mapped-class peer instances per focal occurrence under the active review policy, using the same
+deterministic context/evidence ranking defined in DR10 and stable assertion ID as tie-breaker. The
+payload includes total eligible count, returned count, truncation flag, ranking policy version, and
+a cursor for bounded continuation. Structural/similarity fallbacks have separate finite channel
+caps and never displace higher-ranked canonical-class results.
+
 Review Document shows class identity and definition states, value state, conformance, processing
 errors, comparison relation, confidence, and source evidence. It distinguishes a metric absent from
 a metric present with a missing value. Absence can be concluded only relative to a named profile or
@@ -846,7 +1002,7 @@ decision-relevant. Raw evidence is never overwritten by normalized output.
 
 ## 4. Review Decisions Incorporated
 
-The review comments are resolved as follows:
+Review Issues 01–15 are resolved as follows:
 
 * Stable `instance_of_term_id` identifies the class; contract revision is a separate audit reference.
 * Every metric instance has an existing or provisional class.
@@ -863,6 +1019,30 @@ The review comments are resolved as follows:
 * Missing and unknown are persisted value states, not missing instance rows.
 * `kb.assertion_relations` has an explicit extensible shape.
 * Duplicate-class reconciliation runs both before and after provisional class creation.
+
+Review `2026081802` Issues 16–26 are resolved as follows:
+
+* **Issue 16:** `claim_id` is the value of `logical_identity_key`; the claim registry is the sole
+  logical-identity authority, and occurrence-derived keys are migrated.
+* **Issue 17:** revisions are limited to non-identity-bearing assertion interpretation/governance
+  changes; evidence-only changes do not revise, and identity-bearing changes create another claim.
+* **Issue 18:** a metric-scoped partial unique current-evidence index and duplicate cleanup enforce
+  one current supporting link per atomic metric occurrence without constraining generic artifacts
+  that legitimately support multiple assertions.
+* **Issue 19:** term and assertion redirect schemas, constraints, and Phase 1 creation are explicit.
+* **Issue 20:** autonomous exact mappings are explicitly approved by a governed policy actor with
+  policy/version provenance, subject to the mapping-spec amendment.
+* **Issue 21:** `represented` is the persisted-but-unendorsed assertion lifecycle state; `accepted`
+  retains governance meaning, and deferred candidates are retained through migration.
+* **Issue 22:** ADR `2026081801` DR6 owns the cross-family assertion field set; DR8 projects it and
+  adds only the optional normalization audit reference defined by this ADR.
+* **Issue 23:** mapping, value, conformance, class, and conflict examples are dimension-tagged.
+* **Issue 24:** Phase 0 measures all 58 records, models the roughly 100× increase in semanticized
+  occurrence workload and the pre-convergence assertion upper bound, and gates activation on
+  capacity and finite comparison/review fan-out.
+* **Issue 25:** `kb.ontology_terms_current` stabilizes current reads, and direct base-table consumer
+  reads are prohibited after cutover.
+* **Issue 26:** `identity_scope`, `decision_key`, and claim-registry uniqueness are defined.
 
 ## 5. Alternatives Considered
 
@@ -918,28 +1098,49 @@ Implementation is tracked through separate OpenSpec changes. The order is:
 
 ### Phase 0 — Lossless-processing dependency and corpus characterization
 
-1. Create the cross-cutting ADR for lossless semantic processing.
+1. Adopt ADR `2026081801` as the cross-cutting lossless-processing dependency and reconcile its
+   normative assertion field/state model before schema work.
 2. Stop current normalization/mapping failures from dropping artifacts from downstream processing.
 3. Preserve raw values and structured error outcomes for all current metric failure paths.
-4. Inventory label-only terms, metric attributes, conflicts, and Review Document baselines.
+4. Run the current pipeline across all 58 input records and report occurrence, candidate,
+   assertion, evidence, provisional-class, duplicate-class, relation-fan-out, latency, and Review
+   Document baselines. Record the expected capacity delta from 71 current assertion links to 7,074
+   semanticized metric occurrences, each requiring a current evidence link and resolution/outcome
+   processing, with up to one assertion per occurrence before canonical convergence.
+5. Select and load-test policy-versioned blocking keys, candidate caps, relation job limits, Review
+   Document caps, and synthesis/adjudication thresholds. Phase 1 cannot begin until the full-corpus
+   baseline and capacity report pass their documented gates.
 
 ### Phase 1 — Stable class identity and append-only contract history
 
-1. Reshape `kb.ontology_terms` into one current stable identity header per term ID.
+1. Create `kb.ontology_terms_current`, migrate consumers behind it, prove no application consumer
+   reads the base table directly, then reshape `kb.ontology_terms` into one current stable identity
+   header per term ID.
 2. Create append-only term and class-contract revision stores and migrate existing versions.
 3. Create observed class profiles and per-capability validation records.
 4. Add generic stable `instance_of_term_id` and optional normalization-contract revision reference.
-5. Create the claim-identity registry, canonical-key version registry, and assertion redirects in
-   shadow mode.
-6. Seed governed identity, definition, capability, value, conformance, error, and relation terms.
+5. Create `kb.semantic_claim_identities` with its concurrency unique constraint, the canonical-key
+   version registry, `kb.ontology_term_redirects`, and `kb.semantic_assertion_redirects` in shadow
+   mode.
+6. Add `represented` to the assertion lifecycle constraint/state machine and audit all status
+   consumers before lossless assertion admission.
+7. Clean up duplicate current metric support links, then add
+   `uq_assertion_evidence_current_metric_support`, a partial unique index on
+   `(artifact_type, artifact_id, input_record_id)` where
+   `artifact_type = 'metric' AND evidence_role = 'supports' AND deleted = false`. The predicates
+   preserve the generic rules that one non-metric artifact may support multiple assertions and that
+   a metric occurrence may carry multiple non-supporting evidence relationships.
+8. Seed governed identity, definition, capability, mapping, value, conformance, error, and relation
+   terms.
 
 ### Phase 2 — Lossless metric instance pipeline
 
 1. Move metric normalization to an in-memory raw-preserving shape.
 2. Create the reusable identity-resolution service and class-resolution decision store.
 3. Resolve an existing class or create a provisional class for every metric.
-4. Implement and validate canonical payload serialization and concurrency-safe claim-identity
-   find-or-create before enabling the new assertion writer.
+4. Implement and validate canonical payload serialization, governed `identity_scope`,
+   concurrency-safe claim-identity find-or-create, and `claim_id`-backed
+   `logical_identity_key` before enabling the new assertion writer.
 5. Create/reuse a semantic assertion regardless of normalization or conformance outcome.
 6. Persist the concrete class-resolution decision, evidence, validation results, processing errors,
    and observed class attributes in the same transaction.
@@ -979,8 +1180,12 @@ Migration is additive until shadow validation passes.
 * Existing `kb.metrics` occurrences and raw provenance are not deleted or coalesced.
 * Existing term versions are migrated into append-only history before current identity headers are
   changed.
+* Current-term consumers move behind `kb.ontology_terms_current` before the base-table reshape;
+  direct base-table reads are blocked after cutover.
 * Existing term and assertion IDs remain addressable through redirects.
-* Existing decision candidates remain available until every consumer is audited and migrated.
+* Existing failed/deferred candidates remain available until converted to assertions/outcomes or
+  explicitly retired; all other decision candidates remain available until every consumer is
+  audited and migrated, consistent with ADR `2026081801`.
 * Raw values and errors are preserved before fail/stop behavior is removed.
 * Observed class profiles never overwrite authoritative contracts.
 * Contract changes create append-only revisions and never require mass class-FK updates.
@@ -989,10 +1194,20 @@ Migration is additive until shadow validation passes.
 * Term merge/split replays evidence and recomputes claim identity and relations.
 * Redirects are single-active-target, acyclic, lock-protected, and reversible by superseding
   decisions.
+* Existing duplicate current metric support links are resolved deterministically before the partial
+  unique evidence index is created. The backfill retains all rows as history, selects the link to
+  the claim registry's current assertion (otherwise the newest valid link) as current, and marks
+  the others deleted/superseded with an auditable migration decision.
+* Existing occurrence-derived `logical_identity_key` values are shadow-mapped to `claim_id`; equal
+  claims converge only after evidence membership, revisions, redirects, and current pointers
+  validate transactionally.
 * Review Document retains fallback retrieval throughout rollout.
 
 Required pre-cutover reports include:
 
+* full-corpus coverage across all 58 input records, with counts and capacity projections for each
+  new row family, the roughly 100× increase in semanticized metric occurrences over current links,
+  and assertion counts before and after canonical convergence;
 * stable term identities and migrated historical revisions;
 * identity-only, partially defined, and validated contract counts and capabilities;
 * observed attributes proposed for each class and their evidence distribution;
@@ -1000,6 +1215,8 @@ Required pre-cutover reports include:
 * assertions proposed to converge and their evidence membership;
 * all raw-preserved, unparsed, missing, unknown, nonconforming, and ambiguous instances;
 * relation counts by type, method, confidence, and status;
+* candidate-block sizes, truncated/checkpointed relation jobs, Review Document fan-out, latency,
+  storage, and retry throughput under active caps;
 * LLM call volume, cache reuse, cost, and decision yield; and
 * changes to Review Document candidate and comparison sets.
 
@@ -1019,10 +1236,14 @@ Required pre-cutover reports include:
 * An identity-bearing field change uses a versioned shadow canonical-key migration and atomic
   cutover; it never silently changes claim find-or-create behavior.
 * A meaning change that breaks logical identity creates a new term ID.
+* Every current-term consumer uses `kb.ontology_terms_current` or the stable terms API at cutover;
+  no application consumer directly reads the reshaped base table.
 
 ### 8.2 Occurrence, evidence, and lossless processing
 
 * One atomic metric occurrence has at most one current supporting instance link.
+* The metric-scoped partial unique evidence index enforces that cardinality after an auditable
+  duplicate backfill without restricting non-metric evidence fan-out.
 * Unchanged reprocessing reuses the link; changed reprocessing supersedes it while retaining history.
 * `kb.assertion_evidence` preserves provenance and never replaces raw source content with normalized
   values.
@@ -1031,12 +1252,18 @@ Required pre-cutover reports include:
   semantic processing.
 * Raw values, raw datatypes, raw units, errors, methods, and evidence remain queryable throughout the
   lifecycle.
+* Raw-preserved ingestion writes assertion `status = 'represented'`; it never implies `accepted`,
+  and every pre-existing accepted-status consumer has an explicit compatibility decision.
 
 ### 8.3 Class and instance identity
 
 * Approved aliases and translations of one logical metric resolve to one canonical stable term ID.
 * Same-label metrics with different quantities, subjects, or applicability remain distinct.
 * Two semantically identical occurrences converge on one assertion with independent evidence.
+* `semantic_claim_identities.claim_id` equals `semantic_assertions.logical_identity_key`; the
+  registry unique constraint makes find-or-create concurrency-safe.
+* Evidence-only changes do not create revisions; non-identity assertion changes may revise the same
+  claim, while identity-bearing changes resolve to a different claim.
 * Two different values of the same class remain distinct instances and receive a relation when
   comparable.
 * No safe class match creates a provisional class rather than a classless or discarded instance.
@@ -1068,6 +1295,8 @@ Required pre-cutover reports include:
 * Observations do not inherit stronger/weaker semantics merely from numeric order.
 * Unsupported comparisons yield incomparability or an explicit no-verdict reason.
 * Future relation terms do not require a closed database enum change.
+* Relation derivation never performs unbounded all-pairs comparison; active blocking/ranking policy,
+  finite caps, and checkpointed continuation are observable for every oversized class.
 
 ### 8.6 Autonomous operation
 
@@ -1076,6 +1305,8 @@ Required pre-cutover reports include:
 * Tiered identity logic is reused through one resolver with artifact-family adapters.
 * LLM calls operate only on bounded ambiguous candidates and are cached by versioned inputs.
 * Autonomous activation occurs only through a recorded policy decision.
+* Autonomous exact mappings carry `approval_status = 'approved'` from a governed policy actor with
+  decision and `policy_version` provenance; no term redirect activates from a pending mapping.
 * Human corrections can override and lock decisions; autonomous merges and contract changes are
   reversible or supersedable.
 
@@ -1089,6 +1320,8 @@ Required pre-cutover reports include:
 * Missing value is distinguishable from metric absence.
 * Flagged instances remain available, with application/user policy controlling their use.
 * Incomplete ontology processing does not block review; fallbacks are visibly labeled.
+* Review payloads expose total/returned counts, truncation, ranking policy, and continuation when a
+  same-class or fallback channel exceeds its finite cap.
 
 ### 8.8 Competency and regression tests
 
@@ -1106,8 +1339,11 @@ The OpenSpec changes must include:
 * raw-preserved mapping, parsing, missing, unknown, datatype, and contract failures;
 * lower/upper-bound, interval, conflict, and incomparability relations;
 * deterministic, statistical, and LLM-assisted class decisions;
-* online/offline class merge, split, redirect reversal, cycle rejection, and `never_merge`; and
-* the complete Review Document traversal in DR13.
+* online/offline class merge, split, redirect reversal, cycle rejection, and `never_merge`;
+* the complete Review Document traversal in DR13; and
+* full-corpus Phase 0 execution across all 58 input records, capacity/load tests at the active caps,
+  duplicate-evidence cleanup/index enforcement, lifecycle-status compatibility, redirect cycle and
+  single-target constraints, and claim-registry concurrency/collision tests.
 
 ## 9. Consequences
 
@@ -1128,12 +1364,16 @@ The OpenSpec changes must include:
 * Current-header plus append-only-history storage requires a careful migration from existing term
   versions.
 * Multiple independent state dimensions are more explicit but increase query and UI complexity.
-* Lossless ingestion increases stored assertions and requires consumers to apply quality policy.
+* Full-corpus lossless metric ingestion expands the semanticized workload from 71 current assertion
+  links to 7,074 metric occurrences—roughly 100×. Each occurrence requires evidence and
+  outcome/resolution processing, while distinct assertion count depends on canonical convergence;
+  storage, write throughput, retries, and projections require explicit capacity planning.
 * Class synthesis can misclassify an attribute, condition, submetric, or error.
 * A false class merge affects more downstream objects than a false similarity match.
 * LLM adjudication adds cost, latency, and nondeterminism.
 * Contract evolution can trigger expensive targeted revalidation and relation recomputation.
-* Pairwise comparison can become quadratic without blocking and incremental updates.
+* Pairwise comparison remains potentially quadratic inside an oversized block, so DR10 prohibits
+  unbounded jobs and requires deterministic blocking, finite caps, and incremental continuation.
 
 These risks are managed by stable identity, append-only decisions, separating observation from
 authority, deterministic-first resolution, negative gates, bounded LLM use, shadow computation,
@@ -1161,6 +1401,15 @@ Governed `value_range_type` mapping remains part of deterministic normalization,
 no longer removes the metric from later semantic processing. Raw values and explicit mapping/error
 states continue through the pipeline.
 
+### ADR `2026081801`
+
+ADR `2026081801` is the Phase-0 dependency and owns the cross-family lossless-processing invariant,
+minimum raw-preserved assertion field set, semantic outcome model, and independent state dimensions.
+This ADR owns metric class/instance identity, optional normalization-contract audit reference,
+claim convergence, relations, and class-first Review Document behavior. If the two documents appear
+to specify the same assertion field or lossless state differently, `2026081801` is normative for
+the cross-family field/state contract and this ADR must be reconciled before implementation.
+
 ### User manual §6.11
 
 This ADR adopts §6.11's defect finding and replaces occurrence-derived isolation with an explicit
@@ -1170,11 +1419,12 @@ occurrence–evidence–instance–class model and governed relations among inst
 
 These are implementation details rather than unresolved architectural direction:
 
-1. The migration mechanics from current `(term_id, version)` rows to stable current headers plus
-   append-only revisions.
+1. The batch size, rollback checkpoints, and final retirement schedule for the now-required
+   `kb.ontology_terms_current` compatibility migration.
 2. The normalized projections and indexes derived from authoritative JSON class contracts.
 3. The precise capability requirements for each class kind and risk tier.
-4. Initial thresholds for class identity, contract activation, and LLM-assisted decisions.
+4. Initial thresholds for class identity, contract activation, and LLM-assisted decisions, selected
+   from the required full-corpus Phase 0 baseline rather than the prior one-document sample.
 5. Canonical serialization of conditions, procedures, applicability, and domain-specific fields.
 6. The exact migration or retirement plan for non-metric users of
    `kb.semantic_decision_candidates`.
