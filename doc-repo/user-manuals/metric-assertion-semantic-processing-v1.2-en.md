@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: SemOS users, metric reviewers, and system operators
 create-time: 2026-08-13T06:49:10-05:00
-last-modify-time: 2026-08-17T06:27:25-05:00
+last-modify-time: 2026-08-18T14:01:00-05:00
 keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline, projections, classifications, governed vocabulary, value_range_type, application-ready metrics, assertion acceptance, metric quality
 ---
 
@@ -797,7 +797,30 @@ The result is not merely “the document contains the word luminance.” It is a
 - The current metric association path resolves quantity units as best-effort enrichment. A unit that cannot be resolved does not necessarily prevent acceptance of the assertion.
 - The current Phase D implementation has metric and provision normalizers/resolvers. Inventory, entity, and scene families are extension points rather than equivalent fully implemented metric paths.
 
-## 12. Reference documents
+## 12. Shadow foundation model (certified; writers still off)
+
+The lossless metric writer is not enabled yet. In shadow mode, the system can
+nevertheless compute and report the future semantic foundation without
+changing visible assertions or evidence:
+
+- a stable ontology **class** is separate from its evolving contract revision;
+- a metric instance may reference a stable class while retaining its original
+  source evidence and raw value;
+- observed profiles retain represented, missing, malformed, and outlier forms
+  as evidence; they do not change a class contract automatically;
+- canonical claim keys can identify convergence candidates while evidence-only
+  changes remain provenance changes;
+- term redirects resolve old class identifiers to active targets with bounded,
+  explainable traversal; and
+- only one active `supports` link is allowed per metric occurrence after the
+  audited cleanup, while non-metric evidence fan-out remains allowed.
+
+Operators should treat shadow reports as migration diagnostics. They do not
+mean that a source metric has become an accepted assertion, a validated class,
+or a comparable result. Both lossless writer gates remain disabled until the
+dependent writer change is separately certified.
+
+## 13. Reference documents
 
 This manual is based on:
 
@@ -813,6 +836,7 @@ The ADR and capsule remain authoritative for implementation status, routing rule
 | Version | Timestamp | Author / responsible party | Reason | Summary |
 |---|---|---|---|---|
 | 1.2 | 2026-08-17T06:27:25-05:00 | Not specified | Clarification | Defined application-ready “good” metrics as accepted, traceable semantic assertions; distinguished deferred, rejected, superseded, and pending candidates; documented term-status gates, Phase D write boundaries, and the current metric projection limitation. |
+| 1.2 | 2026-08-18T14:01:00-05:00 | Codex | Foundation documentation | Documented the certified stable-class, contract, profile, claim, redirect, and metric-support-cardinality shadow foundations; writer gates remain off. |
 | 1.2 | 2026-08-17T05:49:19-05:00 | Not specified | Clarification | Extended Section 6 to explain the distinct roles of `kb.semantic_decision_candidates`, `kb.ontology_terms`, `kb.semantic_assertions`, `kb.assertion_evidence`, and `kb.projection_state`, including their relationships and a worked table trace. |
 | 1.2 | 2026-08-14T00:00:00-05:00 | Not specified | New capability | Documented the governed, DB-backed `value_range_type` mapping table (`kb.metric_value_range_type_map`) that replaced the hardcoded synonym list, `extract_metrics`'s extraction-time mapping check and `kb.metrics.value_range_type_error` flag, `associate_semantics`'s backstop check, and the resulting failed-status/retry operator workflow. |
 | 1.1 | 2026-08-13T16:35:53-05:00 | Not specified | Clarification | Added the semantic decision-candidate status lifecycle, including how each status is assigned and retry eligibility. |
