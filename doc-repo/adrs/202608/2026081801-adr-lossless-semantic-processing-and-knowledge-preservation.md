@@ -133,6 +133,11 @@ normalization is incomplete.
 For artifact families already modeled as ontology object instances, including metrics under ADR
 `2026081701`, option 2 is mandatory. They do not fall back to option 3.
 
+--- Begin
+Review-Instruction 01
+If errors are encountered, the errors should be clearly flagged and stored.
+--- End
+
 ### 3.2 DR2 — Preserve raw data independently from every normalized representation
 
 Raw source fields are immutable processing inputs. Normalized fields are derived interpretations.
@@ -204,6 +209,13 @@ Processor outcomes are classified as follows:
 | `source_or_output_unrecoverable` | Processor output is so malformed that no artifact can be identified or safely preserved. | `failed` | Preserve invocation/raw output and error where possible; retry processor. |
 | `semantic_finding` | Mapping missing, value unparsed, datatype mismatch, class provisional/ambiguous, contract violation, missing value, source conflict. | `completed` with mandatory finding summary | Persist artifact, instance/outcome, evidence, and continue. |
 | `semantic_success` | Required normalization and validation capabilities produced usable output. | `completed` | Persist and continue. |
+
+--- Begin
+Review-Instruction-02
+1. `semantic_finding` is logically failed, right?
+2. In principle, when it fails the semantic processing, it uses the raw data/value. For instance, if it fails mapping a value range data type to a canonical value, use the raw value. 
+3. Make sure the errors (not just one error, all the errors) are persisted in tables and a flag should be added so that when upper layer apps use these semantic objects, they can flag users about the errors.
+--- End
 
 Execution status is canonically binary: `completed` or `failed`. A completed run has mandatory
 `finding_count`, highest finding severity, and finding-summary counts by governed finding term. UIs
@@ -412,6 +424,15 @@ normalized value fields when available
 processing_error_details or linked outcome IDs
 normalized_against_contract_revision_id # optional family/class normalization audit reference
 ```
+
+--- Begin
+Review-Instruction-03
+Please explain to which tables the following reference (they should be foreign keys, right?):
+- `class_identity_state_term_id`
+- `mapping_resolution_state_term_id`
+- `value_state_term_id`
+- `conformance_state_term_id `
+--- End
 
 This is the normative cross-family minimum field/state contract. Artifact-family ADRs may add
 optional audit or domain fields but may not omit or redefine these axes. For metric instances, ADR
@@ -1110,3 +1131,64 @@ These are implementation details rather than unresolved architectural direction:
 4. The first non-metric artifact family to migrate after the metric vertical slice.
 
 These questions must be resolved and tested before production cutover.
+
+## Appendix A — Discussion: Cross-Family Reuse of the Ontology Object-Class Tables
+
+**Date:** 2026-08-18 · **Participants:** Chen Ding, Claude (design discussion, not a governed
+decision)
+
+### A.1 Question
+
+ADR `2026081701` and this ADR were reviewed together to understand how their tables divide across
+artifact families. Of the seven new/extended tables introduced between the two ADRs:
+
+```text
+kb.semantic_processing_outcomes            (this ADR, DR4)
+kb.semantic_processing_findings            (this ADR, DR4)
+kb.unresolved_semantic_occurrences         (this ADR, DR13)
+
+kb.ontology_class_contract_revisions       (ADR 2026081701, DR2)
+kb.semantic_claim_identities               (ADR 2026081701, DR9)
+kb.ontology_term_redirects                 (ADR 2026081701, DR11)
+kb.assertion_relations (extended)          (ADR 2026081701, DR10)
+```
+
+only the first three carry an explicit `artifact_type`/`input_record_id` column and a committed
+cross-family rollout mechanism: they are built as shared foundation in Phase 1 (§5) and wired to
+every registered extractor behind the global `LOSSLESS_SEMANTIC_FALLBACK_WRITES` gate in Phase 4.
+The remaining four are schema-agnostic to artifact family (keyed by `term_id`, `assertion_id`, or
+`claim_id`, not by family) but have no equivalent conformance suite, gate, or phase committing them
+to a second family. Their field shapes — canonical claim payload, comparison semantics, contract
+schema — were derived and validated using only metrics.
+
+Metrics themselves populate both groups, with one exception: DR1 explicitly exempts a family
+"already modeled as ontology object instances, including metrics" from ever falling back to
+`kb.unresolved_semantic_occurrences`. So the practical picture is not a clean two-way split by
+table ownership; it is that the three tables above are universal safety-net infrastructure, while
+the four ADR `2026081701` tables are, for now, metric-only in practice despite a family-agnostic
+schema.
+
+### A.2 Points of agreement
+
+The phased scope is intentional and endorsed: implement the full ontology object-class/instance
+apparatus (the four ADR `2026081701` tables) for metrics only, and defer generalizing it to other
+artifact families until a second family's requirements can validate the design. Shipping the
+cheap, universal lossless guarantee (this ADR's outcome/finding/unresolved-occurrence tables) to
+every family now, while the more expensive class/instance modeling proves itself against one
+family before generalizing, is accepted as the correct sequencing — not a defect.
+
+### A.3 Open concern
+
+A concern remains that the current design of the ontology object-class apparatus (the four ADR
+`2026081701` tables) is not correct as specified, independent of the metrics-only scoping question
+above. The specific objection has not yet been articulated and is deferred to a future session.
+
+### A.4 Follow-up
+
+This concern should be resolved before either open question below is closed, since both call for
+committing the class/instance apparatus to a second family:
+
+* this ADR, §10, item 4 — "The first non-metric artifact family to migrate after the metric
+  vertical slice";
+* ADR `2026081701`, §11, item 6 — "The exact migration or retirement plan for non-metric users of
+  `kb.semantic_decision_candidates`."
