@@ -18,10 +18,28 @@ instance when the artifact family supports instances, records explicit outcome s
 links the source evidence, and continues. Consumers decide whether a flagged claim is suitable for
 their task.
 
+Such an instance enters `kb.semantic_assertions` with lifecycle `status = 'represented'`: durably
+stored from source, but not accepted, endorsed, or proven conformant. Governance and evidence
+support are independent from semantic processing outcomes.
+
 Only system execution failures—such as inability to read required input, invoke a required service,
 commit required data, or preserve the result safely—fail a processor run. Vocabulary gaps, parser
 uncertainty, class ambiguity, missing values, datatype mismatches, and contract violations are
 semantic findings, not runtime failures.
+
+### 1.1 Revision after ADR `2026081701` review
+
+The 2026/08/18 revision reconciles this ADR with the revised ADR `2026081701`. It:
+
+* makes raw snapshots identity-bearing only for raw-preserved claims;
+* defines the cross-family `represented` assertion lifecycle and evidence-loss restoration;
+* adopts `2026081701`'s claim-versus-revision rule;
+* standardizes governed state identifiers;
+* adds database-enforced active outcome, finding, unresolved-occurrence, and metric-evidence
+  cardinality;
+* adds the required full-corpus Phase 0 gate and coordinated cross-ADR writer prerequisites;
+* makes unresolved occurrences require an identified artifact; and
+* defines consumer behavior for represented versus accepted assertions.
 
 ## 2. Context
 
@@ -125,8 +143,9 @@ The following invariants apply:
 * Normalization never overwrites the raw representation.
 * A failed parse preserves the exact offending value and declared/inferred datatype.
 * A mapping decision records both raw input and selected canonical value.
-* Human or autonomous correction creates a new decision or derived revision; it does not rewrite
-  what the source originally expressed.
+* Human or autonomous correction creates a new decision and then either a non-identity assertion
+  revision or a different claim identity under DR10; it does not rewrite what the source originally
+  expressed.
 * Deletion or reprocessing follows existing provenance retention rules and never deletes canonical
   history merely to make the current projection look clean.
 
@@ -137,8 +156,8 @@ equivalent family-specific fields rather than relying on log text.
 The ownership rule is:
 
 * the artifact-family row is authoritative for the current raw occurrence;
-* the assertion's raw payload is an immutable normalization-time snapshot used for claim identity
-  and history, and records the source occurrence revision/fingerprint from which it was copied;
+* the assertion's raw payload is an immutable normalization-time snapshot used for history and
+  records the source occurrence revision/fingerprint from which it was copied;
 * evidence quote/spans are provenance excerpts, not authoritative copies of the artifact payload;
 * an outcome's `raw_fragment` is populated only when no identified artifact row can preserve that
   content; and
@@ -147,6 +166,33 @@ The ownership rule is:
 At assertion creation, the raw snapshot fingerprint must match the referenced occurrence revision.
 Reprocessing creates or supersedes the occurrence/current link according to the family lifecycle; it
 does not mutate an historical assertion snapshot to resemble the new extraction.
+
+For a successfully normalized claim, the raw snapshot is audit data and does not participate in
+canonical claim identity. Source record, artifact ID, wording, spans, model, prompt, and other
+occurrence provenance are excluded so semantically equal occurrences can converge. For a
+raw-preserved claim whose semantic value cannot be normalized, canonical identity includes only the
+family-governed raw-value fingerprint, observed datatype, explicit value state, and required semantic
+context. It does not include unrelated provenance or the entire raw artifact payload. ADR
+`2026081701` DR9 owns the metric canonical payload and claim-registry rules.
+
+The canonical serializer selects exactly one identity-value branch:
+
+```text
+normalized_value  # an authoritative parsed semantic value exists
+raw_fingerprint   # no authoritative parsed semantic value exists
+missing
+not_applicable
+```
+
+The branch is expressed through the existing canonical payload shape—such as normalized `value`
+fields or an explicit raw-value fingerprint—not through a new competing metric identity field. ADR
+`2026081701` remains authoritative for the metric payload bytes. Outcome disposition does not choose
+the branch. In particular, a parsed metric with an unresolved
+or proposed range-type mapping may have disposition `raw_preserved` because class-derived bucket
+fields are unavailable, while its claim identity still uses `normalized_value`. It uses
+`raw_fingerprint` only when the semantic literal itself cannot be authoritatively parsed. This
+deterministic payload-shape distinction prevents disposition labels from changing convergence
+behavior implicitly.
 
 ### 3.3 DR3 — Separate execution failures from semantic findings
 
@@ -185,7 +231,7 @@ kb.semantic_processing_outcomes
   outcome_key
   input_record_id
   artifact_type
-  artifact_id                 # nullable only when no artifact could be identified
+  artifact_id                 # nullable only for a failed invocation with no identifiable artifact
   assertion_id                # nullable until/when the family supports an instance
   stage_term_id
   disposition_term_id         # normalized, raw_preserved, not_applicable, or no_result
@@ -209,6 +255,20 @@ envelope or reuses an identical existing envelope. `outcome_key` is the determin
 of `input_record_id`, `artifact_type`, `artifact_id`, and `stage_term_id`. `input_fingerprint`
 identifies the exact raw occurrence revision. The database enforces uniqueness on
 `(outcome_key, input_fingerprint, dependency_fingerprint)`.
+
+A completed semantic-stage outcome always has a non-null `artifact_id`. A null `artifact_id` is
+permitted only for a failed invocation-level outcome under DR3's
+`source_or_output_unrecoverable` category; it never creates an unresolved semantic occurrence.
+The database additionally enforces at most one active outcome per stable source/stage scope with
+`uq_semantic_processing_outcomes_active` on `(outcome_key) WHERE active = true`. The active row may
+carry only the current input fingerprint. Activation of a superseding outcome and deactivation of
+the former row occur in the same locked transaction.
+
+The unique index enforces **at most one**, not existence. Existence is enforced for a completed
+artifact-stage attempt by DR5's atomic transaction and adapter conformance checks. A transactional
+completeness projection compares each current occurrence with its adapter-declared required stage
+set; missing outcomes make the attempt/cutover incomplete and retryable. No index is claimed to
+prove “exactly one” by itself.
 
 An outcome envelope has zero or more append-only typed findings:
 
@@ -236,6 +296,13 @@ finding per `(current outcome, finding_key)`. Thus one stage can simultaneously 
 `datatype_mismatch`, `contract_violation`, and `source_conflict` without duplicating its stage
 outcome. `finding_count` and highest severity are transactionally derived from the current child
 set; reports count child `finding_term_id` values, not the envelope disposition.
+
+The active-finding invariant is enforced by the partial unique index
+`uq_semantic_processing_findings_active` on `(outcome_id, finding_key) WHERE active = true`; it is
+not left to application-only checking. When an outcome is superseded, all of its active child
+findings are deactivated in the same transaction. A deferred constraint trigger rejects commit if
+an active finding references an inactive outcome. The complete child set for a successful attempt is
+also checked by the adapter conformance contract; uniqueness alone does not prove completeness.
 
 An unchanged replay reuses that row and only advances `last_seen`; it does not append or re-alert.
 A changed input or dependency inserts a new row, marks the former active row superseded in the same
@@ -290,6 +357,20 @@ For the metric vertical slice, one atomic current `kb.metrics` occurrence has ex
 Many metric occurrences may converge on the same assertion. One metric occurrence does not fan out
 to several current metric assertions; compound extractions must first split into atomic metric rows.
 
+The metric link invariant is enforced by
+`uq_assertion_evidence_current_metric_support`, a partial unique index on
+`(artifact_type, artifact_id, input_record_id)` where
+`artifact_type = 'metric' AND evidence_role = 'supports' AND deleted = false`. It is deliberately
+metric- and role-scoped: generic artifacts may legitimately support several assertions, and a metric
+may retain several non-supporting evidence relationships. Existing duplicates are resolved through
+the auditable backfill defined in ADR `2026081701` before this index is created.
+
+This index enforces at most one active supporting link. DR5's atomic transaction requires one link
+for every completed metric semantic attempt, and the current-occurrence completeness projection
+detects absence. Steady-state “exactly one” is therefore the conjunction of database uniqueness,
+transactional creation, and completeness verification—not a claim that a unique index enforces row
+existence.
+
 For each metric semantic stage, the atomic transaction includes all writes applicable to that
 attempt:
 
@@ -324,10 +405,18 @@ class_identity_state_term_id
 mapping_resolution_state_term_id
 value_state_term_id
 conformance_state_term_id
+status                                  # assertion governance/lifecycle
+unsupported_prior_status                # populated only while status = unsupported
 raw_text/raw_payload
 normalized value fields when available
 processing_error_details or linked outcome IDs
+normalized_against_contract_revision_id # optional family/class normalization audit reference
 ```
+
+This is the normative cross-family minimum field/state contract. Artifact-family ADRs may add
+optional audit or domain fields but may not omit or redefine these axes. For metric instances, ADR
+`2026081701` owns the canonical claim payload, identity-bearing class fields, and the semantics of
+`normalized_against_contract_revision_id`.
 
 If no existing class resolves, the pipeline creates a provisional class. If the value cannot be
 parsed, canonical identity includes a deterministic fingerprint of the raw value and observed
@@ -362,6 +451,51 @@ appropriate to its governed value state:
 
 Admission into `kb.semantic_assertions` means the claim is represented, not accepted as true or
 conformant.
+
+The assertion lifecycle is independent from mapping, value, class, conformance, execution, and
+source-truth dimensions:
+
+```text
+represented -> candidate -> in_review -> accepted
+                                      \-> rejected
+                                      \-> deferred
+represented/candidate/in_review/deferred/accepted
+  --last supporting evidence lost--> unsupported
+unsupported --support restored--> unsupported_prior_status
+represented/accepted --decision-relevant replacement--> superseded
+```
+
+Lossless ingestion writes `represented`; it never writes `accepted` merely because parsing or
+normalization succeeded. A claim selected for governance enters `candidate`, after which the
+existing governed review path applies. When the final active supporting evidence link is removed
+from a `represented`, `candidate`, `in_review`, `deferred`, or `accepted` claim, the system writes
+that status to `unsupported_prior_status` and transitions to `unsupported`. Restoring qualifying
+evidence returns to that recorded status and clears the prior-status field; it never promotes a
+represented claim to accepted or advances an in-progress governance decision. `rejected` and
+`superseded` are historical decision states and do not transition merely because evidence changes.
+Other source lifecycle states require an explicit governed transition rather than overloading
+semantic findings.
+The database permits `unsupported_prior_status` only when `status = 'unsupported'`, requires it for
+unsupported rows created by evidence loss, and restricts its value to `represented`, `candidate`,
+`in_review`, `deferred`, or `accepted`.
+
+Lifecycle transitions are assertion-owned, non-identity-bearing changes under ADR `2026081701` DR9.
+They append a new assertion revision under the same `claim_id` and atomically advance the claim
+registry's `current_assertion_id`. Evidence loss leaves the removed link as deleted history and
+creates the unsupported revision. Evidence restoration creates a new active evidence link targeting
+the restored-status revision rather than undeleting a link to an obsolete revision. Remaining active
+evidence, if any, receives new current links to the new revision according to the evidence-store
+migration contract; prior evidence rows remain immutable/deleted history and are never silently
+repointed in place.
+
+The migration adds `represented`, its legal transitions, and `unsupported_prior_status` to the
+database and state-machine implementation before enabling lossless writes. Every consumer that
+currently filters on `status = 'accepted'` receives an explicit policy: governance decisions and
+profile-rule evaluation that require endorsed truth continue to require accepted assertions. Observed
+class-profile aggregation is deliberately inclusive of represented, malformed, and outlier
+observations but never promotes them directly into an authoritative contract. Search, semantic
+discovery, diagnostic projections, and Review Document expose represented assertions with their
+warnings. No consumer may silently treat represented as accepted or as absent.
 
 ### 3.7 DR7 — Keep evidence as provenance
 
@@ -408,23 +542,34 @@ The system does not compress all uncertainty into one status. At minimum it keep
 | Dimension | Examples |
 |---|---|
 | Execution | completed or failed; completed runs carry mandatory finding summaries |
-| Class identity | resolved-existing, provisional-new, ambiguous-candidates, identity-evidence-conflict |
-| Class definition/capability | identity-only, partially-defined, validated; can-instantiate, can-validate, can-compare, can-check-completeness |
-| Mapping resolution | resolved, unresolved, ambiguous, not-required |
-| Value | present, missing, unparsed, datatype-mismatch, unknown, not-applicable |
-| Conformance | conforms, contract-violation, not-evaluated |
-| Inter-instance relation | equivalent, stronger, weaker, conflict, syntactic-conflict, incomparable, no-verdict |
+| Assertion lifecycle | represented, candidate, in_review, accepted, rejected, deferred, superseded, unsupported |
+| Class identity | resolved_existing, provisional_new, ambiguous_candidates, candidate_evidence_conflict |
+| Class definition/capability | identity_only, partially_defined, validated; can_instantiate, can_validate_values, can_compare_instances, can_drive_completeness_checks |
+| Mapping resolution | resolved, unresolved, ambiguous, not_required |
+| Value | present, missing, unparsed, datatype_mismatch, unknown, not_applicable |
+| Conformance | conforms, contract_violation, not_evaluated |
+| Evidence role | supports, contradicts |
+| Inter-instance relation | equivalent_to, stronger_than, weaker_than, conflicts_with, syntactically_conflicts_with, incomparable_with; `no_verdict` is an outcome/finding |
 | Source authority/truth | source-specific authority, confidence, corroboration, contradiction; never inferred solely from admission |
 
 These dimensions can coexist. For example:
 
 ```text
-class identity: resolved-existing
+assertion lifecycle: represented
+class identity: resolved_existing
 class definition: validated for value checks
-value: datatype-mismatch
-conformance: contract-violation
+value: datatype_mismatch
+conformance: contract_violation
 execution: completed; finding_count > 0
 ```
+
+The underscore forms above are normative machine identifiers and governed-term local names. User
+interfaces may render hyphenated or natural-language labels, but persisted state, API payloads,
+dependency fingerprints, and canonical serialization use the governed identifiers exactly.
+`candidate_evidence_conflict` is the class-identity state; `semantic:identity_evidence_conflict` is
+the corresponding processing finding term and is not stored in the state field.
+`supports` and `contradicts` are the exact persisted/API evidence-role identifiers; their governed
+ontology term IDs are `semantic:evidence_supports` and `semantic:evidence_contradicts`.
 
 ### 3.10 DR10 — Replace failure retry with dependency-driven semantic retry
 
@@ -451,9 +596,14 @@ input or target dependency no longer matches records `stale` and performs no sem
 
 When a dependency changes, the system schedules only affected outcomes. An unchanged fingerprint
 reuses the existing outcome and does not generate repeated work or alerts. A changed dependency
-produces a superseding outcome and, if semantic identity changes, the required assertion
-revision/redirect and projection rebuild in one orchestrated transaction or recoverable saga with
-an explicit completion marker.
+produces a superseding outcome. If the canonical claim payload remains byte-equal, an
+assertion-owned, non-identity interpretation/governance change may create a new revision under the
+same `claim_id`. If any identity-bearing field changes, the system resolves or creates a different
+`claim_id`; it does not disguise the new claim as a revision. Any required assertion redirect or
+semantic relation and projection rebuild occurs in one orchestrated transaction or recoverable saga
+with an explicit completion marker. New evidence, confidence aggregation, or `last_seen` alone does
+not create an assertion revision. ADR `2026081701` DR9 is authoritative for metric claim-registry,
+canonical-key migration, and redirect behavior.
 
 Human involvement remains optional. Approved mappings and corrections may trigger retry, but
 ordinary pipeline completion never waits for review.
@@ -470,8 +620,10 @@ Every processor run reports:
 * actual system failures separately.
 
 Repeated occurrences of one unresolved vocabulary value increment governed occurrence evidence and
-reuse an existing finding identity where appropriate. Logs summarize per record/run rather than
-emitting one alarm for every repeated artifact.
+reuse an existing vocabulary-level decision/aggregation identity where appropriate. Artifact
+outcomes and child findings remain occurrence-specific: two source artifacts never share an outcome
+envelope or finding row. Logs summarize per record/run rather than emitting one alarm for every
+repeated artifact.
 
 Operator and admin views expose findings and affected artifacts without requiring SQL. They must not
 present the derived “completed with findings” label as if the document failed to process.
@@ -516,9 +668,9 @@ The exact value-range disposition is:
 | Approved mapping | Normalize and continue. | `completed` | mapping `resolved`; parsed literal is `present`; authoritative bucket populated | disposition `normalized`; zero or more independent findings | Changed source or mapping revision. |
 | Proposed mapping | DR3 and DR6 fail `associate_semantics` and `extract_metrics`; candidate remains deferred. | `completed` with finding summary | mapping `unresolved`; parsed literal remains `present`, otherwise `unparsed`; bucket fields empty | disposition `raw_preserved`; finding `mapping_unresolved`, plus any value/conformance findings | Mapping becomes approved/ambiguous or source changes. |
 | Ambiguous mapping | Settled non-failure but remains unparsed/deferred. | `completed` with finding summary | mapping `ambiguous`; parsed literal remains `present`, otherwise `unparsed`; candidate buckets non-authoritative | disposition `raw_preserved`; finding `mapping_ambiguous`, plus any independent findings | Mapping decision or source context changes. |
-| Absent range-type field | Ordinary non-failure deferral/absence behavior. | `completed`; finding only when class expects the field | mapping `not-required` when inapplicable; otherwise `unresolved`; value remains independently `present`, `missing`, or `unparsed` | disposition `normalized` or `raw_preserved`; `value_missing`/`mapping_unresolved` only when required | Source or class-contract revision changes. |
+| Absent range-type field | Ordinary non-failure deferral/absence behavior. | `completed`; finding only when class expects the field | mapping `not_required` when inapplicable; otherwise `unresolved`; value remains independently `present`, `missing`, or `unparsed` | disposition `normalized` or `raw_preserved`; `value_missing`/`mapping_unresolved` only when required | Source or class-contract revision changes. |
 | Malformed/unparseable literal | Ordinary deferral/unparsed behavior. | `completed` with finding summary | mapping evaluated independently; value `unparsed`; exact raw literal retained | disposition `raw_preserved`; finding `unparsed`, plus mapping/conformance findings | Parser, mapping, source, or contract changes. |
-| Recognized special value | Depends on approved mapping/parser support. | `completed` | mapping `resolved` when governed; value `present`, `unknown`, or `not-applicable` according to contract | disposition `normalized` when supported, otherwise `raw_preserved`; precise findings when nonconforming | Source, mapping, parser, or contract changes. |
+| Recognized special value | Depends on approved mapping/parser support. | `completed` | mapping `resolved` when governed; value `present`, `unknown`, or `not_applicable` according to contract | disposition `normalized` when supported, otherwise `raw_preserved`; precise findings when nonconforming | Source, mapping, parser, or contract changes. |
 
 The execution-status change supersedes ADR `2026081401` DR3 and DR6 only where they require a
 proposed mapping to return a non-nil aggregate processor error and enter failed-processor status.
@@ -536,7 +688,7 @@ kb.unresolved_semantic_occurrences
   occurrence_key
   input_record_id
   artifact_type
-  artifact_id                  # nullable only if identification failed
+  artifact_id                  # required: fallback applies only to an identified artifact
   source_revision/fingerprint
   raw_payload
   provenance
@@ -554,9 +706,21 @@ kb.unresolved_semantic_occurrences
 
 `occurrence_key` is deterministic for the source scope and family. The current row is queryable
 through the same generic semantic-discovery API as assertions. The database enforces uniqueness on
-`(occurrence_key, input_fingerprint, dependency_fingerprint)` and exactly one active row per current
+`(occurrence_key, input_fingerprint, dependency_fingerprint)` and at most one active row per current
 source occurrence. Identical replay advances `last_seen` rather than appending a duplicate; changed
 input/dependencies create a superseding row and deactivate the former row transactionally.
+
+The active-row invariant is enforced by the partial unique index
+`uq_unresolved_semantic_occurrences_active` on `(occurrence_key) WHERE active = true`; the
+family-declared source scope is already part of `occurrence_key`. If no artifact can be identified,
+DR3 classifies the attempt as
+`source_or_output_unrecoverable`; the invocation/raw output and failure are retained, but no
+`kb.unresolved_semantic_occurrences` row is fabricated.
+
+For a family using the generic fallback, existence is enforced by the extractor/fallback atomic
+boundary and the completeness projection: every committed identifiable current artifact must have
+either a compliant current assertion path or one active unresolved occurrence. Missing both is a
+failed completeness invariant and blocks activation/cutover.
 
 Workers claim materialization with row locking and an expiring lease token. Materialization either
 atomically creates/reuses the assertion, evidence, class-resolution decision, outcome envelope and
@@ -631,38 +795,74 @@ unchanged dependency wastes resources and repeats alerts without changing the re
 
 Implementation must be proposed and tracked through OpenSpec changes.
 
+### Phase 0 — Reconcile dependencies and characterize the full corpus
+
+1. Reconcile this ADR's normative assertion fields, state identifiers, lifecycle, identity/revision
+   boundary, and evidence behavior with ADR `2026081701` before schema work.
+2. Implement ADR `2026081701` Phase 0's fail/drop corrections only behind disabled writer gates or
+   in non-consumer-visible shadow mode. “Stop dropping” describes the behavior being prepared and
+   validated; activation cannot precede Phase 2 reader certification and the Phase 3 writer gate.
+3. Run the current metric pipeline across all 58 input records and report all 7,074 metric
+   occurrences, current candidates/assertions/evidence, deferred/failure reasons, required stage
+   counts, and Review Document visibility.
+4. Model storage and throughput for one current evidence link, one class-resolution decision, one
+   outcome envelope per required stage, zero-or-more findings, retry records, and up to one assertion
+   per occurrence before canonical convergence.
+5. Load-test the policy-versioned candidate, comparison, and Review Document caps required by ADR
+   `2026081701`, plus outcome/finding persistence and dependency-driven retry throughput.
+6. Approve documented coverage, capacity, latency, and rollback gates. Phase 1 cannot begin until the
+   full-corpus baseline and capacity report pass.
+
 ### Phase 1 — Additive shared foundation and shadow evaluation
 
-1. Define governed execution, semantic-outcome, value-state, class-state, and conformance terms.
+1. Define governed execution, assertion-lifecycle, semantic-outcome, mapping, value, class,
+   conformance, and evidence-support terms using the exact identifiers in DR9.
 2. Create `kb.semantic_processing_outcomes`, `kb.unresolved_semantic_occurrences`, current-state
-   projections, retry records, and their uniqueness indexes.
+   projections, retry records, and the base plus active-row uniqueness indexes from DR4/DR13.
 3. Implement the transaction, idempotency, dependency-fingerprint, and adapter-conformance
    framework without changing production writer behavior.
 4. Add binary execution-status summaries and retain the legacy `success`/`failed` projection.
-5. Run the metric adapter in shadow mode and compare intended assertions, outcomes, and cardinality
+5. Add `represented`, `unsupported_prior_status`, and their legal transitions to assertion storage
+   and the state machine; audit every accepted-status consumer before lossless admission.
+6. Coordinate with ADR `2026081701` Phase 1 to create stable class/contract foundations, the claim
+   registry and canonical-key registry, term/assertion redirects, and the metric-scoped current
+   evidence uniqueness index after duplicate cleanup.
+7. Run the metric adapter in shadow mode and compare intended assertions, outcomes, and cardinality
    with the existing path; shadow mode performs no consumer-visible semantic writes.
 
 ### Phase 2 — Deploy compatible readers before enabling new writers
 
 1. Make APIs, semantic projection, search, comparison, Review Document, reports, and retry tooling
    tolerate both legacy assertions and every new raw-preserved/ambiguous/missing state.
-2. Make comparison record no-verdict/incomparability rather than dropping unsupported instances.
+2. Make comparison record `no_verdict`/`incomparable_with` rather than dropping unsupported
+   instances.
 3. Expose raw value, normalized value, independent states, errors, and evidence in Review Document.
-4. Deploy dual-read behavior and certify each consumer against the reader compatibility suite.
-5. Keep default behavior on legacy writers until all required metric consumers are certified.
+4. Assign and test explicit lifecycle policy per consumer: governance decisions and profile-rule
+   evaluation requiring endorsed truth remain accepted-only; observed-profile aggregation includes
+   represented/malformed/outlier observations without granting authority; search, semantic
+   discovery, diagnostics, and Review Document expose represented assertions with warnings; every
+   other consumer must choose and document one behavior.
+5. Deploy dual-read behavior and certify each consumer against the reader compatibility suite,
+   including represented/unsupported restoration and assertion redirects.
+6. Keep default behavior on legacy writers until all required metric consumers are certified.
 
 ### Phase 3 — Enable the metric lossless writer behind a cutover gate
 
-1. Extend metric assertion/value-state storage for raw-preserved and missing-value payloads.
-2. Enable the new metric semantic transaction behind the named
+1. Confirm the coordinated ADR `2026081701` foundations are active in shadow mode: stable/provisional
+   class assignment, `claim_id`-backed `logical_identity_key`, redirect resolution,
+   `represented` lifecycle, and `uq_assertion_evidence_current_metric_support`.
+2. Extend metric assertion/value-state storage for raw-preserved and missing-value payloads.
+3. Enable the new metric semantic transaction behind the named
    `LOSSLESS_SEMANTIC_WRITES_METRIC` gate only after Phase 2 certification.
-3. Create assertions, class decisions, evidence, outcomes, and invalidations for mapped, proposed,
+4. Create assertions, class decisions, evidence, outcomes, and invalidations for mapped, proposed,
    ambiguous, absent, malformed, and special range types.
-4. Stop returning processor errors solely for semantic mapping/normalization findings.
-5. Preserve the admin mapping workflow and trigger targeted semantic retry after dependency
+5. Stop returning processor errors solely for semantic mapping/normalization findings.
+6. Preserve the admin mapping workflow and trigger targeted semantic retry after dependency
    changes.
-6. Produce corpus reports proving every current metric has exactly one current supporting assertion
-   link or an explicit, bounded migration exception.
+7. Produce corpus reports proving every current metric has exactly one current supporting assertion
+   link and required stage outcome set. Temporary migration exceptions must be enumerated during
+   shadow/backfill, then converted, explicitly retired with provenance, or treated as a failed
+   cutover gate; they are not accepted steady-state losslessness.
 
 ### Phase 4 — Activate the generic fallback, then migrate additional families
 
@@ -687,8 +887,16 @@ fallback is mandatory.
 * Existing raw artifact rows are not rewritten or deleted.
 * Existing failed/deferred candidates remain available until converted to assertions/outcomes or
   recorded as explicit migration exceptions.
+* The full-corpus Phase 0 baseline across all 58 records passes before additive schema work begins.
 * The metric vertical slice runs in shadow mode and reports how many previously deferred metrics
   would become raw-preserved instances, without exposing shadow rows to production consumers.
+* Existing duplicate current metric support links are resolved auditably before
+  `uq_assertion_evidence_current_metric_support` is created; non-current duplicates remain retained
+  as history.
+* Active outcome, active finding, and active unresolved-occurrence partial unique indexes are
+  created before concurrent writers or retry workers are enabled.
+* `represented` and loss/restoration of evidence are deployed and compatibility-tested before any
+  lossless assertion is consumer-visible.
 * All required readers deploy and pass dual-read compatibility before
   `LOSSLESS_SEMANTIC_WRITES_METRIC` can be enabled.
 * Cutover compares artifact counts, exact current-link/stage-outcome cardinalities, finding counts,
@@ -705,11 +913,15 @@ fallback is mandatory.
 
 Required pre-cutover reports include:
 
+* full-corpus coverage, row/storage projections, write/retry throughput, and assertion counts before
+  and after canonical convergence;
 * raw artifacts with no semantic instance or explicit unresolved occurrence;
 * instances by value, class identity, and conformance state;
 * current proposed mappings and affected occurrence counts;
 * old processor failures that become semantic findings;
-* downstream no-verdict/skip reasons;
+* lifecycle counts including represented/accepted/unsupported and evidence restoration results;
+* duplicate/current-link constraint violations and active-row uniqueness violations;
+* downstream `no_verdict`/skip reasons and work truncated/checkpointed under bounded policies;
 * retry queue size by dependency type; and
 * Review Document result changes.
 
@@ -720,6 +932,10 @@ Required pre-cutover reports include:
 * Every identifiable metric occurrence has exactly one current supporting assertion link, one
   current class-resolution decision, and exactly one current outcome envelope for each required
   stage; each envelope has the complete zero-or-more set of independently typed findings.
+* The at-most-one portions of metric support-link, active outcome, active finding, and active
+  unresolved-occurrence cardinality are enforced by the named partial unique indexes. Required-row
+  existence is enforced by atomic attempt/fallback transactions, adapter conformance, and a
+  cutover-blocking completeness projection.
 * A normalized metric has one normalized representation, its immutable raw snapshot, evidence, and
   a `normalized` outcome-envelope disposition.
 * An unmapped/proposed range type has one raw-preserved assertion, no normalized bucket, evidence,
@@ -752,14 +968,25 @@ Required pre-cutover reports include:
   envelopes/finding sets.
 * Two workers racing on the same occurrence/dependency produce one active outcome and one current
   link; a crashed or expired worker can be safely resumed without duplicate active state.
+* Every losslessly ingested assertion begins as `represented`, never `accepted`; governance follows
+  the explicit `represented → candidate → in_review` path.
+* Loss of the final supporting evidence records the exact prior
+  `represented`/`candidate`/`in_review`/`deferred`/`accepted` status; evidence restoration creates a
+  new claim-preserving revision at that status and never advances governance.
 
 ### 7.3 Provenance and identity
 
 * Raw and normalized values remain independently queryable.
 * Evidence contains provenance and does not become the normalized value source.
 * Two different unparsed raw values do not converge merely because they share an error state.
+* A normalized assertion's raw snapshot does not prevent semantically equal occurrences from
+  converging. A claim in the `raw_fingerprint` identity branch uses the governed raw-value
+  fingerprint; a `raw_preserved` outcome with an authoritative parsed value remains in the
+  `normalized_value` branch.
 * Reprocessing preserves history and has at most one current supporting link per atomic metric.
-* Corrections create decisions/revisions rather than rewriting source facts.
+* Corrections never rewrite source facts. A byte-equal canonical claim may receive a non-identity
+  revision; an identity-bearing change resolves to another `claim_id`, relation, or redirect rather
+  than a revision of the former claim.
 * The assertion raw snapshot fingerprint equals the referenced source occurrence revision, while
   evidence remains provenance rather than the canonical raw or normalized value owner.
 
@@ -767,9 +994,14 @@ Required pre-cutover reports include:
 
 * Search can find a flagged instance by raw wording and normalized wording when available.
 * Observed class profiles include outliers without promoting them as valid contract rules.
-* Comparison records no-verdict/incomparability with a reason when required capabilities are absent.
+* Comparison records `no_verdict`/`incomparable_with` with a reason when required capabilities are
+  absent.
 * Review Document displays flagged instances, their raw values, states, errors, and evidence.
 * Consumers can include, warn about, or exclude findings through explicit policy.
+* Governance decisions and profile-rule evaluation requiring endorsed truth remain accepted-only;
+  observed-profile aggregation includes represented/malformed/outlier observations without
+  promoting them; search, semantic discovery, diagnostics, and Review Document expose represented
+  assertions with warnings.
 * After a genuine upstream execution failure, only the affected dependency branch stops and enters
   operational retry; after a semantic finding, capable downstream branches continue and incapable
   operations persist an explicit no-result reason.
@@ -783,6 +1015,8 @@ The OpenSpec changes must include:
 * parser success/failure and datatype mismatch;
 * resolved, provisional, ambiguous, and identity-conflict classes;
 * missing and unknown value payload constraints;
+* exact governed state identifiers and rejection of ungoverned hyphenated aliases in persisted/API
+  machine fields;
 * option-3 unresolved-occurrence creation, discovery, and transactional materialization;
 * rollback at every DR5 write boundary, proving no partial mapping count, class decision, assertion,
   current evidence link, outcome, validation, or invalidation survives; the previously committed raw
@@ -792,13 +1026,20 @@ The OpenSpec changes must include:
 * dependency-change retry, unchanged-dependency idempotency, concurrent duplicate delivery,
   lease expiry, crash/restart, stale jobs, and saga completion recovery;
 * raw-preserved canonical identity collision protection;
-* reprocessing and evidence supersession; and
+* all identity-value branches, including parsed-but-unmapped `raw_preserved` outcomes that still
+  converge by normalized semantic value without adding a competing metric payload field;
+* normalized convergence across different raw wording, plus distinct unparsed raw fingerprints;
+* represented/candidate/in_review/deferred/accepted evidence loss and restoration as
+  claim-preserving revisions without governance escalation;
+* reprocessing and evidence supersession;
 * Review Document visibility, search/comparison behavior, consumer filtering, and affected-branch
   behavior after semantic findings and genuine failures;
 * at least one non-metric adapter plus the generic unresolved-occurrence fallback passing the shared
-  conformance suite; and
+  conformance suite;
 * old-writer/new-reader dual operation, gated writer cutover, and rollback with already-committed
-  new-state rows.
+  new-state rows; and
+* full-corpus Phase 0 capacity validation, named partial-index concurrency tests, and proof that an
+  unidentified failed invocation cannot create an unresolved semantic occurrence.
 
 ## 8. Consequences
 
@@ -814,7 +1055,9 @@ The OpenSpec changes must include:
 
 ### 8.2 Costs and risks
 
-* More assertions and outcome rows are stored.
+* Full-corpus metric processing expands the semanticized workload from 71 current assertion links
+  to 7,074 occurrences—roughly 100×. Every occurrence requires evidence, class resolution, and
+  stage outcomes/findings even though canonical convergence may reduce distinct assertion count.
 * Consumers must understand multidimensional states instead of assuming every row is clean.
 * Poor default filters could overwhelm users with low-quality findings.
 * Raw-preserved canonical identity requires careful serialization to avoid false convergence.
@@ -842,15 +1085,25 @@ retry.
 
 ### ADR `2026081701`
 
-This ADR supplies its Phase-0 dependency. Raw-preserved and nonconforming metrics become ontology
-instances with provisional/resolved classes, explicit state, evidence, and consumer-controlled use.
+This ADR supplies ADR `2026081701`'s Phase-0 dependency and owns the cross-family lossless invariant,
+minimum raw-preserved assertion field/state contract, `represented` lifecycle, semantic
+outcomes/findings, generic unresolved-occurrence fallback, and dependency-driven retry behavior.
+
+ADR `2026081701` owns metric class/instance identity, class contracts, claim-registry and canonical
+payload rules, assertion/term redirects, relation derivation, bounded class-first Review Document
+retrieval, and the optional normalization-contract audit reference. Metric writer implementation is
+a coordinated change that must satisfy both ADRs. If the documents appear to disagree about
+cross-family assertion fields or lossless states, this ADR is normative; if they disagree about
+metric canonical identity, class semantics, redirects, or comparisons, ADR `2026081701` is
+normative. Implementation cannot proceed until the documents are reconciled rather than choosing
+one silently.
 
 ## 10. Open Questions for OpenSpec
 
 These are implementation details rather than unresolved architectural direction:
 
 1. The physical split between assertion columns, validation-result tables, and
-   `kb.semantic_processing_outcomes` details.
+   `kb.semantic_processing_outcomes` details, including storage of `unsupported_prior_status`.
 2. Retention and compaction rules for large raw fragments after source artifacts and immutable
    invocation records already preserve identical content.
 3. Default Review Document filters and warning presentation by outcome severity.
