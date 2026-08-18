@@ -8,8 +8,8 @@ author: Not specified
 owner: Not specified
 audience: SemOS users, metric reviewers, and system operators
 create-time: 2026-08-13T06:49:10-05:00
-last-modify-time: 2026-08-14T00:00:00-05:00
-keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline, projections, classifications, governed vocabulary, value_range_type
+last-modify-time: 2026-08-17T06:27:25-05:00
+keywords: metrics, metric assertions, semantic processing, normalize assertions, associate semantics, project semantics, ontology, governed terms, document pipeline, projections, classifications, governed vocabulary, value_range_type, application-ready metrics, assertion acceptance, metric quality
 ---
 
 # Metric Assertions and Semantic Processing
@@ -217,7 +217,7 @@ yet be accepted.
 
 | Status | What it means | How it is determined |
 |---|---|---|
-| `candidate` | The proposed claim is ready for semantic association. | `normalize_assertions` assigns this status when it creates a valid new candidate. |
+| `candidate` | The proposed claim is ready for semantic association. | `normalize_assertions` assigns this status when it creates a valid new candidate. This status means the record is ready for the next move (refer to the next section). |
 | `in_review` | Association processing has claimed the candidate and is evaluating it. In this path, this is temporary processing state, not a human-review queue. | `associate_semantics` changes an eligible `candidate` to `in_review` before resolving it. A later run may resume a candidate left in this state by an interrupted run. Refer to the next section for `associate_semantics`. |
 | `accepted` | The candidate has produced an accepted semantic assertion. | After validation succeeds, `associate_semantics` writes the assertion and its evidence, records the resulting assertion identifier on the candidate, and marks the candidate `accepted`. |
 | `deferred` | The candidate is retained, but the system cannot safely accept it yet. | `associate_semantics` assigns this status when required information or governed vocabulary is unavailable, for example an unresolved subject, an unparsed value with no supported assertion kind, or a required term that is not released. The reason is recorded with the candidate. |
@@ -252,11 +252,18 @@ If the value cannot be interpreted safely, the normalizer keeps the candidate wi
 
 #### What to expect
 
-After this stage, the metric has been made more comparable, but it is still a candidate. It may be deferred because the subject, assertion kind, or governed vocabulary is not yet sufficient.
+After this stage, the metric has been made more comparable, but it is still a candidate. You should expect all the
+records for the metrics with `status` = `candidate`, which means the metric passed this semantic step. 
+If it is `deferred`, it means errors, such as the subject, assertion kind, or governed vocabulary is not yet sufficient.
+If the same metric is re-extracted, its previous mapped record in this table will change its `status` to `superseded`, 
+equivalent to being deleted. Records of this type will be eventually hard deleted.
 
 #### Governed `value_range_type` mapping (added in v1.2)
 
-A metric's `value_range_type` (for example `min`, `at least`, `不低于`) must map to one of a small set of canonical buckets (`lower_bound`, `upper_bound`, `exact`, `range`, `qualitative`, `limit_absent`) before it can be classified. This mapping is no longer a fixed list built into the code. It lives in a governed, operator-visible table, `kb.metric_value_range_type_map`, with one row per raw string seen in production:
+A metric's `value_range_type` (for example `min`, `at least`, `不低于`) must map to one of a small set of canonical buckets 
+(`lower_bound`, `upper_bound`, `exact`, `range`, `qualitative`, `limit_absent`) before it can be classified. This mapping 
+is no longer a fixed list built into the code. It lives in a governed, operator-visible table, `kb.metric_value_range_type_map`, 
+with one row per raw string seen in production:
 
 | `status` | Meaning |
 |---|---|
@@ -270,7 +277,8 @@ An operator resolves a `proposed` row by setting its `status` to `approved` (con
 
 ### 5.2 `associate_semantics`: validate and accept candidate claims
 
-`associate_semantics` is the second semantic stage. It processes candidates produced by the first stage and decides whether each one can become an accepted assertion.
+`associate_semantics` is the second semantic stage. It processes candidates produced by the first stage and 
+decides whether each one can become an accepted assertion.
 
 For metric candidates, it:
 
@@ -282,6 +290,10 @@ For metric candidates, it:
 - writes accepted assertions to `kb.semantic_assertions`;
 - records evidence in `kb.assertion_evidence`; and
 - records status changes and deferrals; the assertion model also supports conflict or supersession relations when those relations are established.
+
+#### Outputs
+- writes accepted assertions to `kb.semantic_assertions`;
+- records evidence in `kb.assertion_evidence`; and
 
 #### What is the assertion-kind term?
 
@@ -299,7 +311,9 @@ the association stage looks for the governed ontology term:
 mea:lower_bound_requirement
 ```
 
-That term is stored in `kb.ontology_terms`. In the current metric association path, the term must be an available released term (`status = 'included_in_release'`) before the metric assertion can be accepted. The candidate itself remains in `kb.semantic_decision_candidates`; it carries the proposed assertion kind but is not the assertion-kind term.
+That term is stored in `kb.ontology_terms`. In the current metric association path, the term must be an available 
+released term (`status = 'included_in_release'`) before the metric assertion can be accepted. The candidate itself 
+remains in `kb.semantic_decision_candidates`; it carries the proposed assertion kind but is not the assertion-kind term.
 
 The two records have different jobs:
 
@@ -394,7 +408,7 @@ Projection results may be delayed or marked stale even when the underlying asser
 
 The relationship has two layers.
 
-### Layer 1: metric identity
+### 6.1 Layer 1: metric identity
 
 The metric extraction path resolves the name:
 
@@ -406,7 +420,7 @@ The metric extraction path resolves the name:
 
 This makes differently worded occurrences recognizable as the same metric identity when the available evidence supports that conclusion.
 
-### Layer 2: metric occurrence and value
+### 6.2 Layer 2: metric occurrence and value
 
 Semantic processing interprets the individual occurrence:
 
@@ -427,6 +441,262 @@ The two layers are complementary:
 | Groups names and aliases | Structures values, bounds, units, and conditions |
 | Connects a concept to a governed `metric_definition` | Creates an assertion about an object or subject |
 | Operates on metric identity | Operates on metric evidence and values |
+
+### 6.3 The tables are different roles, not additional ontology layers
+
+The five tables named in this section do not all store ontology terms. They
+store different kinds of information around a metric assertion:
+
+| Table | Role in the metric flow | What it is not |
+|---|---|---|
+| `kb.semantic_decision_candidates` | A proposed interpretation of an extracted metric. `normalize_assertions` writes the candidate; `associate_semantics` validates it, accepts it, defers it, or rejects it. For each metric, there should be one or more records in this table. But only one is active. All others should be 'superseded' and should be eventually removed automatically. | It is not an accepted fact and it is not an ontology term. Its proposed payload may contain names such as `lower_bound_requirement`, but that text is only a proposal until it is checked against governed terms. |
+| `kb.ontology_terms` | The governed vocabulary used to validate and describe the claim. Depending on the module and term kind, this can contain a metric definition, predicate, assertion-kind term, quantity-kind term, or unit term. Version and release status determine whether a term is available for association. | It is not the metric occurrence, its numeric value, or the document evidence. A term describes a controlled concept; it does not say that a particular document made a particular claim. |
+| `kb.semantic_assertions` | The authoritative accepted claim about a particular subject or object. It stores the normalized assertion shape, such as predicate, assertion kind, value form, bounds, comparator, and resolved term references where available. | It is not a candidate and it is not a rebuildable search or display view. Accepted assertions are the source of truth for semantic claims. |
+| `kb.assertion_evidence` | The provenance that supports or contradicts an assertion. It connects the assertion to the source metric artifact, document record, source lines or chunk, and producing run. | It is not a second assertion and it does not turn an unresolved candidate into an accepted one. It answers “where did this claim come from?” |
+| `kb.projection_state` | Processing state for a derived projection built from accepted assertions. It records which authoritative assertion and revision support the projection and whether the projection is stale or needs repair. | It is not an ontology term, evidence, or an alternative source of truth. A stale projection does not make the accepted assertion stale. |
+
+The relationship can be summarized as:
+
+```text
+extracted metric in kb.metrics
+    │
+    ├─ metric identity: keyword concept → metric_definition term
+    │
+    └─ normalize_assertions
+          ↓
+    kb.semantic_decision_candidates
+          │  proposed value, subject, assertion kind, and source information
+          │
+          ├─ validated against available terms in kb.ontology_terms
+          ├─ evidence retained for the source artifact
+          ↓
+    kb.semantic_assertions  ← authoritative accepted claim
+          ├─ kb.assertion_evidence  ← provenance for the claim
+          └─ project_semantics
+                 ↓
+             derived view + kb.projection_state
+```
+
+### 6.4 Which ontology terms participate in an assertion?
+
+For a metric occurrence, ontology terms can participate in several different
+ways. They should not be read as five separate identities for the metric:
+
+| Ontology role | Example | How it is used |
+|---|---|---|
+| Metric definition | `measurement:luminance` | Gives the metric property a governed identity. The current accepted assertion path does not store this `metric_definition_term_id` as a direct assertion field; the connection remains through the source metric and its evidence. |
+| Predicate | `mea:measured_by` | Describes the relationship expressed by the assertion. |
+| Assertion kind | `mea:lower_bound_requirement` | Describes what kind of claim the occurrence makes: for example, a lower bound, upper bound, range, observation, target, reference, or capability. |
+| Quantity kind | A governed luminance quantity-kind term | Enriches the meaning of the measured quantity when it can be resolved. |
+| Unit | A governed `cd/m²` unit term | Identifies the unit in controlled vocabulary when it can be resolved. |
+
+The candidate may contain a raw or normalized label for one of these roles,
+but the accepted assertion uses governed term references only where the
+association checks have resolved them. A missing or unreleased required term
+can defer the candidate. A unit that cannot be resolved is best-effort
+enrichment in the current metric path and does not necessarily prevent
+acceptance.
+
+### 6.5 Worked table trace
+
+For this sentence:
+
+```text
+The display module shall provide a luminance of not less than 250 cd/m².
+```
+
+the records have these meanings:
+
+1. `kb.metrics` preserves the extracted occurrence: `luminance`, the display
+   module subject, `250`, `cd/m²`, the lower-bound wording, and the source span.
+2. `kb.semantic_decision_candidates` proposes the interpretation
+   `lower_bound_requirement`, with comparator `>=` and value `250`.
+3. `kb.ontology_terms` supplies the governed terms used to validate the
+   predicate and assertion kind, and may supply quantity-kind and unit terms.
+4. `kb.semantic_assertions` stores the accepted claim if the subject and
+   required governed terms pass validation.
+5. `kb.assertion_evidence` connects that accepted claim back to the metric row
+   and the document location.
+6. `project_semantics` may create or refresh a registered derived view, while
+   `kb.projection_state` records which assertion revision produced it and
+   whether the view is current.
+
+This is why “the attributes of extracted metrics are normalized” is only part
+of the result. Normalization creates a candidate shape; association decides
+whether the candidate can become an authoritative claim; evidence makes the
+claim traceable; and projection makes selected consequences convenient to
+query. The ontology terms govern the vocabulary used during that process, but
+they do not replace any of those processing records.
+
+### 6.6 When is a metric good enough for an application to use?
+
+For this manual, a metric is **good** in the ontology sense when the system
+has turned its extracted occurrence into a current, authoritative, traceable
+semantic claim that an application may use as fact. This is stricter than
+“a metric was extracted” and stricter than “a candidate was created.”
+
+The current application-ready baseline is:
+
+1. The source metric exists in `kb.metrics`.
+2. Its current decision candidate is `accepted`, rather than `candidate`,
+   `in_review`, `deferred`, `rejected`, or `superseded`.
+3. That candidate points to a `kb.semantic_assertions` row whose status is
+   `accepted`.
+4. At least one `kb.assertion_evidence` row traces the assertion back to its
+   metric artifact and document location.
+5. The association stage has verified the required governed predicate and
+   assertion-kind terms as `included_in_release`. It has also verified that
+   the metric is attached to a subject object.
+
+An application such as Document Review should treat the accepted assertion
+and its evidence as the authoritative semantic result. It should not use a
+raw `kb.metrics` row, or a candidate merely marked `candidate`, as though it
+were already a governed fact.
+
+The current model has one additional limitation for applications that group
+or compare results by governed metric definition. The metric-definition term
+is stored on the source metric and carried as qualifier information; it is
+not yet a direct reference column on the accepted assertion. Such an
+application must follow the assertion's evidence back to the source metric
+to obtain `metric_definition_term_id`. Until a deployment adds a direct link,
+“accepted assertion” and “directly queryable by metric-definition term” are
+related but different levels of readiness.
+
+#### 6.7 Outcomes that are not application-ready
+
+| Candidate status | Meaning for an application | Is the metric good? |
+|---|---|---|
+| `candidate` | Normalization produced a proposed assertion, but association has not completed. | No, not yet. |
+| `in_review` | Association is processing the proposal, or recovering after interruption. It is not a human approval state in this path. | No, not yet. |
+| `deferred` | The source occurrence is preserved, but a required dependency is missing or unresolved, such as a subject object, supported assertion kind, or released governed term. | No, not yet; it may become good after the dependency is resolved. |
+| `rejected` | The stored proposed payload is structurally unusable. | No. A corrected interpretation requires a new candidate revision. |
+| `superseded` | A newer candidate revision replaced this one. | No for this old revision; it is historical rather than an error by itself. |
+| `accepted` | Association created an accepted assertion and evidence. | Yes, at the current semantic-assertion level. |
+
+This distinction is intentional. A deferred metric is not silently discarded
+or labelled as an extraction error; it is known incomplete semantic work. A
+rejected metric is an unusable proposed interpretation. Both must be excluded
+from application decisions that require authoritative ontology-backed facts.
+
+#### 6.8 Term status and processor responsibility
+
+`kb.ontology_terms.status` is a governed-vocabulary lifecycle, not the
+quality status of an individual metric occurrence. There is no one universal
+meaning of “usable”; the required status depends on how a term is being used:
+
+| Concern | Current rule |
+|---|---|
+| Keyword-concept alignment to a metric definition | The alignment path accepts an `included_in_release` or `auto-promoted` metric-definition term. Auto-promotion can occur during metric-name resolution, before Phase D. |
+| Required predicate and assertion-kind terms during association | `associate_semantics` requires `included_in_release`, for example for `mea:measured_by` and `mea:lower_bound_requirement`. Otherwise it defers the candidate. |
+| Unit and quantity-kind enrichment | The current path resolves these from `included_in_release` terms when possible, but unresolved units are best-effort enrichment and do not necessarily prevent acceptance. |
+| `normalize_assertions` | Reads metric information and writes decision candidates. It does not change any ontology-term status. |
+| `associate_semantics` | Reads governed terms to validate candidates, writes assertions and evidence, and changes candidate/assertion statuses. It does not change any ontology-term status. |
+| `project_semantics` | Reads accepted assertions and their evidence to build derived views. It does not change any ontology-term status. |
+
+Governed-term authoring, promotion, and release processes are responsible for
+changing ontology-term status. They are separate from the three Phase D
+semantic processors.
+
+#### 6.9 What `project_semantics` currently does for metrics
+
+`project_semantics` runs after `associate_semantics` for the same input
+record. It reads accepted assertions that have evidence from that record and
+then invokes each registered projection type.
+
+The only registered projection today is the primary object-class projection:
+accepted `core:instance_of` assertions can update
+`kb.object_nodes.primary_class_term_id`, with `kb.projection_state` recording
+the authoritative assertion and freshness. A normal metric assertion uses
+`mea:measured_by`, not `core:instance_of`, so it normally creates no current
+projection output. Future metric-specific projections, such as search payloads
+or artifact-semantic links, may be registered later without changing the
+accepted assertion itself.
+
+#### 6.10 Relations
+There are three tables:
+- `kb.semantic_decision_candidates`
+- `kb.semantic_assertions`
+- `kb.assertion_evidence`
+
+They form a pipeline:
+```text
+source artifact
+   ↓
+kb.semantic_decision_candidates
+   ↓ accepted/adjudicated
+kb.semantic_assertions
+   ↓ supported or contradicted by
+kb.assertion_evidence
+```
+
+`kb.semantic_decision_candidates` stores proposals: “this artifact may express this semantic assertion.” 
+It supports deduplication, revisioning, resolution, deferral, and review.
+
+`kb.semantic_assertions` stores the authoritative, normalized claim after a candidate is accepted. 
+A candidate can link to its produced assertion through the nullable `resulting_assertion_id` foreign key.
+
+`kb.assertion_evidence` stores provenance for an assertion: source artifact, quote/spans, extraction 
+metadata, and whether the evidence supports or contradicts it. It links directly to `semantic_assertions.assertion_id`.
+
+They are related through the following foreign keys:
+| Source | Target | Foreign Key |
+|--------|--------|-------------|
+|`kb.semantic_decision_candidates` | `kb.semantic_assertions` | `kb.semantic_decision_candidates.resulting_assertion_id` |
+| `kb.assertion_evidence` | `kb.semantic_assertions` | `kb.assertion_evidence.assertion_id` |
+
+**Important distinctions**:
+
+- Candidates are proposals; assertions are governed semantic records.
+- Evidence does not point to candidates. It points only to assertions.
+- A candidate does not necessarily produce an assertion—only successfully adjudicated assertion candidates do.
+- One assertion can have multiple evidence rows, and conflicting assertions remain separate with independent evidence.
+- Removing the last active supporting evidence can move an assertion from accepted to unsupported; restoring evidence can reactivate it.
+
+Multiple metrics (occurrence) can point to the same kb.semantic_assertions, right? For instance, if two metrics A and B names map to the same kb.keyword_concepts, which will lead to the same kb.ontology_terms. When normalize_semantics run against A first, it may create the keyword concept, then the term. When it runs against B, it resolves to the same kb.keyword_concepts and kb.ontology_terms. Each run will generate its own kb.semantic_decision_candidates. When running associate_semantics, these two candidates will generate (map) to the same assertion but two difference kb.assertion_evidence. These evidences will point to the same assertion. Is this correct?
+What happens if two evidence of the same assertion occurrs? Does it mean it will create two assertions instead of resolving to the same one?
+
+#### 6.11 Relations of Semantically Same Metrics
+Identify semantically the same artifacts and merge them to the same ontology term is one of the
+most design goals of the ontology system. 
+
+Assume we have two metrics: A and B, They are semantically the same. For instance, they are both for 
+device display luminance. They are semantically the same.
+
+Below is what happens in the current implementation:
+1. Create assertion. If the same logical identity is processed again, the old assertion becomes `superseded`, a new revision row is created, and the new evidence points to the new revision.
+2. Insert evidence pointing to that assertion
+3. Transition assertion to accepted
+4. Link candidate.resulting_assertion_id
+
+In `associate_semantics`, `persistAssertion(...)` runs before `evStore.AddEvidence(...)`.
+
+This is logical because `assertion_evidence.assertion_id` has a foreign key to an existing `semantic_assertions.id`;
+evidence cannot be inserted first.
+
+Metrics A and B use different candidate logical identities:
+`metric:<record-id>:<metric-id>`
+Those identities are copied directly to the assertions. Therefore A and B will create separate assertion rows,
+followed by separate evidence rows:
+
+```text
+candidate A → assertion A → evidence A
+candidate B → assertion B → evidence B
+```
+
+The system currently does not deduplicate assertions by “same keyword concept” or “same ontology term.” 
+It only reuses the same assertion identity when the candidates share the same logical_identity_key. 
+Thus semantic equivalence at the concept/term level does not currently cause assertion convergence.
+
+If the intended model is:
+```text
+same canonical claim
+├── evidence from metric A
+└── evidence from metric B
+```
+
+then assertion identity must be computed from the canonical claim—not from the source metric occurrence. 
+That would require a separate claim-key/deduplication design in associate_semantics, before creating the 
+assertion. Evidence should still be inserted afterward.
 
 ## 7. Important current limitation
 
@@ -542,6 +812,8 @@ The ADR and capsule remain authoritative for implementation status, routing rule
 
 | Version | Timestamp | Author / responsible party | Reason | Summary |
 |---|---|---|---|---|
+| 1.2 | 2026-08-17T06:27:25-05:00 | Not specified | Clarification | Defined application-ready “good” metrics as accepted, traceable semantic assertions; distinguished deferred, rejected, superseded, and pending candidates; documented term-status gates, Phase D write boundaries, and the current metric projection limitation. |
+| 1.2 | 2026-08-17T05:49:19-05:00 | Not specified | Clarification | Extended Section 6 to explain the distinct roles of `kb.semantic_decision_candidates`, `kb.ontology_terms`, `kb.semantic_assertions`, `kb.assertion_evidence`, and `kb.projection_state`, including their relationships and a worked table trace. |
 | 1.2 | 2026-08-14T00:00:00-05:00 | Not specified | New capability | Documented the governed, DB-backed `value_range_type` mapping table (`kb.metric_value_range_type_map`) that replaced the hardcoded synonym list, `extract_metrics`'s extraction-time mapping check and `kb.metrics.value_range_type_error` flag, `associate_semantics`'s backstop check, and the resulting failed-status/retry operator workflow. |
 | 1.1 | 2026-08-13T16:35:53-05:00 | Not specified | Clarification | Added the semantic decision-candidate status lifecycle, including how each status is assigned and retry eligibility. |
 | 1.1 | 2026-08-13T06:49:10-05:00 | Not specified | Clarification and completion | Defined metric, doc processor, artifacts, and consistent assertion shape; explained assertion-kind terms, convenience classifications, derived edges, projection outputs, and the current implementation boundary. |

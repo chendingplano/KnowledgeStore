@@ -429,3 +429,13 @@ This also explains why something such as ECC can feel conceptually related to Cl
 \[2\]: https://code.claude.com/docs/en/plugins?utm_source=chatgpt.com "Create plugins - Claude Code Docs" \
 \[3\]: https://code.claude.com/docs/en/plugins-reference?utm_source=chatgpt.com "Plugins reference - Claude Code Docs" \
 \[4\]: https://code.claude.com/docs/en/discover-plugins?utm_source=chatgpt.com "Discover and install prebuilt plugins through marketplaces - Claude Code Docs"
+
+## Pi Commands
+| Command | Explanations |
+|---------|--------------|
+| /login | Login |
+| /logout | Logout |
+| /quit | Quit pi |
+| Shift + Tab | Pick thinking level |
+| Control + L (Shift) | Pick model |
+| Ctrl + G | Open a full multiline editor (vim) |

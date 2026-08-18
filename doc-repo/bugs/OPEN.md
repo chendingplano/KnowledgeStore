@@ -13,6 +13,20 @@ reaches a terminal state.
 
 ## Open
 
+- [2026081802 — review of ADR 2026081701 (ontology object classes, metric instances, relations)](202608/2026081802-bug-adr-2026081701-canonical-metric-classes-review.md)
+  — `open`, review only; 11 findings numbered Issues 16–26 continuing the ADR's own 01–15
+  sequence. Architecture and the §2.1 production survey verified correct (182/55/45/7 exact).
+  Blocking-ish: three pre-existing columns whose meaning the new model changes without naming
+  them — `semantic_assertions.logical_identity_key` vs the new claim registry (I16), revision
+  semantics under find-or-create (I17), and the `status` state machine, which has no legal value
+  for "persisted but unendorsed" (I21). Also: the one-current-evidence-link invariant is asserted
+  in three places across two ADRs but has no constraint and is already violated in `miner` (I18);
+  `kb.ontology_term_redirects` is depended on by four decisions and created by none (I19);
+  autonomous exact merges collide with `ontology_mappings.approval_status` + spec §9.1 (I20);
+  and DR8 disagrees with ADR 2026081801 DR6 on the assertion's state field set (I22). Largest
+  finding is I24 — the semantic path has run on 1 of 58 input records, so the ~100× assertion
+  growth, provisional-class-as-norm, and per-class fan-out consequences are undrawn.
+
 - [2026081602 — ChenWeb admin pages surface a raw 401 error instead of redirecting to /login](202608/2026081602-bug-chenweb-401-no-redirect-to-login.md)
   — `open`, root-caused, fix scoped, not yet implemented. Two gaps: `checkAuthStatus()` in
   `shared/svelte/stores/auth.svelte.ts` never redirects on a failed `/auth/me` check, and 11
