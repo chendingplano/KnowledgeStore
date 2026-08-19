@@ -211,14 +211,12 @@ zkzv/7334  feat(doc-proc-logs): add warning entry_type for benign semantic diagn
 
 KnowledgeStore (`jj log -n 5` from the tip, after this handoff's own update commit):
 ```
-(new)      (empty, current working-copy commit)
-(new)      docs: update handoff 2026081905 with the task 7.1 continuation
+kmum/5a68  (empty, current working-copy commit)
+youl/3dd5  docs: update handoff 2026081905 with the task 7.1 continuation
 vvzs/2861  docs: add session handoff 2026081905 -- tests fixed, ADR reconciled, kb.metrics/5.8 investigated
 nvrx/08bb  docs(adr-2026081801): document Phase 3 gate-default cutover; keep Status: Proposed
 tzmn/6775  daily update - 2026/08/19                          [pre-existing, unchanged]
 ```
-(exact change/commit ids for the two `(new)` rows: see `jj log` directly -- not filled in above since
-they weren't known until after this edit was written)
 
 `pxyw/ccb4`, `urrr/d234`, and `vros/1052` were each built, tested (`go build ./...`, targeted
 `go test`, and — for `vros/1052` — both the new sqlmock unit tests and a new integration test against
