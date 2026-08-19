@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: ChenWeb users, ontology curators, reviewers, and system operators
 create-time: 2026-08-19T08:54:59-05:00
-last-modify-time: 2026-08-19T10:44:06-05:00
+last-modify-time: 2026-08-19T10:47:08-05:00
 keywords: ontology labels, ontology_labels, ontology_term_labels, governed vocabulary, preferred label, alternate label, hidden label, language tag, undetermined language, Chinese labels, SKOS
 ---
 
@@ -76,9 +76,11 @@ Labels use the governed-content lifecycle below. A label’s status is separate 
 | `in_review` | Awaiting or undergoing review. |
 | `approved` | Accepted as governed content and eligible for the module-release process. |
 | `included_in_release` | Included in a module release. |
-| `auto-promoted` | Created through the system’s auto-promotion path; review and release requirements still depend on the applicable workflow. |
+| `auto-promoted` | Created through the system’s auto-promotion path; immediately usable at runtime while retaining its auto-promotion provenance. |
 | `superseded` | Replaced by a later label; retain it for history rather than presenting it as current. |
 | `rejected` | Not accepted for governed use. |
+
+An `auto-promoted` ontology term and its labels are immediately usable by governed exact-label resolution and preferred-name display, on the same runtime footing as approved or released content. Its `auto-promoted` status records how it entered the governed vocabulary; it may still be reviewed and included in a later release.
 
 When a module release includes a label, the release linkage preserves which release carried it. Do not treat a `draft`, `in_review`, `rejected`, or `superseded` label as the normal public name for a term.
 
@@ -165,6 +167,14 @@ All four rows refer to the same `term_id`; they do not create four distinct onto
 - Do not confuse language-tag assignment with the orphaned-label issue. The deterministic tag policy is fixed; an orphaned label still lacks its matching term and accepted alignment and must be repaired before retrying the affected batch.
 
 ## Change Log
+
+### 1.0 — 2026-08-19T10:47:08-05:00
+
+Author: Not specified
+
+Reason: Clarify the runtime usability of auto-promoted terms and labels.
+
+Summary: Stated that auto-promoted terms and labels participate immediately in governed exact-label resolution and preferred-name display, while the status preserves provenance and supports later review and release.
 
 ### 1.0 — 2026-08-19T10:44:06-05:00
 
