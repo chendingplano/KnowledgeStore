@@ -41,6 +41,24 @@ The 2026/08/18 revision reconciles this ADR with the revised ADR `2026081701`. I
 * makes unresolved occurrences require an identified artifact; and
 * defines consumer behavior for represented versus accepted assertions.
 
+### 1.2 Phase 3 cutover status (2026-08-19)
+
+Every openspec task in Phase 3 (`tasks.md` §6, items 6.1–6.12) is complete, and — as of commit
+`b86a` on 2026-08-19 — the `LOSSLESS_SEMANTIC_WRITES_METRIC` gate now **defaults ON** in
+`server/api/ontology/semantic/gates.go`, not merely "enabled locally" as earlier handoffs described.
+This is a fact true in every environment, including production, from that commit forward; the
+`LOSSLESS_SEMANTIC_FALLBACK_WRITES` gate (Phase 4) remains OFF by default. §5's Phase 3 item 5
+("stop returning processor errors solely for semantic mapping/normalization findings") is now the
+default runtime behavior, not a conditional one.
+
+This is **Phase 3 cutover**, not full production cutover. §10's open questions are unresolved,
+Phase 4 (generic fallback and additional families) and Phase 8 (pre-cutover reports and
+documentation) have not started, and `kb.metrics`' current completeness (per Appendix B's live-run
+standard) covers only one pilot document, not the historical corpus. This ADR's **Status remains
+Proposed** until that broader work closes — task 8.4 tracks flipping it once it does. The legacy
+writer remains available as a rollback lever behind an explicit `LOSSLESS_SEMANTIC_WRITES_METRIC=false`
+(ADR §6).
+
 ## 2. Context
 
 ### 2.1 Current processing can lose the most informative artifacts
