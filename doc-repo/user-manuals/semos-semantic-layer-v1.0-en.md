@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: SemOS users, reviewers, ontology curators, and operators
 create-time: 2026-08-19T00:00:00-05:00
-last-modify-time: 2026-08-19T08:31:41-05:00
+last-modify-time: 2026-08-19T08:52:32-05:00
 keywords:
   supplied: SemOS Semantic Layer, kb.ontology_terms, kb.semantic_assertions, kb.assertion_evidence
   generated: ontology, ontology object class, ontology object instance, metric, provenance, semantic assertion, evidence, represented status
@@ -44,13 +44,21 @@ An assertion is associated with a class. Evidence connects the assertion back to
 
 In the semantic-layer model, a term can identify an ontology object class: a reusable category that tells users what sort of object an assertion concerns. For example, **Display Luminance** is a class; individual statements of a display’s luminance are instances of that class.
 
-### 1.3.2 Important current limitation
+### 1.3.2 Class Construct
+
+A **Class Construct** is the complete, versioned semantic definition used with an ontology class. The class term provides the stable identity and name—for example, *Display Luminance*. Its Class Construct, also called a **class contract**, states what that class means and how SemOS may use it.
+
+For a metric, a Class Construct can define the expected logical value type, permitted units and dimensions, required or optional details, normalization rules, constraints, and whether instances can be validated or compared. For *Display Luminance*, it could define a numeric luminance quantity, permit `cd/m²`, and specify how values are compared.
+
+Class identity and Class Construct readiness are separate. A class may be known well enough to receive source-backed instances while its Class Construct is still incomplete. In that case, SemOS preserves the assertion but does not claim validation or comparison capabilities that the construct does not support.
+
+### 1.3.3 Important current limitation
 
 The current term table alone is intentionally treated as too simple to be a complete class definition. A label-only term does not yet specify all of the meaning needed to validate or compare instances—for example, its expected value type, permitted units, range, or applicable rules.
 
 SemOS is evolving toward richer, versioned class contracts alongside stable term identities. Until that work is complete, users should treat a term as the authoritative identity and vocabulary anchor, not assume that every term already carries a complete definition or validation contract.
 
-### 1.3.3 Semantic assertions: `kb.semantic_assertions`
+### 1.3.4 Semantic assertions: `kb.semantic_assertions`
 
 `kb.semantic_assertions` stores ontology object instances: source-backed claims represented in a form that semantic tools can use. An assertion can contain a normalized value when SemOS can interpret the source reliably, or a raw-preserved representation when it cannot.
 
@@ -64,13 +72,13 @@ For a metric class, the distinction looks like this:
 
 Creating an assertion means only that SemOS has preserved a source-backed claim. It does **not** mean the claim is true, accepted, compliant, or suitable for every comparison.
 
-### 1.3.4 Assertion evidence: `kb.assertion_evidence`
+### 1.3.5 Assertion evidence: `kb.assertion_evidence`
 
 `kb.assertion_evidence` provides provenance. It records which source artifacts support, qualify, or contradict an assertion, and lets a reviewer trace a semantic result back to the document context.
 
 Evidence is not a replacement copy of normalized data. The raw artifact remains the primary record of what was extracted; the evidence record explains the assertion’s relationship to that source.
 
-### 1.3.5 Artifacts
+### 1.3.6 Artifacts
 
 An **artifact** is the structured record that document processing extracts from a source. It is
 the primary record of the source occurrence: what was found, its original wording or values, and
@@ -90,6 +98,26 @@ what the original source expressed. When an artifact cannot yet be turned into a
 intended model keeps a durable unresolved semantic occurrence so it remains discoverable and can be
 materialized later.
 
+### 1.3.7 How the ontology subsystem processes a metric artifact
+
+The ontology subsystem starts with the metric artifact; it does not replace it. For example, a product document might contain **“Typical luminance: 500 cd/m².”** Document processing stores this source occurrence in `kb.metrics`, including its original value, wording, and location in the document.
+
+It then processes the artifact as follows:
+
+1. **Identify the meaning.** SemOS attempts to map the metric to an ontology class, such as *Display Luminance*.
+2. **Interpret the value.** When the class contract and unit mapping are available, SemOS interprets `500 cd/m²` as a normalized metric value. When they are not available, it retains the source representation instead.
+3. **Create the semantic assertion.** SemOS records the source-backed claim as an instance of the mapped class in `kb.semantic_assertions`. The initial lifecycle status is `represented`: the source made this claim, but SemOS has not declared it true or accepted.
+4. **Link the evidence.** SemOS creates an `kb.assertion_evidence` record that links the assertion to the original metric artifact, so a reviewer can return to the exact source context.
+5. **Record any findings.** If the unit is unknown, the value cannot be parsed, or the class is ambiguous, SemOS stores the processing result in `kb.semantic_processing_outcomes` and each individual error or warning in `kb.semantic_processing_findings`. Multiple findings can be linked to the same outcome, so all identified issues—not only the most severe one—remain available to reviewers and user interfaces.
+
+| Processing outcome | What SemOS keeps | Example |
+|---|---|---|
+| Fully interpreted | Metric artifact, normalized assertion, and evidence link | *Display Luminance* — 500 cd/m² |
+| Partly interpreted | Metric artifact, raw-preserved assertion, evidence link, and finding | “Luminance: high” with no supported numeric value |
+| Not yet classifiable | Metric artifact and an unresolved semantic occurrence with findings | “Brightness: 500” when the unit or intended metric is unclear |
+
+In every outcome, the artifact remains the record of what the document said. Normalization, later review, or improved ontology mappings can add a more useful interpretation, but they do not rewrite the source occurrence.
+
 ## 1.4 What happens when SemOS cannot fully interpret a claim
 
 SemOS separates a processing problem from a problem in the source content.
@@ -106,6 +134,20 @@ Losslessly ingested assertions begin with lifecycle status `represented`. This m
 > The source expressed this claim, and SemOS preserved it.
 
 It does not mean that SemOS has accepted the claim as correct. A represented assertion may later become a candidate, enter review, be accepted, be deferred, or be rejected according to governance rules. Interfaces that show represented assertions should also show their warnings or findings; they must not silently treat them as accepted facts or hide them.
+
+### 1.4.2 How to determine when an artifact is fully interpreted
+
+An artifact is **fully interpreted for a particular use** when its current processing outcome is normalized and the information required for that use is available. For a metric, review the artifact, its linked assertion, evidence, current outcome, and any current findings together.
+
+For example, a metric is fully interpreted for normalized display and comparison when all of the following are true:
+
+1. The metric artifact and its source context are preserved.
+2. The assertion is linked to a resolved class with a Class Construct that supports the intended capability.
+3. The metric value and unit have been normalized into the form required by that construct.
+4. Evidence links the assertion back to the artifact.
+5. The current outcome is `normalized`, and there are no active findings that make the intended use unavailable, such as an unresolved mapping, unparsed value, ambiguous class, or contract violation.
+
+The check is capability-specific. A metric can be fully interpreted for discovery or display but not for comparison if its Class Construct does not support comparison. Conversely, `represented` is a lifecycle status, not an interpretation result: even a fully interpreted assertion is not automatically accepted as true, compliant, or approved.
 
 ## 1.5 How to read a semantic result
 
@@ -144,5 +186,7 @@ In particular, do not assume that every existing `kb.ontology_terms` entry has a
 
 ## 1.9 Change Log
 
-- **1.0 — 2026-08-19T08:31:41-05:00 — Not specified.** Filled §1.3.5, *Artifacts*, to distinguish raw source artifacts from semantic assertions and assertion evidence, and to explain preservation and later materialization.
+- **1.0 — 2026-08-19T08:52:32-05:00 — Not specified.** Added §1.3.2, *Class Construct*; clarified the outcome and finding tables in §1.3.7; and added §1.4.2, *How to determine when an artifact is fully interpreted*.
+- **1.0 — 2026-08-19T08:48:00-05:00 — Not specified.** Added §1.3.7, *How the ontology subsystem processes a metric artifact*, with a metric example, processing lifecycle, outcomes, provenance, and findings.
+- **1.0 — 2026-08-19T08:31:41-05:00 — Not specified.** Filled §1.3.6, *Artifacts*, to distinguish raw source artifacts from semantic assertions and assertion evidence, and to explain preservation and later materialization.
 - **1.0 — 2026-08-19T00:00:00-05:00 — Not specified.** Created an English Markdown user manual for the SemOS Semantic Layer, covering ontology terms, semantic assertions, evidence, lossless processing, status interpretation, current limitations, and related ADRs.
