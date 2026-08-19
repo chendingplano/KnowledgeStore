@@ -8,8 +8,8 @@ author: Not specified
 owner: Not specified
 audience: ChenWeb users, ontology curators, reviewers, and system operators
 create-time: 2026-08-19T08:54:59-05:00
-last-modify-time: 2026-08-19T08:54:59-05:00
-keywords: ontology labels, ontology_labels, ontology_term_labels, governed vocabulary, preferred label, alternate label, hidden label, language tag, SKOS
+last-modify-time: 2026-08-19T10:18:20-05:00
+keywords: ontology labels, ontology_labels, ontology_term_labels, governed vocabulary, preferred label, alternate label, hidden label, language tag, undetermined language, Chinese labels, SKOS
 ---
 
 # Ontology Labels Guide
@@ -59,7 +59,7 @@ The rule is language-specific. A term may have one preferred English label and o
 | `term_id` | The governed term to which the label belongs. This is the stable identity; it is not the label text. |
 | `version` | The revision number for the label record. Label history is kept rather than silently overwritten. |
 | `label` | The human-readable text. It cannot be empty. |
-| `lang` | The language tag for the label. When creating through the supported API, an omitted language defaults to `en`. |
+| `lang` | The language tag for the label. When creating through the supported API, an omitted language defaults to `en`. For auto-promoted metric terms, see the important `und` limitation below. |
 | `label_role` | Whether the label is preferred, alternate, or hidden. |
 | `status` | The label’s governance lifecycle state. |
 | `source_candidate_id` | When present, identifies the ontology candidate from which the label was materialized. |
@@ -82,7 +82,27 @@ Labels use the governed-content lifecycle below. A label’s status is separate 
 
 When a module release includes a label, the release linkage preserves which release carried it. Do not treat a `draft`, `in_review`, `rejected`, or `superseded` label as the normal public name for a term.
 
-## 6. Creating and viewing labels
+## 6. Important current findings
+
+### `und` does not mean Chinese
+
+`und` means **undetermined language**. It does not mean Chinese, English, or a multilingual label.
+
+The auto-promotion path currently writes `lang = 'und'` for every preferred and alternate label it creates. It does this as a fixed implementation value and does not inspect the label text or carry a detected language into the label record. Therefore, a Chinese label such as `每户配备分类垃圾容器的数量` can currently be stored with `lang = 'und'`.
+
+This is a known metadata limitation. The label text remains Chinese, but its stored language is unknown. Do not use `und` as evidence that the label is not Chinese; use the text and source material for that assessment. A future correction should preserve the actual language, for example a Chinese language tag, when the source provides it or a reviewed language determination is available.
+
+### Orphaned auto-promoted labels
+
+An observed data-integrity issue can block metric processing. At 2026-08-19T10:18:20-05:00, the live `miner` database contained 183 `auto-promoted` label rows without a matching `kb.ontology_terms` row.
+
+One observed example is the preferred label `每户配备分类垃圾容器的数量`, stored for `measurement:kwc_b5f5355d2860` with `lang = 'und'`. Its matching term and accepted term-alignment record were absent.
+
+When the processor encounters such a concept, it correctly sees that no accepted alignment exists and attempts to create the term and its preferred label. The pre-existing orphaned preferred label then blocks that creation. The attempt is rolled back, so retrying the same batch does not resolve the issue.
+
+Before retrying affected batches, an operator must repair the affected governed records: either remove the orphaned labels so the system can recreate the term, label, and alignment together, or backfill the missing term and accepted alignment using reviewed source information. This repair changes production data and must follow the applicable operational approval process.
+
+## 7. Creating and viewing labels
 
 The supported service endpoints are attached to a specific term:
 
@@ -103,7 +123,7 @@ create_by
 
 The listing returns all stored label versions for the requested term, newest version first. The current endpoints create and list labels; they do not provide a separate label-edit endpoint. Follow the governed workflow for a revision or replacement rather than assuming that displayed text can be changed in place.
 
-## 7. Worked example
+## 8. Worked example
 
 Suppose the stable term is `quantity:luminance`.
 
@@ -116,7 +136,7 @@ Suppose the stable term is `quantity:luminance`.
 
 All four rows refer to the same `term_id`; they do not create four distinct ontology concepts. If “brightness” has a different intended meaning in a given context, it needs its own governed term or an explicit mapping instead of an alternate label.
 
-## 8. Before you add or replace a label
+## 9. Before you add or replace a label
 
 1. Confirm the target `term_id` and read its definition and scope.
 2. Choose the language and the role that best describes the wording.
@@ -125,15 +145,25 @@ All four rows refer to the same `term_id`; they do not create four distinct onto
 5. Use the appropriate governance status and release workflow.
 6. When replacing a preferred name, supersede the old current preferred label first and retain it as history when appropriate.
 
-## 9. Common pitfalls
+## 10. Common pitfalls
 
 - Do not use `kb.ontology_labels` in database queries; use `kb.ontology_term_labels`.
 - Do not put an observed value, threshold, or source quotation in a label simply because it contains a familiar term.
 - Do not create two current `prefLabel` values for the same term and language.
 - Do not use an `altLabel` to conceal a disagreement about meaning. Create, map, or review the appropriate term instead.
 - Do not assume a label’s language determines the language of the underlying term. The `term_id` remains the same governed identity across languages.
+- Do not interpret `und` as Chinese. It means that the auto-promotion path did not determine the language.
+- Do not retry an affected auto-promotion batch indefinitely when its preferred label has no matching term. Repair the orphaned governed records first.
 
 ## Change Log
+
+### 1.0 — 2026-08-19T10:18:20-05:00
+
+Author: Not specified
+
+Reason: Document verified auto-promotion data-integrity findings and clarify the meaning of `und`.
+
+Summary: Explained that auto-promotion currently assigns `und` without detecting language, documented the observed orphaned-label condition and batch failure mode, and provided approved-repair guidance.
 
 ### 1.0 — 2026-08-19T08:54:59-05:00
 
