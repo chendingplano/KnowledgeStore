@@ -1,6 +1,11 @@
-# Lossless Semantic Processing (ADR `2026081801`) — Regression Fixed, ADR Reconciled, kb.metrics Mystery Narrowed: Session Handoff
+# Lossless Semantic Processing (ADR `2026081801`) — Regression Fixed, ADR Reconciled, Phase 4 Started: Session Handoff
 
 Date: 2026-08-19
+
+**Update (same session, later):** after §9's original "ask the user where to start on Phase 4"
+recommendation, the user chose to start immediately with task 7.1. §3 items 15–21, §4's second
+ChenWeb revision, §5 item 6, and §9's revised resume list below reflect that continuation — read to
+the end, not just through the original §9.
 
 ## 1. State in one paragraph
 
@@ -24,10 +29,20 @@ accidental wipe) but no definitive who/when audit trail — documented as a find
 further into log archaeology. **Item 4 — task 5.8**: re-verified and found genuinely narrower now
 (6.6 done, gate on by default) but still blocked on real, undone work (dashboard code + Phase 4
 family coverage) — updated `consumer-lifecycle-policy.md` accordingly, left unchecked. **Item 5 —
-Phase 4/8**: not started; this handoff ends by asking the user whether/where to begin, since it's a
-multi-task feature build, not a bounded fix. Also deleted `server/tmp` (tracked junk flagged by
-`2026081904`) since this session was already touching the area. Three commits landed in ChenWeb, one
-in KnowledgeStore (see §4 for exact revisions); `kb.metrics` is untouched (no reprocessing was run).
+Phase 4/8**: not started as of the original handoff below; asked the user whether/where to begin,
+since it's a multi-task feature build, not a bounded fix. Also deleted `server/tmp` (tracked junk
+flagged by `2026081904`) since this session was already touching the area. **Then, in the same
+session, the user chose to start Phase 4 at task 7.1** ("deploy and certify generic-discovery
+readers for unresolved occurrences"). Used the `openspec-apply-change` skill, found the task
+severely underspecified relative to Phase 1–3's precision (no discovery-API shape, no named
+consumer, and `OccurrenceStore` had no list/query method at all — only `ActiveOccurrence` by exact
+key and worker-scoped `Claim`), and — rather than inventing REST-API surface unilaterally — asked
+the user to pick a scope via `AskUserQuestion`. The user picked the minimal option: a store-level
+reader only, no REST route yet. Built `OccurrenceStore.ActiveOccurrencesForInputRecord` via TDD
+(sqlmock unit test written and confirmed failing first, then made to pass), then certified it
+against real Postgres (`chenweb_test`) with a new integration test. Marked task 7.1 `[x]`. Four
+commits landed in ChenWeb total this session, two in KnowledgeStore (see §4 for exact revisions);
+`kb.metrics` is untouched throughout (no reprocessing was run).
 
 ## 2. Document lineage (read in this order if picking this up cold)
 
@@ -41,8 +56,9 @@ in KnowledgeStore (see §4 for exact revisions); `kb.metrics` is untouched (no r
 4. **`ChenWeb/openspec/changes/lossless-semantic-processing/tasks.md`** — task 6.9's note now has a
    2026-08-19-later addendum about `b86a`'s code-level default flip and the kb.metrics
    investigation. Task 5.8 is unchanged in `tasks.md` itself (still `[ ]`); its blocking analysis in
-   `consumer-lifecycle-policy.md` was updated. 5.9/8.4 unchanged. Phase 4 (7.x) and Phase 8 (8.x)
-   entirely unchanged — all still `[ ]`.
+   `consumer-lifecycle-policy.md` was updated. 5.9/8.4 unchanged. **Task 7.1 is now `[x]`** with a
+   dated note explaining its scoped-down implementation (§3 items 15–21 below). The rest of Phase 4
+   (7.2–7.7) and all of Phase 8 (8.x) are unchanged — still `[ ]`.
 5. **`jj log`** in both `ChenWeb` and `KnowledgeStore` — see §4 for the exact revisions this session
    produced.
 
@@ -135,14 +151,57 @@ in KnowledgeStore (see §4 for exact revisions); `kb.metrics` is untouched (no r
     before deleting. Verified `go build ./...` still clean afterward.
 12. **Committed the docs/cleanup batch** in ChenWeb (revision `d234`) and the ADR update plus
     `2026081904`'s own (previously-uncommitted) handoff file in KnowledgeStore (revision `08bb`).
-13. **Did not start Phase 4 (7.x) or Phase 8 (8.x)** — see §5 and §9.
-14. **Wrote this handoff.**
+13. **Did not start Phase 4 (7.x) or Phase 8 (8.x)** at this point in the session — see §5 and the
+    original §9 below. Asked the user via `AskUserQuestion` where to start; the user chose task 7.1.
+14. **Wrote and committed the first version of this handoff** (revision `08bb`'s sibling commit in
+    KnowledgeStore, `2861`) — the version §1 through §9 below described before the update.
+15. **Invoked the `openspec-apply-change` skill** for task 7.1, per the user's explicit choice of
+    that agent-type/skill combination. Ran `openspec status`/`openspec instructions apply` for the
+    `lossless-semantic-processing` change: 60/72 tasks complete at that point, task 7.1 next.
+16. **Read the task 7.1 context files** (`proposal.md`, `design.md`,
+    `specs/unresolved-semantic-occurrences/spec.md`, `tasks.md`) and found the task materially less
+    specified than Phase 1–3's: the phrase "generic semantic-discovery API" appears in `proposal.md`
+    and the spec's own scenario ("consumer queries the generic semantic-discovery API... current
+    unresolved occurrences are returned alongside assertions"), but `design.md` has no decision
+    record for its shape, no open question names it either, and no consumer anywhere in
+    `consumer-lifecycle-policy.md`/`design.md`/`proposal.md` is scoped to read occurrences.
+17. **Checked what already exists to build on**: `grep`ped for `SemanticDiscovery`/`semantic-discovery`
+    (nothing), read `occurrences.go` in full (`OccurrenceStore` has `Upsert`, `Claim`, `Materialize`,
+    `ActiveOccurrence`(single row by exact key) — no list/query method), and `routes.go` (only
+    `GET /kb/semantic-assertions` exists; no route for outcomes, findings, or occurrences at all).
+    Also confirmed task 7.2 (wiring extractors to actually write occurrences) is still `[ ]`, so
+    `kb.unresolved_semantic_occurrences` has zero production rows regardless of what reader gets
+    built.
+18. **Asked the user to scope 7.1** via `AskUserQuestion` rather than guessing a REST-API shape
+    unilaterally, offering three options: extend the existing assertions endpoint (union read),
+    a new dedicated endpoint, or a store-level reader only with no REST route yet. The user picked
+    the store-level-only option (marked "Recommended" in the question).
+19. **Read the existing discovery pattern to mirror** — `kbhandler.ListSemanticAssertions` /
+    `AssertionStore.ListAdmin` (heavier, paginated, admin-UI-style) versus `OutcomeStore.ActiveOutcome`
+    / `ActiveFindings` (lighter, no pagination, scoped-by-exact-key-or-parent, same package family as
+    `OccurrenceStore`) — and chose to mirror the lighter sibling-store pattern as the better fit for a
+    reader with no consumer yet, per this workspace's simplicity-first convention.
+20. **Built TDD**: wrote `occurrences_test.go` (two sqlmock unit tests) for a new
+    `OccurrenceStore.ActiveOccurrencesForInputRecord(ctx, inputRecordID) ([]UnresolvedOccurrence, error)`
+    method, confirmed both tests failed to compile (method didn't exist yet), then implemented the
+    method in `occurrences.go` (scoped by `input_record_id AND active = true`, mirroring the dimension
+    `AssertionListFilter.InputRecordID` already uses for assertion discovery) and watched both tests
+    pass. Then added a new integration test,
+    `TestIntegrationActiveOccurrencesForInputRecordScopesToRecordAndActiveRows`, to
+    `integration_test.go`, seeding an original + superseding occurrence for one record and an active
+    occurrence for a different record, and confirming the reader returns exactly the one current row
+    for the target record — ran it against real Postgres (`chenweb_test`, per this workspace's
+    `TEST_DATABASE_URL` danger memory: never `miner`) and confirmed it passes.
+21. **Marked task 7.1 `[x]`** in `tasks.md` with a dated note explaining the scope-down decision and
+    what was (and wasn't) built, following the same style as 6.9's own dated notes. Committed the
+    implementation in ChenWeb (revision `1052`) after a full `go build ./...` + `go vet` pass.
 
 ## 4. Exact revisions this session produced
 
-ChenWeb (`jj log -n 6` from the tip):
+ChenWeb (`jj log -n 7` from the tip, after the task 7.1 update):
 ```
-vros/5d62  (empty, current working-copy commit)
+slrm/c070  (empty, current working-copy commit)
+vros/1052  feat(ontology/semantic): add generic-discovery reader for unresolved occurrences
 urrr/d234  docs(lossless-semantic-processing): reconcile task notes with the b86a gate-default cutover
 pxyw/ccb4  fix(ontology/assertions): pin DR3 legacy-path tests to explicit gate-off
 xxkt/b86a  doc process and ontology bug fixes                [predecessor's finding, unchanged]
@@ -150,16 +209,20 @@ uxvs/a762  docs(lossless-semantic-processing): close task 6.9 -- completeness pr
 zkzv/7334  feat(doc-proc-logs): add warning entry_type for benign semantic diagnostics
 ```
 
-KnowledgeStore (`jj log -n 4` from the tip):
+KnowledgeStore (`jj log -n 5` from the tip, after this handoff's own update commit):
 ```
-vvzs/5ad8  (empty, current working-copy commit)
+(new)      (empty, current working-copy commit)
+(new)      docs: update handoff 2026081905 with the task 7.1 continuation
+vvzs/2861  docs: add session handoff 2026081905 -- tests fixed, ADR reconciled, kb.metrics/5.8 investigated
 nvrx/08bb  docs(adr-2026081801): document Phase 3 gate-default cutover; keep Status: Proposed
 tzmn/6775  daily update - 2026/08/19                          [pre-existing, unchanged]
-vpqk/9aca  docs: correct auto-promoted runtime terminology
 ```
+(exact change/commit ids for the two `(new)` rows: see `jj log` directly -- not filled in above since
+they weren't known until after this edit was written)
 
-Both `pxyw/ccb4` and `urrr/d234` were built, tested (`go build ./...`, targeted `go test`, and the
-same package sweep `2026081904` ran), and verified **before** being described — unlike `b86a`.
+`pxyw/ccb4`, `urrr/d234`, and `vros/1052` were each built, tested (`go build ./...`, targeted
+`go test`, and — for `vros/1052` — both the new sqlmock unit tests and a new integration test against
+real Postgres), and verified **before** being described — unlike `b86a`.
 
 ## 5. Findings and judgment calls not written down anywhere else
 
@@ -198,6 +261,16 @@ same package sweep `2026081904` ran), and verified **before** being described �
 5. **This session's own housekeeping.** No stray divergent commits produced this time (no `jj new`
    detours were needed — investigation was read-only `psql`/`grep`, not working-copy manipulation).
    `jj status` in both repos shows a single clean empty head at the end.
+6. **Task 7.1 was scoped down deliberately, not completed as literally written.** The task's own
+   wording ("generic-discovery readers", plural, "certify") and the spec's "returned alongside
+   assertions" language both suggest something bigger than what got built — but nothing in
+   `design.md`/`proposal.md`/`consumer-lifecycle-policy.md` specifies the discovery API's shape or
+   names a consumer, and `OccurrenceStore` had no reader at all before this session (not even a
+   partial one to extend). Rather than choose unilaterally between "extend the assertions endpoint,"
+   "new dedicated endpoint," or "store-level only," this was surfaced to the user as a real decision.
+   The chosen minimal scope is a legitimate, defensible reading of 7.1 — a reader now exists and is
+   certified — but a future session should not assume "7.1 done" means a REST route or any consumer
+   integration exists. See the tasks.md note on 7.1 itself, and §8/§9 below.
 
 ## 6. What was deliberately NOT built
 
@@ -209,12 +282,13 @@ same package sweep `2026081904` ran), and verified **before** being described �
   it. See §5 item 4.
 - **Did not write or modify any dashboard/alert code for task 5.8** — that is the actual remaining
   work item 5.8 names, not something a "re-verify the analysis" task should silently start.
-- **Did not start Phase 4 (7.1–7.7) or Phase 8 (8.1–8.4).** Both are large, multi-task feature builds
-  (generic-fallback readers, wiring every extractor, a real backfill/report decision, migrating
-  provisions/entities/inventory items/products/relations one at a time, resolving 4 ADR open
-  questions). `2026081904`'s recommendation listed this last, after two investigative items this
-  session did complete; starting implementation on either phase without checking scope/sequencing
-  with the user first would be a bigger unilateral commitment than this session's other items. See §9.
+- **Did not start Phase 4/8 blindly** — asked the user first (per the original §9 below), then
+  implemented only task 7.1, deliberately scoped down (see §5 item 6). Phase 4 tasks 7.2–7.7 and all
+  of Phase 8 remain `[ ]` and untouched.
+- **Did not add a REST route or wire any consumer to the new occurrence reader.** This was the
+  user's explicit choice among three presented options, not an oversight — see §3 items 16–19.
+- **Did not touch task 7.2** (wiring extractors to generic fallback persistence) even though it's the
+  natural next step — 7.1 was the single task asked for.
 - **Did not reprocess any more of the corpus.** `kb.metrics` is exactly as `2026081904` left it: 60
   rows, all doc 416. No LLM budget was spent this session (this session did no document processing at
   all — investigation was DB reads and a codebase grep).
@@ -242,8 +316,17 @@ go test ./api/doc-processing/... ./api/ontology/... ./api/kbhandler/... ./api/db
 # Confirm server/tmp is gone
 ls ../server/tmp 2>&1   # expect "No such file or directory"
 
+# Confirm the task 7.1 reader: unit tests (fast) and integration test (real Postgres)
+go test ./api/ontology/semantic/... -run 'TestActiveOccurrencesForInputRecord' -v
+TEST_DATABASE_URL="host=127.0.0.1 user=admin password=plano4628 dbname=chenweb_test sslmode=disable" \
+  go test ./api/ontology/semantic/... -run 'TestIntegrationActiveOccurrencesForInputRecordScopesToRecordAndActiveRows' -v
+
+# Confirm openspec sees 61/72 tasks complete
+cd ~/Workspace/ChenWeb && openspec status --change "lossless-semantic-processing" --json | grep -A2 '"progress"' 2>/dev/null || \
+  openspec instructions apply --change "lossless-semantic-processing" --json | python3 -c "import json,sys; print(json.load(sys.stdin)['progress'])"
+
 cd ~/Workspace/KnowledgeStore
-jj log -n 4
+jj log -n 5
 jj status
 grep -n "1.2 Phase 3 cutover status" doc-repo/adrs/202608/2026081801-adr-lossless-semantic-processing-and-knowledge-preservation.md
 ```
@@ -267,19 +350,29 @@ grep -n "1.2 Phase 3 cutover status" doc-repo/adrs/202608/2026081801-adr-lossles
   `consumer-lifecycle-policy.md`'s original text alone — read the 2026-08-19 re-verification note
   appended to it, which narrows the blocker to real remaining work (dashboard code + Phase 4 family
   coverage), not "no signal yet."
+- **Task 7.1 is `[x]` but only at the scope the user explicitly chose: a store-level reader, no REST
+  route, no consumer wiring.** `OccurrenceStore.ActiveOccurrencesForInputRecord` exists and is
+  certified against real Postgres, but `kb.unresolved_semantic_occurrences` still has zero production
+  rows (task 7.2 hasn't wired any writer) and nothing outside this one Go method can query it yet.
+  Don't assume a REST endpoint or UI surface exists because 7.1 is checked — see §5 item 6.
 
 ## 9. Where to resume
 
-1. **Ask the user where to start on Phase 4/Phase 8** before writing any code for either — this is
-   the one item from `2026081904`'s priority list this session did not attempt, and it's large enough
-   (7 Phase-4 tasks spanning generic-fallback readers, per-extractor wiring, a backfill/report
-   decision, and migrating 5 more artifact families one at a time; 4 Phase-8 tasks including
-   resolving 4 ADR open questions) that it likely needs its own scoping conversation, not a
-   continuation of this session's investigate-and-document mode.
-2. If/when Phase 4 starts, task 7.1 (deploy and certify generic-discovery readers for unresolved
-   occurrences) is the first `[ ]` item in dependency order per `tasks.md` §7.
-3. Task 5.8 itself (the actual dashboard/alert code change) is now unblocked to *start* for the
-   metric family specifically, per this session's re-verification — but doing it now would only be
-   partially correct until Phase 4 migrates at least one more family, per §3 item 10 above.
+**(Original recommendation, now acted on — kept for the record):** Ask the user where to start on
+Phase 4/Phase 8 before writing any code for either. The user answered: start with task 7.1. That is
+now done (§3 items 15–21), at the scoped-down level described there.
+
+**Current resume point:**
+
+1. **Task 7.2** ("wire every registered extractor to generic fallback persistence and run the shared
+   fallback conformance suite without changing production behavior") is the next `[ ]` item in
+   dependency order per `tasks.md` §7 — and the natural point at which task 7.1's reader gets an
+   actual reason to grow a REST route and a consumer, per §5 item 6's caveat.
+2. Task 5.8 itself (the actual dashboard/alert code change) is unblocked to *start* for the metric
+   family specifically, per this session's re-verification — but doing it now would only be partially
+   correct until Phase 4 migrates at least one more family, per §3 item 10 above.
+3. The rest of Phase 4 (7.3–7.7) and all of Phase 8 (8.1–8.4) remain untouched and unscoped beyond
+   what `tasks.md` already says — no session has broken them down further than the one-line task
+   descriptions yet, the same situation 7.1 was in before this session had to scope it live.
 4. No other item from `2026081903`'s or `2026081904`'s original resume lists remains open that this
    session didn't address.
