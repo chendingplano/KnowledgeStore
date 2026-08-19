@@ -1192,3 +1192,46 @@ committing the class/instance apparatus to a second family:
   vertical slice";
 * ADR `2026081701`, §11, item 6 — "The exact migration or retirement plan for non-metric users of
   `kb.semantic_decision_candidates`."
+
+## Appendix B — Decision: Verify Phase 3 completeness against live pipeline runs, not a backfill
+
+**Date:** 2026-08-18 · **Participants:** Chen Ding, Claude (session that implemented Phase 3 tasks
+6.1–6.8 and 6.10–6.12; not a change to any normative DR)
+
+### B.1 Context
+
+Phase 3 task 6.9 gates enabling `LOSSLESS_SEMANTIC_WRITES_METRIC` on a passing completeness
+projection (§6, "Cutover compares artifact counts, exact current-link/stage-outcome cardinalities
+... before disabling the old fail/defer path"). Running the completeness checker against `miner`
+after tasks 6.1–6.8 landed reports the projection honestly failing — 21,222 missing
+`(artifact, stage)` outcome pairs across 7,074 metrics — for exactly one reason: none of those
+metrics, all extracted before this writer existed, have ever been processed by it. This is not a
+defect in the writer or the checker; it is the expected state before any real write has occurred.
+
+Closing that gap has two candidate paths: (a) a dedicated backfill pass that re-runs
+`associate_semantics.Run` with the gate enabled across the existing corpus, purely to make old
+data satisfy a new invariant; or (b) letting the completeness projection pass naturally as
+documents flow through the live extract_metrics → normalize_assertions → associate_semantics
+pipeline under ordinary operation, then verifying against those freshly generated artifacts.
+
+### B.2 Decision
+
+Defer to path (b). The gate flip and its completeness verification will be validated against
+artifacts the live doc-processing pipeline produces during ordinary operation, not against a
+special backfill of the pre-existing corpus. This extends the same-session decision to do no
+one-off backfill work against `miner`'s current data (recorded in the `lossless-semantic-processing`
+OpenSpec change as the "Note on backfills") to this specific cutover-verification question, which
+is the same shape of problem: `miner`'s current data is not treated as worth a dedicated
+reprocessing pass when the pipeline will produce better evidence on its own.
+
+### B.3 Consequence
+
+* Task 6.9 (enabling the gate) stays open with no fixed timeline; it closes when a live pipeline
+  run next produces artifacts the completeness projection accepts, not on a scheduled backfill.
+* The pre-live-run completeness report already captured
+  (`openspec/changes/lossless-semantic-processing/phase3-writer-readiness.md`) is not superseded by
+  this decision -- it remains the correct "before" baseline for whatever "after" report eventually
+  closes 6.9.
+* The 7,074 metrics that predate this writer are not retroactively backfilled under this decision;
+  their eventual treatment follows whatever the corpus's own data lifecycle brings (see the "Note on
+  backfills" policy), not a dedicated migration effort.
