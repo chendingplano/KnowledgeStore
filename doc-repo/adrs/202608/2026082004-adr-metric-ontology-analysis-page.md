@@ -15,6 +15,9 @@
   corpus-level, and record-born entities; adds naming, object, measurement-frame, candidate,
   vocabulary-governance, projection, blocked-claim, and silent-gap behavior; and records current
   class-contract, unit-resolution, and vocabulary-quality limitations.
+* 2026/08/20 — Added two complementary metric views and a chart-based metric dashboard. Defined
+  occurrence, instance, ontology-metric, mapping-status, error-presence, and error-type counting
+  semantics so dashboard totals remain reproducible rather than depending on UI joins.
 
 ## 2. Decision Summary
 
@@ -35,8 +38,8 @@ extracted value, keyword concept, object node, assertion, or evidence row as gov
 vocabulary merely because it participates in the graph.
 
 A server-side read model composes this graph. The browser must not reconstruct it by issuing an
-unbounded set of per-row requests or by inferring current state from append-only history. List and
-summary responses remain bounded; expensive peer, history, and relation data load only when a user
+unbounded set of per-row requests or by inferring current state from append-only history. Dashboard
+and list responses remain bounded; expensive peer, history, and relation data load only when a user
 opens one metric.
 
 The first version is read-only. It diagnoses and explains; it does not edit raw metrics, ontology
@@ -192,17 +195,19 @@ The page accepts optional navigation context:
 
 ```ts
 type MetricOntologyAnalysisContext = {
+  view?: 'dashboard' | 'document' | 'ontology';
   inputRecordId?: number;
   metricId?: string;
   assertionId?: number;
   classTermId?: string;
+  ontologyMetricTermId?: string;
 };
 ```
 
 Context preselects or filters the page but never bypasses authorization. The page also works without
 context as a corpus-level explorer.
 
-Every summary, list, detail, history, and peer query is restricted to source records the caller may
+Every dashboard, list, detail, history, and peer query is restricted to source records the caller may
 view before aggregation. Counts, peer totals, and class distributions must not reveal unauthorized
 records.
 
@@ -211,11 +216,16 @@ records.
 Add a read-only API namespace:
 
 ```text
-GET /api/v1/kb/metric-ontology-analysis/summary
-GET /api/v1/kb/metric-ontology-analysis/metrics
-GET /api/v1/kb/metric-ontology-analysis/metrics/:input_record_id/:metric_id
-GET /api/v1/kb/metric-ontology-analysis/metrics/:input_record_id/:metric_id/history
-GET /api/v1/kb/metric-ontology-analysis/metrics/:input_record_id/:metric_id/peers
+GET /api/v1/kb/metric-ontology-analysis/dashboard
+GET /api/v1/kb/metric-ontology-analysis/document-metrics
+GET /api/v1/kb/metric-ontology-analysis/document-metrics/:input_record_id/:metric_id
+GET /api/v1/kb/metric-ontology-analysis/document-metrics/:input_record_id/:metric_id/history
+GET /api/v1/kb/metric-ontology-analysis/document-metrics/:input_record_id/:metric_id/peers
+GET /api/v1/kb/metric-ontology-analysis/ontology-metrics
+GET /api/v1/kb/metric-ontology-analysis/ontology-metrics/:term_id
+GET /api/v1/kb/metric-ontology-analysis/ontology-metrics/:term_id/occurrences
+GET /api/v1/kb/metric-ontology-analysis/ontology-metrics/:term_id/instances
+GET /api/v1/kb/metric-ontology-analysis/ontology-metrics/:term_id/history
 ```
 
 The composite `(input_record_id, metric_id)` identifies one metric occurrence. No endpoint may
@@ -224,7 +234,8 @@ uniqueness. The server returns a conflict/integrity error if the composite unexp
 multiple raw metric rows; it never silently selects the first row.
 
 The API composes existing authoritative tables and projections; it does not create a second
-persistent source of truth. The metric detail response is organized into typed sections:
+persistent source of truth. `document-metrics` is occurrence-first, while `ontology-metrics` is
+governed-term-first. The document-metric detail response is organized into typed sections:
 
 ```text
 source_metric
@@ -260,7 +271,174 @@ The history endpoint accepts a `sections` parameter selecting one or more bounde
 collections. Each collection is independently cursor-paginated and reports returned count,
 truncation, and supersession links.
 
-### 4.3 DR3 — Define the canonical current traversal explicitly
+### 4.3 DR3 — Provide Document Metric and Ontology Metric views
+
+The page provides two peer views over the same domain. Neither is a filtered imitation of the
+other; each starts from its own authoritative population and answers a different question.
+
+#### Document Metric View
+
+**Document Metric View** starts from `kb.metrics`. One row is one metric occurrence extracted from
+one input record. It answers:
+
+> What metrics did this document state, and what semantic and ontology objects were built from each
+> occurrence?
+
+It supports one-document and authorized corpus scopes. The default document-scoped order follows
+source position and then stable metric row ID; corpus scope uses an explicit server sort. It exposes
+the full occurrence-first graph defined by DR5, including raw wording/value, source spans, keyword
+concept, governed metric definition, subject object, decision candidate, assertion/evidence,
+canonical claim, class/contract, processing outcomes/findings, checks, relations, and projections.
+
+Metrics without a governed definition or semantic assertion remain rows in this view. Missing
+downstream objects are coverage/check results, not reasons to omit the occurrence.
+
+#### Ontology Metric View
+
+**Ontology Metric View** starts from the current governed ontology-term population. One row is one
+stable metric-definition identity, with its current term version and labels. It answers:
+
+> What metrics does the governed ontology know, and which document occurrences and semantic
+> instances use each one?
+
+The deployed schema calls this term kind `metric_definition`; it does not define a generic
+`type = 'metric'` value. Therefore the normative source predicate is the current
+`kb.ontology_terms` version whose `kind = 'metric_definition'`, resolved through
+`kb.ontology_term_headers`. The UI label may say “Ontology Metric,” but the API returns the exact
+stored kind. It never substitutes term kind `class` or infers a metric solely from a label.
+
+Each ontology-metric row shows stable term ID, preferred/alternate labels, module, version,
+governance status, active-release membership, auto-promotion provenance, description/scope, raw
+`value_type` and `range_type` hints, permitted units, linked quantity information, keyword-concept
+alignments, linked ontology candidates, occurrence count, distinct current instance count, subject
+and unit coverage, finding/check summaries, and current class-contract/capability information when
+available. The uncontrolled `value_type` and `range_type` fields remain raw descriptive values and
+are not silently normalized for grouping.
+
+An ontology metric with zero document occurrences remains visible. Conversely, a document metric
+with no governed definition remains visible only in Document Metric View and appears in dashboard
+coverage as unresolved; Ontology Metric View never fabricates a term row for it.
+
+#### Cross-view navigation and state
+
+The two views are linked by stable identities:
+
+* a document occurrence with `metric_definition_term_id` opens that term in Ontology Metric View;
+* an ontology metric opens its authorized document occurrences and distinct current semantic
+  instances; and
+* returning to the prior view preserves filters, sort, cursor, and selected row for that view.
+
+The occurrence count and instance count are not expected to match. Several occurrences may converge
+on one canonical assertion, while an ontology metric may have no occurrence or instance. The UI
+explains this relationship instead of presenting count differences as data loss.
+
+Per-ontology-metric instance membership is a versioned derived relation keyed by
+`(ontology_metric_term_id, current_assertion_id)`. Its authoritative path is:
+
+```text
+current kb.metrics.metric_definition_term_id
+  -> current active supporting kb.assertion_evidence for that occurrence
+  -> redirect/claim-registry-resolved current kb.semantic_assertions.id
+```
+
+The relation deduplicates converged occurrences by that pair. It never infers the ontology metric
+from `instance_of_term_id`, because metric-definition identity and metric-class identity are separate
+roles even when they reuse one identifier string. If one assertion is supported by occurrences
+assigned to different metric-definition terms, it appears once under each supported term and the
+read model emits a cross-definition convergence warning rather than selecting one owner. A metric
+instance found through the class/claim classifier whose authorized source evidence carries no metric
+definition contributes to the corpus-wide instance total but to no per-term instance count; the
+dashboard reports it as unassigned. A source-unanchored assertion contributes to neither total.
+
+Authorization is applied to the supporting occurrence before this relation is aggregated. A caller
+sees an assertion under an ontology metric only when at least one authorized current occurrence
+establishes that exact pair; counts never reveal unauthorized supporting occurrences.
+
+### 4.4 DR4 — Add a filter-aware Metric Dashboard
+
+The page includes a **Metric Dashboard** as a third primary mode alongside the two metric views. It
+shows metric-related statistics using KPI cards and charts over one explicit, authorized filter
+scope. Dashboard cards are navigation controls: selecting a segment opens the corresponding view
+with the equivalent server-side filter when that filter has a stable contract.
+
+The initial dashboard includes these required statistics:
+
+| Statistic | Normative definition |
+|---|---|
+| **Total metric occurrences** | Count of authorized current rows in `kb.metrics`. One extracted metric in one input record contributes one. |
+| **Total metric instances** | Count of distinct current `kb.semantic_assertions.id` values classified by the shared read model as metric instances and source-anchored to at least one authorized in-scope input record. An assertion is metric-scoped when it resolves through the current metric claim/class path or metric evidence with `artifact_type = 'metric'`; several occurrences supporting the same current assertion count once. Assertion revisions and redirected predecessors do not count again. |
+| **Total ontology metrics (metric definitions)** | Count of distinct stable current ontology term IDs whose current `kb.ontology_terms.kind = 'metric_definition'`. This is the requested `kb.ontology_terms` metric population. It is not labeled “metric classes,” because terms whose stored kind is literally `class` and distinct `instance_of_term_id` values are separate populations. |
+| **Total instantiated metric classes** | Count of distinct current `instance_of_term_id` values among the metric instances selected by the shared classifier. This separate secondary measure supplies the literal class angle without conflating it with ontology metric definitions. |
+| **Metric occurrences with errors / without detected errors** | A disjoint occurrence-level partition produced by the versioned error-presence policy below. “Without detected errors” does not mean warning-free or semantically complete. |
+| **Value-range mappings by status** | Global count of rows in `kb.metric_value_range_type_map`, grouped by stored governed status. It is configuration inventory, explicitly labeled **Global**, and document/occurrence/class filters do not apply. A separate in-scope series counts distinct mapping rows referenced by at least one authorized filtered occurrence, each row once; affected occurrence counts are a third, separately labeled measure. |
+| **Errors by type** | Count of canonical, deduplicated occurrence/error-type facts grouped by stable `error_type`, with severity and source available for drill-down. |
+
+The deployed assertion schema likewise has no generic `type = 'metric'` column. “Metric instance”
+is therefore a versioned server classification, not a frontend predicate on a nonexistent field.
+Phase 0 must prove its class/claim and evidence branches select the same intended population and
+record any legacy-only exceptions before the count is enabled. Every classifier-selected assertion
+must also resolve through authoritative active evidence or retained evidence history to at least one
+authorized in-scope source record before entering user-visible totals. A mixed-authority assertion
+counts once when at least one authorized in-scope source anchors it, but unauthorized evidence and
+its counts remain hidden. A source-unanchored class/claim-only assertion is excluded from metric
+totals and reported only through a separately authorized integrity measure.
+
+`unassigned_metric_instances` means source-anchored metric instances with no derived
+`ontology_metric_term_id` membership; it never means assertions with no source ownership.
+
+The dashboard also shows no-error occurrences with warnings or silent gaps so “without detected
+errors” is not mistaken for “healthy.” Additional initial charts may include coverage state, assertion
+lifecycle, metric-definition governance status, subject resolution, unit/quantity resolution,
+class-definition state, and projection freshness. Every chart is backed by a visible data table and
+uses text/pattern labels in addition to color.
+
+#### Dashboard counting rules
+
+The server owns all aggregation rules. The browser never derives totals by loading table pages.
+
+`has_error` is true for a metric occurrence when at least one current diagnostic is a genuine
+execution failure, rejected/deferred blocked claim designated error by policy, non-empty
+`kb.metrics.value_range_type_error`, active semantic finding with error severity, or failed integrity
+check. Warning/info findings and derived silent-gap warnings do not set `has_error` unless the
+versioned policy explicitly promotes that type. Thus
+`with_errors + without_detected_errors = total_metric_occurrences` for the same scope and snapshot.
+
+`occurrences_without_errors_with_warnings_or_silent_gaps` counts distinct authorized in-scope
+occurrences for which `has_error = false` and at least one current warning/info finding, warning
+check, or derived silent-gap/authority warning exists. It excludes every `has_error = true` row and
+deduplicates once per occurrence. Therefore it is a subset of `without_detected_errors`; the
+remaining no-error occurrences have no detected warning under the current policy.
+
+Errors-by-type uses a canonical `error_type` vocabulary and deduplicates by
+`(input_record_id, metric_id, error_type)` within the current snapshot. The resolver maps equivalent
+signals—such as a raw range-type error flag and its corresponding semantic mapping finding—to one
+type rather than double-counting the same cause. One occurrence may still contribute to several
+different types. When equivalent contributing signals disagree on severity, the versioned policy
+selects the highest governed severity using `error > warning > info`; all contributing sources and
+their original severities remain provenance. The dashboard returns distinct affected-occurrence
+count, deduplicated occurrence/error-type fact count, and contributing raw-signal count so the three
+measures are never conflated.
+
+All dashboard responses include applied filters, per-measure filter applicability, `generated_at`, read-model version,
+error-policy version, check-rule version, source row counts, and definitions/tooltips for every
+measure. Document authorization is applied before aggregation. Dashboard comparisons across time
+require persisted historical snapshots or an explicitly selected time basis; version 1 does not
+manufacture trends from append-only table timestamps with different semantics.
+
+#### Required dashboard visualizations
+
+* KPI cards: total occurrences, total instances, total ontology metrics, instantiated metric classes,
+  with errors, without detected errors, and no-error occurrences with warnings/silent gaps;
+* a donut or stacked bar for occurrence error presence, with an adjacent exact-value table;
+* a bar or donut chart for value-range mapping rows grouped by stored status;
+* a horizontal bar chart for errors grouped by canonical error type and severity; and
+* a coverage-state chart showing processed, finding-bearing, blocked, incomplete, failed,
+  historical-unprocessed, and unknown occurrences.
+
+No chart may imply that occurrences, instances, and ontology metrics are additive populations. They
+are different grains and appear as separate measures with explanatory tooltips.
+
+### 4.5 DR5 — Define the canonical current traversal explicitly
 
 For a metric occurrence, the API resolves current state in this order:
 
@@ -345,7 +523,7 @@ Assertion lifecycle is returned as its authoritative stable machine value and go
 label, separately from class, mapping, value, and conformance states. The API never synthesizes
 lifecycle from those axes.
 
-### 4.4 DR4 — Return explicit coverage and integrity checks
+### 4.6 DR6 — Return explicit coverage and integrity checks
 
 Every list row and detail response carries a versioned, machine-readable coverage state:
 
@@ -438,20 +616,24 @@ authority warnings**. They remain visible even when `finding_count = 0`; absence
 Checks are deterministic server rules with a version returned in the API. They are diagnostic and
 must not mutate, repair, retry, or reprocess data as a side effect of a GET request.
 
-### 4.5 DR5 — Use a summary, a metric table, and a detail workspace
+### 4.7 DR7 — Use view-specific tables and detail workspaces
 
-The page has three levels.
+Metric Dashboard owns the full aggregate presentation defined by DR4. Each metric view has a compact
+context strip, a server-driven table, and a detail workspace. The strip may repeat a small subset of
+dashboard measures for the active view/filter, but it uses the same server definitions and links to
+the dashboard rather than implementing a second aggregation policy.
 
-**Summary strip**
+**View context strip**
 
 Shows disjoint totals using the exact coverage identifiers: processed without findings (`complete`),
 completed with findings, not processed by the current writer, blocked deferred, blocked rejected,
-incomplete, execution failed, and coverage unknown. Secondary distributions show the three entity populations,
-metric-definition governance status, subject resolution, class identity, mapping, value,
-conformance, unit/quantity resolution, assertion-kind fallback, finding severity, and top classes.
-Every number is computed over the current filter scope, and the response identifies that scope.
+incomplete, execution failed, and coverage unknown. Secondary distributions show the three entity
+populations, metric-definition governance status, subject resolution, class identity, mapping,
+value, conformance, unit/quantity resolution, assertion-kind fallback, finding severity, and top
+classes. Every number is computed over the current filter scope, and the response identifies that
+scope.
 
-**Metric table**
+**Document Metric table**
 
 One row represents one raw metric occurrence. Columns are:
 
@@ -478,7 +660,16 @@ in API requests and human-readable governed labels in the UI. Uncontrolled term 
 `range_type` are not offered as authoritative facets; if exposed for inspection, their raw variants
 remain visibly unnormalized.
 
-**Detail workspace**
+**Ontology Metric table**
+
+One row represents one stable current ontology metric-definition identity. Columns include preferred
+label and term ID, module/version/governance status, release or auto-promotion status, description,
+raw value/range hints, permitted units/quantity information, aligned keyword-concept count, document
+occurrence count, distinct current instance count, error/finding/check-affected occurrence counts,
+contract definition/capability state, and last governed modification time. Filters and sorting are
+server-side and use the term-oriented fields defined in DR3.
+
+**Document Metric detail workspace**
 
 Opening a row shows eight tabs:
 
@@ -513,7 +704,24 @@ Opening a row shows eight tabs:
 Raw JSON may be available behind an “Inspect data” affordance, but it is supplemental. The primary
 presentation uses labels, field definitions, and explicit missing-state messages.
 
-### 4.6 DR6 — Preserve independent meanings in presentation
+**Ontology Metric detail workspace**
+
+Opening an ontology metric uses the same visual vocabulary but a term-first arrangement:
+
+1. **Definition & Governance** — term identity/version, labels, description/scope, module, active
+   release, lifecycle, and auto-promotion/candidate provenance.
+2. **Measurement Model** — quantity kind, dimension, permitted units, assertion kinds, measurement
+   frame, and raw uncontrolled hints with warnings.
+3. **Class & Contract** — class identity linkage, contract revisions, capabilities, validation
+   results, and observed profile clearly separated from authority.
+4. **Occurrences & Instances** — bounded authorized document occurrences and distinct current
+   assertions, with separate totals, coverage summaries, and continuation cursors.
+5. **Diagnostics** — errors/findings/checks grouped by stable type, severity, source, and affected
+   occurrence, including silent gaps.
+6. **History & Provenance** — superseded term versions, releases, labels, candidates, actors, and
+   stable cross-view links.
+
+### 4.8 DR8 — Preserve independent meanings in presentation
 
 The page must not compress independent states into one red/green judgment.
 
@@ -558,10 +766,10 @@ Colors supplement text and icons; they never carry meaning alone. Every badge ha
 tooltip/description. Unknown governed terms render using a safe fallback label plus the raw term ID
 rather than disappearing.
 
-### 4.7 DR7 — Bound analysis and peer expansion
+### 4.9 DR9 — Bound analysis and peer expansion
 
-Summary and list queries run entirely on the server and are filter-aware. The initial list page size
-is 50 and the maximum is 200. Detail loads only for the selected metric.
+Dashboard and list queries run entirely on the server and are filter-aware. The initial list page
+size is 50 and the maximum is 200. Detail loads only for the selected metric or ontology term.
 
 Same-class peer retrieval follows ADR `2026081701` DR13:
 
@@ -580,7 +788,7 @@ lower than 200 and cannot displace canonical results.
 The API must avoid one-query-per-row behavior. It uses set-based queries and appropriate indexes,
 and exposes timing plus check-rule/read-model versions in diagnostic metadata.
 
-### 4.8 DR8 — Keep correction in existing governed workflows
+### 4.10 DR10 — Keep correction in existing governed workflows
 
 Version 1 is read-only. It may offer contextual navigation actions:
 
@@ -619,13 +827,14 @@ unavailable; it does not invent a destination or imply that retrying unchanged i
 a curation dependency. The candidate backlog drain and the semantic retry queue are shown as
 distinct mechanisms.
 
-### 4.9 DR9 — Make implementation status visible in the page
+### 4.11 DR11 — Make implementation status visible in the page
 
 The page header includes a compact data-coverage notice derived from runtime facts:
 
 * enabled metric writer mode and adapter version;
 * adapter conformance-suite version and last verified result;
-* selected scope's total metric count and current-writer processed count;
+* selected scope's occurrence, distinct current instance, and ontology-metric counts, each labeled
+  with its grain, plus current-writer processed-occurrence count;
 * governed metric-definition counts by released/auto-promoted/other status;
 * blocked-candidate, recorded-finding, and silent-gap counts;
 * class-contract counts by definition state and capability availability;
@@ -641,7 +850,60 @@ seeded vocabulary, or a zero error-severity finding count.
 
 ## 5. API Contract Requirements
 
-### 5.1 List row
+### 5.1 Dashboard response
+
+The dashboard response contains one snapshot envelope:
+
+```text
+scope and applied_filters
+generated_at
+read_model_version, error_policy_version, check_rule_version
+totals {
+  metric_occurrences
+  metric_instances
+  ontology_metrics
+  instantiated_metric_classes
+  unassigned_metric_instances
+  occurrences_with_errors
+  occurrences_without_detected_errors
+  occurrences_without_errors_with_warnings_or_silent_gaps
+}
+distributions {
+  global_value_range_mapping_rows_by_status[]
+  in_scope_distinct_mapping_rows_by_status[]
+  affected_occurrences_by_mapping_status[]
+  errors_by_type_and_severity[] {
+    error_type, canonical_severity
+    affected_occurrence_count
+    occurrence_error_type_fact_count
+    contributing_signal_count
+    contributing_sources[]
+    drill_down_filter
+  }
+  coverage_states[]
+}
+error_summary {
+  affected_occurrence_count
+  occurrence_error_type_fact_count
+  contributing_signal_count
+}
+restricted_integrity {             # present only with separate integrity permission
+  source_unanchored_metric_assertion_count
+}
+measure_definitions[]
+filter_applicability_by_measure
+source_row_counts
+```
+
+Every single-measure distribution item contains stable machine key, display label, `count`,
+drill-down filter, and whether its buckets are mutually exclusive. Error distribution items instead
+use the three named counts in their declared schema. Every measure declares which known filters apply. An
+inapplicable filter is reported as `not_applicable` for that measure rather than silently changing
+its denominator; an unknown or invalid filter rejects the request. Global mapping inventory remains
+available when document/class filters are inapplicable, while its in-scope companion measures apply
+those filters.
+
+### 5.2 Document Metric list row
 
 Each list row contains identifiers sufficient to request detail and explain missing coverage without
 including unbounded child collections:
@@ -671,7 +933,31 @@ last_processed_at
 Nullable related identifiers mean “not present” and are accompanied by coverage/check reasons. They
 must not be filled with placeholder IDs.
 
-### 5.2 Detail and history
+### 5.3 Ontology Metric list row
+
+Each ontology-metric list row contains:
+
+```text
+term_id, current_version, term_kind
+preferred_label, alternate_label_summary
+module_id, governance_status
+module_release_id, module_release_status
+auto_promotion_provenance_summary
+description, scope
+raw_value_type, raw_range_type
+permitted_unit_term_ids, quantity_kind_summary, dimension_summary
+aligned_keyword_concept_count, linked_candidate_count
+authorized_occurrence_count, distinct_current_instance_count
+occurrences_with_errors, occurrences_with_findings
+failed_check_affected_occurrence_count, silent_gap_affected_occurrence_count
+contract_definition_state, enabled_capability_summary
+last_governed_modify_time
+```
+
+The row's occurrence-derived counts apply source authorization before aggregation. Zero is a real
+count; unavailable is represented separately and never coerced to zero.
+
+### 5.4 Detail and history
 
 The default detail response returns only current graph objects plus check results. Superseded
 outcomes, findings, assertions, evidence, class-resolution decisions, contract revisions, and
@@ -680,13 +966,19 @@ relations are fetched through explicitly requested history expansion with their 
 History is ordered by semantic revision/supersession relationships where defined, with timestamps
 as presentation metadata rather than the sole definition of current state.
 
-### 5.3 Error and partial-data behavior
+Ontology-metric detail returns its current term/governance graph plus independently paginated
+occurrence and instance collections through the named `/occurrences` and `/instances` endpoints.
+The `/history` endpoint returns bounded term, label, release, candidate, and contract history.
+Term-version history follows governed term/version and release rules; it is not ordered as if it
+were semantic assertion history.
+
+### 5.5 Error and partial-data behavior
 
 Failure to load the selected metric or its authorization scope fails the request normally. A missing
 semantic child object does not fail the entire detail response; it returns a partial graph and an
 explicit check result. Database/query failure must not be reclassified as a semantic finding.
 
-Responses include a `generated_at` timestamp and read-model version. Summary and list requests using
+Responses include a `generated_at` timestamp and read-model version. Dashboard and list requests using
 the same filter can state that their snapshots differ if concurrent processing changes current rows;
 version 1 does not require a long-lived database snapshot across separate HTTP requests.
 
@@ -723,6 +1015,19 @@ Rejected initially. Current tables and projections are authoritative, while a ne
 introduce refresh and invalidation semantics. A materialized projection may be proposed later only
 if measured query performance cannot meet the page's bounded latency targets.
 
+### 6.6 Use one metric table with a Document/Ontology filter
+
+Rejected. An occurrence and a governed metric definition have different identities, lifecycles,
+columns, zero-row meanings, and cardinalities. One polymorphic table would either hide ontology
+metrics with no occurrences or fabricate document columns for terms. Separate peer views make the
+angle and row grain explicit while preserving cross-navigation.
+
+### 6.7 Compute dashboard totals from rows loaded in the browser
+
+Rejected. Pagination would make totals incomplete, authorization could be applied inconsistently,
+and assertion convergence would cause occurrence/instance double counting. Dashboard measures are
+server-side, versioned read-model outputs.
+
 ## 7. Implementation Sequence
 
 ### Phase 0 — Verify data contracts and establish a baseline
@@ -738,35 +1043,50 @@ if measured query performance cannot meet the page's bounded latency targets.
    frontend list of stages.
 5. Document expected historical `not_processed_current_writer` cases separately from invariant
    failures.
-6. Establish numeric p95 latency and maximum-query-count budgets for summary, list, detail, history,
-   and peer requests against a recorded representative corpus size. This ADR cannot move to
-   Accepted until Phase 3 reports results against those budgets.
+6. Establish numeric p95 latency and maximum-query-count budgets for dashboard, both lists, both
+   detail shapes, history, occurrence/instance expansion, and peer requests against a recorded
+   representative corpus size. This ADR cannot move to Accepted until Phase 3 reports results
+   against those budgets.
 7. Reconcile observed behavior with the manual's run-failure, blocked-claim, recorded-degradation,
    and silent-gap catalog, including any disagreement between document-stage status and semantic
    outcome status. Record the current behavior rather than choosing one source silently.
+8. Verify the deployed current-term selector and confirm `metric_definition` is the authoritative
+   stored kind for Ontology Metric View; record any legacy aliases as migration exceptions rather
+   than widening the predicate silently.
+9. Define the dashboard error-presence policy, canonical error-type vocabulary, equivalent-signal
+   deduplication map, filter denominators, and expected arithmetic identities before UI work.
 
 ### Phase 1 — Add the read API and deterministic checks
 
-1. Implement typed list, summary, detail, history-expansion, and peer response models.
-2. Implement set-based list/summary queries and the current-graph resolver.
-3. Implement and version the checks in DR4, including checks that derive silent gaps where the
+1. Implement typed dashboard, document-list/detail, ontology-list/detail, history-expansion,
+   occurrence/instance-expansion, and peer response models.
+2. Implement set-based dashboard/list queries and the current-graph resolver, including the shared
+   metric-instance classifier and current ontology-metric selector.
+3. Implement and version the checks in DR6, including checks that derive silent gaps where the
    processing pipeline currently writes no finding.
-4. Add required indexes only when query plans on representative data demonstrate a need.
-5. Enforce existing authentication and page/API authorization.
+4. Implement and version canonical error-presence and error-type normalization/deduplication from
+   DR4.
+5. Add required indexes only when query plans on representative data demonstrate a need.
+6. Enforce existing authentication and page/API authorization before every aggregation.
 
 ### Phase 2 — Add the Home3 page
 
 1. Add the `ontology-metric-analysis` navigation entry and content-panel rendering.
-2. Implement the summary strip, filterable metric table, and eight-tab detail workspace.
-3. Reuse governed semantic-state labels and severity presentation from the existing Semantic
+2. Implement the three primary modes: Metric Dashboard, Document Metric View, and Ontology Metric
+   View, with independent preserved view state and stable cross-view navigation.
+3. Implement the dashboard KPI cards, required charts, exact-value tables, drill-down filters, and
+   measure-definition tooltips from DR4.
+4. Implement both filterable tables, the eight-tab document detail workspace, and the six-tab
+   ontology detail workspace.
+5. Reuse governed semantic-state labels and severity presentation from the existing Semantic
    Diagnostics view; centralize shared label definitions rather than copying them.
-4. Add explicit population/authority labels for ontology-born, corpus-level, record-born, governed
+6. Add explicit population/authority labels for ontology-born, corpus-level, record-born, governed
    non-term, observed-profile, and projection objects.
-5. Add contextual navigation to existing correction/review pages without mutation side effects.
-6. Add accessible loading, empty, partial, error, unknown-term, blocked-claim, and silent-gap states.
-7. Initially enable summary, list, current detail, checks, canonical peers, and governed navigation.
-   Gate fallback peer channels, raw JSON inspection, and superseded-history UI independently until
-   their bounded behavior and access controls pass verification.
+7. Add contextual navigation to existing correction/review pages without mutation side effects.
+8. Add accessible loading, empty, partial, error, unknown-term, blocked-claim, and silent-gap states.
+9. Initially enable dashboard, both lists, current detail, checks, canonical peers, and governed
+   navigation. Gate fallback peer channels, raw JSON inspection, and superseded-history UI
+   independently until their bounded behavior and access controls pass verification.
 
 ### Phase 3 — Add bounded peer analysis and verify at scale
 
@@ -774,8 +1094,8 @@ if measured query performance cannot meet the page's bounded latency targets.
 2. Verify pagination, truncation metadata, stable ordering, and continuation cursors.
 3. Test representative complete, finding-bearing, historical-unprocessed, incomplete, and failed
    metric graphs.
-4. Measure summary, list, detail, and peer latency against the available corpus and the ADR
-   `2026081701` caps before enabling the page broadly.
+4. Measure dashboard, both list/detail shapes, drill-down, history, and peer latency against the
+   available corpus and the ADR `2026081701` caps before enabling the page broadly.
 
 ## 8. Verification and Acceptance Criteria
 
@@ -804,6 +1124,30 @@ if measured query performance cannot meet the page's bounded latency targets.
   are visibly distinguished and retain their different authority/lifecycle semantics.
 * Same-class peers precede and remain visually separate from fallback candidates.
 * Superseded history never appears as current unless explicitly requested as history.
+* Document Metric View returns every authorized `kb.metrics` occurrence, including occurrences with
+  no governed term or assertion; Ontology Metric View returns every current authorized
+  `metric_definition` term, including terms with zero occurrences.
+* Cross-view navigation resolves the same `metric_definition_term_id` in both directions and
+  preserves each view's independent filter/sort/cursor state.
+* Per-ontology-metric instance counts use the occurrence-derived
+  `(ontology_metric_term_id, current_assertion_id)` relation, deduplicate convergence, never infer
+  membership from `instance_of_term_id`, expose cross-definition convergence, and exclude
+  unauthorized supporting occurrences.
+* Total occurrence count equals the authorized current `kb.metrics` population for the filter;
+  total instance count deduplicates converged occurrences and excludes superseded/redirected
+  assertion revisions and source-unanchored assertions; mixed-authority assertions count once when
+  authorized evidence anchors them without revealing unauthorized evidence; total ontology-metric
+  count uses distinct current `metric_definition` term IDs.
+* With-errors plus without-detected-errors equals total occurrences for one dashboard snapshot, and
+  no-error occurrences with warnings/silent gaps remain a deduplicated, explicitly defined subset
+  of without-detected-errors.
+* Global mapping-status charts count every mapping-table row and declare occurrence filters
+  inapplicable; in-scope mapping charts count each referenced mapping row once; affected-occurrence
+  series use a third, separately labeled denominator.
+* Error-type totals deduplicate equivalent raw flags, findings, candidate reasons, failed outcomes,
+  and failed checks by occurrence/type while allowing one occurrence to contribute to different
+  error types; conflicting source severities resolve to the policy-defined highest severity while
+  all source signals remain inspectable.
 
 ### 8.2 Security and safety
 
@@ -815,8 +1159,9 @@ if measured query performance cannot meet the page's bounded latency targets.
 
 ### 8.3 Performance and accessibility
 
-* List and summary queries are server-paginated/filter-aware and do not issue per-row queries.
-* Detail and peer collections respect the caps in DR7 and report truncation.
+* Dashboard and list queries are server-paginated/filter-aware where applicable and do not issue
+  per-row queries.
+* Detail and peer collections respect the caps in DR9 and report truncation.
 * Filters, table rows, tabs, drawers, badges, and navigation actions are keyboard accessible.
 * State meaning remains understandable without color, and unknown governed terms remain visible.
 
@@ -824,14 +1169,24 @@ if measured query performance cannot meet the page's bounded latency targets.
 
 Implementation includes:
 
-* Go unit tests for coverage classification, blocked-claim precedence, and every integrity check;
+* Go unit tests for coverage classification, blocked-claim precedence, every integrity check,
+  metric-instance classification, ontology-metric current-term selection, error-presence policy,
+  error-type normalization/deduplication, and dashboard arithmetic identities;
 * database integration tests for current traversal, supersession, missing/duplicate links, outcome
   cardinality, active finding consistency, name/concept/term alignment, subject reconciliation,
   candidate continuity, class/claim alignment, unit/quantity/dimension resolution, term governance,
-  contract capability, projection freshness, and bounded peers;
-* API authorization, filtering, sorting, cursor, partial-data, and error tests;
-* Svelte tests for filters, summary/table selection, all eight detail tabs, population/authority
-  labels, warnings, blocked claims, silent gaps, missing states,
+  contract capability, projection freshness, bounded peers, per-term instance membership,
+  converged occurrences, differing metric-definition/class IDs, cross-definition convergence, and
+  authorization-filtered supporting evidence, including unauthorized-only, mixed-authority,
+  filtered, and source-unanchored class/claim-only assertions;
+* API authorization-before-aggregation, dashboard filter/denominator, both-list filtering/sorting,
+  cursor, zero-occurrence ontology term, unresolved document metric, drill-down equivalence,
+  global/in-scope/affected mapping counts, ontology occurrence/instance/history pagination,
+  equivalent error signals with differing severity/source, one occurrence with multiple error
+  types, no-error warning membership, partial-data, and error tests;
+* Svelte tests for dashboard cards/charts/tables/drill-down, both metric views, independent view
+  state, cross-view navigation, all document and ontology detail tabs, population/authority labels,
+  warnings, blocked claims, silent gaps, missing states,
   contextual navigation, and accessibility semantics;
 * `svelte-check` and relevant frontend test suites; and
 * authenticated browser verification when a supported development/CI authentication path exists,
@@ -843,6 +1198,11 @@ Implementation includes:
 
 * Operators can understand one metric's complete semantic lifecycle without manual SQL or
   cross-page ID correlation.
+* Document Metric View answers what documents stated, while Ontology Metric View answers what the
+  governed vocabulary knows; zero-occurrence terms and unresolved occurrences are visible without
+  forcing unlike entities into one table.
+* The dashboard makes corpus shape and error/mapping distributions visible while retaining exact,
+  drillable counts and measure definitions.
 * Lossless-processing invariants become observable at the same object boundary users investigate.
 * Historical lack of processing is separated from actual corruption or execution failure.
 * Ontology classes, contracts, findings, relations, and evidence become explainable from the source
@@ -857,6 +1217,12 @@ Implementation includes:
 
 * The composed read model joins several large and append-only tables and requires disciplined query
   planning, pagination, and current-state resolution.
+* Maintaining two list grains and several dashboard measures adds API/test surface. Shared
+  classifiers, versioned measure definitions, and arithmetic invariants are required to prevent
+  the views and charts from drifting.
+* Error deduplication is policy-bearing: changing equivalence between raw flags, findings,
+  candidate reasons, outcomes, and failed checks can change chart totals even when source rows do
+  not. The dashboard therefore exposes its error-policy version.
 * Coverage classification can mislead if writer-version or required-stage metadata is incomplete;
   conservative warning states and versioned rules mitigate this.
 * Some diagnostics are derived because the current pipeline writes no finding for them. Versioned
