@@ -1253,3 +1253,94 @@ reprocessing pass when the pipeline will produce better evidence on its own.
 * The 7,074 metrics that predate this writer are not retroactively backfilled under this decision;
   their eventual treatment follows whatever the corpus's own data lifecycle brings (see the "Note on
   backfills" policy), not a dedicated migration effort.
+
+## Appendix C — Decision: §10 open questions 1–5 resolved (Phase 8 task 8.2)
+
+**Date:** 2026-08-20 · **Participants:** Chen Ding, Claude (session that closed Phase 4 tasks
+7.2–7.6 and opened Phase 8; not a change to any normative DR)
+
+### C.1 Item 1 — physical split between assertion columns, validation-result tables, and
+`kb.semantic_processing_outcomes`
+
+Resolved by already-shipped schema, not a new decision. `unsupported_prior_status` lives directly
+as a column on `kb.semantic_assertions` (migration `20260818000006`), constrained to be non-null
+only when `status = 'unsupported'` and restricted to the five prior statuses DR6 names. Outcome
+data lives in `kb.semantic_processing_outcomes` (the append-only per-stage attempt envelope:
+execution status, outcome category, disposition, and a denormalized finding-count/highest-severity
+summary) with `kb.semantic_processing_findings` as its child table (typed, per-dimension,
+append-only). There is no third "validation-result" table: DR4's outcome/finding pair is the
+entire validation-result layer, and the assertion's own columns carry only the current-state
+summary (DR6's four state-axis fields plus `unsupported_prior_status`), not history. Item 1 closes
+by pointing at this shipped schema.
+
+### C.2 Item 2 — retention/compaction for large `raw_fragment` values
+
+Investigated: no production call site populates `Outcome.RawFragment` for either shipped adapter
+(metric or provision). Per DR2, `raw_fragment` is populated "only when no identified artifact row
+can preserve that content" — and both metric (`kb.metrics`) and provision (their own raw table)
+already own a family-specific raw artifact table, so DR2 routes raw preservation there instead.
+**Decision:** no retention/compaction policy is adopted now; the question is moot in practice for
+every family built so far. Revisit only if a future family (task 7.7) genuinely has no
+artifact-family raw table of its own and must rely on `raw_fragment` for raw preservation.
+
+### C.3 Item 3 — default Review Document filters and warning presentation by severity
+
+Resolved by already-shipped UI (task 5.5, `doc-review-semantic-view.svelte` +
+`semantic-diagnostics-labels.ts`), not a new decision. As built: no default filter — every
+lifecycle status and every governed state is shown unfiltered, sorted newest-modified-first,
+paginated 50/page; severity is presented as color-coded badges (good/warn/bad/neutral) per state
+axis (class identity, mapping, value, conformance) and per lifecycle status, not as a blocking
+filter. **Known gap, not treated as a blocker:** this view is assertion-scoped
+(`kb.semantic_assertions`), not outcome/finding-scoped — `kb.semantic_processing_outcomes
+.highest_severity_term_id` and individual `kb.semantic_processing_findings` rows are not directly
+surfaced; only the assertion's own cached state-axis fields are shown. This satisfies DR6's minimum
+exposure contract but not per-finding granularity. Flagged for a future UI iteration if that
+granularity is ever needed, not scheduled now.
+
+### C.4 Item 4 — first non-metric artifact family to migrate
+
+Closes as **provision** (task 7.6), on the following basis, confirmed with Chen Ding: task 7.6's
+provision instance adapter/writer is real and live-validated against `miner`, but deliberately
+bypasses the ADR `2026081701` four-table class/instance apparatus entirely (no claim registry, no
+class contract revisions, no term redirects) — provisions don't need cross-document convergence, so
+`writeProvisionLossless` never touches `kb.semantic_claim_identities`,
+`kb.ontology_class_contract_revisions`, or `kb.ontology_term_redirects`. Appendix A.4's stated
+blocking condition — "both call for committing the class/instance apparatus to a second family" —
+therefore does not describe what task 7.6 built, and does not gate closing item 4.
+
+Chen Ding's framing (2026-08-20): the current design deliberately keeps the framework
+artifact-independent; the four-table apparatus stays **metrics-only for the time being**, and is
+not committed to a second family until the metric vertical slice's full corpus-wide cutover
+finishes and is verified against real documents. Extending the apparatus itself to other families
+(inventory items, entities, relations, and a possible future revisit of provisions) is task 7.7's
+territory, each with its own live-scoped investigation into whether that family actually needs it
+— not assumed from provision's example, per handoff `2026082001` §5 item 3.
+
+Appendix A.3's underlying, still-unarticulated concern about the four-table apparatus's own
+correctness **remains open and deferred** — it was not resolved this session. It continues to gate
+committing that apparatus to any second family; it did not gate provision's lighter, apparatus-free
+migration, which is why item 4 can close now while A.3 stays open.
+
+### C.5 Design.md item 5 — retry-worker-pool question
+
+**Flagged as a known gap, left unresolved** (Chen Ding's explicit choice, 2026-08-20) — not decided
+this session. The actual state, confirmed by inspection:
+
+* `kb.semantic_retry_queue` receives real production enqueues today:
+  `UpsertValueRangeTypeMapEntry` (the mapping-approval admin action) calls
+  `RetryQueue.ScheduleForKeyedDependencyChange` per task 6.8.
+* `RetryQueue.Claim` — the only thing that would drain and act on a queued row — has zero
+  production callers anywhere in the tree; only tests call it. A row enqueued today sits in
+  `pending` state indefinitely.
+* `ApplyValueRangeTypeMapEntry` (the "System Admin → Database Maintenance → Resolve Metric Range
+  Types" action Chen Ding pointed to) directly `UPDATE`s `kb.metrics.value_range_type`; it does not
+  call the retry queue and does not itself re-run `associate_semantics`/`normalize_assertions`.
+  Whether the affected metric's semantic assertion is actually regenerated depends on the record
+  later flowing back through the ordinary document pipeline, not on this handler or the retry
+  queue.
+
+Chen Ding's operating model is that admins fix root causes and then re-process documents through
+the ordinary pipeline, not that anything auto-retries. Whether `kb.semantic_retry_queue` needs a
+real drain (background or admin-triggered) or should instead be retired in favor of that
+reprocessing model is left open, to be revisited once task 7.7 brings more real retry volume and
+it is clearer which is actually needed in practice.
