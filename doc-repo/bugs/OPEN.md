@@ -13,6 +13,18 @@ reaches a terminal state.
 
 ## Open
 
+- [2026082101 — auto-promoted metric_definition terms conflate metric-only fields with the generic term schema and drop available data](202608/2026082101-bug-auto-promoted-ontology-terms-schema-and-data-loss.md)
+  — `open`, root-caused, not yet fixed. Three confirmed defects in ADR 2026081201's auto-promotion
+  path: `definition` is bound to `formula_or_definition` (often legitimately blank) instead of the
+  descriptive `metric_desc`, which exists and is never read; `value_type`/`range_type`/
+  `permitted_unit_term_ids` are metric-only flat columns dead for the other 7 term kinds, with no
+  general `properties` bag (the QUDT importer's `symbol`/`deprecated` payload has the same
+  homeless-data problem); and a resolved unit can still be lost with no raw-text fallback field —
+  confirmed on live row `measurement:kwc_bb95850b160d`, whose metric had unit `%` and a matching
+  released `quantity:unit_PERCENT` term, yet `permitted_unit_term_ids` is empty. Compounding factor:
+  `EnsureAcceptedOrCreate` never refreshes an existing auto-promoted term, so a term stays frozen on
+  whatever its first-ever triggering metric looked like even after reprocessing improves the data.
+
 - [2026081802 — review of ADR 2026081701 (ontology object classes, metric instances, relations)](202608/2026081802-bug-adr-2026081701-canonical-metric-classes-review.md)
   — `open`, review only; 11 findings numbered Issues 16–26 continuing the ADR's own 01–15
   sequence. Architecture and the §2.1 production survey verified correct (182/55/45/7 exact).

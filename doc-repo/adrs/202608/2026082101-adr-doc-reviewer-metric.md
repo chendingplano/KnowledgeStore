@@ -1,194 +1,32 @@
 # ADR 2026063002 — Metric Document Reviewer
 
-**Date:** 2026-06-30 \
-**Status:** Accepted \
+**Date:** 2026-08-21 \
+**Status:** Proposed \
 **Component:** ChenWeb — `server/api/doc-reviews`, `server/api/doc-processing` (metric indexing, object graph), `prompts` \
 **Authors**: Chen Ding\
 **Tags**: Document Reviewer, Metric, Cross-Document Consistency
 
 ## 1. Change Logs
-* 2026/07/18, prompt v5 (`prompt-review-metrics-v5.md`, now `reviewers.metrics.prompt` in
-  `ChenWeb/doc-review.local.toml`) fixes an observed v4 failure: a candidate whose own
-  `analyses` summary concluded "entirely different quantities... no substantive
-  relevance" (an applicability-age threshold vs. a two-arm blood-pressure-difference
-  threshold, matched only via `hybrid_search` because both sit in a blood-pressure
-  measurement document) still produced a finding. v4 already forbade findings on
-  `unrelated`/`related_distinct` candidates, but did not stop the model from hedging via
-  the low-confidence-observation path meant for `undetermined` cases. v5 adds: a hard
-  gate in §4 (a finding may reference a candidate only if it is classified `same_conflict`
-  or `undetermined`-with-material-stakes, with an explicit instruction to cross-check
-  every finding's `related_artifact_id` against its own `analyses` relationship before
-  output) plus the exact counter-example above so the model has a concrete negative
-  case; tightens §5 to state that "unrelated" is a confident answer, not a point on the
-  same scale as a hedged observation; and strengthens the `match_via` guidance in §1 so
-  `hybrid_search`-only matches with differing category/unit/value_class carry a prior
-  toward `unrelated` rather than neutral treatment. `match_via` was already present in
-  the LLM's input payload before this change (`matchedMetricsPayload` in
-  `review-metrics.go` has always included it) — the fix is prompt guidance on how to use
-  it, not new data plumbing.
-* 2026/06/30, ADR Created
-* 2026/06/30, Fleshed out after codebase review: resolved the initial DR1
-  "hybrid search" mechanism as precomputed `hybrid_search` edges (historical;
-  superseded on 2026/07/01), added Data Formats, Migrations (none), Environment
-  Variables, Code Changes, Operational Behaviors, Consequences, Tests, and
-  Documentation Impact. Status moved Proposal -> Accepted.
-* 2026/06/30, Branch A correctness fix: `hybrid_search` edges are directional (written
-  source→target at index time, never refreshed retroactively), so the doc metric is on
-  the `target` side of any edge created by a document indexed later. Branch A now unions
-  **outbound** (M=source) and **inbound** (M=target) edges, resolving the opposite
-  endpoint as the match and excluding any endpoint with `record_id = record_id`. Added a
-  `LoadConnectionsByTarget` loader and inbound/cross-direction-dedup tests.
-* 2026/07/01, Branch A migrated to **on-the-fly** (supersedes the precomputed-edge reading
-  of DR1 and the 2026/06/30 correctness fix): semantic metric↔metric similarity is no
-  longer materialized as `hybrid_search` / `semantically_related` edges. Indexing
-  (`metric_indexing.go`) stops writing them; Branch A calls
-  `docprocessing.FindSimilarArtifactsOnTheFly` (same lexical + pgvector RRF acceptance
-  policy) per doc metric at review time. Live search is always fresh and direction-free, so
-  the A1/A2 inbound/outbound union and `LoadConnectionsByTarget` are no longer used by this
-  reviewer. Rationale: any artifact is already discoverable by hybrid search over
-  `kb.search_artifacts`; a stored snapshot only duplicates that computation and goes stale
-  as the corpus grows.
-* 2026/07/03, ADR 2026070201 (AR2/AR3/AR5) implemented for this reviewer: prompt v2
-  (`prompt-review-metrics-v2.md` — recall stance, broadened checks, source authority,
-  rank instead of raw RRF confidence, insufficient-information outlet, structured
-  `related_artifact_id`/`related_record_id` cross-references), window-first input
-  layout (canonical scheduler window as cacheable prefix), window-grouped
-  seed/stagger execution, and tool-use with `get_artifact_context`.
-* 2026/07/03, ADR 2026070201 AR6 (Stage 5) implemented: object-anchored
-  missing-metric detection runs as a separate sibling aspect
-  (`metrics_completeness`). It resolves a document metric to canonical objects through
-  `kb.artifact_objects` -> `kb.object_nodes`, then loads all metrics connected to those
-  object nodes through `kb.artifact_connections` `relation_method='object_id'` /
-  `relation_name='belong_to'` edges to build per-object metric rosters.
-* 2026/07/05, synced with implemented object-centric design (ADR 2026070101):
-  metrics, provisions, and inventory-item extraction now all produce and reconcile
-  shared `kb.artifact_objects` / `kb.object_nodes` records; this ADR consumes that
-  implemented object-reconciliation contract.
-* 2026/07/18, verified the Go reviewer pipeline against the prompt v4 output-contract
-  change: `analyses[].relationship` (and its stored form,
-  `kb.doc_review_findings.metadata.analysis_relationship`) is opaque to the Go code —
-  `parseMetricAnalysesJSON` and `metricAnalysesAsFindings` copy the string through
-  without validating or branching on specific values, and storage
-  (`FindingMetadataEnvelope`), translation (`finding_translation.go`), and the report
-  renderer (`typst_report.go`) do the same. No prior code assumed the old
-  `same_subject | related_subject | unrelated` vocabulary, so the v4 classification
-  taxonomy (`same_consistent | same_conflict | related_distinct | unrelated |
-  undetermined`) required no Go changes to parse, persist, or render correctly — only
-  the stale `MetricAnalysis` doc-comment and metrics test fixtures (which had hardcoded
-  `"same_subject"` as example data) were updated for accuracy.
-* 2026/07/18, prompt v4 redesigned classification-first: the earlier prompts framed the
-  task as conflict-hunting, implicitly assuming a retrieved candidate is either the same
-  metric (consistent) or a conflict. v4 makes classification the primary task: each
-  candidate is classified `same_consistent` / `same_conflict` / `related_distinct` /
-  `unrelated` / `undetermined` (emitted in `analyses[].relationship`), with measurement
-  conditions derived from both source contexts (same-name metrics under different
-  conditions, e.g. at-rest vs running, are `related_distinct`, not conflicts; candidates
-  sharing only an object/category/semantic context are expected, healthy non-matches).
-  Only `same_conflict` produces a conflict finding; outlier/currency/pattern checks apply
-  only within the same-metric roster. Also fixed the stale `match_via` vocabulary
-  (`entity` -> `object_anchor`) and resolved the v4 draft's English-vs-Chinese output
-  contradiction in favor of Chinese.
-* 2026/07/18, match ordering: matches are now ordered by match-source priority —
-  `object_anchor` first, then `metric_category`, then `hybrid_search` — with
-  confidence (RRF score) as the tie-break within a source; a metric reachable from
-  several branches keeps the highest-priority `via`. `MaxMatchesPerMetric` and the
-  per-call LLM cap (env `MAX_MATCHES_TO_LLM`, default 3, shared by the metrics,
-  provisions, inventory-items, and entities artifact reviewers) both truncate this
-  order, so the strongest sources reach the LLM first and `match_rank` reflects the
-  priority. (A same-day attempt to also expose this cap as
-  `[doc-reviewer].max_artifacts_passed_to_llm` in `ChenWeb/config.local.toml` was
-  reverted per operator preference; the cap stays env-var-only.)
-* 2026/07/05, clarified the review goal and corrected DR1: for each
-  metric-under-review, the reviewer first retrieves relevant cross-document metrics, then
-  asks the LLM to review the metric with that context. Object-anchored retrieval is part
-  of the `metrics` match search, not only the separate missing-metric reviewer. The old
-  document-level entity branch is removed from the reviewer design because it retrieves
-  metrics related to entities in the document-under-review, not necessarily metrics
-  relevant to the metric-under-review.
+* 2026/08/21, copied from 2026063002-adr
 
 ## 2. Context
-When a document is added to the knowledge base, the system extracts metrics,
-entities, relations and other artifacts from the document via the doc processors
-(refer to [1]).
-
-These document reviewers assume the document-under-review, identified by `record_id`
-(`kb.inputs.id`), has already been processed by the relevant doc processors. The metric
-conflict reviewer is configured as `reviewers.metrics` (group P5) in [2]; the
-object-anchored missing-metric reviewer is configured as `reviewers.metrics_completeness`
-(also group P5).
-
-The object graph consumed by `metrics` and `metrics_completeness` is an implemented
-dependency. ADR 2026070101 [8] defines the shared contract: metrics [7], provisions [9],
-and inventory items [10] extract artifact objects, reconcile them to canonical
-`kb.object_nodes`, and index `object_id` / `belong_to` graph edges.
-
-### 2.1 How this reviewer differs from every existing reviewer
-
-All ~40 existing review aspects (e.g. `grammar_spelling`, `completeness`,
-`standards_compliance`) read the **document's own text**: the prompt-cache scheduler
-splits the line file into `per-chunk` or `per-block` units and fans out one LLM call
-per unit ([3], `review_cache_scheduler.go`).
-
-The metric reviewers are fundamentally different. They do **not** read the document text
-linearly. They consume **already-extracted artifacts** — the document's `kb.metrics`
-rows, live search index rows, object graph edges, and object-node rosters — and
-cross-reference them against metrics in other documents. They are therefore
-**cross-document consistency and completeness** checks, not single-document text reviews.
-
-### 2.2 Resolving "hybrid search `kb.artifact_connections` by the metric" (DR1)
-
-`kb.artifact_connections` is a graph **edge** table ([4], `connections.go`), not a
-searchable index, so it cannot be "hybrid searched" directly. Early versions of this ADR
-expected the `extract_metrics` artifact-indexing step to compute, for every metric, its
-top semantically-related artifacts across the **entire corpus** and persist them as
-edges:
-
-```
-source_type = 'metric', source_record_id = <doc>, source_id = <metric artifact id>
-relation_method = 'hybrid_search'
-relation_name   = 'semantically_related'
-target_type     = 'metric' (and other families)
-target_record_id / target_id = the matched artifact (often a different document)
-confidence      = RRF score, provenance = {cosine_sim, lexical_score, ...}
-```
-
-As of 2026/07/01 (see change log), that design is no longer current: the reviewer does
-**not** read precomputed edges for Branch A. Semantic metric↔metric similarity is
-computed **live** at review time via
-`docprocessing.FindSimilarArtifactsOnTheFly`, which runs the same lexical + pgvector RRF
-search and acceptance policy the indexing step used to persist, but returns matches
-instead of writing edges. A single search per doc metric finds every semantically related
-metric across the corpus regardless of index order, so there is no edge direction to
-union and no staleness: `LoadConnectionsByTarget` and the outbound/inbound split are no
-longer used by this reviewer. Indexing still hydrates each metric's `search_document` and
-embedding into `kb.search_artifacts` so the live search has its inputs.
-
-(Historical note: DR1 originally read precomputed `hybrid_search` / `semantically_related`
-edges from `kb.artifact_connections`, and a 2026/06/30 fix unioned outbound + inbound
-edges to handle their directionality. Both are superseded by the on-the-fly approach
-above.)
-
-Object-anchored matching is a first-class match source for the `metrics` reviewer. For a
-metric-under-review, the reviewer resolves the metric's artifact objects through
-`kb.artifact_objects` -> `kb.object_nodes`, then loads peer metrics connected to the
-same or comparable object nodes through `kb.artifact_connections` object-id edges. This
-retrieves metrics that are relevant to the metric-under-review through the object being
-measured, rather than through broad document-level co-occurrence.
-
-The old document-entity branch is intentionally removed from this design. It loaded
-metrics connected to any entity extracted from the document-under-review and then used
-category overlap as a weak attachment heuristic. That path can retrieve metrics that are
-document-related but not metric-relevant. If entity-based recall is reconsidered later,
-it must be anchored to the metric-under-review's spans, artifact object, or another
-artifact-local signal rather than all entities in the document.
-
-The object-anchored missing-metric check remains a separate reviewer aspect,
-`metrics_completeness`. It answers a different question: not "does this metric conflict
-with matching metrics?", but "does this document omit metrics that peer documents
-consistently attach to the same object?".
+This is a new type of metric reviewer (the old one is 2026063002-adr). The major
+differences are:
+- This new metric reviewer is built on of the ontology system (refer to [1] and [2])
+- Changes about how to retrieve relevant metrics for a given metric-under-review, 
+  leverage the ontology entities and relations
+- The format of the review results
 
 ## 3. Decision
 ### 3.1 DR1 — Reviewer logic
+For each metric-under-review:
+- Retrieve its `kb.semantic_assertions` as A
+- 
+- Hybrid search top-N related metrics from the database, where N is configurable and defaults to 10
+- Use an LLM call to remove the false relevant metrics from the searched results.
+- Categorize the matched metrics by `kb.inputs.doc_type`: ['national_standard_cn', 'international_standard', 'eu_standard', 'us_standard', 'company_standard_cn'].
+- Build a two-dimensional matrix: ['metric', 'doc_type']. Each cell contains zero or more related metrics.
+- Use an LLM call to remove 
 
 The `metrics` reviewer builds, for each metric extracted from the document-under-review,
 a list of **matching metrics** from cross-document search sources, then issues one LLM
@@ -574,13 +412,6 @@ the other artifact reviewers.
   2026070101 and the processor specs referenced below.
 
 ## 9. References
-- [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
-- [2] `ChenWeb/doc-review.local.toml`
-- [3] `KnowledgeStore/doc-repo/adrs/202606/2026062804-adr-doc-review-run.md` (run model) and `ChenWeb/server/api/doc-reviews/review_cache_scheduler.go` (dispatch)
-- [4] `ChenWeb/server/api/doc-processing/connections.go`, `connections_store.go`, `metric_indexing.go`, `artifact_object_connection_indexing.go` (artifact graph, live-search hydration, object edges)
-- [5] ADR 2026062804 — `kb.doc_review_runs` run model (run-scoped findings)
-- [6] `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
-- [7] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md`
-- [8] `KnowledgeStore/doc-repo/adrs/202607/2026070101-adr-object-centric-design.md`
-- [9] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-spec.md`
-- [10] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-inventory-items-spec.md`
+- [1] Ontology Subsystem: `2026072901-adr`
+- [2] Ontology Subsystem, revised: `20260801-adr`
+- [3] Doc Processors: `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`

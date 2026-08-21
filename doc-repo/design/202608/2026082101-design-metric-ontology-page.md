@@ -8,13 +8,20 @@
 
 ## 1. Purpose
 
-This document redesigns the layout of Page 1 — Metric Dashboard from
-`2026082005-design-metric-ontology-analysis-page.md` §4, so that the Metric Ontology Model
-(`metric-ontology-v1.0-en.md` §5, "The Metric Ontology model") is the page's visual center: a
-full-width hero band carrying the whole of §5 as a diagram, with the dashboard's existing KPIs,
-panels, and table grouped by entity beneath it instead of stacked linearly. It amends §4 only. Everything else in the prior design doc — the shared shell (§3), Document Metrics (§5–6),
-Ontology Metrics (§7–8), non-happy-path behavior (§9), delivery order (§10), and out of scope (§11)
-— is unchanged and still applies.
+This document designs the page `Metric Ontology` (accessed by `ChenWeb/home3/knowledge, Ontology => 
+Metric Ontology`. The page contains two types of content: the metric ontology model and the dashboard
+of the metric ontology model. 
+
+The 'Metric Ontology Model' is described in `metric-ontology-v1.0-en.md` §5, "The Metric Ontology model".
+
+The original design document of the dashboard part is 
+`2026082005-design-metric-ontology-analysis-page.md` §4. 
+
+The 'Metric Ontology Model' is the page's visual center: a full-width hero band carrying the whole of §5 
+as a diagram, with the dashboard's existing KPIs, panels, and table grouped by entity beneath it instead 
+of stacked linearly. It amends §4 only. Everything else in the prior design doc — the shared 
+shell (§3), Document Metrics (§5–6), Ontology Metrics (§7–8), non-happy-path behavior (§9), delivery 
+order (§10), and out of scope (§11) — is unchanged and still applies.
 
 This is a presentational redesign. No new data, filter, or interaction is introduced; every KPI,
 panel, and table listed in the prior §4 is kept, only relocated and visually grouped.
@@ -76,7 +83,7 @@ rest of the assertion's outbound references:
 |---|---|---|
 | Name to concept to term | `kb.metrics` → keyword concept → terms shell | `metric_name`, then `core:aligns_to_term` |
 | Claim to subject | `kb.metrics` → object mention → object node → `kb.semantic_assertions` | `subject`, `reconciled to`, `subject_object_id` |
-| Claim to class | `kb.semantic_assertions` → terms shell | `instance_of · assertion kind · unit · quantity kind` |
+| Claim to class | `kb.semantic_assertions` → `class · metric class` block in the terms shell | dashed edge labelled `instance-of`; the same assertion block also connects to its assertion kind, unit, and quantity kind |
 | Range/unit lookup at normalization | `kb.semantic_decision_candidates` → terms shell | `resolves value range type · unit · quantity kind` |
 | Claim convergence | `kb.semantic_assertions` → canonical claim identity | `logical_identity_key` |
 | Attributability | `kb.assertion_evidence` → `kb.inputs` | dashed return edge along the bottom of the record lane |
