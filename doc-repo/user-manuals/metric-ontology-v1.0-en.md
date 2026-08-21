@@ -2,16 +2,16 @@
 title: Metric Ontology
 language: en
 format: markdown
-version: 1.1
+version: 1.2
 status: current
 author: Not specified
 owner: Not specified
 audience: ChenWeb and SemOS users, ontology curators, reviewers, analysts, and system operators
 create-time: 2026-08-20T16:37:47-05:00
-last-modify-time: 2026-08-20T19:20:00-05:00
+last-modify-time: 2026-08-20T19:55:00-05:00
 keywords:
   supplied: Metric Ontology
-  generated: metric definition, measurement module, quantity module, QUDT, quantity kind, unit, dimension, observable property, feature of interest, procedure, assertion kind, governed vocabulary, ontology terms, class contract, ontology candidate, auto-promotion, module release, kb.ontology_terms, kb.ontology_modules, measurement:kwc, metric ontology model, metric lifecycle, ontology instance, instance_of, ontology object, object node, keyword concept, semantic assertion, class resolution, canonical claim identity, normalize_assertions, associate_semantics
+  generated: metric definition, measurement module, quantity module, QUDT, quantity kind, unit, dimension, observable property, feature of interest, procedure, assertion kind, governed vocabulary, ontology terms, class contract, ontology candidate, auto-promotion, module release, kb.ontology_terms, kb.ontology_modules, measurement:kwc, metric ontology model, metric lifecycle, ontology instance, instance_of, ontology object, object node, keyword concept, semantic assertion, class resolution, canonical claim identity, normalize_assertions, associate_semantics, errors, error handling, value range type, unmapped value_range_type, ambiguous object, orphaned labels, deferred candidate, semantic finding, retry queue, backlog drain, database maintenance, troubleshooting
 ---
 
 # Metric Ontology
@@ -204,7 +204,7 @@ A single metric touches all three at once. The metric row is record-born. The me
 | **Cross-family predicate** | `core:aligns_to_term`, `core:instance_of` | Connects a keyword concept to a governed term, and a record to its class. |
 | **Processing-state concept** | `semantic:*` | Names what a processing stage determined — including what it could not determine. |
 | **Label** | `kb.ontology_term_labels` | Readable, language-specific names for a term. |
-| **Class contract revision** | `kb.ontology_class_contract_revisions` | The fuller definition of a class: value type, permitted units, constraints, capabilities (§10.1). |
+| **Class contract revision** | `kb.ontology_class_contract_revisions` | The fuller definition of a class: value type, permitted units, constraints, capabilities (§11.1). |
 | **Ontology candidate** | `kb.ontology_candidates` | Proposed vocabulary. Not a term yet, and never usable as one. |
 | **Governed value mapping** | `kb.metric_value_range_type_map` | Governed but not an ontology term: maps the free-text `value_range_type` a document produced onto a canonical bucket. |
 
@@ -388,7 +388,7 @@ A value it cannot parse still produces a candidate — carrying value form `unpa
 
 Only two conditions still stop a metric here: an unresolved subject object from §9.3, and a `mea:measured_by` predicate that is not released. Neither an unparsable value nor an ungoverned assertion kind defers a metric any more; both become recorded states on the assertion instead of silence.
 
-Two observations in §10 follow directly from this stage. The identity-only class contract revisions §10.1 reports as absent are precisely what step 1 creates — they are absent in that database because no metrics have been processed there (§10.3), not because the path is missing. And the classes step 1 creates are `class` terms in the identity registry, which is the registry nuance noted at the end of §5.5.
+Two observations in §11 follow directly from this stage. The identity-only class contract revisions §11.1 reports as absent are precisely what step 1 creates — they are absent in that database because no metrics have been processed there (§11.3), not because the path is missing. And the classes step 1 creates are `class` terms in the identity registry, which is the registry nuance noted at the end of §5.5.
 
 ### 9.6 Projection
 
@@ -399,6 +399,8 @@ Two observations in §10 follow directly from this stage. The identity-only clas
 A metric that stalls is not abandoned. Deferred candidates are retried by a backlog drain that re-normalizes the affected records rather than flipping statuses directly, so a candidate is reconsidered only when the thing it was waiting on actually changed — a subject that became resolvable, or a term that became released.
 
 The corollary matters operationally: a drain pass cannot fix a condition that does not depend on a changing dependency. A metric held back by wording no one has triaged waits for a curation decision, not for another pass, and repeated draining will report no progress. That is the system working as designed, not a stuck queue.
+
+Section 10 catalogues every way a metric can be blocked, degraded, or silently thinned, and what to do about each.
 
 ### 9.8 The lifecycle end to end
 
@@ -416,11 +418,123 @@ Taking the §6 example — *Display luminance (typical): 500 cd/m², measured pe
 
 What the ontology contributed is the reusable half of that table; what the document contributed is the other half; and the evidence row is what keeps the two attributable to each other.
 
-## 10. What to expect today
+## 10. Errors
+
+Metric processing is deliberately lossless. When something cannot be determined, the system records what it could not determine rather than dropping the metric or inventing a value. The practical consequence is that most of what goes wrong does not look like an error. It looks like a stored claim carrying a state.
+
+Reading this section well means holding four different things apart:
+
+| Class | What happened | How you notice it |
+|---|---|---|
+| **Run failure** | A stage did not finish. Nothing downstream ran for that record. | The record's stage shows `failed` on the Doc Processor dashboard. |
+| **Blocked claim** | The stage finished, but one metric was held back instead of stored. | A decision candidate at `deferred` or `rejected`, with a reason. |
+| **Recorded degradation** | The claim *was* stored, honestly marked as incomplete. | A finding on the stage outcome, and a state on the assertion. |
+| **Silent gap** | Nothing was flagged at all; the result is simply thinner than it looks. | Only by looking. No page reports it. |
+
+The fourth class deserves the most attention, because the first three announce themselves and it does not. A metric whose unit never resolved to a governed term looks exactly like a metric whose unit did, until someone tries to compare it.
+
+One more caution about severity before the tables. The governed severities are `semantic:severity_info`, `semantic:severity_warning`, and `semantic:severity_error`, and severity is a user-facing signal only — an error-severity finding does not by itself fail a run. Today **nothing on the metric path writes an error-severity finding**; the metric writer emits warnings and info only. Absence of error severity is therefore not evidence of health.
+
+### 10.1 Where errors are recorded
+
+| Recorded in | What it holds | Where to look |
+|---|---|---|
+| The record's stage status | Whether a stage ran, is running, or failed for one document | `ChenWeb/development, Dashboard => Doc Processor` |
+| `kb.doc_proc_logs` | Per-run log entries, including entry types `error`, `warning`, `blocking`, `extract_metrics`, `resolve_metric`, `reconcile_object`, and `assertion_mapping_miss` | `System Admin => Logs => Doc Processor Logs` |
+| `kb.metrics.value_range_type_error` | Per-row extraction flag for an ungoverned range-type wording | `System Admin => Database Maintenance => Resolve Metric Range Types` |
+| `kb.artifact_objects.reconcile_status` | Per-mention subject reconciliation outcome | `System Admin => Database Maintenance => Resolve Ambiguous Objects` |
+| `kb.semantic_decision_candidates.status` and `decision_reason` | Blocked claims and why | `System Admin => Doc Process Pipeline => Semantic Decision Candidates` |
+| `kb.semantic_processing_outcomes` and `kb.semantic_processing_findings` | Per-stage disposition plus typed findings | `to-be-developed` — no findings browser exists; the resulting states are partly visible on `Semantic Assertions` |
+| `kb.semantic_retry_queue` | Dependency-driven retry jobs and their state | `System Admin => Doc Process Pipeline => Semantic Retry Queue` |
+| `kb.db_maintenance_logs` | What a maintenance action did, and to what | `System Admin => Database Maintenance => Maintenance Log` |
+
+### 10.2 Errors in extraction
+
+`extract_metrics` is where the document's own wording is read, the subject is reconciled, and the range-type vocabulary is checked.
+
+| Error | What it means | What to do |
+|---|---|---|
+| **`extract_metrics` failed for a record** | The stage did not complete — an LLM call, a chunk load, or a persistence step failed. No metric rows for that run, and every later stage is skipped. | Diagnose in `System Admin => Logs => Doc Processor Logs`, filtering entry type `error` or `extract_metrics`. Re-run from `Dashboard => Doc Processor` with **Run Failed Only**. |
+| **Failed converting a value range type** — `unmapped value_range_type: "<raw>"` | The document's own range wording ("typical", "max.", "≤", 亮度上限 …) has no *approved* mapping in `kb.metric_value_range_type_map`. The metric row is written **unchanged** — nothing is dropped — but the row's `value_range_type_error` is set, one `assertion_mapping_miss` entry is written per record per run, and the stage is reported failed for that record. | `System Admin => Database Maintenance => Resolve Metric Range Types`. Approving a mapping clears the error on **every** metric row sharing that raw value; **Apply** additionally rewrites those rows' `value_range_type` to the canonical bucket. |
+| **Ambiguous subject object** | Two or more candidate object nodes tied on score, so nothing was guessed. The mention is stored with `reconcile_status = 'ambiguous'` and the competing candidates are preserved. The metric will be **held back at adjudication** (§10.4). | `System Admin => Database Maintenance => Resolve Ambiguous Objects`. A model-assisted resolver can also decide it above the configured confidence bar, recorded as `ambiguous_resolved` by method `llm_ambiguous_resolution`. |
+| **A new object node created that should have merged** | Nothing was close enough to an existing node, so a new one was created. This is a normal outcome and is **not flagged**; it becomes visible only as two nodes for one real thing. | `Knowledge System => Object Manager` to inspect, relate, and reconcile. |
+| **A name that reached no governed term** | First encounter with a metric name. A provisional keyword concept is created and a `metric_definition` term is synthesized from the row's own fields and marked `auto-promoted`. Not a failure — but §7.2's warning applies: usable, not reviewed. | `to-be-developed` — no term-review page exists. The governed-term API (`/kb/ontology/terms`) is the current path. |
+| **Alignment conflict** | A keyword concept is already aligned to a *different* governed term, so the automatic alignment step declines to override it and processing continues. Two concepts aligned to two distinct terms is treated as evidence they are not the same thing. | `to-be-developed`. |
+| **Ontology candidate backlog** | Harvested vocabulary sits at `discovered` and is never triaged (§7.1). Not an error at all until it stops moving. | `to-be-developed` — no candidate triage page. The candidate API (`/kb/ontology/candidates`) exists. |
+
+The range-type case is worth one extra paragraph, because it is the error most often misread. `value_range_type` is free text produced per document, and a lookup returns one of four statuses: `approved` (a human-confirmed mapping), `proposed` (never triaged), `ambiguous` (a human decided no bound direction can be inferred), or `absent` (the document stated no range type at all). Only `proposed` is a backlog item. `ambiguous` is a **decision**, not a defect, and re-running the record will never change it.
+
+### 10.3 Errors in normalization
+
+`normalize_assertions` does the text-to-structure work. It writes no assertions, so nothing here blocks a metric outright — everything becomes a state carried forward.
+
+| Error | What it means | What to do |
+|---|---|---|
+| **Value could not be parsed** | The threshold or target text yielded no usable value form. The candidate carries value form `unparsed` with the raw text untouched, and the assertion is later stored with value state `semantic:value_state_unparsed`, finding `semantic:unparsed`, and disposition `raw_preserved`. **No value is ever invented to fill the gap.** | Inspect and correct the extracted row in `Knowledge System => Metrics`, then re-run the record. Triaging findings directly: `to-be-developed`. |
+| **Value missing** | Neither raw text nor any numeric field was present. Value state `semantic:value_state_missing`, finding `semantic:value_missing`. Distinct from *unparsed*: nothing was there to parse. | Same as above. Often the honest answer for a qualitative metric. |
+| **Mapping unresolved / ambiguous carried forward** | The `proposed` or `ambiguous` range-type status from §10.2 becomes finding `semantic:mapping_unresolved` or `semantic:mapping_ambiguous` at warning severity, with mapping state recorded on the assertion. | `Resolve Metric Range Types`. Approving the mapping schedules retry scoped to *that one raw value*. |
+| **Assertion kind could not be determined** | The document's claim type was empty or ungoverned. Under the current lossless default the claim still materializes: it falls back to the released `mea:observed_value` with an honest unparsed or missing value state. | Nothing to fix mechanically — but read the result carefully. **A claim whose value state is `unparsed` may be reported as an observation even though the document stated a requirement or a target.** Do not take the assertion kind at face value in that case. `to-be-developed`. |
+
+### 10.4 Errors in adjudication
+
+`associate_semantics` turns candidates into assertions. Only two conditions still stop a metric here; everything else has been converted into a recorded state.
+
+| Error | What it means | What to do |
+|---|---|---|
+| **`unresolved_referent` / `ambiguous_targets`** | The candidate has no resolved subject object, so there is no legal subject for the claim (§5.5). Deferred, not rejected. | `Resolve Ambiguous Objects`. Once the subject resolves, the backlog drain re-normalizes the affected records automatically. |
+| **`governed_term_not_released:mea:measured_by`** | The predicate term the claim needs is not in an active module release. Deferred with a dependency fingerprint, so it is retried when — and only when — that term is released. | Release the term (`to-be-developed`; the term API exists). Watch progress in `System Admin => Doc Process Pipeline => Semantic Retry Queue`. |
+| **`malformed proposed_payload`** | The candidate's payload could not be read. This is the only true rejection path for a metric; the candidate goes to `rejected`, not `deferred`. | `Semantic Decision Candidates` to inspect, then re-run the record from `Dashboard => Doc Processor`. |
+| **`unrecognized_source_artifact_type`** | No association resolver is registered for the candidate's artifact family — a configuration problem, not a data problem. | `to-be-developed`. Check the registered resolvers with the pipeline owner. |
+| **Class created provisionally** (`semantic:class_provisional`, info) | No class with the derived identifier existed, so an identity-only class was created in the `measurement` module. Expected on first encounter and recorded at **info** severity. | Nothing, normally. Watch for near-duplicate classes accumulating from near-duplicate names. |
+| **Class ambiguous** (`semantic:class_ambiguous`, warning) | More than one class could have been the instance target. | `to-be-developed`. |
+| **Datatype mismatch** (`semantic:datatype_mismatch`) | The parsed value did not fit the expected datatype. The claim's canonical identity falls back to the raw-fingerprint branch instead of the normalized-value branch, so it will **not** converge with an equal claim stated elsewhere. | Correct the row in `Knowledge System => Metrics` and re-run. |
+| **Identity, source, or candidate-evidence conflict** (`semantic:identity_evidence_conflict`, `semantic:source_conflict`, `semantic:candidate_evidence_conflict`) | Evidence disagrees about an identity or a value. Recorded, never silently resolved. | `to-be-developed`. |
+| **Conformance not evaluated** (`semantic:not_evaluated`) | No class contract exists to evaluate against. With contracts unpopulated (§11.1) this is the state of **every** metric today, so `semantic:contract_violation` and `semantic:no_verdict` are effectively unreachable. | Nothing today. This is a phase limitation, not a fault. |
+| **Unit did not resolve to a governed term** | The raw unit string had no match in the imported QUDT catalog, so `unit_term_id` and `quantity_kind_term_id` are simply left empty. This is best-effort enrichment and never a gate: **no finding is written and nothing is flagged**. `cd/m²` is a live example — no candela unit was imported. | The clearest silent gap in the pipeline. If unit-aware comparison matters, verify the unit terms on the assertion rather than assuming them. `to-be-developed`. |
+
+### 10.5 Retry, drains, and work that only looks stuck
+
+A retry job in `kb.semantic_retry_queue` is in one of five states: `pending`, `claimed`, `done`, `stale`, or `failed`. `stale` and `failed` are the ones to act on, and both are visible on `System Admin => Doc Process Pipeline => Semantic Retry Queue`.
+
+Three situations regularly get reported as bugs and are not:
+
+- **A drain reports no progress.** Retries are keyed on the dependency a claim is waiting for. Re-running a processor cannot resolve "no approved mapping exists"; only approving the mapping can. A metric blocked on wording nobody has triaged will report no progress on every pass, by design (§9.7).
+- **Candidates sitting at `in_review`.** That status is the adjudication stage's own momentary bookkeeping, not a human-review pause. A row still sitting there was orphaned by a crash mid-candidate, and the next run picks it up and resumes it.
+- **A deferred candidate that will not move.** Use **Retry Deferred** on `Semantic Decision Candidates` only when you know the dependency changed; otherwise the fingerprint is unchanged and the retry is correctly a no-op.
+
+### 10.6 Corpus-level integrity errors
+
+These are not about one metric. They are about whether the record set as a whole is internally consistent, and any of them blocks a cutover.
+
+| Error | What it means | What to do |
+|---|---|---|
+| **Missing stage outcomes** | An (artifact, stage) pair has no active outcome envelope — the stage's result was never recorded, so "not processed" and "processed cleanly" cannot be told apart. | `to-be-developed` as a page. Available today only through the readiness command line reports. |
+| **Artifacts with neither path** | An artifact has neither a semantic instance nor an active unresolved occurrence. This is the losslessness invariant failing outright. | `to-be-developed`. Escalate — this should not occur. |
+| **Summary drift** | An outcome's stored finding count or highest severity disagrees with its actual child findings. | `to-be-developed`. |
+| **Orphan active findings** | An active finding hangs under an inactive outcome. A database trigger makes this unreachable in normal operation; a non-zero count means the trigger was dropped or bypassed. | `to-be-developed`. Escalate. |
+| **Assertions missing a value state** | Permitted for legacy rows, but the lossless writer must never produce one. | `to-be-developed`. |
+| **Orphaned ontology term labels** | A row in `kb.ontology_term_labels` whose `term_id` no longer matches any row in `kb.ontology_terms`. These cannot be resolved safely and can block ontology identity updates. | `System Admin => Database Maintenance => Resolve Orphaned Labels`. Resolving **deletes** the listed rows and logs the action to the Maintenance Log. |
+| **Duplicate `kb.inputs.status` operation entries** | More than one status entry for the same operation name on one record, which makes the dashboard show a stale in-progress status. | `System Admin => Database Maintenance => Consistency Check`, then **Fix** (it deduplicates, keeping the last entry per operation). |
+| **Leftover artifact data for a deleted or re-imported record** | Index entries such as `metrics.txt` survive their `kb.inputs` record. | `System Admin => Database Maintenance => Clean Artifact Data`. **Destructive** — confirm the record ID first. |
+
+### 10.7 What has no page yet
+
+Collected in one place, so the gaps are not discovered one at a time:
+
+| Needs a page for | Status |
+|---|---|
+| Triaging ontology candidates out of `discovered` | `to-be-developed` (API exists) |
+| Reviewing and releasing governed terms, including `auto-promoted` ones | `to-be-developed` (API exists) |
+| Browsing semantic processing findings by dimension, severity, or stage | `to-be-developed` |
+| Resolving keyword-concept alignment conflicts | `to-be-developed` |
+| Reporting unresolved units and unresolved quantity kinds | `to-be-developed` |
+| Corpus-level completeness and integrity reporting | `to-be-developed` (command-line reports exist) |
+
+## 11. What to expect today
 
 The Metric Ontology is being introduced in phases, and the vocabulary layer is considerably further along than the definition layer. The following were observed in `miner` at 2026-08-20T16:37:47-05:00 and should be confirmed against your deployment before relying on them.
 
-### 10.1 Class contracts are not yet populated
+### 11.1 Class contracts are not yet populated
 
 A **class contract** is the fuller definition of a metric class: its expected value type, permitted units, constraints, normalization rules, and which capabilities — such as validation or comparison — it can support. The supporting tables are deployed, including a `definition_state` of `identity_only`, `partially_defined`, or `validated`, and per-capability results of `enabled`, `disabled`, or `indeterminate`.
 
@@ -428,7 +542,7 @@ A **class contract** is the fuller definition of a metric class: its expected va
 
 The consequence is specific and important: a term establishes *what a metric is called and what it refers to*, not *how its values may be validated or compared*. Do not assume that because two claims resolve to the same metric definition, the system can safely compare them. Until a contract declares a comparison capability, that judgment remains a human one.
 
-### 10.2 Metric-level fields on terms are uncontrolled
+### 11.2 Metric-level fields on terms are uncontrolled
 
 Terms carry `value_type`, `range_type`, and `permitted_unit_term_ids` fields. The first two have **no database constraint restricting their values**, and the observed data shows the drift that follows from that:
 
@@ -457,11 +571,11 @@ Terms carry `value_type`, `range_type`, and `permitted_unit_term_ids` fields. Th
 
 `number`, `numeric`, and `integer` appear as three separate values, as do `text` and `string`. Treat these fields as descriptive hints, not as a reliable basis for filtering or grouping, and expect equivalent values to be spelled differently. Whether these variants are intended to be distinct requires confirmation from the owning team.
 
-### 10.3 The vocabulary is loaded; the metric data is not
+### 11.3 The vocabulary is loaded; the metric data is not
 
 At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both empty in `miner`. The ontology was fully seeded, but no extracted metrics or assertions were present. This reflects the current state of that database rather than a property of the system, and it will not be true of a database that has processed documents. Verify against your own environment.
 
-## 11. Common pitfalls
+## 12. Common pitfalls
 
 - **Do not put a value in the ontology.** `250 cd/m²` is evidence in an assertion record; only the metric, quantity kind, and unit are ontology terms.
 - **Do not treat matching labels as matching meanings.** Two terms named "brightness" may be genuinely different metrics. Read definition, scope, and module.
@@ -475,7 +589,7 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 - **Do not treat a keyword concept as an ontology entity.** It is a lexical identity with no governance status; only its `aligns_to_term` alignment reaches the ontology.
 - **Do not expect a backlog drain to clear a curation-blocked metric.** Drains retry dependencies that changed; wording nobody has triaged is not one of them.
 
-## 12. Glossary
+## 13. Glossary
 
 | Term | Meaning |
 |---|---|
@@ -501,7 +615,7 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 | Canonical claim identity | A deterministic key over a claim's identity-bearing fields, excluding provenance, so equal claims converge. |
 | Represented | A lifecycle status meaning the claim was admitted and is readable, carrying no endorsement. |
 
-## 13. Related manuals
+## 14. Related manuals
 
 - *Governed Ontology Terms Guide* — the term registry. See the correction in §3.2.
 - *Ontology Labels Guide* — readable names for terms.
@@ -510,6 +624,14 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 - *Metric and Assertion Semantic Processing* — the processing pipeline in detail.
 
 ## Change Log
+
+### 1.2 — 2026-08-20T19:55:00-05:00
+
+Author: Claude
+
+Reason: Reader request — the manual explained how metric processing works but not how it goes wrong, so a user meeting a flagged metric had no way to tell a run failure from a blocked claim from a recorded degradation, and no route to the page that fixes it.
+
+Summary: Added §10 *Errors*, classifying every failure mode as a run failure, a blocked claim, a recorded degradation, or a silent gap; listed where each error is recorded and the admin page that resolves it, including `Resolve Metric Range Types`, `Resolve Ambiguous Objects`, `Resolve Orphaned Labels`, `Consistency Check`, `Clean Artifact Data`, `Semantic Decision Candidates`, `Semantic Retry Queue`, and `Doc Processor Logs`, marking the remainder `to-be-developed`; covered extraction, normalization, adjudication, retry and drain behaviour, and corpus-level integrity; noted that nothing on the metric path writes an error-severity finding today and that an unresolved unit is recorded nowhere at all; renumbered the sections that followed and their cross-references.
 
 ### 1.1 — 2026-08-20T19:20:00-05:00
 
