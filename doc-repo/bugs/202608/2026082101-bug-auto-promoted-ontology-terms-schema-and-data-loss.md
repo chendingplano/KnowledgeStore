@@ -5,7 +5,17 @@ Date: 2026-08-21
 Status: findings 1-3 fixed 2026-08-22 (ChenWeb `1291bfd0`), plus a same-day
 follow-up erratum fix and a new property-map extensibility feature — see
 "Follow-up — 2026-08-22" below. Finding 4 (refresh-on-later-occurrence)
-remains open, deferred by design.
+remains open, deferred by design. A same-day review of that property-map
+feature (triggered by a proposal to add `kb.semantic_assertions.properties`)
+surfaced findings 5-8 — class creation running in the wrong pipeline stage,
+class/instance scope conflation in `properties`, un-normalized property
+keys, and the agreed `qualifiers`-based resolution for
+`kb.semantic_assertions` — see "Review — 2026-08-22 (round 2)" below.
+Findings 5-8 implemented same-day via ChenWeb change
+`fix-metric-property-scope-conflation` (openspec) — see "Implementation —
+2026-08-22" below. Not yet verified end-to-end against a live database in
+this environment; a new integration test covers it, pending a run with
+`TEST_DATABASE_URL` set.
 
 System: ChenWeb SemOS ontology — governed term schema and metric auto-promotion
 
@@ -295,3 +305,126 @@ mapping's `value_data_type`/`value_range_type` property names against the
 fixed synthesis's own `value_type`/`range_type` keys (both will appear on
 the same term today, under different property names — not deduplicated,
 left to the operator's config).
+
+## Review — 2026-08-22 (round 2): class-vs-instance conflation in the property-map feature
+
+Triggered by a proposal to add `kb.semantic_assertions.properties`,
+reasoning by analogy: `associate_semantics` creates a `kb.semantic_assertions`
+row per extracted metric, and a `kb.ontology_terms` record is created or
+selected as that row's "class" (`instance_of_term_id`), so the assertion
+should get the same JSONB treatment the class did. Tracing the actual
+mechanics found the premise doesn't hold as stated — the "class creation"
+step is not one mechanism but two, disconnected — and surfaced four
+confirmed problems, agreed in discussion.
+
+**5. Class creation runs in the wrong pipeline stage.** `kb.ontology_terms`
+metric_definition classes are not created by `associate_semantics`. They
+are auto-promoted earlier, inside `extract-metrics.go`'s `resolveAll`
+(`extract-metrics.go:284`, `s.Alignments.EnsureAcceptedOrCreate`) — before
+`normalize_assertions`/`associate_semantics` ever sees the metric.
+`associate_semantics`'s own class-resolution step
+(`metric_lossless_writer.go:222`, `resolveOrCreateMetricClass`) only mints
+a bare identity-only class (`classfoundation.ContractStore.
+CreateIdentityOnlyClass` — `term_kind='class'`, `ContractPayload: "{}"`, no
+`definition`, no `properties`) when the extract_metrics-stage promotion
+hasn't already run for that concept and left `metric_definition_term_id` on
+the metric row; otherwise it silently reuses whatever extract_metrics
+already created. Two independent producers of the same governed-concept row
+is the same category of problem this bug report opened with. **Agreed
+direction: class creation belongs in `associate_semantics` only;
+`extract_metrics` should stop auto-promoting.**
+
+**6. `properties` is populated from one instance occurrence, not
+class-level facts.** `extract-metrics.go:265-276` builds `ExtraProperties`
+from `firstByName[name]` — literally the first metric row seen for that
+name in the current batch — via `buildOntologyTermProperties
+(metricPropertyMappings, canon)`. Several of `config.local.toml`'s mapped
+fields (`metric_subject`, `threshold_or_target`, `measurement_frequency`,
+`value_min`, `value_max`, `metric_value`, `condition`) are facts about
+*that one measurement occurrence*, not the metric_definition concept.
+Writing them onto the shared class term's `properties` is instance data
+leaking into class scope — and, per finding 4 (still open), frozen there
+permanently since the class is never re-synthesized against a later,
+different occurrence. **Agreed: `kb.ontology_terms.properties` should hold
+only class-level facts.**
+
+**7. Property keys aren't normalized between the two writers.**
+`alignment.go`'s `termProperties()` (`alignment.go:313-328`) writes the
+fixed synthesis fields under `value_type`/`range_type`/
+`permitted_unit_term_ids`/`raw_unit`, sourced from
+`canon["value_data_type"]`/`canon["value_range_type"]`/
+`canon["metric_unit"]`. The same `canon` values are *also* mapped by
+`config.local.toml`'s `property_map` entries `metric:value_data_type:
+value_data_type` and `metric:value_range_type:value_range_type` into
+`ExtraProperties`, which `termProperties()` merges in verbatim. Since
+`"value_type"` and `"value_data_type"` don't collide as strings, both land
+in `properties` on the same term, holding the same value under two
+different keys — the "Not done" item immediately above, now confirmed as a
+live duplication rather than a hypothetical. **Agreed: property names need
+to be normalized to one key per fact.**
+
+**8. Resolution for `kb.semantic_assertions`: reuse `qualifiers`,
+config-driven — no new column.** No new `properties` column on
+`kb.semantic_assertions`. `qualifiers` was already designed for exactly
+this role (`extract-metrics-structured-output/design.md:177`: "Should
+`condition` also be carried onto the assertion's `qualifiers`?"). Of its
+current hardcoded fields (`metricQualifiers`, `associate_semantics.go:
+323-332`: `metric_name`, `metric_definition_term_id`, `condition`), only
+`metric_name` is a genuinely meaningful qualifier value today —
+`metric_definition_term_id` is redundant with `instance_of_term_id` once
+(5) is fixed, and `condition` alone doesn't justify a hardcoded field list.
+**Agreed: `qualifiers` should be populated from a configured map** (same
+shape as `[ontology_term_property_map]`, scoped to the assertion/instance
+rather than the class), so which occurrence-level fields land there is
+operator-configurable rather than hardcoded — the same config-driven
+mechanism already built for finding 2's fix, pointed at the correct
+(instance-level) table this time.
+
+**Status: agreed, then implemented same-day** — see "Implementation —
+2026-08-22" below. All four required coordinated changes across
+`extract-metrics.go`, `alignment.go`, `metric_lossless_writer.go`,
+`metric_normalizer.go`, `associate_semantics.go`, and the
+`config.toml`/`config.local.toml` property-map schema.
+
+## Implementation — 2026-08-22: findings 5-8
+
+Implemented via ChenWeb OpenSpec change `fix-metric-property-scope-conflation`
+(`openspec/changes/fix-metric-property-scope-conflation/`). Investigating the
+fix surfaced two further, previously undiscovered facts that shaped the
+design — recorded in that change's `design.md` rather than repeated here:
+`assertions` cannot import `keywords` (a hard cycle: `keywords` already
+imports `assertions`), and `associate_semantics`'s own class-resolution path
+(`classfoundation.CreateIdentityOnlyClass`) never inserted into
+`kb.ontology_terms` at all, so every provisional class it minted was already
+invisible to `kb.ontology_terms_current` before this fix — a precondition
+finding 5 had to close, not just a design nuance.
+
+- **Finding 5**: new `ClassSynthesizer` registration seam in `assertions`
+  (`class_synthesizer_registry.go`), implemented in `keywords`
+  (`class_synthesis.go`, registered via `init()`) reusing
+  `EnsureAcceptedOrCreate`'s now-extracted transaction-scoped core
+  (`ensureAcceptedOrCreate`). `extract-metrics.go` no longer calls
+  `EnsureAcceptedOrCreate`; `metric_lossless_writer.go`'s
+  `resolveOrCreateMetricClass` calls the registered synthesizer instead of
+  `classfoundation.CreateIdentityOnlyClass`, always producing a real,
+  `kb.ontology_terms_current`-visible row.
+- **Finding 6**: `[ontology_term_property_map]`'s `metric` mapping in
+  `config.local.toml` is now empty — every previously-listed field was
+  either instance-level (moved to finding 8's new map) or a duplicate of a
+  fixed class-level fact (`value_data_type`/`value_range_type`/`metric_unit`/
+  `metric_name` duplicated `value_type`/`range_type`/`raw_unit`+
+  `permitted_unit_term_ids`/the term's own prefLabel).
+- **Finding 7**: closed as a consequence of finding 6's trim — the
+  duplicate-key pairs no longer both exist.
+- **Finding 8**: new `[semantic_assertion_property_map]` config section
+  (12 entries) drives `kb.semantic_assertions.qualifiers` via a generalized,
+  shared property-map helper (moved from `doc-processing` to
+  `assertions/property_map.go`, since the new `metric_normalizer.go` call
+  site can't import `doc-processing`). `metricQualifiers()` removed.
+
+`go build ./...`, `go vet ./...`, and `go test ./...` are clean (pre-existing,
+unrelated failures elsewhere in the workspace confirmed unchanged via
+`git diff --stat`). Not verified against a live database in this
+environment — `TestIntegrationWriteMetricLosslessProvisionalClassIsCatalogVisible`
+covers the visibility fix end-to-end and needs a `TEST_DATABASE_URL` run
+before this is considered fully verified.

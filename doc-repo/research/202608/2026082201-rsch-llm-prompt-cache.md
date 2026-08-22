@@ -110,11 +110,9 @@ and the cache never lose its 'freshness'.
 The second step: dudp candidates, can be cached and stays fresh
 forever unless the original document is modified.
 
-The third step
+The third step can be safely cached.
 
----
-
-## 2. How does the partial match actually work?
+## 3. How does the partial match actually work?
 
 This part of the article is somewhat underspecified. There are really **two separate problems**:
 
@@ -123,7 +121,7 @@ A. Find a similar previous task
 B. Determine exactly which part of it can be reused
 ```
 
-Vector similarity helps mainly with **A**. It does **not automatically solve B**.
+Vector similarity helps mainly with A. It does not automatically solve B.
 
 Consider that the system previously executed:
 
@@ -224,7 +222,7 @@ Then combine it with the existing result.
 
 That is the real optimization. The article calls this **scoping the agent call**: `prior_result` is supplied as trusted context and `missing_scope` tells the agent what remains to be computed. ([DZone][1])
 
-### A second example makes the distinction clearer
+**A second example makes the distinction clearer**
 
 Suppose the cache contains:
 
@@ -285,11 +283,7 @@ new result
 
 Potentially you don't need an agent at all.
 
----
-
-### The key distinction
-
-I would slightly refine the article's architecture as:
+We can slightly refine the article's architecture as:
 
 ```text
                    ┌── exact hash ──→ exact cached result
@@ -309,14 +303,15 @@ Structured request ─┤
                               merge with cached result
 ```
 
-The **semantic search does not itself implement partial matching**. It primarily finds a plausible prior task. The difficult and domain-specific operation is:
+The semantic search does not itself implement partial matching. It primarily finds a plausible prior task. The difficult and domain-specific operation is:
 
-> Given old scope **S₁** and requested scope **S₂**, calculate **S₂ − S₁**.
+> Given old scope S₁ and requested scope S₂, calculate S₂ − S₁.
 
 The article represents this using `covered_scope` and `missing_scope`, and explicitly acknowledges that partial-scope decomposition only works for tasks that can meaningfully be decomposed. ([DZone][1])
 
-This is actually the most important limitation of the proposal. **Hashing and vector search are generic; partial reuse is not.** You generally need task-specific knowledge of what "scope", "overlap", "difference", and "merge" mean.
+This is actually the most important limitation of the proposal. Hashing and vector 
+search are generic; partial reuse is not. To achieve partial reuse, we need
+task-specific knowledge of what "scope", "overlap", "difference", and "merge" mean.
 
-For a system like SemOS, I would therefore be cautious about implementing this as merely `hash + embedding similarity`. The more interesting abstraction would be something like **canonical task representation + scope algebra**, where semantic retrieval is just a mechanism for finding candidate prior computations.
-
-[1]: https://dzone.com/articles/ai-agent-efficiency "Stop Paying Your AI Agent to Do the Same Job Twice"
+The same idea as we covered in the above section for the parser applies here:
+LLM caching (partial match) can be implemented in the doc processors.
