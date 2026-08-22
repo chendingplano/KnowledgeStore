@@ -2,7 +2,10 @@
 
 Date: 2026-08-21
 
-Status: open, root-caused, not yet fixed
+Status: findings 1-3 fixed 2026-08-22 (ChenWeb `1291bfd0`), plus a same-day
+follow-up erratum fix and a new property-map extensibility feature — see
+"Follow-up — 2026-08-22" below. Finding 4 (refresh-on-later-occurrence)
+remains open, deferred by design.
 
 System: ChenWeb SemOS ontology — governed term schema and metric auto-promotion
 
@@ -190,3 +193,105 @@ schema or code change:
   the same concept carries richer data (e.g. only-if-currently-blank
   field-level backfill), since without this, fixing (1)-(3) only helps terms
   created after the fix ships.
+
+## Follow-up — 2026-08-22
+
+Findings 1-3 were implemented same-day via ChenWeb `1291bfd0` (`properties
+JSONB` column, `metric_desc`-first definition sourcing, `raw_unit` retention
+— see `openspec/changes/fix-auto-promoted-term-schema-loss/`). A live
+re-run of `extract_metrics` against input_record_id 416 immediately after
+that commit showed the fix had **not** actually taken effect: freshly
+created rows (e.g. `measurement:kwc_bb95850b160d`, re-created same day)
+still had `definition` empty and `properties` holding only `value_type`/
+`range_type` — `raw_unit` and `permitted_unit_term_ids` were still missing
+despite `kb.metrics.metric_unit` being non-empty for those rows. Root
+cause and fix below; a second, requested capability (config-driven
+property exposure) was implemented in the same pass.
+
+### Erratum: `1291bfd0`'s fix read the wrong map key on a fresh extraction
+
+`extract-metrics.go`'s `resolveAll` (the synthesis call site) reads its
+representative metric row from the same `map[string]any` that is about to
+be persisted. That map exists in one of two shapes, documented at
+`metricFieldAliasPairs` (`extract-metrics.go:3774`, comment at :3760-3773):
+
+- **"raw"** names (`desc`, `unit`, `subject`, `context`, `keywords`, ...) —
+  what `normalizeMetricList` (pass-2 LLM output) produces, and what
+  `SaveMetrics` receives untouched on a fresh/force-clear batch (the
+  common case — "run extract_metrics against a document").
+- **"canonical"** DB-column names (`metric_desc`, `metric_unit`, ...) —
+  only present after `canonicalizeMetricFieldAliases` runs, which happens
+  on the merge/upsert path (`mergeAndCollectDirtyMetrics`), not on a fresh
+  batch.
+
+`1291bfd0`'s fix read `rep["metric_desc"]` and `rep["metric_unit"]` — the
+canonical names — but on a fresh batch (exactly the scenario in the
+original bug's live row) the map only ever has `rep["desc"]`/`rep["unit"]`.
+So `definition` still fell through to `formula_or_definition` (usually
+also empty) and the unit block's `if unit := ...; unit != ""` guard never
+opened, silently reproducing findings 1 and 3 on every real run. This
+regression was invisible to `1291bfd0`'s own tests
+(`TestResolvingMetricsStoreAutoPromotePrefersMetricDescOverFormula`,
+`TestResolvingMetricsStoreAutoPromoteRetainsRawUnitOnResolverMiss`)
+because both construct their input map with the canonical keys directly,
+which never occurs on the real force_clear path.
+
+**Fix:** `resolveAll` now calls `canonicalizeMetricFieldAliases(rep)`
+before reading anything from it, so `metric_desc`/`metric_unit` (and any
+other aliased field) resolve correctly regardless of which shape the
+caller's map arrived in. Locked in by a new test using the real raw-shape
+keys, `TestResolvingMetricsStoreAutoPromoteReadsRawShapeDescAndUnit`
+(`extract-metrics_test.go`).
+
+### New: `[ontology_term_property_map]` config-driven property exposure
+
+Separate from the erratum, findings 2's fixed `value_type`/`range_type`/
+`permitted_unit_term_ids`/`raw_unit` set covers only what auto-promotion
+itself needs. To let an operator expose *additional* already-extracted
+artifact fields onto `kb.ontology_terms.properties` without a code change
+per field, `config.toml`/`config.local.toml` now supports:
+
+```toml
+[ontology_term_property_map]
+property_map = [
+  "metric:metric_name:name",
+  "metric:metric_subject:subject",
+  "metric:metric_unit:unit",
+  "metric:formula_or_definition:formula_or_definition",
+  ...
+]
+```
+
+Each entry is `<artifact_type>:<table_field_name>:<property_name>`.
+`artifact_type` today can be `metric`, `provisions`, `entity`, or
+`relation`, matching the artifact families in `kb.metrics`/
+`kb.provisions`/entity-relation extraction; only `metric` is wired to a
+call site so far (per this request — provisions/entity/relation are
+reserved for later, not implemented). `table_field_name` supports a
+dotted path into nested fields (e.g. `ext_info.object_name`). Absent or
+empty-valued fields are silently omitted, not written as null/"".
+
+Implementation:
+- `server/cmd/config/config.go`: `OntologyTermPropertyMapConfig`,
+  `AppConfigDef.OntologyTermPropertyMap`, `GetOntologyTermPropertyMap()`.
+- `server/api/doc-processing/ontology_term_property_map.go` (new):
+  `parseOntologyTermPropertyMap` (groups entries by artifact_type) and
+  `buildOntologyTermProperties` (resolves each mapped field, dotted-path
+  aware, against an artifact's field map).
+- `server/api/ontology/keywords/alignment.go`: `TermSynthesisInput` gains
+  `ExtraProperties map[string]any`; `termProperties()` merges it in first
+  so the fixed synthesis keys (`value_type`, `range_type`,
+  `permitted_unit_term_ids`, `raw_unit`) always win on a name collision.
+- `extract-metrics.go`'s `resolveAll` builds `ExtraProperties` from the
+  `metric` mappings against the same canonicalized `rep` used for the
+  erratum fix above, so both fixes share one normalized read.
+
+Covered by `TestResolvingMetricsStoreAutoPromoteAppliesConfiguredPropertyMap`.
+
+Not done: wiring provisions/entity/relation extraction to this mechanism
+(no call sites touched them; the config format supports it when that work
+is scoped), and reconciling the operator-authored `config.local.toml`
+mapping's `value_data_type`/`value_range_type` property names against the
+fixed synthesis's own `value_type`/`range_type` keys (both will appear on
+the same term today, under different property names — not deduplicated,
+left to the operator's config).
