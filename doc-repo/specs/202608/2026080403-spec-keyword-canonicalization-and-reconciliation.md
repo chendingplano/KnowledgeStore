@@ -371,13 +371,31 @@ after. Mature deployment → millions of lookups/day, near-zero LLM calls.
 
 **Tier by tier — exact mechanism and how to verify it (corrected 2026-08-08; every claim below is anchored to a file:line or a named test, so it can be checked directly against `ChenWeb/server/api/ontology/keywords/`, not taken on faith)**
 
-* **Tier 0 — exact surface match.** `SELECT s.concept_id FROM kb.keyword_surfaces WHERE s.surface = $1 AND s.scope = $2 LIMIT 10` (`tier0ExactMatch`, `keywordfamily.go`). Byte-exact match on the verbatim, un-normalized literal — `Luminance` and `luminance` are different rows on purpose (§5.2), so this tier alone never collapses them. Score 1.0 (exact key). **Verify:** `TestCandidateNodesPerTier/tier0_exact` asserts the exact SQL text and args; `TestExitKernelResolutionTiers` (`keyword_exit_test.go`) exercises it end-to-end through the kernel.
-* **Tier 1 — `norm_key` match.** `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.norm_key = $1 AND s.scope = $2 AND s.norm_version = $3 ORDER BY s.confidence DESC LIMIT 10` (`tier1NormKeyMatch`). `norm_key` is the output of the shared normalizer (NFKC → zero-width strip → dash/quote ASCII-fold → whitespace collapse → dotted-initialism collapse → case-fold → possessive strip → article strip, §6.1); the `norm_version` filter (N4) means a query only matches surfaces indexed under the currently-active normalizer version. Score 1.0. **Verify:** `TestCandidateNodesPerTier/tier1_norm`; `TestResolveScopeRoundTrip` proves a surface written at scope `ks` is found at the same scope and not at a different one.
-* **Tier 2 — `alnum`/`sorted`/`singular` alternate keys.** Three sequential lookups against `kb.keyword_surface_keys` (`tier2AlternateKeyMatch` → `lookupByKeyKind`, one JOIN'd SQL query per key kind, first hit wins): `alnum` strips everything but letters/digits (bridges `显示 亮度` ↔ `显示亮度` — the spec's own example); `sorted` canonically reorders tokens/characters; `singular` is the plural→singular bridge (`analyses` finds a stored `analysis`). All three keys are written by `derivedSurfaceKeys` on every surface write (`surfaces_store.go:225`) and filtered by `norm_version`. Score 0.8 (lossy key, not identity). **Verify:** `TestCandidateNodesPerTier/tier2_altkey`.
-* **Tier 3 — rewrite rules, then retry tiers 0–1.** `tier3RewriteMatch` loads enabled rules from `kb.keyword_rewrite_rules`, applies **at most one** rule whose `pattern` equals the **raw, un-normalized** surface **by byte equality** (`rewritten == r.Pattern`), then re-runs tier 0 and tier 1 (not 2, 4, 5, or 6) against the rewritten string. This is why a rule `K8S → Kubernetes` fires for the literal `K8S` but not for `k8s` — the one real remaining defect in the ladder. Score inherited from whichever of 0/1 the retry hits (1.0/1.0, tagged `tier3_rewrite`). **Verify:** `TestCandidateNodesPerTier/tier3_rewrite`.
-* **Tier 4 — initials bridge.** `tier4InitialsMatch` gates on query length (2–8 runes), then looks up the query's own normalized form against stored `initials` keys — `initialsKey()` lower-cases every initial (`semid/normalizer.go`), and the lookup direction is query-into-stored-keys, never the reverse (this ordering is the N3 fix: the original bug looked up the *stored* surface's initials against the query). Bridges `ML` → `machine learning` when `machine learning`'s stored initials key is `ml`. Score 0.8. **Verify:** `TestCandidateNodesPerTier/tier4_initials`.
-* **Tier 5 — fuzzy match (trigram-blocked, edit-distance-scored).** Two distinct steps, not one algorithm:
-  1. **Blocking** (cheap, SQL, indexed): `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.scope = $1 AND s.norm_version = $2 AND similarity(s.norm_key, $3) > $4 ORDER BY similarity(...) DESC LIMIT 20` — Postgres `pg_trgm`'s trigram `similarity()` function, backed by a GIN trigram index on `norm_key` (migration `20260806000001`). This finds *candidates*, not the final score. ✅ **Configurable (2026-08-08)**: the floor is `KeywordFamily.FuzzyBlockMinSimilarity` (defaults to `0.3` via `ensureDefaults`, not hardcoded) — a caller can raise or lower it per instance. **Verify:** `TestFuzzyBlockMinSimilarityDefault`, `TestFuzzyBlockMinSimilarityConfigurable`.
+* **Tier 0 — exact surface match on raw text.** `SELECT s.concept_id FROM kb.keyword_surfaces WHERE s.surface = $1 AND s.scope = $2 LIMIT 10` (`tier0ExactMatch`, `keywordfamily.go`). Byte-exact match on the verbatim, un-normalized literal — `Luminance` and `luminance` are different rows on purpose (§5.2), so this tier alone never collapses them. Score 1.0 (exact key). **Verify:** `TestCandidateNodesPerTier/tier0_exact` asserts the exact SQL text and args; `TestExitKernelResolutionTiers` (`keyword_exit_test.go`) exercises it end-to-end through the kernel.
+* **Tier 1 — raw text normalization, then `norm_key` match.** `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.norm_key = $1 AND s.scope = $2 AND s.norm_version = $3 ORDER BY s.confidence DESC LIMIT 10` (`tier1NormKeyMatch`). `norm_key` is the output of the shared normalizer (NFKC → zero-width strip → dash/quote ASCII-fold → whitespace collapse → dotted-initialism collapse → case-fold → possessive strip → article strip, §6.1); the `norm_version` filter (N4) means a query only matches surfaces indexed under the currently-active normalizer version. Score 1.0. **Verify:** `TestCandidateNodesPerTier/tier1_norm`; `TestResolveScopeRoundTrip` proves a surface written at scope `ks` is found at the same scope and not at a different one.
+* **Tier 2 — `alnum`/`sorted`/`singular` alternate keys.** Three sequential lookups against `kb.keyword_surface_keys` (`tier2AlternateKeyMatch` → `lookupByKeyKind`, one JOIN'd SQL query per key kind, first hit wins): `alnum` strips everything but letters/digits (bridges `显示 亮度` ↔ `显示亮度` — the spec's own example); `sorted` canonically reorders words/tokens; `singular` is the plural→singular bridge (`analyses` finds a stored `analysis`). All three keys are written by `derivedSurfaceKeys` on every surface write (`surfaces_store.go:225`) and filtered by `norm_version`. Score 0.8 (lossy key, not identity). **Verify:** `TestCandidateNodesPerTier/tier2_altkey`. Refer to §9.1.1 for more information.
+* **Tier 3 — rewrite rules, then retry tiers 0–1.** `tier3RewriteMatch` 
+loads enabled rules from `kb.keyword_rewrite_rules`, applies **at most 
+one** rule whose `pattern` equals the **raw, un-normalized** surface 
+**by byte equality** (`rewritten == r.Pattern`), then re-runs tier 0 and 
+tier 1 (not 2, 4, 5, or 6) against the rewritten string. This is why a 
+rule `K8S → Kubernetes` fires for the literal `K8S` but not for `k8s` — 
+the one real remaining defect in the ladder. Score inherited from 
+whichever of 0/1 the retry hits (1.0/1.0, tagged `tier3_rewrite`). 
+**Verify:** `TestCandidateNodesPerTier/tier3_rewrite`.
+Refer to §9.1.2 for more information.
+* **Tier 4 — initials bridge.** `tier4InitialsMatch` gates on input string 
+length (2–8 runes), then looks up the query's own normalized form 
+against stored `initials` keys — `initialsKey()` lower-cases every 
+initial (`semid/normalizer.go`), and the lookup direction is 
+query-into-stored-keys, never the reverse (this ordering is the N3 fix: 
+the original bug looked up the *stored* surface's initials against 
+the query). Bridges `ML` → `machine learning` when `machine learning`'s 
+stored initials key is `ml`. Score 0.8. **Verify:** 
+`TestCandidateNodesPerTier/tier4_initials`. Refer to §9.1.3 for 
+more information. 
+* **Tier 5 — fuzzy match (trigram-blocked, edit-distance-scored).** Two distinct steps, not one algorithm. For more information, refer to :
+  1. **Blocking** (cheap, SQL, indexed): `SELECT s.concept_id, s.norm_key FROM kb.keyword_surfaces WHERE s.scope = $1 AND s.norm_version = $2 AND similarity(s.norm_key, $3) > $4 ORDER BY similarity(...) DESC LIMIT 20` — Postgres `pg_trgm`'s trigram `similarity()` function, backed by a GIN trigram index on `norm_key` (migration `20260806000001`). This finds *candidates*, not the final score. ✅ **Configurable (2026-08-08)**: the floor is `KeywordFamily.FuzzyBlockMinSimilarity` (defaults to `0.3` via `ensureDefaults`, not hardcoded) — a caller can raise or lower it per instance. **Verify:** `TestFuzzyBlockMinSimilarityDefault`, `TestFuzzyBlockMinSimilarityConfigurable`. It applies trigram on the entire input string, not token-by-token or substring-by-substring.
   2. **Scoring** (Go, `fuzzyCandidateScore` in `keywordfamily.go`, using `runeLevenshtein`/`normalizedSimilarity` in `fuzzy.go`): for each of the ≤20 blocked candidates, compute rune-counted Levenshtein edit distance, apply §9.2's length-banded guardrails (`len≤4`: no fuzzy at all; `5–8`: edit distance ≤1 **and** first rune must match; `≥9`: edit distance ≤2 **and** `normalizedSimilarity ≥ 0.88`), and the three vetoes applied before any threshold — digit (`digitsDiffer`: any digit difference kills the match), canonical (`canonicalPrefExists`: if the query itself is a `pref_label`, skip fuzzy entirely — checked once up front, before blocking even runs), negation/affix (`hasNegationAffixMismatch`: `un-`/`non-`/`de-`/`anti-`/`-less` pairs, e.g. `compliant`/`noncompliant`, checked pairwise so ordinary words starting with `de-` aren't vetoed). The surviving score is `normalizedSimilarity` itself — continuous, `1 − editDistance/longerLength` — carried as `PrecomputedScore`, not the tiered 1.0/0.8. **Verify:** `TestTier5FuzzyMatchGuardrails` and `TestRuneLevenshtein`/`TestNormalizedSimilarity`/`TestDigitsDiffer`/`TestHasNegationAffixMismatch` (`fuzzy_test.go`) test the pure functions in isolation; `TestKeywordFamilyCandidateNodesReachesTier5` and `TestResolveSurfaceTier5AutoAccepts` prove it end-to-end including auto-accept.
   Misspellings only — `kubernets` finds `kubernetes` because they share enough trigrams to survive blocking and enough edit-distance closeness to survive scoring. It does **not** find cross-lingual matches: `亮度` and `luminance` share zero trigrams.
 * **Tier 6 — offline reconciliation: lexical recheck + governed identity claims decide; embedding is a ranking/diagnostic signal only, never sufficient alone.** Not part of `CandidateNodes` — see the "current reality" note above and §20.1.1/§22 Q2 for why it never runs online. Where it does run, `keywords.Reconciler.Run` (`reconcile.go`, invoked only via `cmd/keyword-reconcile`) scans **exactly the D11 auto-created provisional concepts** (`ConceptStore.ListAutoCreatedProvisional` — `status='provisional' AND gloss_source='auto:d11'`, batch size 500 per run, oldest first) — i.e. concepts that already exist *because* they missed tiers 0–5 online (D11 gave them an identity immediately; reconciliation's job is deciding whether that identity should merge into an existing one). For each candidate, `decideCandidate` (`reconcile.go`) gathers **three independent signals** and combines them in `chooseCandidateDecision`, in this priority order:
@@ -421,6 +439,571 @@ So the functioning **online** ladder today is 0 → 1 → 2/3/4(narrower defects
 | 7 | miss → backlog / auto-create | — | ✅ backlog; ✅ auto-create (targeted names, D11, §19 step 8) |
 
 `CandidateNodes` exits at the **first tier producing candidates**. Tier 3 matches the **raw** surface with byte equality, so a rule `K8S → Kubernetes` does not fire for `k8s`; one rule fires at most; the retry covers tiers 0–1 only. Tier 3 is the only remaining defect below tier 5 — tiers 2 and 4 (K1/N3) are fixed.
+
+#### 9.1.1 Notes on Tier 2
+Tier 2 performs up to three indexed alternate-key lookups, in this fixed order:
+
+`alnum` → `sorted` → `singular`
+
+It stops at the first key kind that returns any candidate concepts. The returned candidates are scored at 0.8 (lossy-key evidence), and can still be ambiguous if several concepts share that key. See [keywordfamily.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/keywordfamily.go:226).
+
+- `alnum`: as you understand it, removes non-ASCII letters/digits while retaining CJK-and-beyond characters. E.g. `显示 亮度` → `显示亮度`.
+
+- `sorted`: it does not sort characters; it splits the normalized string on whitespace, lexicographically sorts those tokens, then joins with spaces. So:
+
+  ```text
+  "luminance display module" → "display luminance module"
+  "display module luminance" → "display luminance module"
+  ```
+
+  This is intended to bridge word-order variations. There is an implementation caveat: a `sorted` key is only stored when it differs from `norm`. Thus a stored surface already in alphabetical order, such as `display luminance`, does not get a `sorted` row; a later lookup for `luminance display` will not find it through Tier 2. It does work when the stored surface itself was non-alphabetical. The derivation is at [normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:384), and the omission rule is at [surfaces_store.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/surfaces_store.go:225).
+
+- `singular`: yes, partly through maps, plus guarded suffix heuristics—not a full English lemmatizer.
+
+  1. It runs only when the string is considered Latin-profiled: it contains Latin letters and has at least as many Latin as Han characters.
+  2. It preserves any token that originally contained uppercase, to avoid changing acronyms and proper names (`AIDS`, `SaaS`, `Kubernetes`).
+  3. It first uses an irregular-plural map: `indices → index`, `analyses → analysis`, `children → child`, etc.
+  4. It then uses a stop-list and suffix guards to preserve known/invariant singulars like `analysis`, `status`, `bias`, `series`, and forms ending in `ss`, `us`, `is`, or `ics`.
+  5. Only then does it apply limited rules such as `categories → category`, `classes → class`, `watches → watch`, and a final trailing-`s` removal.
+
+  The maps and rules are in [normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:270). It is deliberately only an alternate key—not the canonical normalized name—so an incorrect inflection guess can only miss a match rather than redefine identity.
+
+The irregular-plural map is hard-coded in Go, not stored in the database: 
+[`irregularPlurals`](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:273). 
+For example, it contains `analyses → analysis`, `children → child`, 
+and `indices → index`.
+
+“Preserves” in bullet 2 (above) applies only to the `Singular` alternate key, 
+not to the normal `Norm` key.
+
+So:
+
+   | Input | `Norm` | `Singular` |
+   |---|---|---|
+   | `AIDS` | `aids` | `aids` |
+   | `SaaS` | `saas` | `saas` |
+   | `Kubernetes` | `kubernetes` | `kubernetes` |
+
+In other words, Unicode case-folding still lowercases them; the singularizer 
+simply does not further mutate them to `aid`, `saa`, or `kubernete`. The 
+uppercase signal is captured before case folding and causes that token to 
+bypass singularization at 
+[normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:91) and [normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:324).
+This is what the word 'Preserves' mean. Without it, 'AIDS' is first case-folded
+to 'aids', and then to 'aid' by `singular` method.
+
+The stop-list and the suffix guards are both hard-coded in Go:
+
+- Stop-list map: [`singularStopList`](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:315)
+- General guards for short words and endings `ss`, `us`, `is`, `ics`: [normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:347)
+
+Bullet 5’s suffix rules are also hard-coded in `singularizeToken`, at 
+[normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:340):
+
+- `-sses` → remove `es`: `classes → class`
+- `-ches`, `-shes`, `-xes` → remove `es`: `watches → watch`, `boxes → box`
+- `-ies` → `y`: `categories → category`
+- final `-s` → remove `s`, subject to the earlier exclusions.
+
+None of the singularization behavior is data-driven or configurable through 
+the database today.
+
+For example, storing `analysis` writes a `singular=analysis` key even though 
+it equals its norm key. Querying `analyses` derives `singular=analysis`, so 
+Tier 2 can find the stored concept. This special persistence rule is explicit 
+in [surfaces_store.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/surfaces_store.go:220).
+
+#### 9.1.2 Tier-3 Rewrite Rules
+Tier 3 is best understood as a curated, scope-specific alias map. Each rule rewrites one complete input string to a surface already associated with the intended concept.
+
+Example rules:
+
+| Pattern received | Replacement | Intended effect |
+|---|---|---|
+| `K8S` | `Kubernetes` | Product abbreviation |
+| `k8s` | `Kubernetes` | Separate rule required because matching is case-sensitive |
+| `Kube` | `Kubernetes` | Common shorthand |
+| `Postgres` | `PostgreSQL` | Alternate product name |
+| `pgsql` | `PostgreSQL` | Technical shorthand |
+| `亮度` | `luminance` | Governed cross-language alias, only if the meanings are approved as identical |
+
+Important behavior:
+
+- `pattern` is a literal, whole-string, byte-equality match—not regex.
+- Matching is case-sensitive: `K8S` does not match `k8s`.
+- `scope` must exactly equal the resolution request’s scope.
+- Only one rule is applied; rules cannot be chained.
+- After rewriting, only Tier 0 and Tier 1 are retried.
+- The replacement should therefore already exist in `kb.keyword_surfaces`, either literally or through its normalized key.
+- Rules should represent identity, not merely related terms. For example, `database → PostgreSQL` would be unsafe because PostgreSQL is only one kind of database.
+
+This behavior is implemented in [keywordfamily.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/keywordfamily.go:243), with the rule schema in [20260803000006_create_kb_keyword_rewrite_rules.sql](/Users/cding/Workspace/ChenWeb/project_migrations/20260803000006_create_kb_keyword_rewrite_rules.sql:9).
+
+Below is how it is implemented:
+- Loads every enabled rule for the requested scope, ordered by `rule_id`.
+- Iterates through that in-memory list.
+- Compares the entire raw input to each `pattern` using Go string equality.
+- On the first match, replaces the whole input and stops.
+- Normalizes the replacement, then retries Tier 0 and Tier 1.
+
+Conceptually:
+
+```go
+rules := ListEnabledRules(scope)
+
+for _, rule := range rules {
+    if rawInput == rule.Pattern {
+        rewritten = rule.Replacement
+        break
+    }
+}
+```
+
+Therefore, a rule `K8S → Kubernetes`:
+
+- Matches `K8S`.
+- Does not match `k8s`.
+- Does not match `Learn K8S deployment`.
+- Does not tokenize, search substrings, use regex, or chain rules.
+
+The database is queried by `scope`, not by `pattern`, so the current algorithm is O(number of enabled rules in that scope). An upstream collector may separately supply individual tokens as inputs, but Tier 3 itself performs no tokenization.
+
+**Important**
+
+Note that this implementation does not scale when the rewrite table becomes
+big. An alternative implementation is to loop words over the input. For
+each word, it look up the table. This algorithm assumes the inputs are normally
+short, which is true.
+
+`scope` is the vocabulary namespace/domain in which a keyword is interpreted. It prevents identical text in different domains from being forced into the same concept.
+
+Examples:
+
+- `_` — global/default namespace
+- `display` — display terminology such as `luminance`
+- `metrics` — metric terminology
+- `ks_ventilator` — a particular knowledge-store/domain vocabulary
+
+For a rewrite rule, its scope must match both:
+
+1. The scope supplied by the resolution request.
+2. The scope of the target keyword surface/concept.
+
+For example:
+
+```text
+Input:       K8S
+Scope:       technology
+Rule:        K8S → Kubernetes, scope=technology
+Target:      Kubernetes surface, scope=technology
+Result:      rule applies
+```
+
+The same rule under `scope="_"` would **not** apply to a request using `scope="technology"`. Although `_` means global/default conceptually, the current implementation uses exact equality and does not treat `_` as a wildcard or fallback:
+
+```sql
+WHERE enabled = true AND scope = $1
+```
+
+The namespace definition appears in the merged specification as “knowledge store / domain / `_` = global,” and the exact filtering is implemented in [rewrite_rules_store.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/rewrite_rules_store.go:87).
+
+
+#### 9.1.3 Tier 4 Handle Acronyms
+Tier 4 resolves an acronym by comparing it with initials generated from 
+a stored phrase. It is designed for initials only, such as 'ML', 'SaaS',
+'API', etc. The inputs should be acronyms.
+
+| Incoming String | Stored Initials | Stored surface | Result |
+|---|---:|---:|---|
+| `ML` | `ml` | `machine learning` | Matches |
+| `NLP` | `nlp` | `natural language processing` | Matches |
+| `RDBMS` | `rdbms` | `relational database management system` | Matches |
+| `API` | `api` | `application programming interface` | Matches |
+
+The incoming string is normalized to lowercase, so `ML`, `Ml`, and 
+`ml` all look up the key `ml`. A successful Tier-4 candidate receives 
+score `0.8`.
+
+Important edge cases:
+
+- If both `machine learning` and `markup language` exist in the same scope, `ML` returns both candidates and may be classified as ambiguous.
+- Every token (word) contributes an initial. `United States of America` produces `usoa`, not `usa`.
+- CamelCase is not split into words. `PostgreSQL` produces only `p`, so `PG` does not match it through Tier 4.
+- Only queries containing 2–8 runes are eligible. A `rune` is a Go term, repsenting one UTF-8 code point. A one-character abbreviation such as `R` and an abbreviation longer than eight characters skip Tier 4 entirely.
+- Punctuation is generally significant. For example, `CI/CD` does not equal the stored initials key `cicd`; the query `CICD` does.
+
+The lookup direction is:
+
+```text
+Stored phrase: "natural language processing"
+Stored key:    initials = "nlp"
+
+Incoming string: "NLP"
+Normalized:     "nlp"
+
+"nlp" = "nlp" → candidate found
+```
+
+Tier-4 measures input string length by runes. In Go, a `rune` is a
+Unicode code point.
+
+Examples:
+
+| Text | Rune count |
+|---|---:|
+| `ML` | 2 |
+| `API` | 3 |
+| `亮度` | 2 |
+| `CI/CD` | 5 |
+| `é` | usually 1 after Unicode normalization |
+
+A rune differs from:
+
+- A byte: `M` uses one UTF-8 byte, while `亮` uses three, but each is one rune.
+- A displayed character: some emoji or accented characters can contain multiple Unicode code points.
+
+Tier 4 counts the runes in the normalized incoming string and proceeds 
+only when that count is between 2 and 8 inclusive. If the number of runes 
+of the input is not in [2, 8], it skips Tier-4 entirely.
+See [keywordfamily.go](ChenWeb/server/api/ontology/keywords/keywordfamily.go:276).
+
+The initials are stored in `kb.keyword_surface_keys`.
+Each initials entry has approximately this form:
+
+| `surface_id` | `key_kind` | `key_value` | `norm_version` |
+|---|---|---|---:|
+| ID for `machine learning` | `initials` | `ml` | 2 |
+
+The table does not directly store `concept_id`. Tier-4 joins it to 
+`kb.keyword_surfaces` through `surface_id`, obtaining the associated 
+`concept_id` and `norm_key`:
+
+```sql
+SELECT s.concept_id, s.norm_key
+FROM kb.keyword_surface_keys sk
+JOIN kb.keyword_surfaces s ON s.surface_id = sk.surface_id
+WHERE sk.key_kind = 'initials'
+  AND sk.key_value = <normalized input>
+  AND s.scope = <requested scope>
+  AND sk.norm_version = <current version>
+LIMIT 10
+```
+
+See [keywordfamily.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/keywordfamily.go:398) and the table migration [20260803000003_create_kb_keyword_surface_keys.sql](/Users/cding/Workspace/ChenWeb/project_migrations/20260803000003_create_kb_keyword_surface_keys.sql:8).
+
+A clearer table heading would be “Incoming string”:
+
+| Stored surface | Stored initials | Incoming string | Tier-4 result |
+|---|---|---|---|
+| `machine learning` | `ml` | `ML` | Candidate found |
+| `natural language processing` | `nlp` | `NLP` | Candidate found |
+
+**Exactly how is punctuation handled?**
+
+There is no general “ignore punctuation” rule.
+
+Before Tier 4, the complete incoming string undergoes these transformations
+(Tier-1):
+
+1. Unicode NFKC normalization.
+2. Removal of certain invisible characters and soft hyphens.
+3. Conversion of `—`, `–`, `‒`, and `―` to ASCII `-`.
+4. Conversion of curly quotation marks to ASCII `'` or `"`.
+5. Collapsing spaces, tabs, newlines, and carriage returns.
+6. Collapsing uppercase dotted initialisms such as `U.S.A.` to `usa`.
+7. Unicode case folding.
+8. For Latin-profile strings, removal of possessive `'s`.
+9. For Latin-profile strings, removal of a leading `the`, `an`, or `a`.
+
+Other punctuation—including commas, slashes, ordinary periods, parentheses,
+and hyphens—is not generically removed.
+
+Commas are therefore only “ignored” accidentally when they do not change 
+the first rune or whitespace tokenization of a stored phrase:
+
+| Stored surface | Tokens | Stored initials |
+|---|---|---|
+| `machine learning` | `machine`, `learning` | `ml` |
+| `machine, learning` | `machine,`, `learning` | `ml` |
+| `machine,learning` | one token: `machine,learning` | `m` |
+| `,machine learning` | `,machine`, `learning` | `,l` |
+
+For incoming queries, the comma remains:
+
+| Incoming string | Normalized lookup value | Matches stored `ml`? |
+|---|---|---|
+| `ML` | `ml` | Yes |
+| `ml` | `ml` | Yes |
+| `ML,` | `ml,` | No |
+| `M,L` | `m,l` | No |
+
+Similarly:
+
+- `CICD` normalizes to `cicd` and can match stored initials `cicd`.
+- `CI/CD` normalizes to `ci/cd`; the slash remains, so it does not match `cicd`.
+- `N.L.P.` is a special case: because it is an uppercase dotted initialism, it becomes `nlp`.
+- `n.l.p.` is not recognized by that special rule because it requires uppercase ASCII letters; its periods remain.
+
+**Algorithm**
+
+The actual process has two distinct sides.
+
+When a surface is stored:
+
+1. Normalize the complete stored surface.
+2. Split it into whitespace-delimited tokens—roughly “words,” but punctuation is not used as a separator.
+3. Take the first Unicode rune of every token.
+4. Lowercase those runes.
+5. Concatenate them.
+6. Store the result in `kb.keyword_surface_keys` with `key_kind = 'initials'`.
+
+For example:
+
+```text
+Stored surface: "Natural Language Processing"
+Tokens:         ["natural", "language", "processing"]
+First runes:    ["n", "l", "p"]
+Stored key:     "nlp"
+```
+
+The implementation is in [normalizer.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/semid/normalizer.go:420).
+
+When an incoming string is received:
+
+1. Normalize the entire incoming string.
+2. Count the normalized incoming string’s runes.
+3. Skip Tier 4 unless it contains 2–8 runes.
+4. Use the normalized incoming string itself as the database lookup value.
+5. Find stored `initials` rows with the same key, scope, and normalization version.
+
+**What is returned?**
+
+There are two return levels.
+
+Tier 4 itself returns:
+
+```go
+([]NodeCandidate, bool)
+```
+
+- One or more database matches: candidate list plus `true`.
+- No match: empty/nil candidate list plus `false`.
+- A database query error is currently also treated as empty/`false`.
+
+A candidate contains the matched `concept_id`, its stored normalized key, and:
+
+```text
+method = "tier4_initials"
+```
+
+The resolution kernel then scores and adjudicates those candidates.
+
+One matching concept:
+
+```text
+matches:
+  - node: <concept_id>
+    score: 0.8
+    reason: "alternate key match"
+    method: "tier4_initials"
+
+verdict: "auto_accepted"
+resolved_node_id: <concept_id>
+```
+
+Multiple matching concepts:
+
+Suppose both these stored surfaces have initials `ml`:
+
+```text
+machine learning
+markup language
+```
+
+Tier 4 returns both distinct concepts, each with score `0.8`. The kernel then returns:
+
+```text
+matches:
+  - node: <first concept_id>
+    score: 0.8
+    method: "tier4_initials"
+  - node: <second concept_id>
+    score: 0.8
+    method: "tier4_initials"
+
+verdict: "ambiguous"
+resolved_node_id: <deterministically selected top concept_id>
+```
+
+No Tier-4 match does not immediately produce `null`. The waterfall 
+continues to Tier 5. If no later tier produces a candidate, the 
+final resolution contains:
+
+```text
+matches: []
+verdict: "deferred"
+resolved_node_id: absent
+```
+
+In the current implementation, both minimum runes (2) and maximum
+runes (8) are hard-coded.
+
+The algorithm Tier-4 uses is:
+1. Normalize the incoming input
+2. Verifies that the complete normalized input contains 2-8 runes
+3. Sends one exact-value SQL query to PostgreSQL
+4. PostgreSQL uses an index to find the matching roles
+
+There is also a `LIMIT 10`. Tier 4 returns at most ten database rows 
+and deduplicates repeated `concept_id` values in Go. The query has 
+no `ORDER BY`, so if more than ten rows qualify, which ten are selected 
+is not explicitly deterministic.
+
+**How `kb.keyword_surface_keys` is maintained**
+
+It is application-maintained derived data, not a manually curated map and 
+not a database-trigger-maintained table.
+
+When a new surface is created
+
+Suppose this surface is added:
+
+```text
+surface_id: kws_123
+surface:    machine learning
+concept_id: kwc_456
+```
+
+`SurfaceStore.CreateSurface` performs the following:
+
+1. Runs the server-side normalizer on `machine learning`.
+2. Derives all applicable alternate keys.
+3. Inserts the main surface into `kb.keyword_surfaces`.
+4. Inserts derived keys into `kb.keyword_surface_keys`.
+5. Performs the surface and key writes in one transaction.
+
+For this example, derived rows could include:
+
+```text
+surface_id | key_kind | key_value         | norm_version
+-----------+----------+-------------------+-------------
+kws_123    | alnum    | machinelearning   | 2
+kws_123    | sorted   | learning machine  | 2
+kws_123    | initials | ml                | 2
+kws_123    | singular | machine learning  | 2
+```
+
+The currently generated key kinds are:
+
+- `alnum`
+- `sorted`
+- `initials`
+- `singular`
+
+Although the schema permits `phonetic`, the current code deliberately does not write phonetic keys because no lookup tier consumes them.
+
+Key derivation is in [surfaces_store.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/surfaces_store.go:225).
+
+Replacement behavior
+
+`SurfaceKeyStore.UpsertSurfaceKeys` replaces keys for one surface by:
+
+1. Deleting all existing key rows for that `surface_id`.
+2. Inserting the newly derived rows.
+
+```sql
+DELETE FROM kb.keyword_surface_keys
+WHERE surface_id = $1;
+
+INSERT INTO kb.keyword_surface_keys
+    (surface_id, key_kind, key_value, norm_version)
+VALUES (...);
+```
+
+The primary key is:
+
+```sql
+PRIMARY KEY (surface_id, key_kind)
+```
+
+Consequently, one surface can have at most one row for each key kind. See [surface_keys_store.go](/Users/cding/Workspace/ChenWeb/server/api/ontology/keywords/surface_keys_store.go:32).
+
+When a surface is deleted
+
+`surface_id` is a foreign key with:
+
+```sql
+ON DELETE CASCADE
+```
+
+Deleting a row from `kb.keyword_surfaces` automatically deletes all its derived-key rows. This cleanup is enforced by PostgreSQL.
+
+When concepts are merged or unmerged
+
+A merge changes the `concept_id` on `kb.keyword_surfaces`. It does not need to change `kb.keyword_surface_keys`, because derived keys depend on the surface text, not the concept ID. The existing key rows continue to reference the same `surface_id`.
+
+When normalization changes
+
+Every key carries `norm_version`. Tier 4 only reads keys generated under the currently configured version:
+
+```sql
+sk.norm_version = currentVersion
+```
+
+The source comments say that changing the normalizer version requires reindexing all derived keys. However, I do not find a production reindex/backfill command in the current keyword package. New surfaces receive the current version, but existing surfaces do not appear to be automatically regenerated merely because `CurrentNormalizerVersion` changes. That is a maintenance gap that should be documented or addressed before introducing another normalizer version.
+
+Other caveats
+
+- There is no general database trigger that creates these keys. Directly inserting a row into `kb.keyword_surfaces` bypasses key generation.
+- On a duplicate `CreateSurface` call, the code returns the existing surface and does not regenerate its keys. Thus, replaying creation does not repair missing or stale key rows.
+- `UpsertSurfaceKeys` returns immediately when passed an empty key list, without deleting old rows. This could leave stale rows if it were ever used to replace an existing surface’s keys with an empty set.
+- The public `SurfaceStore` has no operation for changing a surface’s text in place. It only creates surfaces and updates their lock status. This reduces normal update-related drift, but also means maintenance depends on creation/reindex workflows being correct.
+
+#### 9.1.4 Tier 5 Fuzzy Matching
+Tier 5 compares the entire normalized input with stored keyword surfaces. 
+It first uses trigram similarity to quickly select up to 20 plausible 
+matches. It then calculates the Levenshtein edit distance for each 
+shortlisted match and rejects candidates that differ too much or violate 
+safety rules, such as having different digits. Each remaining candidate 
+receives a score between 0 and 1 based on its edit distance, where 1 means 
+identical and lower values mean greater differences. The surviving candidates 
+and their scores are passed to the adjudication stage, which decides whether
+there is a clear match.
+
+More precisely, the flow is:
+
+1. Normalization: the input string should have been normalized by Tier 1 
+   when it reaches Tier 5
+2. Use trigram similarity to shortlist up to 20 stored surfaces.
+2. Calculate the full-string Levenshtein distance for each.
+3. Reject candidates that fail the typo and safety rules.
+4. Convert edit distance to a score:
+   `1 − edit distance ÷ length of the longer string`
+5. Return the surviving concepts and their scores for adjudication.
+
+Tier 5 does not necessarily return “the top N” final candidates. It examines 
+up to 20 shortlisted surfaces and returns whichever candidates survive its 
+rules. Trigram similarity does not contribute to their final scores.
+
+**Result Filter**
+The normal auto-accept threshold is **0.80**, but Tier 5 applies 
+stricter rules before the caller sees a candidate:
+
+- Input length 4 or fewer: fuzzy matching is disabled.
+- Length 5–8: at most one edit, and the first character must match.
+- Length 9 or more: at most two edits and a score of at least **0.88**.
+- Safety checks can reject a candidate regardless of score, such as differing digits.
+
+The caller then:
+
+- Auto-accepts the highest-scoring candidate if its score is at least **0.80** and it is the unique highest score.
+- Returns `ambiguous` if multiple candidates tie for the highest score.
+- Requests human review if the best score is below 0.80.
+
+In practice, every candidate surviving Tier 5 already scores at 
+least 0.80. Therefore, the caller is primarily deciding whether 
+there is a single clear winner, not applying an additional 
+meaningful score filter.
 
 ### 9.2 Fuzzy guardrails (binding)
 
