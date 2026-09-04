@@ -1,839 +1,177 @@
-# Deterministic Entity and Relation Extraction — Go Design
+# Production Entity and Relation Extraction Without Generative LLMs
 
 Date: 2026-09-04  
 Status: Draft for review  
 Implementation target: `ChenWeb`
 
-> The requested filename uses `spy`; this document retains that filename while the
-> design refers to spaCy by its correct name.
+## 1. Summary
 
-## 1. Decision
+Build a production-ready entity and relation extractor as an alternative to the
+existing LLM-based processor. The new extractor will run locally and will not call a
+generative LLM or an external model API.
 
-Implement the first version directly in Go. Do not create
-`ChenWeb/python/extract-entity-relations/` in the initial implementation.
+The extractor will use smaller, task-specific language models. These models read text
+in both directions and are trained specifically to find entity names and relationships.
+They are not chat models and do not generate free-form answers.
 
-The referenced DZone article uses spaCy, but its demonstrated relation extractor is
-not a trained relation model and does not use spaCy's dependency parser. It combines:
+The main design decisions are:
 
-1. configured domain entity patterns;
-2. general named-entity recognition;
-3. an alias-to-canonical-name map;
-4. configured relation phrases such as `depends on` and `owns`; and
-5. deterministic subject/object selection.
+- Use a Python service in `ChenWeb/python/extract-entity-relations/` because the mature
+  training and inference tools are in Python.
+- Keep Go responsible for the existing document-processing workflow, database writes,
+  artifact files, status, and indexing.
+- Detect the language of each piece of text and route it to the best available model.
+- Treat English and Simplified Chinese as first-class supported languages.
+- Detect Traditional Chinese separately and route it through a measured Chinese or
+  multilingual fallback until it independently qualifies for production support.
+- Use a multilingual model as the fallback for other languages and mixed-language text.
+- Discover entity mentions from their context. Do not require a master list of every
+  entity name in advance.
+- Extract the relationship wording from the source first, then map it to a standard
+  relationship name when possible.
+- Select and promote models using a human-reviewed test collection and a direct
+  comparison with the existing extractor.
+- Plan for domain-specific training instead of assuming a general model will be good
+  enough for all ChenWeb documents.
 
-The domain patterns, aliases, phrase matching, source-span tracking, normalization,
-and subject/object selection can all be implemented cleanly in Go. A native
-implementation also fits the existing Go doc-processor runtime and avoids adding a
-second service boundary for an algorithm that is primarily rule based.
+The previous Go dictionary-and-rules proposal is superseded by this document. A
+dictionary may still improve known names, but it is not the primary extraction method.
 
-The existing runtime already exposes entity and relation extraction as two Phase B
-operations, `extract_entity` and `extract_relation`. The new implementation will be
-an alternate engine behind those logical operations, selected by configuration. It
-must not be registered as a third processor that writes the same tables concurrently.
+## 2. What Problem This Solves
 
-Initial engine selection:
+The current entity and relation processor uses an LLM. It can recognize names that were
+not listed beforehand and can understand many different ways of stating a relationship.
+The replacement must preserve as much of that ability as practical while removing the
+runtime dependency on generative LLMs.
 
-```text
-ENTITY_RELATION_ENGINE=llm       # existing behavior and default during rollout
-ENTITY_RELATION_ENGINE=go_rules  # new deterministic implementation
-```
+A dictionary-only extractor cannot meet this goal. There are too many possible people,
+organizations, products, systems, standards, materials, locations, and concepts to list
+them all. It also cannot reliably understand a new name from the surrounding sentence.
 
-Only one engine may own `kb.entities`, `kb.relations`, `.entities`, and `.relations`
-for a record run.
+The new extractor therefore learns patterns such as:
 
-The first release retains the doc processor's documented single-instance deployment
-constraint. Switching engines requires draining the running doc-processor instance
-before starting its replacement. A rolling deployment with mixed engine settings is
-not supported. Before any future multi-replica deployment, persist the selected engine
-in the execution plan and add record-scoped database ownership/locking; process-local
-configuration alone is not a cluster-wide lock.
+- which words form an entity name;
+- what kind of entity it is;
+- which two entities participate in a stated relationship; and
+- which words express that relationship.
 
-## 2. Why Go Is Sufficient
+For example, it should be able to find a previously unseen service name because of how
+the name is used in a sentence, not because that name already exists in a map.
 
-The article's useful production pattern is rules plus a domain dictionary, not a
-spaCy-specific API. Its example adds exact domain names with `EntityRuler`, folds
-aliases into canonical names, scans for configured relation phrases, and preserves
-the source sentence. The article also explicitly presents the implementation as a
-simple prototype and warns that its first-two-entities subject/object rule is not
-universal.
+## 3. Meaning of “No LLMs”
 
-spaCy remains stronger if a later version requires statistical multilingual NER,
-dependency-aware syntax, or a trained relation classifier. Those capabilities are
-not required to reproduce the article's baseline.
+This design makes the following distinction:
 
-A Go NLP package was also considered. `github.com/jdkato/prose` provides pure-Go
-tokenization, sentence segmentation, POS tagging, and English NER, but no domain
-`EntityRuler`, dependency parser, or relation extractor. Adding that model dependency
-would not remove the need for the custom rule engine. Version 1 should therefore use
-the Go standard library plus a small, purpose-built matcher. A statistical Go NER
-component can be evaluated later as a separate recall enhancement.
+- **Allowed:** compact, non-generative encoder models trained for entity recognition,
+  span classification, relation classification, and language detection.
+- **Not allowed:** chat models, instruction-following models, text-generation models,
+  prompt-based extraction, or calls to hosted LLM APIs.
 
-## 3. Goals
+The production extractor must not silently fall back to an LLM. During development,
+the existing LLM extractor may be run in an isolated benchmark so that its results can
+be compared with the replacement. Human-reviewed annotations remain the source of
+truth; the LLM output is only another system being measured.
 
-- Extract domain entities and typed relations without any LLM call.
-- Preserve source line evidence for every entity and relation.
-- Normalize aliases before graph construction.
-- Produce the current `kb.entities` and `kb.relations` row shapes.
-- Reuse current entity consolidation, relation endpoint linking, artifacts, search
-  indexing, relation graph indexing, and status handling.
-- Make behavior deterministic, explainable, testable, and versioned.
-- Allow rule bundles to evolve without recompiling the service.
-- Keep the existing LLM engine available for comparison and fallback at the
-  deployment/configuration level.
+Every third-party model must have its license, source, training-data description, and
+known limitations recorded before it can be promoted. Some public extraction models
+were trained with synthetic examples originally produced by LLMs. That history must be
+visible in the model review. If such training provenance is considered unacceptable,
+the model cannot be used even though its runtime is non-generative.
 
-## 4. Non-Goals
+## 4. Goals
 
-- Open-domain relation extraction.
-- Inferring relations not explicitly stated in source text.
-- Coreference resolution across paragraphs or chunks.
-- Cross-document entity reconciliation; the existing reconciliation workflow remains
-  responsible for that.
-- Automatic translation.
-- Simultaneously merging LLM and rule-engine output into the same record during the
-  first release.
-- Replacing Phase C indexing or the canonical relation store.
+- Find as many genuine entity mentions as practical, including names never seen before.
+- Extract explicit relationships and their subject and object.
+- Approach the existing LLM extractor’s quality on the same human-reviewed documents.
+- Support English and Simplified Chinese from the first production release.
+- Handle documents that mix Chinese and English.
+- Preserve the exact source lines and locations supporting every result.
+- Produce accepted entity and relation data compatible with the existing
+  `kb.entities`, `kb.relations`, search, and graph workflows, while staging unmapped
+  relation candidates separately.
+- Run locally on CPU, Apple Silicon, or NVIDIA GPU.
+- Make model versions, confidence, language route, and source evidence auditable.
+- Support repeated domain-specific training and safe model upgrades.
 
-## 5. Current-System Compatibility
+## 5. Non-Goals
 
-The source spec, `extract-entity-relation-spec.md`, describes the original combined
-`extract_entity_relation` processor. Current ChenWeb code has since split it into:
+- Perfect extraction of every real-world entity or relation.
+- Treating a model prediction as unquestionable truth.
+- Using a dictionary as a complete inventory of possible entities.
+- Automatically merging similarly named entities into one real-world identity.
+- Automatically translating every Chinese entity name into English.
+- Publishing unsupported or weakly tested languages as production-quality.
+- Replacing the existing search, graph indexing, and relation endpoint-linking systems.
 
-| Logical operation | Current Go type | Output |
-|---|---|---|
-| `extract_entity` | `EntityProcessor` | `kb.entities`, `.entities` |
-| `extract_relation` | `RelationProcessor` | `kb.relations`, `.relations` |
+Entity extraction and entity identity are separate problems. This service finds what
+the document mentions. The existing keyword and reconciliation systems decide whether
+two mentions refer to the same concept.
 
-The implementation must target the current split runtime, not recreate the obsolete
-combined execution path. The rule implementation should provide equivalent entity
-and relation wrappers and continue to use the existing operation names so routing,
-status rollups, benchmarks, and the dashboard do not need a second vocabulary.
+### Plain-language terms used below
 
-The following existing behavior must be reused:
+- **Encoder model:** a compact model that reads and classifies text but does not write
+  free-form answers.
+- **Entity span:** the exact words or characters that name an entity.
+- **Model backbone:** the reusable language-understanding part of a model.
+- **Task head:** the smaller part trained to perform one job, such as finding entities.
+- **Gold test set:** examples reviewed by people and kept unchanged for fair testing.
+- **Hard negative:** a convincing-looking example that must not be extracted.
+- **MPS:** Apple’s way of running PyTorch work on the Mac GPU.
 
-- chunk loading and canonical line metadata;
-- `consolidateEntities` before assigning `<record_id>_ent_<seqno>` IDs;
-- Phase C `linkRecordEndpoints` behavior, including provisional entities;
-- `EntityRelationSQLStore.SaveEntities` and `SaveRelations`;
-- `.entities` and `.relations` artifact paths;
-- `ReindexEntitySearchForRecord` and `ReindexRelationSearchForRecord`;
-- entity category, line-overlap, object-link, and relation-graph indexing;
-- `force=false` idempotent skip and `force=true` replacement;
-- `kb.inputs.status` entries keyed by `extract_entity` and `extract_relation`.
-
-No database migration is required for the baseline design.
-
-## 6. Proposed Code Layout
+## 6. Recommended Architecture
 
 ```text
-ChenWeb/
-├── config/entity_relation_rules/
-│   └── en.json
-└── server/api/doc-processing/
-    ├── entity-relation-rules.go
-    ├── entity-relation-rules-config.go
-    ├── entity-relation-rules_test.go
-    ├── extract-entity-relation.go         # accept/merge rule provenance
-    └── runtime.go                         # select LLM or Go rules engine
+ChenWeb Go document processor
+        |
+        | sends text plus line information
+        v
+Local Python extraction service
+        |
+        +-- detect language
+        +-- route to English, Chinese, or multilingual models
+        +-- find entity mentions
+        +-- find relation mentions
+        +-- map known relation meanings
+        +-- return confidence and exact source locations
+        |
+        v
+Go validation and consolidation
+        |
+        +-- entity identity/canonicalization
+        +-- database and artifact writes
+        +-- search and graph indexing
 ```
 
-The existing storage and Phase C code stays authoritative. New files contain the
-extraction and rule-loading behavior; the existing store receives only the minimal
-provenance and transactional-replacement extensions described below.
-
-Use typed candidates internally and convert to the legacy `map[string]any` shape only
-at the existing normalization/persistence boundary. Suggested core contract:
-
-```go
-type ExtractionRunProvenance struct {
-    Engine        string
-    SchemaVersion string
-    BundleVersion string
-}
-
-type RuleProvenance struct {
-    RuleIDs       []string
-    ChunkSeqNos   []int
-}
-
-type EntityCandidate struct {
-    CanonicalName string
-    EntityType    string
-    Aliases       []string
-    Categories    []string
-    Description   string
-    Keywords      []string
-    LineSpans     []string
-    Confidence    float64
-    Provenance    RuleProvenance
-    ChunkSeqNo    int
-    FirstLineNo   int
-    SourceStart   int // original chunk-buffer byte offset
-    SourceEnd     int // exclusive original chunk-buffer byte offset
-    SortRuleID    string
-}
-
-type RelationCandidate struct {
-    Subject, Predicate, Object string
-    Description                string
-    Keywords                   []string
-    Categories                 []string
-    SubjectLines               []string
-    PredicateLines             []string
-    ObjectLines                []string
-    Confidence                 float64
-    Provenance                 RuleProvenance
-    ChunkSeqNo                 int
-    FirstLineNo                int
-    SourceStart, SourceEnd     int
-    SortRuleID                 string
-}
-
-type EntityRuleExtractor interface {
-    ExtractEntities(ctx context.Context, chunk Chunk) ([]EntityCandidate, error)
-}
-
-type RelationRuleExtractor interface {
-    ExtractRelations(
-        ctx context.Context,
-        chunk Chunk,
-        mentions []EntityCandidate,
-    ) ([]RelationCandidate, error)
-}
-```
-
-Constructors validate every required field. Conversion functions validate canonical
-line-span syntax and confidence bounds before returning persistence maps; an invalid
-candidate fails the operation instead of reaching SQL with a partial shape.
-
-Rule-backed wrappers implement `Processor` and `PostProcessIndexer`, but deliberately
-do not implement `ChunkBatchProcessor`. That coordinator exists to sequence LLM calls
-for prompt-cache reuse, which the rules engine does not need, and its interface places
-mutable batch state on a runtime-shared processor instance. Each rule wrapper instead
-loads/processes its chunks inside `HandleEvent` and keeps all per-record state in local
-variables. The immutable compiled rule index may be shared. This makes concurrent
-record pipelines safe without a processor-level batch-state map or serialization.
-
-## 7. Rule Bundle
-
-Use versioned JSON so the loader requires no new parsing dependency. Default path:
-
-```text
-config/entity_relation_rules/en.json
-```
-
-Environment override:
-
-```text
-ENTITY_RELATION_RULES_DIR=/absolute/or/project-relative/path
-```
-
-Proposed shape:
-
-```json
-{
-  "schema_version": "1",
-  "bundle_version": "en-engineering-v1",
-  "language": "en",
-  "matching": {
-    "fold_separators": ["-", "_"],
-    "connectors": ["of", "and", "for"],
-    "stop_words": ["a", "an", "the", "this", "that"],
-    "negation_window_tokens": 2
-  },
-  "entities": [
-    {
-      "id": "payment-api",
-      "canonical_name": "Payment API",
-      "entity_type": "api",
-      "aliases": ["payment-api", "Payments API", "payment service"],
-      "categories": ["software_system"],
-      "confidence": 1.0
-    }
-  ],
-  "entity_suffix_rules": [
-    {
-      "id": "service-suffix",
-      "suffixes": ["Service", "Worker"],
-      "entity_type": "service",
-      "max_tokens": 6,
-      "confidence": 0.82
-    },
-    {
-      "id": "team-suffix",
-      "suffixes": ["Team"],
-      "entity_type": "team",
-      "max_tokens": 6,
-      "confidence": 0.82
-    }
-  ],
-  "relations": [
-    {
-      "id": "depends-on",
-      "phrases": ["depends on", "is dependent on"],
-      "predicate": "depends_on",
-      "direction": "left_to_right",
-      "subject_types": ["service", "api"],
-      "object_types": ["service", "api", "database", "queue"],
-      "categories": ["system_dependency"],
-      "confidence": 0.95
-    }
-  ],
-  "negations": ["not", "never", "no longer"]
-}
-```
-
-`fold_separators` means: treat each configured separator as a comparison-token
-boundary and collapse consecutive boundaries, while retaining its original bytes in
-the source-span map. Thus `payment-api`, `payment_api`, and `payment api` compile to
-the same two-token comparison sequence without altering original offsets. Separators
-not in this list remain internal token characters.
-
-Loader validation must reject:
-
-- unsupported schema versions;
-- duplicate entity or relation rule IDs;
-- empty canonical names, aliases, phrases, types, or predicates;
-- invalid confidence values;
-- predicates that are not lowercase snake case;
-- unsupported directions;
-- an out-of-range negation window or empty matching vocabulary item;
-- aliases that map to more than one canonical entity in the same bundle.
-
-The bundle is loaded once when the production runtime is constructed, compiled into
-immutable match indexes, and shared safely across concurrent record pipelines.
-
-The complete seed bundle must cover the article fixture, not only the abbreviated
-example above. It includes entity types/patterns for `service`, `api`, `database`,
-`search_index`, `team`, `worker`, and `queue`, plus relation rules for `depends_on`,
-`stores_in`, `owns`, `calls`, `indexes_in`, and `publishes_to`: the article's five
-main predicates plus the `publishes_to` exercise, six total. Each seed rule has a
-stable ID and explicit direction.
-
-## 8. Extraction Algorithm
-
-### 8.1 Preserve line provenance
-
-Process the existing `Chunk.Lines`; do not flatten the source and lose metadata. Skip
-`line_type = "image"`. For every retained line, preserve:
-
-- line number;
-- page number;
-- overlap marker;
-- original text; and
-- byte offsets within a temporary chunk buffer.
-
-The matcher must never index the original string with offsets from normalized text.
-Tokenization produces tokens containing original byte start/end offsets plus a
-separate normalized comparison value. Rules compile to normalized token sequences;
-matches retain the original token boundaries. The offset map then resolves those
-original byte spans back to canonical line spans. This remains correct when Unicode
-case conversion or whitespace normalization changes byte length.
-
-#### Answer 01: tokenization is required and implemented in Go
-
-Yes. Both entity and relation matching require tokens so that rules match complete
-words or phrases rather than arbitrary substrings, and so every match can retain its
-original byte offsets.
-
-Version 1 uses a small purpose-built Go tokenizer; it does not call spaCy. The
-tokenizer scans each original UTF-8 line once and emits tokens containing the raw
-surface, comparison value, original start/end byte offsets, and line/page provenance.
-Letters and numbers form ordinary tokens, configured `fold_separators` form comparison
-boundaries, permitted punctuation may remain inside a token, and strong punctuation
-also marks clause boundaries. The same tokenizer compiles configured names, aliases,
-suffixes, and relation phrases at bundle-load time, ensuring rules and documents have
-identical boundary semantics.
-
-This is lexical tokenization only. It does not attempt POS tagging, dependency parsing,
-or linguistic sentence analysis, which are the spaCy features that would require the
-Python service and model runtime. The retained source offsets always come from the Go
-scan of the original text, never from normalized text.
-
-### 8.2 Entity mentions
-
-For each non-image line:
-
-1. Tokenize letters, numbers, and permitted internal punctuation while retaining
-   original byte spans. Configured `fold_separators` create comparison-token
-   boundaries; other permitted punctuation remains internal. Normalize comparison
-   tokens with Unicode lowercase.
-2. Apply exact canonical-name and alias matches using a trie of normalized token
-   sequences with token-boundary matching.
-3. Apply configured suffix rules to discover previously unlisted domain names such
-   as `Checkout Service` or `Platform Team`.
-4. Resolve overlaps in this order: exact catalog match, longest span, higher
-   configured confidence, earliest source position.
-5. Normalize every mention to its configured canonical name when available.
-6. Emit one mention record with type, aliases, categories, confidence, rule ID, byte
-   offsets, and source line.
-
-#### Answer 02: suffix discovery and separator folding
-
-A suffix rule is a bounded naming convention for recognizing an entity that is not
-already listed in the canonical-name/alias catalog. For example, the `service-suffix`
-rule treats `Service` or `Worker` as a terminal type marker. On seeing `Service` in
-`Checkout Service`, the matcher scans left within the same clause for at most
-`max_tokens-1` eligible name tokens, emits `Checkout Service` as a `service`, and
-assigns the rule's configured confidence and ID. The detailed stopping and overlap
-rules immediately below this answer prevent the suffix from absorbing an entire
-sentence. This is a discovery fallback; an overlapping catalog match always wins.
-
-`fold_separators` handles spelling variants whose only difference is a configured word
-separator. With `-` and `_` configured, `payment-api`, `payment_api`, and `payment api`
-all compare as the token sequence `payment`, `api`. This prevents avoidable misses and
-the need to enumerate every separator variant as an alias. Folding affects comparison
-only: the emitted mention and offsets still point to the exact original bytes. The
-setting is deliberately allow-listed instead of stripping all punctuation, because
-punctuation can be meaningful in names such as `C++` or `ISO/IEC 27001`.
-
-#### Answer 03: reuse surface normalization, not the tier ladder for token detection
-
-Do not run the keyword module's Tier 0–6 resolver on individual tokens or use it to
-decide whether a source span is an entity. The keyword module accepts an already
-identified complete surface and resolves its identity; it does not find span
-boundaries. Its Tier 2 sorted/singular keys, Tier 3 rewrites, Tier 4 initials, and Tier
-5 fuzzy matching are intentionally lossy. Applying those tiers while scanning prose
-could manufacture false mentions. Tier 6 is an offline reconciliation process and is
-not available on the online lookup path.
-
-The two modules should integrate at a narrower boundary:
-
-1. The Go tokenizer and rule matcher find a mention and preserve its exact source
-   span.
-2. Exact entity matching uses the extraction bundle's own canonical names and aliases.
-3. After a complete mention is found, its full surface may be normalized with the
-   shared `semid.Normalizer` and, when concept identity is required, submitted to the
-   keyword resolver as a complete surface. This avoids duplicating the shared Unicode
-   normalization policy while keeping entity detection deterministic and
-   bundle-versioned.
-4. A keyword-resolution miss or ambiguous/fuzzy result must not create a new mention;
-   it only affects optional downstream concept reconciliation.
-
-Therefore, keyword resolution is an optional post-extraction identity layer, not a
-runtime dependency of the version-1 entity matcher. The matcher's per-token comparison
-values remain its extraction-safe lowercase/separator-folded values because the shared
-normalizer is defined for complete surfaces, not individual lexical tokens.
-
-#### Answer 04: the catalog is compiled, but it is not the only recognition path
-
-Yes, at bundle-load time the engine compiles every canonical name and alias into a
-reverse lookup index pointing to its entity definition. Because entries can contain
-multiple tokens and matching must prefer the longest span, the runtime index is a
-token trie (with a small map at each trie node), rather than only a flat string map.
-Loader validation rejects a normalized alias that points to more than one canonical
-entity in the same bundle.
-
-For the exact catalog stage, a span is recognized only when its normalized token
-sequence equals a compiled canonical name or alias; there is no substring or fuzzy
-match. However, catalog entries are not the only entities recognized by version 1:
-the following suffix-rule stage can discover an unlisted name such as `Checkout
-Service` or `Platform Team`. A span matching neither the catalog nor a suffix rule is
-intentionally not emitted. This precision-first boundary prevents ordinary
-capitalized prose or a merely similar keyword from becoming graph nodes.
-
-A suffix rule includes the suffix token. It may extend left by at most `max_tokens-1`
-tokens within the same clause while tokens are proper-name-like: initial uppercase,
-all-uppercase acronym, number/model token, or a configured connector such as `of` or
-`and`. It stops at punctuation, a configured stop word/determiner, the line boundary,
-or the first token that is neither proper-name-like nor a configured connector. No
-POS tag or implicit verb detection is used. At least one token must precede the
-suffix. Its canonical name is the trimmed original source span. Exact catalog/alias
-matches always win an overlap. These constraints and the stop-word/connector lists are
-part of the versioned bundle and must have false-positive fixtures.
-
-Do not use a generic "capitalized words are entities" rule in version 1; its expected
-precision is too low for graph construction.
-
-After all chunks are processed, convert mentions to the existing entity map shape and
-call `consolidateEntities`. Overlap copies from chunking must merge into the same
-entity and union their line spans.
-
-Field mapping:
-
-| Existing field | Rule-engine value |
-|---|---|
-| `entity` | canonical name |
-| `entity_type` | configured type |
-| `aliases` | observed/configured aliases excluding canonical name |
-| `desc` | first source sentence or line containing the entity |
-| `keywords` | canonical name tokens plus entity type, deduplicated |
-| `line_spans` | all evidence lines |
-| `confidence` | highest matching rule confidence |
-| `entity_categories` | configured categories |
-| `_en` fields | empty for the English v1 bundle |
-
-### 8.3 Relations
-
-`extract_relation` cannot read uncommitted output from the concurrently running
-`extract_entity` operation. Its rule wrapper therefore runs the same immutable entity
-matcher locally for each chunk, passes those ordered mentions explicitly to
-`RelationRuleExtractor.ExtractRelations`, and persists only relation candidates. Phase
-C later links those canonical endpoint surfaces to the independently persisted
-entities.
-
-Relation phrases are compiled and matched as normalized token sequences, never raw
-substrings. When phrases overlap, prefer the longest sequence, then highest confidence,
-then stable rule ID. For each surviving occurrence:
-
-1. Bound the local clause by newline or strong punctuation (`.`, `;`, `:`, `?`, `!`).
-2. Select the nearest compatible entity ending before the phrase as subject.
-3. Select the nearest compatible entity starting after the phrase as object.
-4. Enforce optional subject/object type constraints.
-5. Reject missing endpoints, identical endpoints, and matches with a configured
-   negation ending within two tokens before the phrase (ignoring punctuation).
-6. Apply `direction = left_to_right` or `right_to_left`. Passive forms such as
-   `is owned by` are separate phrase rules using `right_to_left`; the engine must not
-   infer passive voice.
-7. Emit endpoint and predicate line spans separately.
-
-The closest candidate is measured by intervening token count. If two compatible
-candidates on the same side have equal distance, overlap the same boundary, or cannot
-be ordered unambiguously, reject the relation and increment the ambiguous counter.
-
-This intentionally improves on the article's "first two entities in the text"
-heuristic while preserving its transparent verb-phrase approach.
-
-Field mapping:
-
-| Existing field | Rule-engine value |
-|---|---|
-| `subject` / `object` | canonical endpoint names |
-| `predicate` | configured lowercase snake-case predicate |
-| `desc` | exact source clause containing the triple |
-| `keywords` | predicate plus endpoint names, deduplicated |
-| `subject_lines` | subject evidence lines |
-| `predicate_lines` | relation phrase evidence lines |
-| `object_lines` | object evidence lines |
-| `line_spans` | union of the three evidence sets |
-| `confidence` | relation confidence multiplied by the lower endpoint confidence |
-| `relation_categories` | configured categories, if any |
-| `_en` fields | empty for the English v1 bundle |
-
-Relation endpoint IDs remain empty during Phase B. The existing Phase C linker owns
-`subject_entity_id` and `object_entity_id` assignment.
-
-### 8.4 Determinism and deduplication
-
-Within each `HandleEvent`, store per-chunk results by chunk index rather than appending
-from concurrent workers. Flatten them only after all workers finish, sorted by the
-candidate's `ChunkSeqNo`, `FirstLineNo`, `SourceStart`, `SortRuleID`, and canonical
-name. `SourceEnd` is the final tie-breaker. This avoids scheduler-dependent IDs, and
-the typed candidate contract makes every sort key explicit.
-
-Deduplicate relations by canonical subject, predicate, canonical object, and canonical
-document line spans. Never use chunk-local byte offsets as the cross-chunk dedupe key.
-Repeated executions with the same input and bundle must produce identical normalized
-rows and IDs. Tests compare artifacts after removing time-valued fields that the
-shared persistence path intentionally regenerates.
-
-## 9. Language Behavior
-
-Version 1 supports English only. This is consistent with the article's example and
-avoids pretending that English relation phrases work across languages.
-
-- `DocMetadataInputRecord.SourceLanguage` is authoritative when populated. Both rule
-  processors load the record during initialization inside `HandleEvent` and call the same
-  `resolveRuleLanguage` helper.
-- If the record language is English, run the `en` bundle.
-- If the record language is unknown, inspect a bounded prefix of non-image chunk text.
-  Select English only when at least 90% of its Unicode letter runes are Latin and the
-  sample contains at least 20 letters; otherwise fail with an explicit
-  undetermined-language error.
-- If the record is known to be non-English and no matching language bundle exists,
-  persist a failed processor status. Sibling processors continue normally.
-
-Failure is preferred to silent empty success because missing graph data is otherwise
-hard to detect. Additional languages are added as independent rule bundles containing
-their own aliases, suffix rules, relation phrases, direction, and English canonical
-labels. No automatic translation is performed. A valid zero-match run is successful
-only after a supported language has been resolved; this is distinct from failure to
-select a language.
-
-## 10. Persistence and Provenance
-
-Reuse the existing table and artifact schemas. Record deterministic provenance as:
-
-```text
-model_name = "go_rules"
-prompt_name = "<bundle_version>"
-```
-
-Although `prompt_name` is historically LLM-oriented, using it for the versioned rule
-bundle avoids a migration and preserves the current run metadata surface. Extend the
-existing `ext_info` JSON written by `SaveEntities` and `SaveRelations` with:
-
-```json
-{
-  "extraction_engine": "go_rules",
-  "rules_schema_version": "1",
-  "rules_bundle_version": "en-engineering-v1",
-  "matched_rule_ids": ["payment-api", "depends-on"]
-}
-```
-
-Add `RunProvenance ExtractionRunProvenance` to `SaveEntitiesRequest` and
-`SaveRelationsRequest`; it contains only engine/schema/bundle identity. Keep
-row-specific `RuleProvenance` on each candidate and its legacy map during conversion.
-The stores combine run identity with that row's rule IDs/chunk sequences in
-`ext_info`; request-level values never contribute rule IDs to individual rows. The
-stores do not accept arbitrary caller JSON. Current `language`, `schema_version`, and
-`chunk_seq_no` keys remain present.
-
-Extend `mergeEntityGroup` so rule candidates do not lose provenance during the current
-map-rebuilding consolidation step. When it combines mentions, `matched_rule_ids` and
-`chunk_seq_nos` are sorted unique unions. `chunk_seq_no` remains the earliest sequence
-number for backward compatibility. Relations normally carry one rule ID and chunk,
-but use the same sorted-union rule after deduplication. This makes provenance stable
-across worker completion order. LLM candidates without these keys retain current
-behavior.
-
-The source clause in `desc` and the line-specific fields satisfy the article's source
-tracking recommendation. Phase C continues to build richer `entity_context` and graph
-connections.
-
-## 11. Runtime and Failure Semantics
-
-When `ENTITY_RELATION_ENGINE=go_rules`:
-
-- missing or malformed rule configuration fails runtime construction;
-- a record-level unsupported language writes a failed status for the affected
-  operation;
-- cancellation is checked before each chunk and during long match loops;
-- `ErrPipelineStopped` uses the existing stopped-status path;
-- one malformed rule must never be ignored;
-- a valid run with zero matches is successful and logs zero counts;
-- individual chunks do not fail independently due to model/network errors because the
-  engine performs no network calls;
-- storage, artifact, and indexing errors retain existing failure behavior.
-
-Two artifact behaviors are deliberate compatibility changes: zero-result runs now
-write empty arrays, and a post-commit atomic-rename failure marks the operation failed
-instead of being warning-only. Other existing artifact/indexing failure semantics stay
-unchanged.
-
-Successful zero-match runs write `[]` to the corresponding artifact file. Update the
-shared artifact writer, which currently returns early for an empty slice, so callers
-can distinguish "processed with no matches" from "not processed". This behavior must
-be applied consistently to both engines and covered by regression tests.
-
-For `force=true`, do not delete good rows before extraction. Add explicit store methods
-`ReplaceEntities(ctx, req)` and `ReplaceRelations(ctx, req)`. Each starts a database
-transaction, deletes that record's prior rows, inserts every validated replacement,
-and commits; any insert error rolls back to the prior good rows. `Save*` remains the
-non-replacement path.
-
-Serialize the complete artifact to a sibling temporary file before starting the
-database transaction. After a successful commit, atomically rename it over the final
-artifact. If rename fails, the database remains authoritative, the operation is marked
-failed, and the temporary file is retained for diagnosis/retry; the previous final
-artifact is not overwritten. A forced retry rebuilds both stores. Entity and relation
-operations still commit separately, as they do today; consumers must use pipeline
-status and only treat a completed record as a consistent generation. A fully atomic
-database/filesystem or two-operation generation would require a separate design and
-is out of scope.
-
-There are no LLM permits, prompts, cache sequencing, fallback models, or LLM-call log
-rows for this engine.
-
-## 12. Observability
-
-Use a new `CreateDefaultLogger` location when implementation begins, following the
-workspace logging rule. Existing processor spans remain named for the logical
-operations.
-
-Log one structured summary per operation with:
-
-- `record_id`;
-- `engine=go_rules`;
-- rule bundle and schema versions;
-- chunks and lines processed;
-- entity mentions, consolidated entities, and relations emitted;
-- rejected ambiguous relations;
-- unsupported-language outcome;
-- elapsed milliseconds.
-
-Do not log full document lines. Rule IDs and counts are sufficient for routine
-diagnosis; source evidence remains in the artifacts and database.
-
-## 13. Configuration and Routing
-
-Keep `extract_entity` and `extract_relation` in
-`[doc-processing].required_processors`. Engine selection is process-wide for the first
-release so two concurrent pipelines cannot choose conflicting writers.
-
-`NewProductionRuntime` must validate `ENTITY_RELATION_ENGINE`:
-
-| Value | Behavior |
-|---|---|
-| empty / `llm` | construct current LLM-backed processors |
-| `go_rules` | construct rule-backed processors |
-| anything else | fail fast at startup |
-
-Operational rollout must stop intake, wait for in-flight pipelines, stop the old
-instance, change the setting, and then start the new instance. Mixed-engine rolling
-deployment is prohibited for the single-instance baseline.
-
-No capsule pipeline row, dashboard operation, canonical operation alias, or routing
-policy change is needed because the logical processor names do not change. The capsule
-and entity/relation spec still need an implementation note documenting the alternate
-engine and its non-LLM behavior.
-
-## 14. Test Plan
-
-### 14.1 Pure unit tests
-
-- rule-bundle validation, including alias conflicts and invalid predicates;
-- case and whitespace normalization without corrupting source offsets;
-- exact entity matching and alias canonicalization;
-- suffix-rule extraction;
-- overlap priority and longest-match behavior;
-- UTF-8 byte-offset-to-line mapping;
-- active and passive relation direction;
-- nearest compatible subject/object selection;
-- type constraints;
-- negation rejection;
-- multiple relations in one line;
-- relation and entity deduplication across overlapped chunks;
-- stable ordering and stable IDs;
-- cancellation.
-
-### 14.2 Processor tests
-
-- engine selection in `NewProductionRuntime`;
-- rule wrappers do not satisfy `ChunkBatchProcessor` and keep per-run state local;
-- `force=false` skip and `force=true` delete-before-save;
-- entity and relation status transitions;
-- unsupported-language failure;
-- existing `SaveEntities` / `SaveRelations` field mapping;
-- merged `ext_info` provenance;
-- transactional replacement preserves prior good rows on extraction/save failure;
-- zero-result runs write explicit empty artifacts;
-- `.entities` / `.relations` artifact compatibility;
-- Phase C endpoint linking and provisional entity behavior;
-- search and relation-graph indexing remain callable with rule output;
-- verify no LLM client call or permit acquisition occurs.
-
-### 14.3 Article fixtures
-
-Add the article's examples as gold fixtures. They must produce at least:
-
-```text
-Checkout Service --depends_on--> Payment API
-Payment API --stores_in--> PostgreSQL
-Platform Team --owns--> Payment API
-Recommendation Service --calls--> Catalog API
-Catalog API --indexes_in--> Elasticsearch
-Search Team --owns--> Catalog API
-Billing Worker --publishes_to--> Kafka
-```
-
-Also add adversarial fixtures where:
-
-- more than two entities occur in a sentence;
-- relation order differs from entity discovery order;
-- a relation is negated;
-- aliases occur at both endpoints;
-- the same source line appears in overlapped chunks;
-- two same-type candidates make an endpoint ambiguous.
-
-### 14.4 Benchmark gate
-
-Run both `llm` and `go_rules` against the existing gold doc-processor corpus. Report
-entity and relation precision, recall, F1, unmatched gold items, extractions without
-gold support, elapsed time, and LLM usage/cost.
-
-Because engine selection is exclusive and both engines use the same canonical tables,
-benchmarking must use isolated captures: run each engine against a cloned test database
-and a distinct temporary `ARTIFACT_DIR`, export normalized rows/artifacts, then compare
-the two exports offline. Never alternate engines against the same live record set.
-
-The rules engine may become the default only when:
-
-- article fixtures are exact;
-- entity precision is at least 0.95;
-- relation precision is at least 0.90;
-- entity recall is at least 0.80 on the intended controlled-document corpus;
-- relation recall is at least 0.75 on that corpus;
-- two repeated runs produce identical normalized output; and
-- all existing entity/relation persistence and Phase C tests pass.
-
-If precision passes but recall does not, keep `llm` as default and expand the governed
-rule bundle. Do not silently combine engines until merge/provenance semantics have a
-separate design.
-
-## 15. Implementation Plan
-
-### Phase 1 — Gold contract and rules
-
-1. Add article and adversarial gold fixtures.
-2. Define the versioned JSON schema and initial English engineering bundle.
-   The seed bundle must enumerate every article entity type, the five main article
-   predicates, and the exercise's `publishes_to` predicate.
-3. Implement strict loading, normalization, and conflict validation.
-4. Verify with loader and fixture tests.
-
-### Phase 2 — Pure extraction engine
-
-1. Implement line/offset mapping.
-2. Implement exact and suffix entity matchers.
-3. Implement alias normalization and deterministic mention ordering.
-4. Implement relation phrase matching and endpoint selection.
-5. Implement confidence, evidence, and deduplication.
-6. Verify all pure tests and benchmarks without database access.
-
-### Phase 3 — Doc-processor integration
-
-1. Add non-`ChunkBatchProcessor` rule-backed entity and relation wrappers with all
-   run state local to `HandleEvent`.
-2. Reuse current stores, consolidation, status, artifact, and Phase C paths.
-3. Add transactional `ReplaceEntities` / `ReplaceRelations` and explicit empty
-   artifact writes.
-4. Add typed-to-legacy conversion, extend consolidation provenance merging, and add
-   rule provenance to `ext_info`.
-5. Select the engine in `NewProductionRuntime` with startup validation.
-6. Update the entity/relation spec and implementation notes to match the current split
-   runtime and document `go_rules`.
-7. Verify targeted Go tests and `mise build-server`.
-
-### Phase 4 — Evaluation and rollout
-
-1. Run the gold corpus with both engines.
-2. Review false positives and false negatives; update rules, not extraction code, when
-   the issue is domain vocabulary.
-3. Deploy with `llm` still the default.
-4. Enable `go_rules` in staging and compare status, latency, graph quality, and search
-   output.
-5. Promote only after the benchmark gate passes.
-
-### Phase 5 — Required completion checks
-
-Before implementation is considered complete:
-
-```text
-What knowledge changed?
-Which docs/specs/ADRs/tests are affected?
-Which docs were updated?
-Which docs are now stale?
-What was intentionally left undocumented?
-```
-
-If `ChenWeb/go.mod` changes in a later implementation, run workspace-aware dependency
-sync and verify dependent builds as required by the workspace instructions. The
-baseline standard-library design does not add a module dependency.
-
-## 16. Python/spaCy Contingency
-
-Create `ChenWeb/python/extract-entity-relations/` only if benchmarking demonstrates a
-required capability that the governed Go rules cannot reasonably provide, such as
-multilingual statistical NER or dependency-aware relations.
-
-If activated, the Python process should load spaCy and all rule bundles once at
-startup and expose a small versioned extraction API. The Go processor must remain the
-owner of record lookup, status, database writes, artifact files, IDs, Phase C linking,
-and indexing. The Python response should contain only extracted candidates plus source
-offsets/lines; it must not write ChenWeb tables directly.
-
-Minimum service layout:
+The Python service owns model loading and prediction only. It must not read or write
+ChenWeb database tables. This keeps the model layer replaceable and leaves the existing
+Go workflow as the single owner of stored data.
+
+The service will load models once at startup and reuse them across requests. The Go
+processor will send bounded text windows rather than entire large documents. Requests
+include the original line numbers and page numbers so returned text locations can be
+mapped back without guessing.
+
+## 7. Why a Python Service Is Selected
+
+Go remains the right language for ChenWeb’s orchestration and storage. Python is the
+practical choice for the first model service because it has the most mature ecosystem
+for training and serving the models under consideration. A future approved model may
+be exported to another runtime, but that is an optimization rather than a starting
+requirement.
+
+Python provides:
+
+- PyTorch and Hugging Face model support;
+- spaCy components when useful;
+- existing GLiNER and GLiREL implementations;
+- support for Apple Metal, NVIDIA CUDA, and CPU inference;
+- established training, evaluation, and model-export tools.
+
+The service will follow the operational style of `ChenWeb/python/pdf-parser`: an
+independent Python environment, a `pyproject.toml`, locked dependencies, tests, a
+`mise.toml`, a start script, and a README.
+
+Proposed directory:
 
 ```text
 ChenWeb/python/extract-entity-relations/
@@ -841,51 +179,696 @@ ChenWeb/python/extract-entity-relations/
 ├── uv.lock
 ├── README.md
 ├── mise.toml
+├── start.sh
 ├── service.py
-├── extractor.py
-├── rules/
+├── schemas.py
+├── language_router.py
+├── entity_extractor.py
+├── relation_extractor.py
+├── relation_mapper.py
+├── model_registry.py
+├── models/
+│   └── model manifests, not untracked model binaries
+├── training/
+│   ├── prepare_data.py
+│   ├── train_entities.py
+│   ├── train_relations.py
+│   └── evaluate.py
 └── tests/
 ```
 
-The Go wrapper would require health/readiness checks, request timeouts, cancellation,
-response schema validation, and a clear failed-status path. This contingency adds
-deployment and operational cost, so it is not part of the initial implementation.
+The exact filenames may change during implementation, but the boundaries should
+remain: serving, language routing, extraction, relation mapping, training, and
+evaluation are separate responsibilities.
 
-## 17. Risks and Mitigations
+## 8. Entity Extraction
 
-| Risk | Mitigation |
-|---|---|
-| Rules miss unknown entities | suffix rules, governed catalog expansion, gold-corpus recall tracking |
-| Phrase match assigns wrong endpoints | nearest compatible spans, type constraints, ambiguity rejection |
-| Negated text creates false edges | explicit local negation guard and adversarial tests |
-| Rule changes silently alter the graph | bundle version in every row, fixture diff, staged rollout |
-| LLM and rules engines overwrite each other | one process-wide engine, same logical operations, startup validation |
-| Non-English records appear empty | explicit unsupported-language failure, never silent success |
-| Existing spec describes obsolete combined runtime | update spec/impl notes during integration before claiming completion |
+### 8.1 Primary method
 
-## 18. Open Questions for Review
+The primary entity detector is a trained model, not a name map. It examines words in
+context and returns:
 
-These do not block the baseline implementation but should be answered before enabling
-`go_rules` by default:
+- the text that names the entity;
+- the entity type;
+- its exact start and end location;
+- a confidence score; and
+- the model and language route that produced it.
 
-1. Which governed source should own production entity aliases: a checked-in bundle,
-   `kb.object_nodes`, an external service catalog, or a generated snapshot?
-2. Should unsupported languages be a failed operation, as proposed, or should routing
-   prevent the processor from being selected for those records?
-3. Are the proposed precision/recall gates appropriate for the intended document
-   classes?
-4. Should rule-backed results and LLM-backed results eventually coexist in separate
-   candidate tables for side-by-side human review?
-5. Is `prompt_name` acceptable for the rule bundle version, or is a dedicated
-   `extraction_method`/`rules_version` schema change preferable?
+The detector must support overlapping or nested names where the selected model can
+produce them. This matters for names that contain another meaningful name.
 
-## 19. Sources
+“Previously unseen” means a new name that belongs to one of the entity types the model
+was asked and trained to recognize. It does not mean that the model can invent an
+entirely new type or ontology on its own. For example, a model trained for people,
+organizations, software systems, standards, and materials may recognize a new software
+system name from context even though that name never appeared in its dictionary.
 
-- [DZone: Entity and Relationship Extraction With spaCy](https://dzone.com/articles/entity-relationship-extraction-spacy) — domain entity rules, alias normalization, relation phrases, source tracking, and production cautions.
-- [spaCy: Rule-based matching](https://spacy.io/usage/rule-based-matching/) — `EntityRuler`, token patterns, and dependency matching capabilities.
-- [spaCy: Linguistic features](https://spacy.io/usage/linguistic-features) — model-backed NER, POS, morphology, and dependency parsing.
-- [jdkato/prose](https://github.com/jdkato/prose) — available pure-Go NLP stages and their English-only scope.
-- [`+CAPSULE.md`](+CAPSULE.md) — ChenWeb doc-processor lifecycle and new-processor checklist.
-- [`extract-entity-relation-spec.md`](extract-entity-relation-spec.md) — persistence and artifact compatibility target.
+### 8.2 Optional dictionaries and rules
+
+Known-name dictionaries, aliases, patterns, and suffix rules may be added as a
+high-precision aid. They are useful for internal service catalogs, product lists,
+standard numbers, chemical identifiers, or other controlled names.
+
+They have three limited jobs:
+
+1. an exact, reviewed dictionary or pattern may recover a known source span that the
+   model missed;
+2. correct the type of a known entity; or
+3. link an observed name to a canonical identity after detection.
+
+They must never be presented as the general solution. A mention that is not in a
+dictionary can still be detected by the model. These dictionaries are versioned,
+language-scoped, reviewed, and recorded in result provenance when they add or change a
+mention.
+
+### 8.3 Entity normalization
+
+Detection happens before normalization. Once a complete mention is found, the Go side
+may pass that surface to the existing keyword resolver to connect spelling variants or
+aliases to one concept.
+
+The keyword Tier 0–6 ladder must not run on every input token to decide what is an
+entity. Its job is identity resolution after extraction. An exact, reviewed extraction
+dictionary may add a source mention as described above; fuzzy keyword reconciliation
+may only canonicalize a mention already found by the model or exact extraction rule.
+It may not manufacture a new mention from similar-looking prose.
+
+## 9. Relation Extraction
+
+Relations use two stages so the system can preserve recall without losing governance.
+
+### 9.1 Stage 1: find what the document says
+
+The relation pipeline receives the detected entities and the surrounding text. It uses
+three focused classifiers rather than one free-form generator:
+
+1. A **relationship-word detector** marks the exact source words that express a
+   possible relationship. These words are not limited to a registered verb list.
+2. An **endpoint classifier** decides which nearby entity is the subject, which is the
+   object, or that the text states no relationship between them.
+3. A **qualifier classifier** records whether the statement is affirmative, negated,
+   uncertain, conditional, or historical. Subject and object direction is owned by the
+   endpoint classifier.
+
+It returns:
+
+- the subject entity mention;
+- the object entity mention;
+- the source words that express the relationship;
+- the supporting source lines; and
+- a confidence score.
+
+This stage is open-vocabulary with respect to the source wording: the detected words do
+not need to exist in a precompiled phrase list. It is not unlimited ontology discovery;
+the later mapping stage still uses governed relationship meanings. Only relationships
+supported by the text are extracted.
+
+Version 1 promotes only mapped relationships that are affirmative and describe a
+current fact. Negated, uncertain, conditional, and historical statements remain in
+`kb.relation_candidates` with their qualifiers and evidence; they do not become
+canonical graph edges. Supporting qualified graph edges later would require a separate
+design so consumers cannot mistake them for current facts.
+
+### 9.2 Stage 2: map to a standard relationship
+
+The extracted wording and its context are then classified against a governed
+relationship list. That requested label list is used only here; it does not limit the
+relationship-word detector. For example, different English or Chinese phrases may all
+mean `depends_on`.
+
+The output keeps both:
+
+- the original words from the document; and
+- the normalized relationship key, when mapping succeeds.
+
+An unmapped relationship is retained in `kb.relation_candidates` with its evidence. It
+is not silently discarded, and it is not promoted to `kb.relations` or the canonical
+graph under a guessed predicate. A mapped relationship is projected into the existing
+`kb.relations` shape only when it is also affirmative and current. Reviewed candidates
+can later expand the governed relationship vocabulary and supply new training
+examples.
+
+### 9.3 Keeping the number of pairs manageable
+
+A paragraph containing many entities creates many possible subject-object pairs. The
+service should first consider nearby entities, sentence boundaries, entity types, and
+other inexpensive signals. The model then evaluates the plausible pairs. This protects
+speed without reducing extraction to a fixed verb list.
+
+The first candidate pass considers entities in the same sentence and the immediately
+adjacent sentence. Wider document-level pairs are evaluated only when a non-generative
+coreference component links a pronoun or repeated mention to an entity. These cases are
+measured separately so same-sentence success cannot hide poor document-level recall.
+
+## 10. Language Detection and Routing
+
+Multilingual support will use detection followed by routing.
+
+### 10.1 Detect language in small sections
+
+Do not assign one language to an entire document and assume every line matches it.
+Technical documents often contain Chinese prose, English product names, identifiers,
+tables, and citations together.
+
+The router uses document metadata as a hint, then examines each text window. It
+returns one of these routes:
+
+- English;
+- Simplified Chinese;
+- Traditional Chinese;
+- mixed Chinese-English;
+- another identified language; or
+- unknown.
+
+Language detection is recorded with a confidence score. Short identifiers such as
+`API`, `M4`, or `GB/T 1234` inherit nearby context rather than being treated as a
+standalone language sample.
+
+Routing follows one versioned policy:
+
+1. Clearly English windows use the English route.
+2. Clearly Simplified Chinese windows use the Simplified Chinese route.
+3. Clearly Traditional Chinese windows use its own qualified model when available;
+   otherwise they use the Chinese/multilingual fallback and are marked non-production.
+4. Mixed Chinese-English windows use the multilingual route once, rather than running
+   two models and silently combining conflicting answers.
+5. Low-confidence or unknown windows use the multilingual fallback and retain the
+   `unknown` route label. They do not count as supported-language results.
+
+The language detector, thresholds, and route priority are part of the model-policy
+version. If two overlapping windows return the same source span and type, Go keeps one
+result using this stable priority: qualified language model, mixed-language model,
+multilingual fallback, then highest confidence.
+
+### 10.2 Route to the best model
+
+The initial model registry contains:
+
+- an English entity and relation route;
+- a Simplified Chinese entity and relation route;
+- a multilingual fallback route; and
+- a mixed-language route using the multilingual model selected by the versioned model
+  policy.
+
+English and Chinese may share the same base model while using separately trained task
+heads. They may also become separate models if testing shows that specialization gives
+materially better results. The public service response does not change when the model
+behind a route changes.
+
+The first production commitment is English plus Simplified Chinese. Traditional
+Chinese remains a separately measured route until it passes its own data and quality
+gate. Equal numerical quality between English and Chinese is not promised; each must
+independently reach its required production floor and remain close to the existing
+extractor on the same language.
+
+### 10.3 Chinese-specific behavior
+
+Chinese processing must not assume that spaces separate words. The model’s own
+subword tokenizer handles the text, and the service maps predictions back to the exact
+original Unicode characters and UTF-8 byte positions.
+
+Chinese training and testing must cover:
+
+- Chinese entity boundaries;
+- technical terms and abbreviations;
+- Latin product and organization names inside Chinese sentences;
+- model numbers and standard identifiers;
+- Chinese relationship wording and word order;
+- Simplified and Traditional Chinese when both are claimed as supported; and
+- mixed Chinese-English sentences.
+
+### 10.4 Other languages
+
+A multilingual model can provide useful fallback results, but fallback does not equal
+production support. A language becomes officially supported only after it has its own
+human-reviewed test data and passes the same quality gates.
+
+Quality is reported separately for every supported language. A high English score may
+not hide weak Chinese performance in a combined average.
+
+## 11. Model Candidates and Selection
+
+Model selection is evidence-driven. We will not build three complete production
+systems merely to compare frameworks.
+
+The first benchmark includes:
+
+1. the existing LLM extractor as the current-system comparison;
+2. multilingual GLiNER for entity detection;
+3. GLiREL as an English governed-relation classification baseline; and
+4. one supervised multilingual encoder pipeline, likely using Hugging Face directly or
+   through spaCy.
+
+GLiREL does not identify the exact source words expressing a relation, so it cannot
+implement the complete open-wording pipeline by itself. It is also not accepted as the
+Chinese relation model without Chinese evidence. Its published model and evaluation
+are English-oriented. A multilingual relationship-word detector plus an endpoint and
+mapping classifier using a backbone such as XLM-RoBERTa is the safer production
+candidate.
+
+spaCy and Hugging Face are not automatically separate model approaches. spaCy can use
+a Hugging Face transformer underneath. The framework choice should be based on
+accuracy, offset handling, training simplicity, export support, and operating cost.
+
+If the initial supervised implementation is limited by spaCy’s abstractions, build a
+custom Hugging Face span and relation classifier. Otherwise, avoid maintaining two
+versions of the same model family.
+
+Expected model sizes are below one billion parameters. Typical candidates range from
+roughly 150 million to 600 million parameters. Models with several billion or tens of
+billions of parameters are not part of this design.
+
+## 12. Training Strategy
+
+Domain-specific training is expected, not treated as a last-minute contingency.
+
+### 12.1 Build a trusted data set
+
+Create a human-reviewed collection containing representative ChenWeb documents:
+
+- English documents;
+- Chinese documents;
+- mixed-language documents;
+- different document types and domains;
+- easy, difficult, and negative examples; and
+- both common and rare entity and relation types.
+
+Annotators mark entity spans, entity types, relation endpoints, original relationship
+wording, normalized relationship keys, and source evidence. Written annotation rules
+must explain ambiguous cases so different reviewers make consistent decisions.
+
+Training, validation, and final test documents must come from separate source groups.
+Near-duplicate pages from the same document family must not appear on both sides of a
+split, because that would make results look better than they really are.
+
+Before annotation starts, Phase 1 publishes an evaluation contract. Its initial target
+is at least 1,000 entity mentions and 300 positive relation mentions for both English
+and Simplified Chinese, plus at least 500 entity mentions and 150 positive relation
+mentions for mixed Chinese-English text. Negative, uncertain, conditional, and
+historical examples are included in addition. Each business-critical label needs at
+least 50 final-test examples or must be reported as insufficiently tested. At least 20%
+of the material is independently labeled by two reviewers; disagreements are resolved
+before it enters the gold set.
+
+### 12.2 Improve from real errors
+
+After the first model is deployed in shadow mode, prioritize human review of:
+
+- low-confidence predictions;
+- disagreements with the existing extractor;
+- new document domains;
+- new languages;
+- entity types with poor recall; and
+- common false positives.
+
+These reviewed examples become the next training set. Every training release keeps a
+frozen final test set so progress cannot be claimed by repeatedly tuning to the test.
+
+### 12.3 Promote models safely
+
+Each released model has a small model card containing:
+
+- model and tokenizer versions;
+- supported languages and domains;
+- training-data version;
+- license and provenance;
+- quality results by language and entity/relation type;
+- hardware and speed measurements;
+- known weaknesses; and
+- checksum and release date.
+
+The model registry points to an immutable approved version. Rollback changes the
+registry pointer; it does not require rebuilding the service.
+
+## 13. Evaluation and Acceptance
+
+Human-reviewed annotations are the authority. The existing LLM extractor and each
+candidate model run against the same unchanged test documents.
+
+The evaluation reports, in plain terms:
+
+- how many real entities were found;
+- how many reported entities were correct;
+- whether their boundaries and types were correct;
+- how many real relations were found;
+- whether the correct subject and object were linked;
+- whether the original relationship wording was captured;
+- whether normalized relationship mapping was correct;
+- performance by language, domain, document type, and label; and
+- processing time and memory use.
+
+Formal precision, recall, and F1 scores are included for engineering review, but the
+release report must also show concrete missed and incorrect examples.
+
+Before replacing the current extractor, the new system must satisfy every row below on
+English, Simplified Chinese, and mixed Chinese-English test sets separately:
+
+| Measure | Initial release gate |
+| --- | --- |
+| Entity recall | at least 0.85 and no more than 5 percentage points below the existing extractor |
+| Entity precision | at least 0.85 and no more than 5 percentage points below the existing extractor |
+| Complete relation correctness | F1 at least 0.75 and no more than 5 percentage points below the existing extractor |
+| Source-location correctness | at least 0.99 against the human-reviewed source spans |
+
+“Complete relation correctness” requires the correct subject, object, direction, and
+governed relationship key together. Raw relationship-word detection and mapping
+accuracy are also reported separately so the failing stage is visible.
+
+In addition, the new system must:
+
+- produce stable results for the same model, configuration, and input;
+- pass load, restart, timeout, and rollback tests; and
+- meet the throughput and memory limits recorded in the Phase 1 evaluation contract.
+
+The test report includes uncertainty ranges. A candidate passes the five-point margin
+only when the result is large enough to be meaningful rather than ordinary test-sample
+noise. The numerical gates above are initial targets and must be accepted or revised
+before model training begins, never weakened after seeing a candidate’s final-test
+score.
+
+## 14. Hardware Plan
+
+The service supports three compute routes:
+
+- Apple Metal (`mps`) for the M4 Pro development machine;
+- NVIDIA CUDA when a compatible GPU is available; and
+- CPU as the universal fallback.
+
+The current M4 Pro Mac mini with 48 GB unified memory is the first development and
+benchmark machine. It is expected to handle inference and initial fine-tuning of the
+sub-one-billion-parameter candidates, but that is a hypothesis the benchmark must
+confirm. No NVIDIA purchase is required before those measurements exist.
+
+If additional training speed is needed, first rent a CUDA machine for a limited run.
+An RTX 4090-class 24 GB GPU and an RTX 5090-class 32 GB GPU are the first systems to
+measure. Larger workstation or data-center GPUs are considered only if a selected
+model cannot meet its memory or throughput target on those systems.
+
+Model promotion records model artifact size, startup time, peak memory, per-window and
+per-document latency, throughput, and safe concurrency. CPU and M4 measurements are
+required. CUDA measurements are required only if CUDA becomes a production target. A
+CPU fallback preserves functionality but is not considered healthy if it misses the
+production throughput target.
+
+## 15. Service Contract
+
+The first implementation uses versioned JSON over local HTTP. The service listens only
+on loopback by default. A remote bind requires an explicit configuration plus transport
+security and authentication. The service is supervised by the same operational tooling
+used for other ChenWeb services.
+
+The Go processor sends:
+
+- a request ID and record ID;
+- ordered text lines;
+- line and page numbers;
+- optional document-language metadata;
+- the requested entity-type set and governed relation set; and
+- the model-policy version.
+
+The requested entity types guide entity classification. The governed relation set is
+used only in relation mapping; it does not limit detection of the original relationship
+wording.
+
+The Python service returns entity mentions and relation candidates. Each result includes
+the original source text, offsets, source lines, confidence, detected language, model
+version, and any normalized type or relationship key.
+
+The original UTF-8 line text is never normalized in place. Source locations use
+half-open byte offsets—start included, end excluded—relative to that original line,
+together with its line number. Multi-line evidence is a list of such segments. Go
+verifies that every returned byte slice equals the returned source surface. Line spans
+remain the authoritative location stored in the existing tables; exact offsets and
+model-token alignment are retained in provenance. Results from overlapping windows are
+deduplicated by record, line, byte range, type, and endpoints before IDs are assigned.
+
+The service exposes simple health and readiness checks. Readiness becomes true only
+after every required model is loaded and a small self-test succeeds.
+
+Approved model files are installed before startup and verified by checksum. Production
+startup never downloads a newer model from the internet. Request size, window count,
+queue depth, concurrency, and timeout limits are configured and returned as clear
+overload or validation errors; work is not accepted and then silently dropped.
+
+All responses use a versioned schema. The Go wrapper rejects an unknown schema,
+invalid offsets, impossible confidence values, missing relation endpoints, or a model
+version different from the one requested.
+
+## 16. Integration With the Existing Processor
+
+Keep the existing logical operations:
+
+- `extract_entity`;
+- `extract_relation`; and
+- the legacy `extract_entity_relation` compatibility path where still required.
+
+Add a process-wide engine choice:
+
+```text
+ENTITY_RELATION_ENGINE=llm
+ENTITY_RELATION_ENGINE=encoder_service
+```
+
+Only one engine writes the canonical entity and relation results for a record run.
+During shadow evaluation, the new service writes to isolated benchmark output rather
+than overwriting the LLM results.
+
+Go continues to own:
+
+- chunk and line-file loading;
+- request cancellation and timeouts;
+- entity consolidation and stable IDs;
+- relation endpoint linking;
+- database transactions;
+- `.entities` and `.relations` artifacts;
+- processor status;
+- search indexing; and
+- graph indexing.
+
+The adapter maps model output into the current row shapes. Model-specific details go
+into `ext_info`, including extraction engine, model version, language route, tokenizer
+version, training-data version, and confidence details.
+
+For non-English text, `_en` fields are filled only when a governed mapping supplies an
+English value. The service does not invent an English translation. A normalized
+relation key can still have a stable English label when that label comes from the
+governed relation vocabulary.
+
+All raw relation extractions first enter a new `kb.relation_candidates` staging table.
+It stores the verbatim relationship words, endpoints, qualifiers, mapping status,
+confidence, evidence, language, and model provenance. Only mapped, affirmative,
+current candidates that pass validation are projected into the existing `kb.relations`
+table and canonical graph. This is an intentional database change and requires a goose
+migration during implementation.
+
+## 17. Reliability and Failure Handling
+
+Missing extraction is difficult to notice, so the new engine fails visibly rather than
+reporting an empty successful result when its model service is unavailable.
+
+- A service connection failure, unavailable required model, invalid response, or
+  unprocessed text window fails the operation.
+- A valid model response containing zero mentions is a successful zero-result window.
+- Retries are bounded and use the same requested model version.
+- A forced rerun keeps the previous good database rows until the replacement result is
+  fully validated.
+- Database replacement is transactional: either the complete new result is stored or
+  the previous result remains.
+- Artifact files are replaced atomically after successful validation.
+- Cancellation stops queued and active requests promptly.
+- The service never changes models silently after an out-of-memory or unsupported-
+  device error. Device fallback is allowed only when the model policy explicitly lists
+  it, and the resulting route is logged and must still meet its throughput target.
+
+The first release may run one service instance. Before multiple replicas are enabled,
+record-level ownership and model-version consistency must be enforced across replicas.
+
+## 18. Logging and Monitoring
+
+Each run records:
+
+- record and request IDs;
+- model and training-data versions;
+- language route and confidence;
+- number of text windows;
+- entity and relation counts by type;
+- mapped and unmapped relation counts;
+- low-confidence and rejected counts;
+- processing time and queue time;
+- device type and peak memory where available; and
+- failures and retry counts.
+
+Routine logs must not contain full document text. The existing database rows and
+artifacts retain the source evidence needed for review.
+
+Operational dashboards should highlight sudden changes in result counts, language
+distribution, confidence, failures, and processing time. Periodic human sampling is
+required because a technically healthy model can still drift in quality when document
+content changes.
+
+Initial alerts cover service error rate, queue saturation, model-load failures,
+unexpected language-route changes, and large extraction-count changes. The production
+owner also owns the review queue for unmapped relations and sets a maximum review age;
+otherwise the open-relation stage would accumulate evidence without improving the
+governed graph.
+
+## 19. Testing
+
+Testing has four layers.
+
+### 19.1 Service tests
+
+- request and response validation;
+- correct language routing;
+- English, Chinese, mixed, other, and unknown-language cases;
+- Unicode offsets and source-line mapping;
+- CPU, MPS, and optional CUDA device selection;
+- model loading, readiness, timeout, cancellation, and restart behavior;
+- deterministic post-processing; and
+- safe handling of zero results and malformed model output.
+
+### 19.2 Extraction tests
+
+- unseen entity names;
+- overlapping and nested entities;
+- aliases and known-name overrides;
+- multiple entities and multiple relations in one sentence;
+- negated statements;
+- uncertain, conditional, and historical statements that must not become current graph edges;
+- entity pairs with no relationship;
+- open relationship wording;
+- governed relationship mapping;
+- Chinese text without spaces;
+- mixed Chinese-English technical names;
+- overlapping document chunks; and
+- cross-sentence examples when that capability is enabled.
+
+### 19.3 Go integration tests
+
+- engine selection;
+- service request construction;
+- response and offset validation;
+- compatibility with current entity and relation rows;
+- stable IDs and consolidation;
+- transactional replacement;
+- artifact creation;
+- status reporting; and
+- existing search and graph indexing.
+
+### 19.4 Model evaluation
+
+Run the frozen human-reviewed test collection for every candidate and every proposed
+model release. Store the detailed results as versioned artifacts so a later release can
+be compared with any earlier one.
+
+## 20. Delivery Plan
+
+### Phase 1: define truth before choosing a model
+
+1. Finalize the entity types, relation representation, and annotation guide.
+2. Assemble representative English, Chinese, and mixed-language documents.
+3. Create and review the first gold test set.
+4. Measure the existing extractor on that set.
+5. Approve the evaluation contract, model-license policy, annotation privacy rules,
+   and ownership of the unmapped-relation review queue.
+
+### Phase 2: build a replaceable model service
+
+1. Create `ChenWeb/python/extract-entity-relations/` with the service contract, model
+   registry, language router, tests, and device selection.
+2. Add GLiNER as the first entity benchmark.
+3. Add GLiREL as the English relation benchmark.
+4. Add one supervised multilingual encoder pipeline.
+5. Produce comparable quality and performance reports.
+
+### Phase 3: train for ChenWeb documents
+
+1. Select the best starting architecture.
+2. Fine-tune entity and relation models with reviewed domain data.
+3. Train and evaluate English and Simplified Chinese routes independently.
+4. Add mixed-language examples and hard negative cases.
+5. Repeat until the quality gate is met or the remaining gap is documented.
+
+### Phase 4: integrate with Go
+
+1. Implement the Go service client and response validation.
+2. Reuse the existing consolidation, persistence, artifact, status, and indexing code.
+3. Add the governed `kb.relation_candidates` migration and projection step.
+4. Add isolated shadow output for side-by-side comparison.
+5. Verify failure recovery and stable reruns.
+
+### Phase 5: shadow rollout and promotion
+
+1. Run the encoder service beside the existing extractor without changing canonical
+   graph output.
+2. Review disagreements and operational measurements.
+3. Continue shadow operation for at least 500 representative documents and two weeks,
+   including English, Simplified Chinese, and mixed Chinese-English documents.
+4. Promote an immutable model bundle only after every required language passes.
+5. Switch the engine in a controlled deployment.
+6. Keep a quick rollback to the prior engine during the initial observation period.
+
+Rollback is triggered by data-loss errors, invalid source locations, sustained service
+errors above 1%, failure to meet the recorded throughput target, or a reviewed quality
+sample falling below the release gate. The observation period ends only after two
+additional weeks without a rollback trigger.
+
+After stable promotion, the new production path has no LLM call or LLM fallback.
+
+## 21. Main Risks
+
+| Risk | Response |
+| --- | --- |
+| Chinese quality trails English | separate Chinese data, evaluation, and model route |
+| General model misses domain terms | planned domain-specific training and known-name aids |
+| High recall creates too many false positives | precision floor, negative examples, confidence calibration |
+| Relation pairs grow too quickly | inexpensive pair filtering before model scoring |
+| One overall score hides weak areas | report by language, domain, and label |
+| A model upgrade silently changes the graph | immutable versions, shadow comparison, controlled promotion |
+| Apple MPS lacks an operation | CPU fallback for development or temporary CUDA training |
+| Third-party model license or provenance is unsuitable | mandatory model-card and license review |
+| Unmapped open relations cannot enter the canonical graph safely | stage them in `kb.relation_candidates` until governed mapping |
+
+## 22. Decisions Still Needed Before Implementation
+
+The architecture is settled, but these details need explicit decisions during Phase 1:
+
+1. The initial entity-type list and which types allow nesting or overlap.
+2. The initial governed relation vocabulary.
+3. Whether third-party checkpoints trained with LLM-generated synthetic annotations
+   are acceptable when production inference itself is non-generative.
+4. The exact production latency, throughput, memory, and queue limits.
+5. The model-artifact repository, retention policy, and disaster-recovery owner.
+
+These decisions affect training labels and storage, so they must be made before the
+gold data set is annotated.
+
+## 23. Knowledge and Documentation Impact
+
+This design changes the prior conclusion that a Go rule engine is sufficient.
+
+Documents that will need updates during implementation:
+
+- `extract-entity-relation-spec.md`: describe the encoder-service engine and new
+  provenance rather than an LLM-only processor;
+- `+CAPSULE.md`: mark the alternate engine as non-LLM when selected;
+- entity/relation implementation and test notes;
+- service operations and model-training documentation; and
+- the database specification for `kb.relation_candidates`.
+
+The current LLM specification remains accurate for the existing engine until cutover.
+It should not be rewritten as if the new service already exists.
+
+## 24. References
+
+- [Doc Processor Capsule](+CAPSULE.md)
+- [Existing Entity and Relation Processor Spec](extract-entity-relation-spec.md)
+- [GLiNER multilingual model card](https://huggingface.co/urchade/gliner_multi-v2.1)
+- [GLiREL paper](https://aclanthology.org/2025.naacl-long.418/)
+- [XLM-RoBERTa documentation](https://huggingface.co/docs/transformers/main/model_doc/xlm-roberta)
+- [spaCy SpanCategorizer](https://spacy.io/api/spancategorizer)
+- [spaCy transformer component](https://spacy.io/api/transformer)
+- [Hugging Face ONNX Runtime support](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/package_reference/modeling)
+- [Apple PyTorch Metal acceleration](https://developer.apple.com/metal/pytorch/)
 
 Web sources accessed 2026-09-04.
