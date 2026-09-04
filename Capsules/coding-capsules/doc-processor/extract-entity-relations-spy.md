@@ -329,6 +329,26 @@ matches retain the original token boundaries. The offset map then resolves those
 original byte spans back to canonical line spans. This remains correct when Unicode
 case conversion or whitespace normalization changes byte length.
 
+#### Answer 01: tokenization is required and implemented in Go
+
+Yes. Both entity and relation matching require tokens so that rules match complete
+words or phrases rather than arbitrary substrings, and so every match can retain its
+original byte offsets.
+
+Version 1 uses a small purpose-built Go tokenizer; it does not call spaCy. The
+tokenizer scans each original UTF-8 line once and emits tokens containing the raw
+surface, comparison value, original start/end byte offsets, and line/page provenance.
+Letters and numbers form ordinary tokens, configured `fold_separators` form comparison
+boundaries, permitted punctuation may remain inside a token, and strong punctuation
+also marks clause boundaries. The same tokenizer compiles configured names, aliases,
+suffixes, and relation phrases at bundle-load time, ensuring rules and documents have
+identical boundary semantics.
+
+This is lexical tokenization only. It does not attempt POS tagging, dependency parsing,
+or linguistic sentence analysis, which are the spaCy features that would require the
+Python service and model runtime. The retained source offsets always come from the Go
+scan of the original text, never from normalized text.
+
 ### 8.2 Entity mentions
 
 For each non-image line:
@@ -346,6 +366,70 @@ For each non-image line:
 5. Normalize every mention to its configured canonical name when available.
 6. Emit one mention record with type, aliases, categories, confidence, rule ID, byte
    offsets, and source line.
+
+#### Answer 02: suffix discovery and separator folding
+
+A suffix rule is a bounded naming convention for recognizing an entity that is not
+already listed in the canonical-name/alias catalog. For example, the `service-suffix`
+rule treats `Service` or `Worker` as a terminal type marker. On seeing `Service` in
+`Checkout Service`, the matcher scans left within the same clause for at most
+`max_tokens-1` eligible name tokens, emits `Checkout Service` as a `service`, and
+assigns the rule's configured confidence and ID. The detailed stopping and overlap
+rules immediately below this answer prevent the suffix from absorbing an entire
+sentence. This is a discovery fallback; an overlapping catalog match always wins.
+
+`fold_separators` handles spelling variants whose only difference is a configured word
+separator. With `-` and `_` configured, `payment-api`, `payment_api`, and `payment api`
+all compare as the token sequence `payment`, `api`. This prevents avoidable misses and
+the need to enumerate every separator variant as an alias. Folding affects comparison
+only: the emitted mention and offsets still point to the exact original bytes. The
+setting is deliberately allow-listed instead of stripping all punctuation, because
+punctuation can be meaningful in names such as `C++` or `ISO/IEC 27001`.
+
+#### Answer 03: reuse surface normalization, not the tier ladder for token detection
+
+Do not run the keyword module's Tier 0–6 resolver on individual tokens or use it to
+decide whether a source span is an entity. The keyword module accepts an already
+identified complete surface and resolves its identity; it does not find span
+boundaries. Its Tier 2 sorted/singular keys, Tier 3 rewrites, Tier 4 initials, and Tier
+5 fuzzy matching are intentionally lossy. Applying those tiers while scanning prose
+could manufacture false mentions. Tier 6 is an offline reconciliation process and is
+not available on the online lookup path.
+
+The two modules should integrate at a narrower boundary:
+
+1. The Go tokenizer and rule matcher find a mention and preserve its exact source
+   span.
+2. Exact entity matching uses the extraction bundle's own canonical names and aliases.
+3. After a complete mention is found, its full surface may be normalized with the
+   shared `semid.Normalizer` and, when concept identity is required, submitted to the
+   keyword resolver as a complete surface. This avoids duplicating the shared Unicode
+   normalization policy while keeping entity detection deterministic and
+   bundle-versioned.
+4. A keyword-resolution miss or ambiguous/fuzzy result must not create a new mention;
+   it only affects optional downstream concept reconciliation.
+
+Therefore, keyword resolution is an optional post-extraction identity layer, not a
+runtime dependency of the version-1 entity matcher. The matcher's per-token comparison
+values remain its extraction-safe lowercase/separator-folded values because the shared
+normalizer is defined for complete surfaces, not individual lexical tokens.
+
+#### Answer 04: the catalog is compiled, but it is not the only recognition path
+
+Yes, at bundle-load time the engine compiles every canonical name and alias into a
+reverse lookup index pointing to its entity definition. Because entries can contain
+multiple tokens and matching must prefer the longest span, the runtime index is a
+token trie (with a small map at each trie node), rather than only a flat string map.
+Loader validation rejects a normalized alias that points to more than one canonical
+entity in the same bundle.
+
+For the exact catalog stage, a span is recognized only when its normalized token
+sequence equals a compiled canonical name or alias; there is no substring or fuzzy
+match. However, catalog entries are not the only entities recognized by version 1:
+the following suffix-rule stage can discover an unlisted name such as `Checkout
+Service` or `Platform Team`. A span matching neither the catalog nor a suffix rule is
+intentionally not emitted. This precision-first boundary prevents ordinary
+capitalized prose or a merely similar keyword from becoming graph nodes.
 
 A suffix rule includes the suffix token. It may extend left by at most `max_tokens-1`
 tokens within the same clause while tokens are proper-name-like: initial uppercase,
