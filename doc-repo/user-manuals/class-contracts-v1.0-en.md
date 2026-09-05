@@ -48,6 +48,13 @@ A contract's history is append-only: a class's definition never rewrites in plac
 
 **A contract only ever moves forward.** Once a class has left `identity_only`, nothing reverts it — including a later document that appears to contradict it. A contradiction of that kind is recorded on the *individual claim* as a conformance violation (§6), never by rewinding the class's own contract. If you see a class at `partially_defined` and later evidence that disagrees with it, look for that disagreement on the offending claim, not on the class.
 
+**How Class Constract Status Stored**
+Class contract revisions are stored in `kb.ontology_class_contract_revisions` and the status is stored in the field `definition_state`. 
+Note that `kb.ontology_terms` has its own unrelated `status` field.
+The class contract current status is, however, derived, not stored 
+in the term: `kb.ontology_term_headers.current_contract_revision_id`, which 
+points at the current row in the revisions table.
+
 ## 4. How a class earns its contract
 
 Nothing promotes a class's contract on a single document. The rule is deliberately narrow: a class advances from `identity_only` to `partially_defined` only when its accumulated evidence — every claim recorded against it so far — agrees on **exactly one** (value type, unit) pair, and that agreement is drawn from **at least two distinct documents**.
@@ -95,6 +102,10 @@ A capability (§5) is a property of the class. **Conformance** is a property of 
 One timing rule is worth internalizing, because it explains a state that otherwise looks wrong: **a claim's conformance is judged against its class's contract as that contract stood immediately before this claim was written — never against a promotion the claim's own arrival just caused.** If the second of two documents needed to promote a class is the very claim being written, that claim is correctly recorded as `not_evaluated` (there was no defined contract yet at the moment it was checked), even though the class contract becomes `partially_defined` moments later as a direct result of that same write. This is expected, not a bug — do not "fix" a `not_evaluated` claim sitting next to a `partially_defined` contract without first checking whether that claim is the one that caused the promotion.
 
 Every claim also keeps a private record of exactly which contract revision it was checked against. That is what lets the system later tell, precisely, which older claims were checked against a contract that has since been superseded by a newer one — the problem §7 covers.
+
+### 6.1 Automatic Checking, Logging and Failure Handling
+The system runs `can_instantiate` (Section 5) on every metric 
+write unconditionally, including for `identity_only` classes.
 
 ## 7. Keeping older claims current: the backfill command
 
