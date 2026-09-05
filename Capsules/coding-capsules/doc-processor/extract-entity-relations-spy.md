@@ -7,7 +7,7 @@ Implementation target: `ChenWeb`
 ## 1. Summary
 
 Build a production-ready entity and relation extractor as an alternative to the
-existing LLM-based processor. The new extractor will run locally and will not call a
+existing LLM-based processor (Ref [2]). The new extractor will run locally and will not call a
 generative LLM or an external model API.
 
 The extractor will use smaller, task-specific language models. These models read text
@@ -570,6 +570,68 @@ required. CUDA measurements are required only if CUDA becomes a production targe
 CPU fallback preserves functionality but is not considered healthy if it misses the
 production throughput target.
 
+## 14.1 MacMini
+
+The MacMini with M4 Pro chip:
+
+M4 Pro has a real GPU suitable for ML.
+- Apple M4 Pro
+- 16-core integrated GPU
+- 48 GB unified memory
+- Metal 4 support
+PyTorch accesses it through Apple’s mps backend rather than NVIDIA CUDA. 
+The 48 GB is shared by the CPU, GPU, operating system, and applications, 
+so it is not identical to 48 GB of dedicated VRAM—but it provides 
+substantial capacity for the sub-1B encoder models we are considering. 
+Apple officially supports accelerated PyTorch training and inference 
+through Metal/MPS, although it still describes the backend as beta. 
+(Ref: Apple MPS documentation).
+
+The Mac should be adequate for:
+- Running GLiNER, GLiREL, and BERT-class inference.
+- Fine-tuning small and medium encoder models.
+- Developing the complete service.
+- Running initial comparative benchmarks.
+Some operations may be unsupported or slower under MPS and fall back to 
+CPU. The Apple Neural Engine is separate; ordinary PyTorch code generally 
+uses the GPU through MPS, not the Neural Engine.
+
+**Probably do not need an expensive NVIDIA data-center GPU**
+
+| Hardware	| Memory	| Recommendation |
+|-----------|---------|----------------|
+| M4 Pro Mac mini	| 48 GB unified	| Start here; likely adequate for development and modest fine-tuning |
+| RTX 4090	| 24 GB VRAM	| Sufficient for nearly all models under consideration |
+| RTX 5090	| 32 GB VRAM	| Best choice if buying a new dedicated training workstation |
+| RTX A6000	| 48 GB VRAM	| Useful for larger batches and professional workloads, but probably unnecessary |
+| RTX PRO 6000 Blackwell	| 96 GB VRAM	| Substantial overkill for the proposed models |
+| H100/H200/B200	| Large data-center GPUs	| Not justified unless later training becomes much larger or distributed |
+
+The RTX 4090 has 24 GB, while the RTX 5090 has 32 GB. (Ref: NVIDIA RTX 
+4090 specifications, Ref: NVIDIA RTX 5090 specifications).
+
+For this project:
+- Do not purchase an NVIDIA GPU yet.
+- Develop and benchmark on the M4 Pro.
+- If CUDA compatibility or training speed becomes a problem, rent a 4090/5090-class cloud GPU for training runs.
+- If eventually buying a dedicated machine, a 5090 offers useful 32 GB headroom. A used 4090 may be a better value if 24 GB is enough.
+- The RTX PRO 6000 Blackwell’s 96 GB and ECC memory are useful for much larger models, multiple simultaneous models, or specialized production workloads—not our expected single-model training workload. NVIDIA RTX PRO 6000 specifications
+
+## 14.2 The expected models sizes
+The expected model sizes are normally less than 1B parameters.
+Representative sizes:
+- GLiNER small: 166M
+- GLiNER medium: 209M
+- GLiNER large: 459M
+- Typical BERT/RoBERTa/DeBERTa encoders: roughly 100M–500M
+- GLiREL model artifact: approximately 1.87 GB, also consistent with a sub-1B encoder-class model
+
+The published GLiNER family ranges from 166M to 459M parameters. GLiNER model card GLiREL’s current large checkpoint is about 1.87 GB on disk. GLiREL model files
+
+We are not proposing multi-billion or 10B+ models. Those would increase hardware costs and move the system closer to the large-model architecture we are explicitly trying to avoid.
+
+Bottom line: your 48 GB M4 Pro is a sensible development and initial training machine for this project. We should benchmark it before considering additional hardware.
+
 ## 15. Service Contract
 
 The first implementation uses versioned JSON over local HTTP. The service listens only
@@ -859,16 +921,60 @@ Documents that will need updates during implementation:
 The current LLM specification remains accurate for the existing engine until cutover.
 It should not be rewritten as if the new service already exists.
 
+## 24. Model Selections
+Recommended approach: a pluggable Python inference service with an evidence-based model bake-off.
+
+Three viable approaches:
+1. GLiNER + GLiREL
+   Encoder-only models supporting label-driven entity and relation extraction without enumerating entity names. Both can be fine-tuned for our domain. This offers the strongest initial open-world baseline, but production maturity must be validated. GLiNER, GLiREL paper
+2. Fine-tuned spaCy transformer pipeline
+   Use trainable span discovery/classification and a custom relation classifier sharing an encoder. spaCy supports overlapping span classification and transformer-backed components. It is mature operationally, but relation extraction requires custom training and implementation. SpanCategorizer, transformer component
+3. Custom Hugging Face entity and relation models
+   Maximum control over span detection, pair generation, loss functions, and inference optimization. Models can later be exported to ONNX for efficient local inference. This has the highest development and maintenance cost. ONNX token classification
+
+Recommendation:
+- Implement one stable Python service contract independent of model backend.
+- Benchmark GLiNER/GLiREL and a fine-tuned spaCy/Hugging Face pipeline.
+- Build a representative, human-annotated gold corpus from our documents.
+- Compare them with the existing LLM extractor using strict entity-span F1, typed-entity F1, relation F1, end-to-end triple F1, latency, memory, and failure rate.
+- Fine-tune the strongest candidate on domain data.
+- Consider an ensemble only if it improves recall materially without unacceptable precision or latency loss.
+- Require the non-LLM extractor to meet an explicit percentage of the existing extractor’s measured performance before replacing it.
+The dictionary, alias, and keyword modules would operate after model extraction for canonicalization and high-precision augmentation—not as the primary entity detector.
+Does this model-selection strategy look right? If approved, I’ll next present the service architecture and data flow before rewriting the design document.
+
+A better benchmark plan is:
+- Baseline: existing LLM extractor.
+- Candidate A: GLiNER + GLiREL.
+- Candidate B: one supervised, fine-tuned encoder pipeline, implemented with either spaCy or Hugging Face.
+- Candidate C: build a custom Hugging Face pipeline only if spaCy’s abstractions limit accuracy, relation modeling, or deployment.
+
+spaCy and Hugging Face are not entirely separate model families: spaCy can use Hugging Face transformer encoders. We should avoid implementing duplicate pipelines merely to compare frameworks.
+
+**Hugging Face models and GPUs**
+
+Hugging Face models do not strictly require GPUs.
+   - Training: a GPU is strongly recommended for practical fine-tuning. CPU training is possible for small models and datasets but may be prohibitively slow.
+   - Production inference: CPU is viable for smaller encoder models, especially with batching, ONNX Runtime, quantization, and bounded input windows.
+   - High-throughput inference: a GPU will likely be preferable for larger models, long documents, or aggressive latency targets.
+   - Relation extraction is potentially more expensive than NER because candidate entity pairs can grow quadratically, so pair pruning is important regardless of hardware.
+
+Make the service device-independent:
+- CPU must be supported as the deployment baseline.
+- GPU acceleration is optional and configuration-driven.
+- Model selection requires CPU and GPU benchmarks covering entity/triple F1, documents per minute, p95 latency, peak memory, and operating cost.
+- Hardware is selected from measured workload requirements rather than made a mandatory architectural dependency.
+
 ## 24. References
 
-- [Doc Processor Capsule](+CAPSULE.md)
-- [Existing Entity and Relation Processor Spec](extract-entity-relation-spec.md)
-- [GLiNER multilingual model card](https://huggingface.co/urchade/gliner_multi-v2.1)
-- [GLiREL paper](https://aclanthology.org/2025.naacl-long.418/)
-- [XLM-RoBERTa documentation](https://huggingface.co/docs/transformers/main/model_doc/xlm-roberta)
-- [spaCy SpanCategorizer](https://spacy.io/api/spancategorizer)
-- [spaCy transformer component](https://spacy.io/api/transformer)
-- [Hugging Face ONNX Runtime support](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/package_reference/modeling)
-- [Apple PyTorch Metal acceleration](https://developer.apple.com/metal/pytorch/)
+1. [Doc Processor Capsule](+CAPSULE.md)
+2. [Existing Entity and Relation Processor Spec](extract-entity-relation-spec.md)
+3. [GLiNER multilingual model card](https://huggingface.co/urchade/gliner_multi-v2.1)
+4. [GLiREL paper](https://aclanthology.org/2025.naacl-long.418/)
+5. [XLM-RoBERTa documentation](https://huggingface.co/docs/transformers/main/model_doc/xlm-roberta)
+6. [spaCy SpanCategorizer](https://spacy.io/api/spancategorizer)
+7. [spaCy transformer component](https://spacy.io/api/transformer)
+8. [Hugging Face ONNX Runtime support](https://huggingface.co/docs/optimum-onnx/en/onnxruntime/package_reference/modeling)
+9. [Apple PyTorch Metal acceleration](https://developer.apple.com/metal/pytorch/)
 
 Web sources accessed 2026-09-04.
