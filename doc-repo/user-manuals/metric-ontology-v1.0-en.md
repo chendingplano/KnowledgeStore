@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: ChenWeb and SemOS users, ontology curators, reviewers, analysts, and system operators
 create-time: 2026-08-20T16:37:47-05:00
-last-modify-time: 2026-08-20T19:55:00-05:00
+last-modify-time: 2026-09-05T07:22:57-05:00
 keywords:
   supplied: Metric Ontology
   generated: metric definition, measurement module, quantity module, QUDT, quantity kind, unit, dimension, observable property, feature of interest, procedure, assertion kind, governed vocabulary, ontology terms, class contract, ontology candidate, auto-promotion, module release, kb.ontology_terms, kb.ontology_modules, measurement:kwc, metric ontology model, metric lifecycle, ontology instance, instance_of, ontology object, object node, keyword concept, semantic assertion, class resolution, canonical claim identity, normalize_assertions, associate_semantics, errors, error handling, value range type, unmapped value_range_type, ambiguous object, orphaned labels, deferred candidate, semantic finding, retry queue, backlog drain, database maintenance, troubleshooting
@@ -534,13 +534,11 @@ Collected in one place, so the gaps are not discovered one at a time:
 
 The Metric Ontology is being introduced in phases, and the vocabulary layer is considerably further along than the definition layer. The following were observed in `miner` at 2026-08-20T16:37:47-05:00 and should be confirmed against your deployment before relying on them.
 
-### 11.1 Class contracts are not yet populated
+### 11.1 Class contracts
 
-A **class contract** is the fuller definition of a metric class: its expected value type, permitted units, constraints, normalization rules, and which capabilities — such as validation or comparison — it can support. The supporting tables are deployed, including a `definition_state` of `identity_only`, `partially_defined`, or `validated`, and per-capability results of `enabled`, `disabled`, or `indeterminate`.
+*Corrected 2026-09-05 — see Change Log.* This subsection originally reported, as observed 2026-08-20, that no class contract revisions existed. Since then, the class contract and capability mechanism (definition states `identity_only`, `partially_defined`, `validated`; capabilities `can_instantiate`, `can_validate_value`; per-claim conformance) has been activated in the live write path. For what a class contract is, how a class earns one, what its states and capabilities mean, and current live counts, see the dedicated *Class Contracts* manual (§14) — it is now the authoritative, current source on this topic, and this manual should not be relied on to describe the present state of contracts.
 
-**No class contract revisions existed at the time of observation.** Every metric class is therefore identity-only in practice.
-
-The consequence is specific and important: a term establishes *what a metric is called and what it refers to*, not *how its values may be validated or compared*. Do not assume that because two claims resolve to the same metric definition, the system can safely compare them. Until a contract declares a comparison capability, that judgment remains a human one.
+The consequence described originally still holds as general guidance: a term establishes *what a metric is called and what it refers to*, not *how its values may be validated or compared*. A class's contract, not its term, governs that, and a class may still be `identity_only` if its evidence has not yet met the promotion bar. See the *Class Contracts* manual §4–§6 for exactly when and how that changes.
 
 ### 11.2 Metric-level fields on terms are uncontrolled
 
@@ -617,6 +615,7 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 
 ## 14. Related manuals
 
+- *Class Contracts* — what a class contract is, its definition states and capabilities, and current live status; read this for anything §11.1 used to describe.
 - *Governed Ontology Terms Guide* — the term registry. See the correction in §3.2.
 - *Ontology Labels Guide* — readable names for terms.
 - *SemOS Semantic Layer User Manual* — assertions, evidence, and lossless processing.
@@ -624,6 +623,14 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 - *Metric and Assertion Semantic Processing* — the processing pipeline in detail.
 
 ## Change Log
+
+### 1.2 — 2026-09-05T07:22:57-05:00
+
+Author: Claude
+
+Reason: §11.1 stated, as of 2026-08-20, that no class contract revisions existed and described the supporting mechanism as deployed-but-unused. That statement went stale on 2026-09-05 when the class contract and capability mechanism was activated in the live write path (ChenWeb commit `be4d`, openspec change `metric-class-contracts`), and a new dedicated manual, *Class Contracts*, was written to document it in full. Leaving §11.1 as originally written would have left two manuals disagreeing about the same mechanism's status.
+
+Summary: Rewrote §11.1 to stop asserting the current state of class contracts on its own authority and instead point to the *Class Contracts* manual as the current, authoritative source, while preserving the still-valid general guidance that a term's identity is not the same as a class's validated or comparable contract; added the *Class Contracts* manual to §14 Related manuals. No other section changed; version number preserved per this manual's in-place-update convention since this is a correction to existing content, not a new section.
 
 ### 1.2 — 2026-08-20T19:55:00-05:00
 
