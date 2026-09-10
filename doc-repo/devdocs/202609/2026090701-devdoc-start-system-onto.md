@@ -1,7 +1,9 @@
 # Starting the ChenWeb System on the onto.bzton.cn Production Box
 
 **Date:** 2026-09-07 (rev 2026-09-08: renamed `dingbo.bzton.cn` → `https://onto.bzton.cn`,
-added TLS + the `/kratos/` reverse-proxy + the Environment-variables section)
+added TLS + the `/kratos/` reverse-proxy + the Environment-variables section;
+rev 2026-09-11: added §2.1 Chinese cell-phone sign-in, key-based root access, and the
+`mise build-server-linux` / `deploy-server-china.sh` deploy path)
 **Scope:** How to start each component of the ChenWeb stack on the China production box
 `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which now serves
 **`https://onto.bzton.cn`**. This is the **operations** counterpart to the build/deploy
@@ -10,13 +12,21 @@ runbooks — it does not cover building or shipping code (see
 
 ## Box facts you need before touching anything
 
-- **Access:** `ssh -p 8822 gui@210.5.158.91`.
-- **`gui` has no sudo** ("not in the sudoers file"). Every `systemctl` / `nginx` / `certbot`
-  command runs as root via `su -`. The `su` password prompt is localized (Chinese), so
-  force C locale or `expect`-style prompt matching breaks:
+- **Access:** `ssh -p 8822 gui@210.5.158.91`. The maintainer's key is installed in
+  **both `~gui/.ssh/authorized_keys` and `/root/.ssh/authorized_keys`**, and
+  `sshd_config` allows `PermitRootLogin prohibit-password`, so `ssh -p 8822
+  root@210.5.158.91` works key-only for the few root-needed steps (`systemctl`,
+  editing root-owned files, `journalctl -u` for other-user units). Password login is
+  the fallback (`gui` pw and root pw are held by the maintainer).
+- **`gui` has no sudo** ("not in the sudoers file"). Root commands run either through
+  the root SSH key above, or as `gui` via `su -`. The `su` password prompt is
+  localized (Chinese), so force C locale or `expect`-style prompt matching breaks:
   ```bash
   env LC_ALL=C LANG=C su -c '<command>'      # prompts for the root password
   ```
+- **`gui` is in `adm`, `systemd-journal`, `docker`** — so `journalctl -u <unit>`,
+  `docker …`, and reading logs work **without** root. Only state changes
+  (`systemctl start/restart/stop`, editing `/etc/…`) need root.
 - **No Go, no `mise`, no `air` on this box.** There is no `ChenWeb/mise.toml` here. The
   only tooling under `~/Workspace/bin/` is `nats`, `nats-server`, `goose`. Everything else
   runs from a **pre-built binary** cross-compiled on the Mac. See §7 and the
@@ -193,6 +203,55 @@ curl -s -H 'Accept: application/json' https://onto.bzton.cn/kratos/self-service/
   export SHARED_LIB_CONFIG_DIR=/home/gui/Workspace/shared/libconfig.toml
   ./create-admin-linux -email admin@dingbo.bzton.cn
   ```
+
+### 2.1 Chinese cell-phone (SMS-code) sign-in
+
+Live since 2026-09-11. Implementation detail is in
+`2026091101-devdoc-phone-login-china.md`; this is the operational view.
+
+**What's wired on this box**
+
+| Layer | Setting on the box | Notes |
+|---|---|---|
+| Frontend flag | `config.local.toml` `[frontend] enable_phone_login = true` | gates the "Log in with Phone" link + the phone flow; `chenweb` restart to apply |
+| ChenWeb env | `.env`: `SMS_RELAY_SHARED_SECRET`, `ALIYUN_SMS_ACCESS_KEY_ID/_SECRET/_SIGN_NAME/_TEMPLATE_CODE`, `VITE_DEFAULT_NORM_ROUTE=/semos/workspace` | the Aliyun key is **shared with bzton production** (`LTAI5tPs…`, sign `润申标准化`, template `SMS_223202121`) |
+| Kratos schema | `kratos/identity.schema.json`: `phone` trait (`credentials.code {via:"sms"}`), `anyOf` has `{required:["phone"]}` | no `verification`/`format` block — deliberate |
+| Kratos config | `kratos/kratos.yml`: `methods.code.passwordless_enabled: true`; `registration.after.code` → `session` hook; `courier.channels[sms]` HTTP channel → `http://127.0.0.1:8090/auth/internal/sms-courier/send` with header `X-Internal-Relay-Secret` = the `.env` secret; `body: file:///home/gui/Workspace/Kratos/kratos/templates/courier/sms/request.config.jsonnet` | **box paths + port 8090**, not the Mac's `/Users/cding/…` + `8080`. `kratos.yml` is gitignored so it drifts — a stale Mac path here silently breaks SMS. |
+
+Kratos courier delivery of the SMS goes **Kratos → `chenweb` relay → Aliyun**; the
+relay does the signed `SendSms`. Kratos itself never talks to Aliyun.
+
+**Why it works here and not from a dev box:** the Aliyun key's RAM policy only permits
+`SendSms` from bzton's server IPs. This box is `210.5.158.91` — the same public IP as
+`www.bzton.com` — so it's allowed. From anywhere else Aliyun returns
+`InvalidAccessKeyId.AccessPolicyDenied`. If ChenWeb ever moves IPs, the new egress IP
+must be allowlisted on the Aliyun account (or get a dedicated key).
+
+**Verify (from the box)**
+
+```bash
+# flag live
+curl -s http://127.0.0.1:8090/api/config | grep -o '"enable_phone_login":[^,}]*'      # :true
+# relay secret enforced (wrong secret must 401)
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  http://127.0.0.1:8090/auth/internal/sms-courier/send \
+  -H 'X-Internal-Relay-Secret: wrong' -d '{"to":"+8613800000000","code":"0"}'          # 401
+# Kratos offers the code method
+curl -s http://127.0.0.1:4433/self-service/login/api | grep -o '"group":"code"'        # match
+# full send/verify + DB checks: see 2026091101-devdoc-phone-login-china.md §6
+```
+
+**Troubleshoot**
+
+| Symptom | Check |
+|---|---|
+| "Log in with Phone" link missing | `/api/config` `enable_phone_login` — flag not set, or `chenweb` not restarted |
+| Code never arrives | `psql "$(grep '^DSN=' ~/Workspace/Kratos/kratos.env \| cut -d= -f2-)" -c "select status,send_count from courier_messages where recipient='+86<num>' order by created_at desc limit 1"` — `2`=sent, `4`=abandoned. Then `courier_message_dispatches.error`. `journalctl -u chenweb \| grep -E 'aliyun sms\|sms code dispatched\|sms send rate'` |
+| `InvalidAccessKeyId.AccessPolicyDenied` in the log | call originated from a non-allowlisted IP (not this box), or the shared key was rotated |
+| `giving up after 1 attempt(s)` / `code:500` in `courier_message_dispatches` | relay returned non-2xx — usually a missing `SMS_RELAY_*`/`ALIYUN_SMS_*` env var (`chenweb` not restarted after editing `.env`) or the wrong port/path in `kratos.yml`'s courier `url` |
+| Logged in, then bounced to login on every page / `403 EMAIL_NOT_VERIFIED` | old `server-linux` without the `isIdentityVerified` fix (shared/go jj `322a`) — redeploy |
+| Redirects to `/dashboard` not `/semos/workspace` | `VITE_DEFAULT_NORM_ROUTE` / `VITE_DEFAULT_ADMIN_ROUTE` missing from `.env` (affects email + Google too) |
+| Number stuck "try again later" for up to an hour | per-phone SMS rate limiter (5/hr, in-process). `systemctl restart chenweb` clears it, or use another number |
 
 ---
 
@@ -398,11 +457,32 @@ curl -s -o /dev/null -w 'https edge -> %{http_code}\n' https://onto.bzton.cn/   
 journalctl -u chenweb -n 40 --no-pager | grep -v 'goose:'
 ```
 
-**The dev-loop equivalent on the box** is: rebuild on the Mac
-(`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ... ./server/cmd/deepdoc/.`), transfer the
-binary, then `su -c 'systemctl restart chenweb'`. Full procedure:
-`2026072401-devdoc-deploy-production.md` §2 and the 2026-09-08 refresh in
-`project_chenweb_dingbo_deployment` (memory) / `~/Workspace/chenweb-deploy-20260908/` on the Mac.
+**The dev-loop equivalent on the box** is: rebuild on the Mac, transfer the binary,
+`systemctl restart chenweb`. As of 2026-09-11 this is packaged:
+
+```bash
+# --- on the Mac, in ChenWeb/ ---
+mise run build-server-linux                 # all four linux/amd64 binaries + .sha256
+BINS=server mise run build-server-linux     # just server-linux (fast; frontend rebuilt too)
+#   output: /tmp/chenweb-deploy/{server-linux[,.sha256], deploy-server-china.sh, MANIFEST}
+
+scp -P 8822 -r /tmp/chenweb-deploy gui@210.5.158.91:~/
+
+# --- on the box, as root (su - or the root SSH key) ---
+bash ~/chenweb-deploy/deploy-server-china.sh ~/chenweb-deploy server
+#   per binary: verify sha256 + ELF/arch, back up the current one (.bak-<ts>, keeps 3),
+#   stop → install → start the mapped unit (server→chenweb, doc-processor→doc-processor,
+#   parser-result-converter→…, create-admin→install only), health-gate, auto-rollback
+#   on failure. DRY_RUN=1 to preview.
+```
+
+`build-server-linux` is `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 -trimpath -ldflags "-s -w"`
+and rebuilds the embedded frontend first when `server` is in the set
+(`server/api/webbuild` is gitignored). The task lives in `ChenWeb/mise.toml`, the
+script in `ChenWeb/scripts/deploy-server-china.sh` (ChenWeb jj commit `012e`).
+Box-side enablement that a binary swap does **not** carry (config flags, env, Kratos)
+is in `ChenWeb/deploy/phone-login/`. Older/fuller procedure:
+`2026072401-devdoc-deploy-production.md` §2 and `project_chenweb_dingbo_deployment` (memory).
 
 **Notes**
 - `Environment=SHARED_LIB_CONFIG_DIR=...` in the unit is required — its `sync.Once` fires
@@ -515,6 +595,8 @@ a rootless start.
 
 ## See also
 
+- `2026091101-devdoc-phone-login-china.md` — implementation of §2.1 (Kratos code
+  method, the SMS relay, the JIT-registration and verified-gate specifics, gotchas).
 - `2026072401-devdoc-deploy-production.md` — full build + deploy runbook, config-var
   reference (§3), migration bootstrap (§4), verification checklist (§7), operations (§8).
 - `2026073001-devdoc-deploy-production-china-dingbo.md` — why this box deviates (Ubuntu
