@@ -317,13 +317,13 @@ request-shaper.
 |---|---|---|
 | `AUTH_USE_KRATOS` | env | `true` — the phone routes only register in Kratos mode |
 | `enable_phone_login` | `config.toml` / `config.local.toml` `[frontend]` | `true` (default false) |
-| `SMS_RELAY_SHARED_SECRET` | env | 32-byte hex; **must equal** the `X-Internal-Relay-Secret` header in `kratos.yml`; (secret — see secrets store, not committed) |
-| `ALIYUN_SMS_ACCESS_KEY_ID` | env | (secret — see secrets store, not committed; shared w/ bzton — gotcha 5) |
-| `ALIYUN_SMS_ACCESS_KEY_SECRET` | env | (secret — see secrets store, not committed) |
-| `ALIYUN_SMS_SIGN_NAME` | env | `润申标准化` (approved signature) |
-| `ALIYUN_SMS_TEMPLATE_CODE` | env | `SMS_223202121` — a verification-code template whose variable is `${code}` |
-| `VITE_DEFAULT_NORM_ROUTE` / `_ADMIN_ROUTE` | env | `/semos/workspace` (gotcha 7) |
-| `KRATOS_ADMIN_URL` | env | `http://127.0.0.1:4434` |
+| `SMS_RELAY_SHARED_SECRET` | env (in ChenWeb/.env) | 32-byte hex; **must equal** the `X-Internal-Relay-Secret` header in `kratos.yml`; (secret — see secrets store, not committed) |
+| `ALIYUN_SMS_ACCESS_KEY_ID` | env (in ChenWeb/.env) | (secret — see secrets store, not committed; shared w/ bzton — gotcha 5) |
+| `ALIYUN_SMS_ACCESS_KEY_SECRET` | env (in ChenWeb/.env) | (secret — see secrets store, not committed) |
+| `ALIYUN_SMS_SIGN_NAME` | env (in ChenWeb/.env) | `润申标准化` (approved signature) |
+| `ALIYUN_SMS_TEMPLATE_CODE` | env (in ChenWeb/.env) | `SMS_223202121` — a verification-code template whose variable is `${code}` |
+| `VITE_DEFAULT_NORM_ROUTE` / `_ADMIN_ROUTE` | env (in ChenWeb/.env) | `/semos/workspace` (gotcha 7) |
+| `KRATOS_ADMIN_URL` | env (in ChenWeb/.env) | `http://127.0.0.1:4434` |
 
 > This doc originally had the real `ALIYUN_SMS_ACCESS_KEY_ID` / `_SECRET` and
 > `SMS_RELAY_SHARED_SECRET` values inline; GitHub push protection caught it on the
