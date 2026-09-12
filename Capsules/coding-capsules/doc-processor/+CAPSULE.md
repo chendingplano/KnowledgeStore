@@ -144,7 +144,7 @@ All doc-processor LLM calls go through `newLLMJSONInput` (`ChenWeb/server/api/do
 
 **Canonical chunk serialization (Phase 2.3).** Chunk-based processors build `InputText` via the single helper `canonicalChunkInputText(chunk.Lines, docCtx)` (`input_lines.go`) = `wrapLinesWithDocContext(markedLinesToJSON(lines), docCtx)`, where `docCtx = buildDocContextLine(rec)`. Because every chunk processor loads the same `.chunks` artifact and the same record, the same chunk yields a byte-identical `InputText` across processors → DeepSeek reuses the cached prefix. No per-processor schema/label/index text goes in `InputText`; it lives in the prompt (`<TASK>`). Converged chunk consumers include `extract_metrics`, `extract_metric_definitions`, `extract_test_methods`, `extract_semantic_projections`, entity/relation extraction, `extract_inventory_items`, and `extract_provisions` **chunk mode** (`EXTRACT_PROVISIONS_INPUT` unset/`chunks`).
 
-> **Not converged:** `extract_provisions` **blocks mode** uses `Block`s with a different serialization, so its LLM input unit differs from chunk mode. `create_artifact_category` is intentionally **task-first** (its prompt template, not the per-call key, is the stable prefix).
+> **Not converged:** `extract_provisions` **blocks mode** uses `Block`s with a different serialization, so its LLM input unit differs from chunk mode. `create_artifact_category` is intentionally **task-first** (its prompt template, not the per-call key, is the stable prefix). `extract_products` (as of 2026-09-12) reads the same `.chunks` artifact as the converged set via `chunksToBlocks` (so it shares the chunk *set*), but still serializes each block via `blockLinesToJSON`, not `canonicalChunkInputText`/`markedLinesToJSON` — its `InputText` is not byte-identical to the converged consumers', so it does not share their DeepSeek cache-prefix hits.
 
 **InputText sequencer (Phase 3).** Even with canonical prefixes, Phase B fans out one goroutine per processor and each launches its per-chunk goroutines concurrently — identical chunk prefixes from different processors may not be temporally adjacent. An `inputTextSequencer` (`shared/go/api/llm/openai_sequencer.go`) serialises the shared client's HTTP calls by `InputText` key: when `DocumentFirst` is true, the call acquires a per-InputText binary semaphore before the HTTP request and releases after. Calls with the same canonical InputText (same chunk) queue — so the same prefix arrives at DeepSeek back-to-back, guaranteeing cache hits. Controlled by env `LLM_INPUT_TEXT_SEQUENCER` (default `true`).
 
@@ -182,6 +182,7 @@ Currently, it has the following doc processors:
 |20 | classify_document | routed (resolver-invoked) | 2 | Yes | `chunking` | Tier-3 governed-vocabulary classifier (`document.doc_kind`/`domain`/`normative_status`/`jurisdiction`). Not wave-dispatched: invoked directly by the two-pass `ApplicabilityResolver`, only for decision-relevant tier-3 paths the base facts leave unresolved. See §7.6. |
 |21 | facet_tier1 | routed (registry-only, non-wave-dispatched) | 1 | No | none | Tier-1 deterministic document-facet producer (`ComputeTier1Facets`, `facet_tier1.go`). Computes free, deterministic facets (page count, language mix, table-line ratio, numeric-with-unit density, modal-verb density, TOC presence, heading depth, doc-number pattern, file type, figure density) and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; invoked directly from `ControlService.handleEvent`, gated by `facetTier1GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier1"`). See ADR 2026072901 §3.5. |
 |22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | 1 | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
+|23 | extract_products | configurable | 2 | Yes | `chunking` | Extract Product Relations Processor: multi-pass mention/relation/translate/categorize extraction of product mentions and their structural relations. Saves to `kb.products`. Re-registered 2026-09-12 — was present in `config.toml`'s `required_processors` in earlier revisions of this doc but had been dropped from both `server/api/doc-processing/runtime.go`'s constructed processor list and `processor_plan.go`'s `ProcessorSpec` table, so it silently never ran regardless of config; both are now fixed. Switched from Blocks to Chunks the same day (`resolveProductChunkBlocks` loads the `.chunks` artifact and adapts it to `[]Block` via the same `chunksToBlocks` helper `extract_metrics` uses), so it now shares the one chunk set every other Phase B extractor reads instead of independently re-blocking the document. Refer to [21] for its spec. |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -227,7 +228,7 @@ About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
 
 ```toml
 [doc-processing]
-required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_semantic_projections", "extract_entity_relation", "extract_inventory_items"]
+required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_semantic_projections", "extract_entity_relation", "extract_inventory_items", "extract_products"]
 ```
 
 If `required_processors` is absent or empty, no configurable processors run by default.
@@ -922,3 +923,8 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
   `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md`
 
 [20] Extract Metric Definitions Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metric-definitions-spec.md`
+
+[21] Extract Product Relations Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-spec.md`
+  (implementation notes: `extract-products-impl.md` — that file still has the
+  env-var/column-name/`"stopped"`-status staleness found 2026-09-12 and fixed
+  in the spec doc; not yet corrected there)

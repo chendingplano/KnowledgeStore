@@ -13,6 +13,23 @@ reaches a terminal state.
 
 ## Open
 
+- [2026091301 — product-metric-reviewer task 6.1 e2e: two crash/gap bugs (fixed) and a retrieval-precision defect (open, deeper than a threshold)](202609/2026091301-bug-product-metric-reviewer-e2e-crash-curation-gap-and-retrieval-precision.md)
+  — `open`. Two of three findings fixed-verified same day: (1) `docscope.go` pathC's
+  `COALESCE(value, '')` against a `jsonb` column crashed every review run outright
+  (`''::jsonb` is invalid JSON), fixed via `value #>> '{}'`; (2) the self-service intake page
+  (`IntakeProductReview`) never curated its proposed module/part nodes, so part-tier
+  attribution was structurally impossible via that flow — fixed with new
+  `Store.AcceptAllProposed`, wired into intake only (manual curation page untouched). Still
+  open, now with a partial mitigation shipped: (3) `rrfSearch`'s vector half had no similarity
+  floor — added one (`ScoringConfig.HybridSimilarityMin`) plus product-root-anchored query
+  text for module/part nodes, both verified live. But re-running against the corpus proved
+  this does **not** fix precision: for a short generic label like `主机`, real and wrong-domain
+  matches are interleaved in the same 0.23–0.32 cosine-similarity band (measured, not
+  estimated) — no threshold separates them, and the wrong-domain documents don't lexically
+  co-occur with the product name either (confirmed per-chunk). A real fix needs
+  product-identity propagated into the chunk-level index, which is a larger change than this
+  bug's scope — not attempted.
+
 - [2026082101 — auto-promoted metric_definition terms conflate metric-only fields with the generic term schema and drop available data](202608/2026082101-bug-auto-promoted-ontology-terms-schema-and-data-loss.md)
   — `open`, root-caused, not yet fixed. Three confirmed defects in ADR 2026081201's auto-promotion
   path: `definition` is bound to `formula_or_definition` (often legitimately blank) instead of the
