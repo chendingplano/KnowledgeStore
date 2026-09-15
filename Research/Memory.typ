@@ -41,11 +41,31 @@
   "https://help.openai.com/en/articles/8590148-memory-faq"
 )[#text(fill: blue)[ChatGPT Memory]]
 
-= Memory
+= Memory Architecture
+
+== Three Types of Memory
+- Episodic: Time-stamped events: each user turn as it lands, before any extraction 
+  or interpretation. Most of it is short-lived: not always worth keeping.
+  A few entries become evidence for durable facts later.
+- Semantic: Distilled, stable assertions about the user. These survive across
+  sessions and are what the agent grounds in
+- Procedural: Multi-stp playbooks.
+
+Each category has a different lifecycle. Episodic is written constantly and decays.
+Semantic is curated, deduped, and superseded as the user changes. Procedural
+accumulates outcome feedback that feeds consolidation.
 
 == Definition
 
-Memories are defined by the following properties:
+Memories are user-scoped content. They are different from knowledge.
+Memories can be temporal (user conversation history) or facts (user profiles).
+All harnesses have memories. The memories discussed in this context
+are harness independent, stored in database. They can be used:
+- Complement harness memories
+- Cross session memories
+- Knowledge, facts
+
+Memories may have the following properties:
 - ID (format to be determined)
 - Title
 - Create Time
@@ -56,11 +76,19 @@ Memories are defined by the following properties:
 - Source
 - Origin
 - Keywords
-- Categories
+- Categories (domains, subjects, topics, can be hierarchical)
 - Keywords
-- Summary
-- Description
+- Summary (generated either statically or by compression, optional)
+- Type (past conversation, tool calls, raw facts, inferred trait, preference, etc.)
 - Content
+- Metadata: tenant-level fields aligned with the tenant metadata schema.
+  There is a user-scoped `user_memory_metadata.schema` and a tenant-scoped
+  schema: `tenant_memory_metadata.schema`. Use these schemas to canonicalize
+  memory metadata ([HydraDB]).
+- additional_metadata: document-level free-form key-value pairs attached to
+  memories. Matchable at recall by nesting nuder 'additional_metadata' ([HydraDB])
+- relations: optional relation metadata for linking this memory to other stored context
+  ([HydraDB]).
 
 == Memory Hierarchy
 
@@ -74,7 +102,56 @@ Memories are defined by the following properties:
 Note that memory hierarchy is also SemOS hierarchy because memory and semantic objects
 are essentially the same.
 
-=== SemObj Timestmaps
+== Memory Ingestion and Storage
+
+When a memory is added to SemOS:
+- Parse the memory. Memories are normally text, but can be in other forms
+- Run inference (optional) to extract artifacts, such as user preference,
+  opinions, insights, topics, keywords, etc.
+- Indexing, clustering
+
+== Memory Inferencing
+
+Inferencing can be costly, but valuable. There are several ways to get around it. 
+- If models are locally hosted, it can run the inference when the system is
+  idle or in low load.
+- Use less powerful, much cheaper models
+
+Apps (agent harnesses) can set a flag 'infer' (such as [3]) to true or false when 
+adding a memory to SemOS. But how agent harnesses determine which memories to infer 
+or not. An alternative is to let LLM determine whether to infer and, if yes, infer it.
+
+=== Inferencer
+
+Example:
+```text
+{
+  "observation":"user John has been toggle the display mode to use the dark mode most of the time."
+  "evidence": ["xxx", "xxx", ...] # from log
+  "infer": "set the app's mode to 'dark' for John"
+  "action": "the api call",
+  "model": "the model for the inference"
+  "prompt": "the prompt for the inference"
+```
+
+`Inferencer` is a Jimo. There can be many such inferencers, each does one type of inferences.
+Note that these inferencers can be LLM-call free, using deterministic algorithm, such as analyzing
+the logs.
+
+== Erase Memories
+
+SemOS allows users to erase memories, which can be important for:
+- Incorrect memories, such as user requires A and later changed to B,
+  which can be quite different or even opposite. Keeping A no longer
+  makes any sense.
+- Users intentionally want to erase 
+- LLMs determine the memories are useless or even harmful
+- Irrelevant
+
+Instead of physically delete memories, they can be archived, which is
+normally not used by the system anymore.
+
+== Memory Timestmaps
 We will use three timestamps ([[ref:dual timestamps]]):
 - Event Time: the time when an event actually happened
 - Document Creation Time: the time when a document was created (note: not added to SemOS). 
@@ -85,7 +162,7 @@ We will use three timestamps ([[ref:dual timestamps]]):
 
 These timestamps are important in reasoning.
 
-=== MemCell [[Memory Atomic Unit, MemCell]]
+== MemCell [[Memory Atomic Unit, MemCell]]
 
 This is from [[EverOS]]. A similar concept is [[Atomic Memory]] from [[Supermemory]].
 This is the atomic memory in SemOS.
@@ -111,23 +188,94 @@ There are two types of MemCells:
 
 It creates a Memory Object
 
-=== Memory Dimensions
+== Memory Dimensions
 
 Memories are stored in multiple dimensions:
 - Semantic Dimension (in SHG)
 - Time Dimension
-- Special Dimension
+- Preference
+- Interest
 
-==== SOUL.md
+=== Time Dimension - Chat History
+
+We may use the strategy that OpenClaw uses:
+- Store chat history in files, one per day
+
+=== Semantic Dimension
+
+Memories are organized by topics (i.e., semantics).
+
+== Preferences
+
+Example:
+```text
+{
+  "user": "Remember I like dark mode",
+  "assistant": "Noted"
+}
+```
+
+When SemOS receives this memory, it can use LLM to infer:
+```text
+type: preference
+artifact_name: display mode
+value: dark
+```
+
+Internally, SemOS canonicalize `type`, `artifact_name` and `value`.
+`kb.user_preferences` table manages all the detected user preferences.
+`kb.memory_types` table manages all the memory types.
+`kb.preference_values` table manages all the preference values. In this
+example, it will add:
+```text
+type: 'preference'
+artifact_name: 'display mode'
+value: 'dark'
+```
+
+When LLM infers a new user preference, the new preference is checked
+against the ones stored in database to ensure the same preference
+uses the same values.
+
+== Memory Relations
+
+Memory (memory cells) are objects. They can be related to each other.
+For instance, if two memory cells are about the same topic (such as 
+how to configure the harness), they can be related (semantic similarity).
+
+=== Sequencing Relation
+If Operation X finishes, Operation Y should be followed, this is a sequencing relation.
+
+=== Causal Relation
+
+If Event A happens, it can affect KPI B. This is a causal
+relation. It can be useful in reasoning.
+
+=== Extract Relations
+
+Callers can explicitly add relations:
+```text
+{
+  "relations": {
+    "cortex_source_ids": ["memory-1", "memory-2"],
+    "relation_name": "followed",
+    "relation_type": "sequencing"
+  }
+}
+```
+
+= Memory Related Files
+
+== SOUL.md
 
 It stores the basic information about a person, such as name, home address,
 phone number, spouse, children, other family members, etc.
 
-==== PREFERENCE.md
+== PREFERENCE.md
 
-==== SPECIALTIES.md
+== SPECIALTIES.md
 
-==== FRIENDS.md
+== FRIENDS.md
 
 This is a list of a user's friends. Friends can be added explicitly or automatically.
 Users can say "<name> is my friend. Please remember it!"
@@ -135,22 +283,13 @@ Users can say "<name> is my friend. Please remember it!"
 To show all the fiends the agent has learned and memorized, you can say: "How all my friends in memory"
 or use the commands /memory, which should show a menu of memories. Select "friends".
 
-==== INTERESTS.md
+== INTERESTS.md
 
 This is a list of a user's interests. Interests can be added manually or automatically.
 To add an interest manually, you can say "Add \<interest\> as my interest to memory",
 or use the slash command and select memory -> interests.
 
-==== Time Dimension - Chat History
-
-We may use the strategy that OpenClaw uses:
-- Store chat history in files, one per day
-
-==== Semantic Dimension
-
-Memories are organized by topics (i.e., semantics).
-
-== Memory Storage
+= Memory Storage
 
 Memory is organized like folders, real or virtual.
 
@@ -171,9 +310,9 @@ Memory is organized like folders, real or virtual.
       |- ...
    |- ...
 ```
-== Operations
+= Operations
 
-=== Add Memory
+== Add Memory
 
 Users can add memory at any time by saying: 
 ```text
@@ -190,19 +329,17 @@ LLMs will analyze the memory and put it into the right location in SHG.
 - Check whether the new SemObj completes existing SemObj
 - Try to derive new SemObj, such as new entities, relations, SemObjs, etc.
 
-=== Delete Memory
+== Delete Memory
 
-=== Enable Memory
+== Enable Memory
 
 It enables disabled memory
 
-=== Disable Memory
-
-=== Query Memory
+== Disable Memory
 
 == Retrieve Memories
 
-== Thoughts - SemMemory: Memory by Topics
+= Thoughts - SemMemory: Memory by Topics
 [[def: Topic Memory, Semantic Memory, SemMemory, Research Ideas]]
 
 Here is what happened to me: 
@@ -259,7 +396,7 @@ Potential advanced features:
 - Self-Evolving: detect defacts, missing features, suggest new features based on the past usage patterns.
 - Self-Learning: read an article, an open-source project; compare it with a SemObj; evolve it.
 
-=== Semantic Twin
+== Semantic Twin
 [[def:Semantic Twin]]
 
 The binding between a SemObj and its SemMemory is critical.
@@ -281,17 +418,6 @@ Agent Memory is an open-source ([2]).
   caption: [Agent Memory ([1])]
 )
 
-=== Three Types of Memory
-- Episodic: Time-stamped events: each user turn as it lands, before any extraction 
-  or interpretation. Most of it is short-lived: not always worth keeping.
-  A few entries become evidence for durable facts later.
-- Semantic: Distilled, stable assertions about the user. These survive across
-  sessions and are what the agent grounds in
-- Procedural: Multi-stp playbooks.
-
-Each category has a different lifecycle. Episodic is written constantly and decays.
-Semantic is curated, deduped, and superseded as the user changes. Procedural
-accumulates outcome feedback that feeds consolidation.
 
 == References
 [1] Build Agent Memory on ElasticSearch,
@@ -299,3 +425,7 @@ https://www.elastic.co/search-labs/blog/agent-memory-elasticsearch
 
 [2] atlas-memory-demo,
 https://github.com/noamschwartz/atlas-memory-demo
+
+[3] HydraDB,
+https://docs.hydradb.com/essentials/memories
+

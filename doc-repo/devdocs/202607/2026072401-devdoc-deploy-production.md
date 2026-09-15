@@ -568,8 +568,10 @@ These two `server/cmd/*` binaries are NATS consumers, not HTTP servers — `doc-
 
 ```bash
 cd ~/Workspace/ChenWeb
-rsync -avz -e "ssh -p 8822" prompts .models.toml docs/doc-templates cding@<host>:~/Workspace/ChenWeb/
+rsync -avz -e "ssh -p 8822" prompts .models.toml docs/doc-templates doc-review.local.toml cding@<host>:~/Workspace/ChenWeb/
 ```
+
+**Don't skip `doc-review.local.toml`** — despite the `.local.` name it's a real, git-tracked repo-root config file (like `config.toml`, unlike gitignored `mise.local.toml`/`config.local.toml`), and `docreviews.GetDocReviewConfig()` (`server/api/doc-reviews/review-config.go`) treats an absent file as "no reviewers configured" rather than an error — it fails **silent and non-fatal** (`INFO doc-review config file not found; reviewer disabled` per aspect), so a missed copy here has no startup symptom at all, only quietly-disabled `grammar_spelling`/`tone_voice`/`formatting_consistency`/`readability`/`localization`/`logical_flow` reviewers once a doc-review actually runs. Hit and fixed on `onto.bzton.cn` 2026-09-16 (`2026090701-devdoc-start-system-onto.md` §6.2) — the box never had it deployed. Symbolic `model`/`prompt` refs inside it need no translation; it copies verbatim.
 
 and creating the directories referenced by `DATA_REVIEW_REPORTS`/`STAGING_DIR`/etc. under `~/Workspace/ChenWeb/Data/`.
 

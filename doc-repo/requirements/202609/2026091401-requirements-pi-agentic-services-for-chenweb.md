@@ -56,6 +56,16 @@ An end-user service receives only the tools it needs. Knowledge-question service
 
 The proof of concept should favor a small number of dependable capabilities over a large tool catalog. ChenWeb operators must be able to understand what the service did, which information it used, how long it took, and why it failed.
 
+### 3.6 Streaming Mode
+
+Agentic services must support the streaming mode and the streaming mode should be the default mode.
+User interfaces should clearing distinguish reasoning and final answers.
+
+### 3.7 Interactive conversation
+Harness may need to ask users questions and get answers, ask permissions for certain operations
+or tool calls. 'ChenWeb' is responsible implement the frontend part to interact with users.
+For permissions, it should implement at least two modes: 'ask-for' mode and 'auto' mode.
+
 ## 4. Main Concepts
 
 To avoid confusion, the product should use the following distinctions:
@@ -176,27 +186,27 @@ Both initial services are knowledge-grounded. They must search ChenWeb before ma
 
 ### 9.1 Essential tools for the proof of concept
 
-#### Search knowledge
+#### 9.1.1 Search knowledge
 
 Pi provides a natural-language query and may narrow it by document, artifact type, knowledge store, or other permitted scope. ChenWeb returns the best matching chunks and artifacts together with short excerpts, source document names, line ranges, and relevance information.
 
 This should be the normal starting tool when Pi does not yet know where the answer is located. It should search across relevant artifact types rather than forcing Pi to guess which processor created the answer.
 
-#### Read source passages
+#### 9.1.2 Read source passages
 
 Pi provides a source-document identifier and one or more line ranges. ChenWeb returns the original parsed lines, including page information when available. This lets Pi verify a search result, read nearby context, and quote or paraphrase accurately.
 
 The tool must limit the amount returned in one call. Pi may request another nearby passage when more context is genuinely needed.
 
-#### Get artifact details
+#### 9.1.3 Get artifact details
 
 Pi provides a stable artifact identifier. ChenWeb returns the artifact's useful fields, its source spans, its source document, and its review or validation status when available. This is needed because a search result is only a summary and may omit important values or qualifications.
 
-#### Get document context
+#### 9.1.4 Get document context
 
 Pi provides a document identifier. ChenWeb returns basic information such as title, filename, date, document type, available summaries, major topics, and processing status. This helps Pi understand what kind of source it is using and whether the document was processed successfully.
 
-#### Find related knowledge
+#### 9.1.5 Find related knowledge
 
 Pi provides an artifact or document identifier. ChenWeb returns directly connected or strongly related artifacts, with a short explanation of each relationship. This supports questions such as “What product does this metric describe?”, “What provision governs this requirement?”, or “What other documents discuss the same item?”
 

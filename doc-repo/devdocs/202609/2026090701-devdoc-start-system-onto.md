@@ -3,7 +3,21 @@
 **Date:** 2026-09-07 (rev 2026-09-08: renamed `dingbo.bzton.cn` → `https://onto.bzton.cn`,
 added TLS + the `/kratos/` reverse-proxy + the Environment-variables section;
 rev 2026-09-11: added §2.1 Chinese cell-phone sign-in, key-based root access, and the
-`mise build-server-linux` / `deploy-server-china.sh` deploy path)
+`mise build-server-linux` / `deploy-server-china.sh` deploy path;
+rev 2026-09-14: added §8 Doc Service — this box never had it deployed, so the whole
+staging → `kb.inputs` → JetStream ingest pipeline had never fired a single message since
+the streams were created on 2026-07-30/31; also installed `libreoffice-writer` for the
+docx→pdf reroute path;
+rev 2026-09-15: added §9 LLM Account/Profile Import — `.models.toml` is deployed to this
+box but the DB-side account/profile import was never run against its dedicated
+`chenweb-paradedb`, so every LLM usage event logs `(MID-20260708-01)` unresolved-account
+WARNs;
+rev 2026-09-16: added §6.1 — `typst` was never installed on this box, so every doc-review
+PDF render failed non-fatally (`exec: "typst": executable file not found in $PATH`) since
+provisioning; fixed by installing the static-musl v0.14.2 release to `/usr/local/bin/`;
+added §6.2 — `doc-review.local.toml` was also never deployed here (missing from the
+original deploy runbook's rsync list, now fixed there too), silently disabling 6 reviewer
+aspects; fixed by rsyncing it over and restarting `doc-processor`)
 **Scope:** How to start each component of the ChenWeb stack on the China production box
 `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which now serves
 **`https://onto.bzton.cn`**. This is the **operations** counterpart to the build/deploy
@@ -48,6 +62,7 @@ runbooks — it does not cover building or shipping code (see
 | JetStream | `nats-server` | `~/Workspace/bin/nats-server -js` | `:4222` | — |
 | Kratos (auth) | `kratos` | `~/Workspace/Kratos/kratos-linux serve` | `:4433` public, `:4434` admin | `kratos-postgres` |
 | ChenWeb backend | `chenweb` | `~/Workspace/ChenWeb/server-linux serve` | `:8090` | nats, kratos, paradedb |
+| Doc Service | `doc-service` | `~/Workspace/ChenWeb/doc-service-linux -config ./config.toml` | — (staging dir watcher + NATS publisher) | nats, chenweb (schema) |
 | Doc Processor | `doc-processor` | `~/Workspace/ChenWeb/doc-processor-linux` | — (NATS worker) | nats, chenweb (schema) |
 | Converter | `parser-result-converter` | `~/Workspace/ChenWeb/parser-result-converter-linux` | — (NATS worker) | nats, chenweb (schema) |
 | PDF Python | `pdf-parser` | `python/pdf-parser/.venv/bin/python pdf_parser.py` | — (NATS worker) | nats |
@@ -70,10 +85,10 @@ runbooks — it does not cover building or shipping code (see
 
 ```bash
 # Start the whole stack (systemd honours the dependency order via After=/Wants=)
-env LC_ALL=C LANG=C su -c 'systemctl start nats-server kratos chenweb doc-processor parser-result-converter pdf-parser'
+env LC_ALL=C LANG=C su -c 'systemctl start nats-server kratos chenweb doc-service doc-processor parser-result-converter pdf-parser'
 
 # Status of everything
-for s in docker nats-server kratos chenweb doc-processor parser-result-converter pdf-parser nginx; do
+for s in docker nats-server kratos chenweb doc-service doc-processor parser-result-converter pdf-parser nginx; do
   printf '%-26s %s\n' "$s" "$(systemctl is-active "$s")"
 done
 docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'paradedb|kratos-postgres'
@@ -97,10 +112,16 @@ curl -s https://onto.bzton.cn/kratos/health/alive; echo                         
 2. nats-server       (:4222)
 3. kratos            (:4433/:4434)   needs kratos-postgres
 4. chenweb           (:8090)         needs nats + kratos + paradedb; runs goose migrations at startup
-5. doc-processor + parser-result-converter   need nats + chenweb's schema
-6. pdf-parser        needs nats
+5. doc-service + doc-processor + parser-result-converter   need nats + chenweb's schema
+6. pdf-parser        needs nats + doc-service (publishes the kb.pdf.staged event it consumes)
 7. nginx             already running; only `reload` if the vhost changed
 ```
+
+> **doc-service is the pipeline's front door.** It watches `DATA_STAGING_DIR`, writes the
+> `kb.inputs` row, and publishes the `kb.pdf.staged` JetStream event that `pdf-parser`
+> consumes. Every other worker downstream (`pdf-parser` → `parser-result-converter` →
+> `doc-processor`) can be running correctly and still process nothing if `doc-service` isn't
+> — see §8.
 
 On a normal reboot you do **nothing** — every unit is `enabled` and chained. This document
 is for the cases where something was stopped by hand, a single service needs a restart, or
@@ -333,7 +354,9 @@ journalctl -u pdf-parser -n 20 --no-pager      # -> "starting pdf_parser service
 - Relevant `.env` keys: `PDF_PARSER_NAME=mineru`, `MINERU_EXTRA_ARGS=-m ocr -l ch`,
   `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged`, `PDF_PIPELINE_MODE=jetstream`.
 - End-to-end has not been exercised against a real PDF on this box (all streams show 0
-  messages). To test, stage a document through `kb.pdf.staged` and confirm MinerU output.
+  messages as of 2026-09-14) — **root cause: `doc-service`, the only thing that ever
+  publishes to `kb.pdf.staged`, was never deployed here**; see §8. Once it's deployed and a
+  file is dropped in `DATA_STAGING_DIR`, this stream should show its first message ever.
 
 ---
 
@@ -417,6 +440,103 @@ journalctl -u doc-processor -n 30 --no-pager
   `project_semantics`, `extract_metric_definitions`, `extract_test_methods`,
   `extract_product_structure`) that are **not** enabled on this box.
 
+### 6.1 `typst` (doc-review PDF rendering)
+
+**Fixed 2026-09-16 — this binary was never provisioned on the box.** The doc-review
+pipeline (`server/api/doc-reviews/typst_report.go`, `correction_report.go`) shells out to a
+bare `typst compile --root / <in>.typ <out>.pdf` with no config override — it relies
+entirely on `typst` being on `PATH`. Unlike the LibreOffice reroute (§8), no deploy script
+or devdoc ever installed it, so every doc-review PDF render failed non-fatally since this
+box was provisioned, logging:
+```
+WARN typst PDF generation failed error="typst compile (zh): exec: \"typst\": executable file not found in $PATH"
+```
+(cosmetic-ish: the WARN is non-fatal and doc-review otherwise completes, but no PDF/report
+artifact is produced.)
+
+**Fix applied:** installed the static-linked release matching the Mac's dev version
+(`typst 0.14.2`, Nix-provisioned there) to avoid any glibc mismatch against this box's old
+Ubuntu 18.04 (`glibc 2.27`):
+```bash
+# --- on the Mac ---
+curl -sSL -o typst.tar.xz \
+  https://github.com/typst/typst/releases/download/v0.14.2/typst-x86_64-unknown-linux-musl.tar.xz
+tar xJf typst.tar.xz   # -> typst-x86_64-unknown-linux-musl/typst (static-pie, x86_64, stripped)
+scp -P 8822 typst-x86_64-unknown-linux-musl/typst gui@210.5.158.91:~/typst-v0.14.2
+
+# --- on the box, as root ---
+install -o root -g root -m 0755 /home/gui/typst-v0.14.2 /usr/local/bin/typst
+rm -f /home/gui/typst-v0.14.2
+env LC_ALL=C LANG=C su -c 'systemctl restart doc-processor'
+```
+Installed to **`/usr/local/bin/`, not `~/Workspace/bin/`** (unlike `nats`/`goose`) —
+`doc-processor.service` has no `Environment=PATH=...` override, so it only sees systemd's
+default `PATH` (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`); dropping
+the binary into `~/Workspace/bin` would have needed a unit edit, `/usr/local/bin` needs
+none.
+
+CJK rendering ("zh" in the error) was verified separately — the box already has
+`SimSun`/`SimHei` (`/usr/share/fonts/{chinese,win}/...`, left over from the MinerU/OCR
+provisioning) so `typst compile` on Chinese text works with no extra font install.
+
+**Verify:**
+```bash
+typst --version                                          # -> typst 0.14.2 (b33de9de)
+echo '= hi' > /tmp/t.typ && typst compile --root / /tmp/t.typ /tmp/t.pdf && ls -la /tmp/t.pdf
+journalctl -u doc-processor -n 50 --no-pager | grep -i 'typst PDF generation failed'   # should stay empty going forward
+```
+
+**If `typst` needs a version bump later:** re-run the same curl/scp/install steps with the
+new `vX.Y.Z` tag and the same `-musl` asset (keep it static — the `-gnu` asset needs a
+newer glibc than this box has), then restart `doc-processor` (and `chenweb`, if the
+correction-report path in `server/api/doc-reviews/correction_report.go` is ever moved
+off it).
+
+### 6.2 `doc-review.local.toml` (per-aspect reviewer config)
+
+**Fixed 2026-09-16 — this file was never provisioned on the box either.** Found right
+after the §6.1 `typst` fix, on the first real doc-review run that got far enough to try:
+```
+INFO doc-review config file not found; reviewer disabled aspect="grammar_spelling"
+INFO doc-review config file not found; reviewer disabled aspect="tone_voice"
+INFO doc-review config file not found; reviewer disabled aspect="formatting_consistency"
+INFO doc-review config file not found; reviewer disabled aspect="readability"
+INFO doc-review config file not found; reviewer disabled aspect="localization"
+INFO doc-review config file not found; reviewer disabled aspect="logical_flow"
+```
+`GetDocReviewConfig()` (`server/api/doc-reviews/review-config.go`) walks up from
+`doc-processor`'s working directory looking for `doc-review.local.toml`; when it's absent
+it returns `(nil, nil)` — **not an error**, so this is silent at startup and only shows up,
+one `INFO` per aspect, the first time a doc-review actually runs. Despite the `.local.`
+name this is a real, git-tracked repo-root file (ChenWeb commit `616fa90c`), not a
+gitignored machine-specific override — it should have been in the original deploy
+runbook's rsync list (`2026072401-devdoc-deploy-production.md` §2.4) alongside
+`prompts`/`.models.toml`/`docs/doc-templates`, and wasn't. Fixed there too (added to that
+rsync line + a warning note) so this doesn't regress on the next fresh box.
+
+**Fix applied:**
+```bash
+# --- on the Mac ---
+rsync -avz -e "ssh -p 8822" /Users/cding/Workspace/ChenWeb/doc-review.local.toml \
+  gui@210.5.158.91:~/Workspace/ChenWeb/doc-review.local.toml
+
+# --- on the box, as root ---
+systemctl restart doc-processor
+```
+No translation needed — the file only has symbolic `model = "deepseek-flash-chen"` /
+`prompt = "prompt-review-*.md"` refs, both already present on the box (`.models.toml`,
+`prompts/`), verified before restarting.
+
+**Verify:** trigger a real doc-review run and confirm the six aspects above no longer log
+`doc-review config file not found`; a resolved reviewer instead logs its own
+model/prompt-load path (or `reviewer not configured` / `reviewer disabled by doc-review
+config` if explicitly turned off in the TOML — those are legitimate, not the bug).
+
+**If `doc-review.local.toml` is edited later:** it has to be manually re-rsynced and
+`doc-processor` restarted — there's no watch/reload, and (unlike `config.toml`) it isn't
+part of the `deploy-server-china.sh` binary-swap flow at all, since it's data, not a
+binary.
+
 ---
 
 ## 7. ChenWeb Go backend — "Air"
@@ -495,6 +615,183 @@ is in `ChenWeb/deploy/phone-login/`. Older/fuller procedure:
 
 ---
 
+## 8. Doc Service — `ChenWeb/server/cmd/doc-service`
+
+**Added 2026-09-14 — this service did not exist on the box before that date.** It is the
+front door of the whole document pipeline: it watches `DATA_STAGING_DIR`, MD5-dedups the
+file, copies it into `DATA_BACKUP_DIR` and `DATA_HOME_DIR`, inserts/updates the `kb.inputs`
+row, and — for PDFs — publishes a `kb.pdf.staged` JetStream event (subject configurable via
+`PDF_STAGE_EVENT_SUBJECT`). `.doc`/`.docx` files are instead converted to PDF via
+LibreOffice headless (`soffice`) and rerouted into the same PDF pipeline. Runs goose
+migrations on every startup, same as the other Go workers.
+
+Without this running, `pdf-parser` has nothing to consume — see the note in §4 and the
+Startup-order section above. That's the state this box was in from the streams' creation
+(2026-07-30/31) until 2026-09-14: every JetStream stream showed 0 messages, ever.
+
+**Start (systemd):**
+```bash
+env LC_ALL=C LANG=C su -c 'systemctl start doc-service'
+```
+
+**Restart**
+```bash
+env LC_ALL=C LANG=C su -c 'systemctl restart doc-service'
+```
+
+**Start (foreground / debugging):**
+```bash
+cd ~/Workspace/ChenWeb
+set -a; source .env; set +a
+export SHARED_LIB_CONFIG_DIR=/home/gui/Workspace/shared/libconfig.toml
+./doc-service-linux -config ./config.toml
+```
+
+**Check:**
+```bash
+journalctl -u doc-service -n 30 --no-pager
+# -> "docx parse workers started" then "staging thread started"
+~/Workspace/bin/nats --server nats://127.0.0.1:4222 stream info kb-pdf-staged-events
+# drop a test PDF into DATA_STAGING_DIR, then re-check: messages should go 0 -> 1
+soffice --version   # LibreOffice 6.0.7.x — confirms the docx->pdf reroute path works
+```
+
+**systemd unit** (`/etc/systemd/system/doc-service.service`, modeled on `doc-processor.service`):
+```ini
+[Unit]
+Description=ChenWeb doc-service (staging directory ingest -> kb.inputs + JetStream)
+After=network.target docker.service nats-server.service kratos.service
+Wants=docker.service nats-server.service kratos.service
+
+[Service]
+Type=simple
+User=gui
+WorkingDirectory=/home/gui/Workspace/ChenWeb
+Environment=SHARED_LIB_CONFIG_DIR=/home/gui/Workspace/shared/libconfig.toml
+EnvironmentFile=/home/gui/Workspace/ChenWeb/.env
+ExecStart=/home/gui/Workspace/ChenWeb/doc-service-linux -config ./config.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+Install + enable (not yet done on this box as of this writing — do this once the binary is
+in place):
+```bash
+# binary already in ~/Workspace/ChenWeb/doc-service-linux (scp'd from mise build-server-linux)
+env LC_ALL=C LANG=C su -c '
+  systemctl daemon-reload &&
+  systemctl enable doc-service &&
+  systemctl start doc-service
+'
+```
+
+**Notes**
+- Requires three env vars or it exits immediately at startup: `DATA_STAGING_DIR`,
+  `DATA_BACKUP_DIR`, `DATA_HOME_DIR`. All three were already present in this box's `.env`
+  (someone had half-provisioned this before) — only `PDF_STAGE_EVENT_STREAM` was missing.
+- **Gotcha — stream name must match the existing consumer.** `doc-service` defaults to
+  ensuring a JetStream stream named `pdf-stage-events` for the `kb.pdf.staged` subject if
+  `PDF_STAGE_EVENT_STREAM` isn't set. But `pdf-parser` (the Python consumer, §4) already owns
+  that subject under a *differently named* stream, `kb-pdf-staged-events` (created
+  2026-07-31). A NATS subject can only belong to one stream, so on first start
+  `doc-service` would fail to create `pdf-stage-events`, log a warning, and **silently run
+  with JetStream publishing disabled** — it would still ingest into `kb.inputs`, just never
+  hand off to OCR. Fixed by adding `PDF_STAGE_EVENT_STREAM=kb-pdf-staged-events` to `.env`
+  (added 2026-09-14, right after the existing `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged` line;
+  original `.env` backed up alongside it as `.env.bak-pre-doc-service-<timestamp>`).
+- `-config ./config.toml` must be passed explicitly — the binary's own default
+  (`../../../config.toml`) assumes it's run from three directories below
+  `server/cmd/doc-service/`, which is wrong when `WorkingDirectory=~/Workspace/ChenWeb`
+  (unlike `doc-processor`/`parser-result-converter`, which read their config path from an
+  env var instead of a CLI flag).
+- The checked-in `config.toml`'s `[pdf_parser]` section (`staging_dir`, `backup_dir`,
+  `python_bin`, etc.) is **dead** for this binary — current `main.go` reads
+  `DATA_STAGING_DIR`/`DATA_BACKUP_DIR`/`DATA_HOME_DIR` from the environment only. Don't
+  bother editing that TOML section; it isn't wired to anything (`GetPDFParserConfig()` has
+  no callers).
+- `.doc`/`.docx` conversion needs LibreOffice on `PATH` (`soffice`). Installed 2026-09-14:
+  `apt-get install libreoffice-writer` (pulls in `libreoffice-core`; no need for the full
+  `libreoffice` metapackage — Writer + core is enough for headless `--convert-to pdf`).
+  `SOFFICE_PATH` env var overrides the `PATH` lookup if ever needed.
+- `server/cmd/doc-service/USER_MANUAL.md` describes an older two-tier design (Go polls
+  `config.toml [pdf_parser]`, a separate `mise ocr-service-*` Python OCR tier via
+  OpenDataLoader/PaddleOCR) that **no longer matches the code** — the live pipeline is the
+  JetStream one documented here and in §4/§5/§6. The manual predates the MinerU/JetStream
+  rework and needs a rewrite; don't follow its config.toml or mise-task instructions.
+
+---
+
+## 9. LLM Account / Profile Import — usage-linkage backfill
+
+**Added 2026-09-15.** Not a running service — a one-time, per-database admin action that was
+missed when this box was provisioned. Every LLM call (chat and embedding) flows through
+`shared/go/api/llm` → `ChenWeb/server/api/llmusage/sink.go`, which tries to attach each
+`llm_usage_event` row to an `llm_account` / `llm_account_model_profile` record so spend can be
+attributed and reconciled. When no match is found it still writes the usage row (`account_id`/
+`profile_id` left `NULL` — allowed since migration
+`20260705000001_llm_usage_event_nullable_account.sql`) but logs:
+
+```
+WARN (MID-20260708-01) llm usage event account/profile not resolved; event will be logged without account linkage
+```
+
+This is exactly what's showing up in `doc-processor`'s log for the `qwen-embedding-v4`
+profile (`text-embedding-v4` via dashscope) — the embedding call itself succeeds (see the
+`INFO llm-call embed` line right before the WARN); only cost attribution is lost.
+
+**Why it happens here:** `llm_account`/`llm_account_model_profile` rows are never created
+automatically. They only exist once someone calls
+`POST /api/v1/llm/accounts/import-models-toml/apply` (the "Apply" button on the LLM Accounts
+admin page), which reads `.models.toml` and upserts those two tables
+(`server/api/llmimport/models_toml.go`, `server/api/llmadminhandler/handler.go:78`).
+`.models.toml` **is** rsynced to this box on every deploy
+(`2026072401-devdoc-deploy-production.md`, the `rsync -avz ... .models.toml ...` step), but
+nothing in the deploy runbook or in this bring-up doc ever calls the import endpoint. Since
+this box's Postgres (`chenweb-paradedb` / `miner`, §1) is its own dedicated, freshly-migrated
+database — separate from wherever the import was previously run by hand — the two tables here
+start out empty (or missing whichever profile was added most recently). The lookup in
+`resolveAccountProfileIDs` (`llmusage/sink.go`) matches on the exact
+`(provider, base_url, api_key, profile_name-or-model_name)` tuple, so any `.models.toml`
+profile never imported into *this* DB will always miss.
+
+**Impact:** cosmetic only, not fatal — LLM calls keep working. The LLM Admin dashboards
+(`llmreporthandler`: `/llm/reports/daily`, `/llm/summary/today`, `/llm/balances/current`) and
+`llmreconcile` will under-count or miss this box's usage until the import is run.
+
+**Fix (run once — and again any time `.models.toml` changes, e.g. a new model/profile or a
+rotated API key; it is not automatic on deploy or on `chenweb` startup).** Auth on this box is
+Kratos-session-based end to end (`shared/go/authmiddleware/auth.go` — the legacy `session_id`
+cookie path is dead code), so the simplest way is the built-in UI, not curl:
+
+1. Log into `https://onto.bzton.cn` as a sysadmin.
+2. **home3 → System Admin → LLM Accounts** (`web/src/lib/components/home3/llm-accounts-view.svelte`,
+   menu id `sysadmin-llm-accounts`).
+3. Click **Import** (calls the preview endpoint, no writes) to see what it found, then
+   **Apply** (`accounts_imported`/`profiles_imported` counts come back in the response).
+
+If curl is preferred, don't hand-extract the Kratos cookie — while logged in on that page, open
+DevTools → Network, find any XHR to `onto.bzton.cn`, and **Copy as cURL**; swap the URL for:
+```
+POST https://onto.bzton.cn/api/v1/llm/accounts/import-models-toml         # preview, no writes
+POST https://onto.bzton.cn/api/v1/llm/accounts/import-models-toml/apply   # applies it
+```
+(note the `/api/v1/` prefix — `apiGroup := e.Group("/api/v1")` in `routes.go:286`, guarded by
+`authmiddleware.AuthMiddleware`).
+
+**Verify:**
+```bash
+docker exec chenweb-paradedb psql -U admin -d miner -tAc \
+  "select account_name, provider, base_url from llm_account"
+docker exec chenweb-paradedb psql -U admin -d miner -tAc \
+  "select profile_name, model_name from llm_account_model_profile"
+# the WARN should stop appearing for profiles that are now imported:
+journalctl -u doc-processor -f | grep -i 'MID-20260708-01'
+```
+
+---
+
 ## Environment variables (there is no `mise` on this box)
 
 `mise.local.toml` is a **Mac-only** mechanism. On the box, env vars live in plain files that
@@ -539,7 +836,7 @@ values with Mac ones. It is a diff aid, not a deploy artifact.
 ## Restart / logs for one service
 
 ```bash
-env LC_ALL=C LANG=C su -c 'systemctl restart <unit>'        # chenweb | kratos | nats-server | doc-processor | parser-result-converter | pdf-parser
+env LC_ALL=C LANG=C su -c 'systemctl restart <unit>'        # chenweb | kratos | nats-server | doc-service | doc-processor | parser-result-converter | pdf-parser
 systemctl status <unit>
 journalctl -u <unit> -n 100 --no-pager                       # -f to follow; no sudo needed to read
 ```
@@ -548,7 +845,7 @@ Ordered full restart (after changing `.env` / `kratos.env` / `config.local.toml`
 ```bash
 env LC_ALL=C LANG=C su -c '
   systemctl restart nats-server kratos && sleep 3 &&
-  systemctl restart chenweb doc-processor parser-result-converter pdf-parser && sleep 3 &&
+  systemctl restart chenweb doc-service doc-processor parser-result-converter pdf-parser && sleep 3 &&
   nginx -t && systemctl reload nginx
 '
 ```
@@ -580,10 +877,10 @@ the sibling bzton vhosts do (a per-domain PEM+key dropped into the nginx `certs/
 
 ## Reboot behaviour
 
-All of `nats-server`, `kratos`, `chenweb`, `doc-processor`, `parser-result-converter`,
-`pdf-parser`, `nginx`, `docker` are `enabled`; the two Postgres containers are
-`--restart unless-stopped`. A clean reboot brings the entire stack back with no manual
-action. Verify afterwards with the "check everything" block above.
+All of `nats-server`, `kratos`, `chenweb`, `doc-service`, `doc-processor`,
+`parser-result-converter`, `pdf-parser`, `nginx`, `docker` are `enabled`; the two Postgres
+containers are `--restart unless-stopped`. A clean reboot brings the entire stack back with
+no manual action. Verify afterwards with the "check everything" block above.
 
 ## Manual bring-up script
 
