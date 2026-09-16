@@ -69,6 +69,145 @@
   keywords: ["Knowledge Graph", "Knowledge Wiki", Knowledge Base", "Graph Entity", "Graph Relation", "Entity Relation"],
 )
 
+= Knowledge
+
+This section answers the question 'What is `Knowledge`?'
+
+"Knowledge is shared, tenant-wide context that all users and agents
+in a tenant can recall - product documents, internal wikis, policy PDFs,
+Slack threads, Notion pages, CSVs, emails, and any other source content."
+[2 HydrawDB].
+
+This definition is too narrowed. What it says is 'knowedge is a piece of text'.
+
+Knowledge should be more than just a piece of text. It should be a structured object
+that expresses what a knowledge is more accurately, structurally, and uniformly
+so that agents and human users can easily understand and less ambiguious. 
+
+Knowledges are related to each other in many forms.
+
+Knowledges can be in many types, such as:
+- Facts
+- Rules
+- Processes
+- Policies
+- Observations (inferenced)
+- Data
+- Assertion
+- Axions
+- Entities and Relations
+- Events
+- Actions
+- Decisions
+
+Knowledges should be stored in uniform formats. They can be stored in files, in databases
+or in both.
+
+Knowledges can be temporal or static. 
+
+Knowledges have lifecycles. A knowledge may becomes a past knowledge and is no longer true
+now ('China is a developing country' is a past fact. Whether it is still a fact depends
+on the viewers. Some may consider China is still a developing country but some not.).
+Thus knowledge can be biased.
+
+Most knowledges need be supported by ground truth. If we say 'China is a developing country',
+
+Knowledges are closely related to memories. But knowledges are different from memories.
+
+There are common knowledges and proprietory knowledges. Common knowledges are the ones 
+that can be found in the Internet or can be publically accessed. The knowledges most LLMs
+have are common knowledges.
+
+Proprietary knowledges are specific to individuals, companies, organizations, etc.
+They are not freely accessible. Proprietary knowledges may be aligned with public 
+knowledges, or different, even contradictory to public knowledges.
+
+Knowledges are normally immutable. When knowledges change, we should normally generate
+new version of the knowledge instead of modifying it. But knowledges can be modified (normally
+corrected).
+
+"Obama is the president of the United States" is not a true statement now (as of 2026).
+It is still a knowledge, but a past fact. "Trump is the president of the United States" is
+a true statement as of 2026/09/16. Both knowledges are about the president of the United 
+States. In this sense, there should be `logical slugs and physical slugs` about knowledges.
+`president-of-united-states` is a logical slug. `45th-president-of-united-states` is an
+instance of `president-of-united-states`. In this sense, knowledge slugs should be hierarchical:
+```text
+president-of-country
+  => president-of-united-states
+     => first-president-of-united-states
+     => second-president-of-united-states
+     => 47th-president-of-united-states
+```
+
+Knowledges must be fully searchable in multiple forms:
+- Discovery by file systems
+- Semantic searchable
+- BM25 searchable
+- SQL searchable
+- 'grep' capable
+
+Knowledges are artifacts, which means they are not raw text. When a content is entered
+to the system, the system applies various doc processing logic to convert or transform
+raw content into a structural, canonical, expressive knowledge objects.
+
+Knowledges must be friendly for both human users and agents. PDFs are friendly to human
+users but not to agents. Database tables are friendly to agents but not necessarily
+to human users.
+
+In order to be friend to both human users and agents, knowledges may need to be visualized.
+Knowledge visualization can be an art, but it must also be an engineering practice.
+The system must define uniform knowledge visualization methods, called `Knowledge Visualizers`.
+
+Knowledges may be related to actions, which means that when some knowledges occur, they
+may need to trigger actions. For instance, when the system memory reaches a threshold,
+it should trigger an action to reduce the use of memory. When an incident happens,
+it may trigger an action to handle the incident.
+
+Knowledges are closely related to decisions or `Decision System`. Knowledges + Decisions 
+is often viewed as `Intelligence`.
+
+Knowledges may have the following properties:
+- id
+- tenant-id
+- sub-tenant-id
+- title
+- type
+- description (or summary)
+- source (url, file name, slug)
+- timestamps
+- kind
+- provider
+- external id
+- content
+- metadata
+- additional metadata
+- attachments
+- relations
+- status
+
+Knowledges are closely related to experiences. Human beings can learn and learn every
+day from experiences. The more a person does something, the more knowledgable about
+the something. This is a major deficiency for LLMs: never learns from doing.
+
+== Knowledges and LLMs
+
+One of the LLM problems is that there is no clear separation between knowledges and
+intelligence. Knowledges are accumulative, so is intelligence. But they accumulate
+along different paths. If knowledges can be separated from intelligence, there shall
+be no 'catastrophy forget'. When an LLM lacks a specific knowledge, it should be
+straight to simply teach it, just like: 
+```text
+from now on, remember, Nike is no longer in the Fortune 100 index.
+```
+
+No matter whether the LLM can 'remember' or learn the knowledge, there is no way
+to affect its existing knowledge, thus there is no catastrophy forgetting. The leaning
+becomes much easier and more efficient. This is exactly what human beings do.
+The way how LLMs store, remember and recall knowledge is definitely incorrect.
+It may be the best solution we can get as of now, but this is definitely not the
+answer to knowledges and intelligence.
+
 = Knowledge Wiki
 
 Knowledge Wiki (K-Wiki) is closely related to knowledge graphs. Before we introduce knowledge wiki,
@@ -118,8 +257,7 @@ SemOS supports the following types of artifacts:
   [Source], [Target], [Mechanism],
   [Document], [chunks], [sharing lines],
   [chunks], [basic artifacts], [sharing lines],
-  [Document and semantic projections
-  [Chunks and summaries, semantic projections
+  [Document and semantic projections], [Chunks and summaries], [semantic projections]
 )
 
 == Indexing
@@ -615,3 +753,5 @@ Its structure is:
 [1] Open Knowledge Format
 https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md
 
+[2] HydraDB,
+https://docs.hydradb.com/essentials/knowledge
