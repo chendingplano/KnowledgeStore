@@ -2,13 +2,13 @@
 title: Product Metric Reviewer — User Manual
 language: en
 format: markdown
-version: 1.3
+version: 1.4
 status: current
 author: Not specified
 owner: Not specified
 audience: Compliance and quality engineers, product engineers, knowledge-base operators, and reviewers who need to find every metric that applies to a product
 create-time: 2026-09-12T06:47:28-05:00
-last-modify-time: 2026-09-13T09:15:00-05:00
+last-modify-time: 2026-09-16T19:00:00-05:00
 keywords: Product Metric Reviewer, PMR, product metrics, metric coverage, scope profile, scope tree, part hierarchy, lifecycle aspects, coverage gaps, coverage report, metric retrieval, compliance review, standards review, evidence drawer, run diff, re-run, knowledge base, start a review, self-service, Applications menu, duplicate product, view results, past reviews, review history, card list, product drawing, 3D drawing, generate drawing, resizable panels, results layout
 ---
 
@@ -144,9 +144,15 @@ notes carry into the new run the same way manually entered notes would. If you c
 dropped and the button reverts to **Start** — editing the name always means "review a different
 product," never "re-run this one under a new label."
 
-The Past reviews list shows only the most recently updated profiles (see [Section
-11](#11-current-implementation-boundaries)); it isn't a search box, so a product you haven't
-touched in a long time may not appear in it even though its profile still exists.
+Use the controls above the cards to sort by time, product name, or metric count, in ascending or
+descending order. **Filter by keywords** lists every keyword currently used by your product
+profiles; selecting multiple keywords shows products that contain *any* selected keyword. **Filter
+by name** performs a case-insensitive substring search across the product names. Filters update the
+list as you change them, and you can remove selected keyword chips individually.
+
+The Past reviews list has no pagination and shows a bounded number of profiles after applying the
+selected sort and filters. A product you reviewed a long time ago may still fall out of the
+bounded result set even though its profile and past runs are unaffected.
 
 ### If the product has already been reviewed
 
@@ -333,10 +339,10 @@ results with the same tiers.
   "re-run" when the product name you enter matches an existing profile exactly (after trimming
   spaces and ignoring letter case) — not when it's merely similar. "Ventilator" and "Ventilator
   Model X" are treated as different products and each gets its own profile.
-- **The Past reviews list isn't searchable and has no pagination.** It shows a bounded number of
-  the most recently updated profiles only. A product you reviewed a long time ago, without
-  touching it since, may fall out of the list even though its profile and past runs are unaffected
-  and still reachable by re-entering its exact name (Section 4) or by a direct run link.
+- **The Past reviews list has no pagination.** It shows a bounded number of profiles after applying
+  the selected sort and filters. A product you reviewed a long time ago may fall out of the list
+  even though its profile and past runs are unaffected and still reachable by re-entering its exact
+  name (Section 4) or by a direct run link.
 - **Re-running from a selected card doesn't save edited description/keywords.** Editing those
   fields before selecting Re-Run changes what's shown on screen but is not written back to the
   stored profile — only edited **notes** carry into the new run. To change a profile's stored
@@ -378,6 +384,7 @@ results with the same tiers.
 
 | Version | Timestamp | Responsible party | Reason | Summary |
 |---|---|---|---|---|
+| 1.4 | 2026-09-16T19:00:00-05:00 | Not specified | Past-reviews sorting and filtering shipped | Documented the Past reviews sort controls, tenant keyword picker with OR matching, case-insensitive name filtering, live updates, and the bounded filtered result set. |
 | 1.3 | 2026-09-13T09:15:00-05:00 | Not specified | Product drawing and resizable results layout shipped | Documented the new product-drawing area at the top of the Results tab (Section 6): generating, keeping, discarding, and regenerating a drawing, and that it's a 2D illustration rather than a 3D model. Documented that the scope-tree, results, and metric-details panels are now independently resizable and that the Results tab uses the full window width (Section 6), and that the dashboard's generic "App Status" side panel no longer appears on this page (Section 11). Added three implementation-boundary bullets to Section 11 and four rows to Section 12's troubleshooting table. |
 | 1.2 | 2026-09-13T07:55:00-05:00 | Not specified | Past-reviews list shipped | Documented the new "Past reviews" card list on the intake page (Section 4): browsing previously reviewed products, selecting a card to prefill the form and relabel the action **Re-Run**, editing the product name to drop the selection, and that edited description/keywords aren't saved back through this path (only notes are). Added two new implementation boundaries to Section 11 (no search/pagination on the list; edited description/keywords not persisted via Re-Run) and three rows to Section 12's troubleshooting table. |
 | 1.1 | 2026-09-12T08:10:00-05:00 | Not specified | Self-service intake shipped | Documented the new in-page "start a review" flow reachable from Applications → Product Review (product name, description, keywords, notes, and a Start action); documented the duplicate-detection choice ("view results" or "re-run") offered when a product name matches an existing profile; updated Section 2 to remove the operator hand-off requirement, rewrote Section 4 to cover starting a new review and opening a specific run directly, removed the two now-resolved implementation boundaries from Section 11, and updated Section 12's troubleshooting table accordingly. |
