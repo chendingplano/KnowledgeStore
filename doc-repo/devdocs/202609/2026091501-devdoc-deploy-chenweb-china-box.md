@@ -1,6 +1,9 @@
 # Deploying ChenWeb and Kratos Binaries to the China Box
 
-**Date:** 2026-09-15
+**Date:** 2026-09-15 (rev 2026-09-16: `mise run build-server-linux` and
+`deploy-server-china.sh` now ship and install `doc-review.local.toml` and
+`product-review.local.toml` automatically, §1/§3 — both had been silently missing from
+this workflow, `product-review.local.toml` was never deployed at all)
 **Scope:** The three-step workflow for shipping a new ChenWeb build to the China
 production box `210.5.158.91` (`rssvr19`, `https://onto.bzton.cn`): build on the Mac,
 copy to the box by hand, deploy on the box. This is the **build/ship** runbook — for
@@ -54,8 +57,32 @@ What the task does (`ChenWeb/mise.toml`, `[tasks.build-server-linux]`):
 - Copies `ChenWeb/scripts/deploy-server-china.sh` into the output directory too, so the
   whole `/tmp/chenweb-deploy/` folder is self-contained — build output and the script
   that installs it travel together.
+- Copies `project_migrations/` and `shared_migrations/` into the output directory.
+  **This is not optional and is not per-binary** — it ships on every build regardless of
+  `BINS`. `config.RunMigrations` reads migration files from **disk** at each binary's
+  startup (`sharedgoose.RunProjectMigrations` → `os.DirFS` on `PROJECT_MIGRATION_DIR`),
+  *not* from a `go:embed` FS, so a binaries-only payload leaves the box's migration
+  directory frozen wherever the last copy left it: goose dutifully applies everything it
+  can see, records a correct-looking max version, and the newer tables simply never get
+  created. That failure is silent until something queries a missing table
+  (`pq: relation "kb.data_sync_state" does not exist`). Shipping binaries without
+  migrations is what caused exactly that on 2026-09-16, when the box sat 22 migrations
+  behind.
+- Copies the two `*.local.toml` reviewer configs — `doc-review.local.toml` and
+  `product-review.local.toml` — into the output directory (added 2026-09-16, same day
+  both were separately discovered missing on `onto.bzton.cn`). **Also not optional and
+  not per-binary**, same reasoning as migrations: despite the `.local.` name these are
+  real, git-tracked repo-root files (unlike gitignored `mise.local.toml`/
+  `config.local.toml`), read from disk on demand — `doc-reviews.GetDocReviewConfig()`
+  and `productreviews.GetConfig()` — not `go:embed`'d, so a binaries-only payload leaves
+  them invisible to the box just like `prompts/` (see the Gotcha below). A missing
+  `doc-review.local.toml` silently disables 6 reviewer aspects (non-fatal); a missing
+  `product-review.local.toml` fails **every** Product Review build request outright
+  (`newBuilder()` treats a `nil` config as fatal). Warns to stderr and skips a file that
+  isn't present at the repo root rather than failing the build.
 - Writes a `MANIFEST` (git rev, short rev, dirty flag, build timestamp, build host,
-  which binaries were built) — check this on the box if you ever need to confirm what's
+  which binaries were built, the migration file counts shipped, and which reviewer
+  configs were staged) — check this on the box if you ever need to confirm what's
   actually running (`cat ~/Workspace/ChenWeb/MANIFEST` isn't kept on the box itself; the
   manifest lives only in the `/tmp/chenweb-deploy` you shipped — copy it over too, or
   note the git rev before you `rm` the local `/tmp` copy).
@@ -70,6 +97,10 @@ Output:
   doc-service-linux, doc-service-linux.sha256
   create-admin-linux, create-admin-linux.sha256
   deploy-server-china.sh
+  project_migrations/          <- all *.sql, shipped on every build
+  shared_migrations/           <- all *.sql, shipped on every build
+  doc-review.local.toml        <- shipped on every build, skipped+warned if absent
+  product-review.local.toml    <- shipped on every build, skipped+warned if absent
   MANIFEST
 ```
 
@@ -125,6 +156,37 @@ restricting the deploy to specific binaries (same valid names as `BINS` above �
 `... deploy-server-china.sh ~/chenweb-deploy server`). Omit the name list to deploy
 every `*-linux` binary found in `<dir>`.
 
+**What the script does first — migrations** (before it touches any binary, because
+every unit runs goose at startup and reads these directories from disk):
+
+- Skips with a note if the payload has no `project_migrations/` (i.e. it was built before
+  migration shipping existed) — so an old payload degrades to the previous behaviour
+  rather than erroring.
+- Prints the migration files that are **new to the box** and will be applied at the next
+  service start. Read this list before continuing; it is the only preview you get.
+- Copies them in with `rsync -a` (**additive — never `--delete`**, so a migration the box
+  has already applied is never pulled out from under goose's `project_db_migration`
+  tracking table), then `chown -R gui:gui`.
+- **Migrations are not rolled back** by the per-binary auto-rollback below. Goose down-
+  migrations are never run here, so a binary that rolls back still leaves the new schema
+  in place. Set `SKIP_MIGRATIONS=1` to deploy binaries only.
+
+**Next — reviewer configs** (also before any binary swap, though timing matters less
+here than for migrations since both configs are read on demand, not at startup):
+
+- For each of `doc-review.local.toml` / `product-review.local.toml` present in the
+  payload: installs it verbatim to `$CHENWEB_DIR/<name>` (`install -m 0644 -o "$RUN_USER"
+  -g "$RUN_USER"`), or reports "already current" if a byte-identical copy is already
+  there. No per-box translation — both files only carry symbolic `model`/`prompt` refs.
+  A file **absent from the payload** (an old build predating this change) is skipped
+  with a note, not an error — same fail-open posture as the migrations block above.
+- Always runs regardless of which binary names are passed on the command line, same as
+  migrations — cheap enough not to gate on `[ name = server ]` even though only
+  `chenweb` reads `product-review.local.toml` and only `doc-processor` reads
+  `doc-review.local.toml` in practice.
+- Not covered by `SKIP_MIGRATIONS` — there's no equivalent skip flag for configs; they're
+  small, idempotent, git-tracked files with no down-migration-style concern.
+
 **What the script does, per binary** (`ChenWeb/scripts/deploy-server-china.sh`):
 
 1. Verifies the `.sha256` checksum and that the file is an ELF 64-bit x86-64 binary —
@@ -156,6 +218,7 @@ every `*-linux` binary found in `<dir>`.
 | `RUN_USER` | `gui` | owner of the installed binaries |
 | `PORT` | `8090` | port used for the `chenweb` HTTP health check |
 | `KEEP_BAKS` | `3` | number of `.bak-<timestamp>` copies retained per binary |
+| `SKIP_MIGRATIONS` | `0` | set to `1` to leave migration files untouched and deploy binaries only |
 | `DRY_RUN` | `0` | set to `1` to print every privileged action instead of running it (also skips the root check, so it can be previewed as `gui`) |
 
 Preview a deploy without touching the box:
@@ -178,6 +241,10 @@ goes with a given feature is tracked separately (e.g. `ChenWeb/deploy/phone-logi
 the phone-login rollout).
 
 **Gotcha — `prompts/` is not part of the binary and not shipped by this workflow.**
+(The sibling `*.local.toml` reviewer configs were the same story until 2026-09-16 — both
+`mise run build-server-linux` and `deploy-server-china.sh` now ship and install them
+automatically, see §1/§3 above. `prompts/` itself is still **not** automated — it stays a
+manual tar/scp, below.)
 Hit 2026-09-16: a `server-linux` deploy panicked on startup —
 `initialize Pi profiles: load profile "knowledge-guide": read prompt
 ".../prompts/prompt-agent-knowledge-guide-v1.md": no such file or directory` — because

@@ -568,10 +568,12 @@ These two `server/cmd/*` binaries are NATS consumers, not HTTP servers — `doc-
 
 ```bash
 cd ~/Workspace/ChenWeb
-rsync -avz -e "ssh -p 8822" prompts .models.toml docs/doc-templates doc-review.local.toml cding@<host>:~/Workspace/ChenWeb/
+rsync -avz -e "ssh -p 8822" prompts .models.toml docs/doc-templates doc-review.local.toml product-review.local.toml cding@<host>:~/Workspace/ChenWeb/
 ```
 
 **Don't skip `doc-review.local.toml`** — despite the `.local.` name it's a real, git-tracked repo-root config file (like `config.toml`, unlike gitignored `mise.local.toml`/`config.local.toml`), and `docreviews.GetDocReviewConfig()` (`server/api/doc-reviews/review-config.go`) treats an absent file as "no reviewers configured" rather than an error — it fails **silent and non-fatal** (`INFO doc-review config file not found; reviewer disabled` per aspect), so a missed copy here has no startup symptom at all, only quietly-disabled `grammar_spelling`/`tone_voice`/`formatting_consistency`/`readability`/`localization`/`logical_flow` reviewers once a doc-review actually runs. Hit and fixed on `onto.bzton.cn` 2026-09-16 (`2026090701-devdoc-start-system-onto.md` §6.2) — the box never had it deployed. Symbolic `model`/`prompt` refs inside it need no translation; it copies verbatim.
+
+**Don't skip `product-review.local.toml` either** — same `.local.` naming, same git-tracked repo-root status, added by the `product-metric-reviewer` change (2026-09-09), after this rsync line was last touched, which is why it was missing here too. Unlike `doc-review.local.toml`'s tolerant loader, `productreviews.GetConfig()` (`server/api/product-reviews/config.go`) also returns `(nil, nil)` on a missing file, but `newBuilder()` (`server/api/product-reviews/handler.go`) treats a `nil` config as fatal — `errors.New("product-review.local.toml not found")` — so a missed copy here fails **every** Product Review build request immediately (looks like "it started but finished instantly"), not a quiet per-aspect degradation. Hit on `onto.bzton.cn` 2026-09-16, the feature's first real run on that box; the config file itself needs no translation (same symbolic `model`/`prompt` refs).
 
 and creating the directories referenced by `DATA_REVIEW_REPORTS`/`STAGING_DIR`/etc. under `~/Workspace/ChenWeb/Data/`.
 
