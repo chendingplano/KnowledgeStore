@@ -17,7 +17,14 @@ PDF render failed non-fatally (`exec: "typst": executable file not found in $PAT
 provisioning; fixed by installing the static-musl v0.14.2 release to `/usr/local/bin/`;
 added §6.2 — `doc-review.local.toml` was also never deployed here (missing from the
 original deploy runbook's rsync list, now fixed there too), silently disabling 6 reviewer
-aspects; fixed by rsyncing it over and restarting `doc-processor`)
+aspects; fixed by rsyncing it over and restarting `doc-processor`;
+added §10 Product Drawings — `IMAGE_GEN_API_KEY`/`IMAGE_GEN_BASE_URL`/`IMAGE_GEN_MODEL`
+were never provisioned on this box (Qwen image generation on the Product Review /
+Product Drawings pages fails with a generic "image generation failed"; still open,
+needs a key decision) and `PRODUCT_DRAWINGS_DIR` was likewise never set, so the "Keep"
+step silently no-op'd — fixed by adding `PRODUCT_DRAWINGS_DIR` and restarting `chenweb`;
+also fixed the underlying silent-failure bug in source (ChenWeb jj commit `9d34`, not yet
+deployed to this box's binary))
 **Scope:** How to start each component of the ChenWeb stack on the China production box
 `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which now serves
 **`https://onto.bzton.cn`**. This is the **operations** counterpart to the build/deploy
@@ -788,6 +795,63 @@ docker exec chenweb-paradedb psql -U admin -d miner -tAc \
   "select profile_name, model_name from llm_account_model_profile"
 # the WARN should stop appearing for profiles that are now imported:
 journalctl -u doc-processor -f | grep -i 'MID-20260708-01'
+```
+
+---
+
+## 10. Product Drawings (image generation) — env gaps + a silent "Keep" failure
+
+**Added 2026-09-16.** Not a service — a feature inside `chenweb` itself
+(`server/api/productdrawings/`) that renders an exploded-view product image for a
+Product Review, via two model options in the UI ("Qwen · Aliyun" or "OpenAI · ChatGPT
+Image 2.5"): the System Admin "Product Drawings" generator page, and the auto-drawing
+step in Product Review intake (`server/api/product-reviews/intake.go`). Both paths share
+one config function, `defaultConfig()` in `productdrawings/handler.go`.
+
+**Gap 1 — `IMAGE_GEN_API_KEY` / `IMAGE_GEN_BASE_URL` / `IMAGE_GEN_MODEL` never
+provisioned on this box (still open).** These are a *separate* DashScope/Aliyun key from
+`DASHSCOPE_API_KEY` (§9, used for LLM/embedding calls) — the image-generation key has no
+env fallback (`os.Getenv("IMAGE_GEN_API_KEY")`, empty if unset), so picking "Qwen ·
+Aliyun" fails immediately with the generic `"image generation failed"`. The "OpenAI"
+option works on this box because its key falls back to the already-present
+`OPENAI_API_KEY` (`envOr("OPENAI_IMAGE_GEN_API_KEY", os.Getenv("OPENAI_API_KEY"))`) — only
+Qwen is broken. **Needs a decision** (reuse the Mac's DashScope image-gen key, or
+provision a dedicated prod key) before fixing; not fixed as of this revision.
+
+**Gap 2 — `PRODUCT_DRAWINGS_DIR` never set, so "Keep" silently no-op'd (fixed
+2026-09-16).** `defaultConfig()`'s default for this — used only when the env var is
+unset — is a Mac-only absolute path,
+`/Users/cding/Workspace/KnowledgeStore/doc-repo/resources/product-drawings`. On this box
+`/Users` doesn't exist and `KnowledgeStore` was never cloned here either; `gui` has no
+write permission at `/` to create it. So clicking **Keep** on a previewed drawing (which
+calls `KeepPending`, writing into that dir) failed on `os.MkdirAll` with a permission
+error. This was invisible end-to-end: `KeepPending` had **no logging on any failure
+path**, and the frontend's pending-drawing panel
+(`product-metric-review-view.svelte`) never rendered `drawingError` — only the
+drawing-*generator* panel did. Net effect: clicking Keep just looked like nothing
+happened, both in the browser and in `journalctl`.
+
+**Fix applied:**
+```bash
+# --- on the box, backed up first as .env.bak-pre-product-drawings-dir-<timestamp> ---
+# inserted after DATA_BACKUP_DIR in ~/Workspace/ChenWeb/.env:
+PRODUCT_DRAWINGS_DIR=/home/gui/Workspace/ChenWeb/Data/ProductDrawings
+
+# --- as root ---
+systemctl restart chenweb
+```
+Also fixed the underlying silent-failure bug in source (ChenWeb jj commit `9d34`):
+`KeepPending` now logs (`CWB_DRAW_003`) on every failure branch, and the pending-drawing
+panel now renders `drawingError` like the generator panel does. **This code fix is not
+yet on this box** — it needs the normal `mise build-server-linux` +
+`deploy-server-china.sh` binary swap (§7) to reach it; the `.env` fix above is live
+independently of that and should already make "Keep" work for new drawings.
+
+**Verify:**
+```bash
+grep -n PRODUCT_DRAWINGS_DIR ~/Workspace/ChenWeb/.env
+ls -la ~/Workspace/ChenWeb/Data/ProductDrawings   # populated after the next successful Keep
+journalctl -u chenweb -n 50 --no-pager | grep -i 'drawing'
 ```
 
 ---
