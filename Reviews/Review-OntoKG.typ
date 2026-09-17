@@ -42,6 +42,10 @@
   DocTime: "2026/04/28"
 )
 
+#let onto_kg_review() = {
+  "Ref: Reviews/Review-OntoKG.typ"
+}
+
 = Overview
 The paper *OntoKG: Ontology-Oriented Knowledge Graph Construction with Intrinsic-Relational Routing* proposes a new framework for
 building knowledge graphs (KGs) that is explicitly guided by ontologies rather than relying purely on data-driven extraction. 

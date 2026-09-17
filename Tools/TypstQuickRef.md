@@ -96,3 +96,29 @@ Refer to @fig:square.
 
 Inserts the entire contents of 'section2.typ' at that location. Equivalent to copy-paste at compile time
 You can use '#include' to split a large document into multiple files.
+
+## References
+- Make sure the refereces are in 'KnowledgeStore/references/references.bib'
+- At the end of the file that needs the bib, add a line: `#bibliography("../references/references.bib").
+  Note that the relative path is file location dependent. Make sure it is correct
+- Use `@<label>` to reference, such as `@context-engineering`.
+
+## Direct Link
+Skill creation
+  #link("https://dzone.com/articles/understanding-context-engineering")[Context Engineering]
+
+## Reference to a File
+Assume File F1 needs to reference File F2:
+- in F2: add:
+```text
+#let reference_f2() = [
+  "Ref: File F2"
+]
+```
+- In F1:
+```text
+#import "file-path/filename.typ": reference_f2
+...
+#reference_f2()
+...
+```
