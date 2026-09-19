@@ -99,7 +99,9 @@ The data-sync-relevant migrations, in order: `20260915000002_add_kb_set_update_t
 (the reusable `kb.set_update_time()` trigger function),
 `20260915000003_create_kb_data_sync_state.sql` (per-item cursor/run state),
 `20260917000001_create_kb_data_sync_items.sql` (runtime-created item definitions),
-`20260917000002_add_update_time_to_kb_videos.sql` (makes `kb.videos` syncable — see §6).
+`20260917000002_add_update_time_to_kb_videos.sql` (makes `kb.videos` syncable — see §6),
+and `20260918000001_add_uid_to_kb_page_tables.sql` (adds portable UUID natural keys
+to `kb.page_def` and `kb.page_config`).
 
 ### 1.2 Port-forward and TLS on the Mac's home router
 

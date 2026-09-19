@@ -65,34 +65,33 @@
   file_type: "Typst",
   content_type: "Research",
   doc_time: "2026/05/18",
-  keywords: ["Coding Assistant", "Harness"],
+  keywords: ["Coding Assistant", "Harness", "SemOS"],
 )
 
-= Architecture
+= Design Principles
 
-== Design Principles
-
-It is a trend that AI systems tend to use files instead of databases. Databases provide very important and useful data
-management fucntions and features, such as ACID, indices, scalability, reliability, etc. These are important not only to
-legacy apps but to agents, too. But why many AI systems (LLMs, Agents) prefers file systems instead of databases?
+It is a trend that AI systems tend to use files instead of databases. Databases provide very important and 
+useful data management fucntions and features, such as ACID, indices, scalability, reliability, etc. 
+These are important not only to legacy apps but to agents, too. But why many AI systems (LLMs, Agents) 
+prefers file systems instead of databases?
 
 The short answer: *agents don’t inherently prefer files over databases* — they default to files because files match how LLMs
 *think, access context, and operate in simple environments*. Databases still matter a lot, but they solve a
 *different layer* of the problem.
 
-=== Principle 01: A Data Store for Both Human Users and Computers
+== Principle 01: A Data Store for Both Human Users and Computers
 Most conventional systems, such as databases, applications, data structures (JSON, XML, etc.),
 HTML (web pages), PDF, Word, Excel, etc., are designed either for human users or computers.
 Enterprise Data Hub (EDH) provides a data store that is friendly for both human users and
 computers.
 
-=== Principle 02: Memory and Context
+== Principle 02: Memory and Context
 
 Conventional systems mostly do not have the concept of context or memory (`Brain Memory`, not
 computer memory). EDH treats memory and context the same as data. They are just another form
 of data.
 
-=== Principle 03: Semantics
+== Principle 03: Semantics
 
 A database table is a collection of records. There is no `standard` way of specifying 
 the meaning (i.e., semantics) of a table. This may not a big issue for databases because
@@ -112,7 +111,7 @@ EDH provides an array of mechanisms to enrich data stores with semantics, such a
 
 EHD does not enforce any of these, but it supports most of it.
 
-=== Principle 04: `Data IP Address`
+== Principle 04: `Data IP Address`
 
 It is very close to `IP Addresses`:
 - Pure Digit strings (for machines), printed in the dot-notation (for human users)
@@ -121,15 +120,17 @@ It is very close to `IP Addresses`:
 - Compact and efficient
 - Huge Address Space (not suffering from IPv4 problems)
 
-This is called Docids (\@ref-docid).
+This is called Docids (@ref-docid).
 
-=== Principle 05: Multi-Tenant
+== Principle 05: Multi-Tenant
 
-EHD supports multi-tenants. Refer to \@sec-multi-tenant
+EHD supports multi-tenants. Refer to @sec-multi-tenant
 
-== LLMs are `context machines,` not `query engines`
+= Architecture
 
-An LLM fundamentally works like:
+== Context Machine vs Query Engine
+
+LLMs are `context machines` not `query engines`. An LLM fundamentally works like:
 
 ```test
 Give me relevant text → I reason over it → I produce output
@@ -139,7 +140,8 @@ That’s very different from how databases work:
 - Databases: *structured querying (SQL), optimized retrieval*
 - LLMs: *unstructured context ingestion (tokens)*.
 
-Files fit LLMs better because files are directly ingestible context, while databases require translation (query → result → prompt).
+Files fit LLMs better because files are directly ingestible context, while databases require 
+translation (query → result → prompt).
 
 So agents often do:
 
@@ -1388,7 +1390,7 @@ For SemOS, I would distinguish three layers:
 
 The first two can be highly deterministic if the metadata and relations already exist. The third usually requires an LLM, a domain reasoner, formally encoded rules, or some combination of them.
 
-So the strongest reusable idea from Zero-Mem is not that **all memory intelligence becomes deterministic**. It is that the system should reserve expensive semantic interpretation for the places where it is genuinely necessary, rather than using an LLM for routine indexing, traversal, filtering, and provenance preservation.
+So the strongest reusable idea from Zero-Mem is not that *all memory intelligence becomes deterministic*. It is that the system should reserve expensive semantic interpretation for the places where it is genuinely necessary, rather than using an LLM for routine indexing, traversal, filtering, and provenance preservation.
 
 [1]: https://arxiv.org/html/2607.29377v1 "Zero-Mem: Zero-Token Memory Operations for LLM Agents"
 [2]: https://arxiv.org/abs/2607.29377 "[2607.29377] Zero-Mem: Zero-Token Memory Operations for LLM Agents"
@@ -1608,7 +1610,7 @@ But underneath, we can use whatever is strongest for each job:
 *Fake file system outside, serious distributed system inside.*
 
 
-==== Design Goals
+== Design Goals
 
 SemOS should feel like this to users and agents:
 
@@ -1681,9 +1683,9 @@ When receiving a request, it just ask LLMs to classify the request based on all 
 sub-agents, which are also agents). We may present a graph to LLMs. But LLMs always return
 either a valid agent or `not found`, which falls back to the default agent.
 
-=== Design Rules
+== Design Rules
 
-==== Ontology
+=== Ontology
 
 The KB should not ask the LLM to guess a hidden ontology. Instead, it should expose a world
 where the ontology is *legible through structure*.
@@ -1698,7 +1700,7 @@ That means:
 
 This is why files and repos are such good environments for agents.
 
-==== Be Logical
+=== Be Logical
 
 Paths should not expose storage details. They should expose *cognitive organization*.
 
@@ -2214,8 +2216,6 @@ Every chunk should carry:
 - `scope`
 
 This makes retrieval and reconstruction much better.
-
-#include "Section-Retrieval.typ"
 
 == Doc Processors
 === Summaries
@@ -4470,7 +4470,8 @@ This reduces brittle path guessing.
 
 == Retrieval System
 
-This is a Hybrid Retrieval System, combining file-based, vector, keyword, graph, and memory-aware, all under one broker.
+This is a Hybrid Retrieval System, combining file-based, vector, keyword, graph, and 
+memory-aware, all under one broker.
 
 Retrieve results should contain:
 
@@ -4730,7 +4731,7 @@ Mixed question: “How does my SemOS idea compare to Supermemory?”
 
 = References
 
-#bibliography("refs.bib")
+#bibliography("/references/references.bib")
 
 == Memory blocks (core memory) \
 https://docs.letta.com/guides/core-concepts/memory/memory-blocks/?utm_source=chatgpt.com
