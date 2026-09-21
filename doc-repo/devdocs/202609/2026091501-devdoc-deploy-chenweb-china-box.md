@@ -32,6 +32,25 @@ looks at what's about to ship before it lands on prod.
 
 ## 1. Build the binaries (Mac)
 
+### 1.1 Quick Deployment
+Step 1: on the Mac machine:
+```text
+cd ~/Workspace/ChenWeb
+sh shell_server_build_rpc.sh
+```
+It builds the binary and downloads the binary to Runshen 19 (210.5.158.91),
+in the staging directory: '/home/gui/Workspace/ChenWeb/deploy_staging.
+
+Step 2: on Runshen 19
+```text
+su (must be in root)
+cd /home/gui/Workspace/ChenWeb
+sh shell_server_deploy.sh
+exit (the root)
+sh shell_server_restart.sh
+```
+
+### 1.2 Deployment in Details
 From `ChenWeb/`:
 
 ```bash

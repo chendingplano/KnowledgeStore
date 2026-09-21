@@ -13,6 +13,72 @@ reaches a terminal state.
 
 ## Open
 
+- [2026092201 — merged pass returned 0 rows for every chunk and wiped record 416](202609/2026092201-bug-merged-pass-returns-zero-rows-and-wipes-record.md)
+  — `fixed-unverified`. The first `EXTRACT_PRODUCTS_MERGED_PASS=true` run sent Pass 1's
+  `{"mentions":[...]}` schema as its task suffix, overriding the merged prompt's own
+  `{"products":[...]}` schema; the model complied, `payload["products"]` was absent, and
+  all 10 chunks yielded 0 rows. `productExtractionContract` accepts either key, so nothing
+  errored. The force-delete-then-save path then deleted record 416's 1219 rows, inserted
+  0, and recorded `proc_status=success`. Fixed with a `products`-pinning task suffix, a
+  shape guard, and an all-chunks-failed guard; verified by replaying the 10 archived
+  requests (172 rows returned). Still owed: **re-run record 416** (its rows are gone and
+  its search index was cleared); decide whether a zero-row save should ever be allowed to
+  replace a non-empty record, which is not merged-specific.
+
+- [2026092105 — extract_products extracts facilities/works as products, and mines product names out of normative-reference titles](202609/2026092105-bug-extract-products-extracts-facilities-and-mines-citation-titles-as-products.md)
+  — `fixed-unverified`. Two precision defects in Pass 1, the pipeline's only producthood
+  gate: (a) no exclusion for places/facilities/construction works, so 垃圾转运站,
+  生活垃圾焚烧厂, 垃圾分类投放点, 环境卫生设施 etc. became products — 128 of record 416's
+  1219 rows, all typed `system`; (b) product names mined out of 规范性引用文件 citation
+  titles (28 rows), with Pass 2 fabricating a `requirement_text` to justify them.
+  Pass 2's prompt explicitly forbade re-deciding producthood, making both unrecoverable.
+  Fixed at the prompt layer (`prompt-extract-product-mentions-v2.md` +
+  `prompt-enrich-product-mention-v4.md` narrow veto); A/B on record 416 gives
+  facility mentions 13 → 0 with distinct mentions up 140 → 154. Still owed: the user's
+  re-run of record 416 and post-run confirmation that `prompt_name` reads v4 (a stale
+  `mise.local.toml` pin silently overrode the Go default before — the 2026-09-20 run used
+  v2 while the default was v3); commit in both repos; decide on the 34 facility-shaped
+  `proposed` rows already in `kb.product_names`; size historical blast radius.
+
+- [2026092103 — extract_products Pass 2 prompt generated two fully-discarded output blocks per row, and had drifted from a dead single-pass prompt file](202609/2026092103-bug-extract-products-pass2-wasted-output-tokens-and-prompt-drift.md)
+  — `fixed-unverified` for the confirmed part. On record 416 (12 pages), `extract_metrics` +
+  `extract_products` totaled 3,310,666 output tokens (~¥14), attributed mainly to
+  `extract_products` — by candidate 26 of Pass 2 alone, 1011 rows had already been produced
+  (~39 rows/candidate). Root cause: the live Pass 2 prompt (`prompt-enrich-product-mention-v2.md`)
+  asked for `discriminators`/`discriminators_en` (never read by any Go code) and every `_en`
+  field (unconditionally overwritten by Pass 3a for every row) — both pure waste, same defect
+  class as the `category_paths` leak already fixed 2026-09-12. Along the way, found and the
+  user deleted an unrelated dead prompt file (`prompt-extract-products-v1.md`, a pre-refactor
+  leftover never wired into the pipeline) that had caused the original "isn't Pass 2 redundant
+  with Pass 1" confusion. Fixed in the working tree: new `prompt-enrich-product-mention-v3.md`
+  (default, drops both wasted blocks, documents the per-call `Candidate:` append, adds a
+  `related_products` scoping rule and an anti-padding instruction), `output_tokens` added to
+  Pass 2's per-candidate log line, spec updated. `go build`/`go test` clean. Still owed: commit
+  (both `ChenWeb` and `KnowledgeStore`), a live re-run on record 416 to confirm actual token
+  savings, a decision on the other orphaned prompt file
+  (`prompt-enrich-product-relations-v1.md`), and root-causing whether the row-count explosion
+  itself (independent of the wasted fields) is expected recall or a separate over-generation
+  defect.
+
+- [2026092101 — `llm_usage_event` logged with null `user_id`/`record_id`/`run_id` for two independent doc-processing call paths](202609/2026092101-bug-llm-usage-event-missing-attribution-user-record-run-id.md)
+  — `open`. Bug 1: every JSON-extraction LLM call (23 call sites via `newLLMJSONInput`) had
+  `user_id` NULL for the table's entire history — doc-processing never had a context-carrying
+  mechanism for it, only for `record_id`/`run_id`. Bug 2, structurally separate: every
+  embedding call (`embed_metric`, `embed_product`, `embed_topic`, `embed_summary`, query
+  embedding, inventory-category embedding) had `user_id`, `record_id` **and** `run_id` all
+  NULL — the shared library's `EmbedInput`/`EmbedBatchInput` didn't even have `RecordID`/
+  `RunID` fields, and none of the 6 call sites read `ctx` at all. Both root-caused and fixed
+  in the working tree this session (design: event generators supply `user_id`, doc-processing
+  only extracts it, generators alarm on a missing one; embedding calls now read attribution
+  from `ctx` the same way extraction calls do). `go build`/`go test` clean for every touched
+  package in both `shared/go` and `ChenWeb`. Still owed: commit (currently uncommitted in both
+  repos), `go work sync` + rebuild against the published shared-lib version, and live
+  verification against a real rerun — nothing was confirmed beyond mocked-DB unit tests. No
+  backfill of existing null rows, per explicit instruction. `doc-reviews` has the identical
+  Bug-1-shaped gap, deliberately not fixed here (out of scope); the fully-automated
+  file-converter trigger path still has no `user_id` source at all, caught only by the
+  generic insert-time alarm, not a generation-time one.
+
 - [2026091301 — product-metric-reviewer task 6.1 e2e: two crash/gap bugs (fixed) and a retrieval-precision defect (open, deeper than a threshold)](202609/2026091301-bug-product-metric-reviewer-e2e-crash-curation-gap-and-retrieval-precision.md)
   — `open`. Two of three findings fixed-verified same day: (1) `docscope.go` pathC's
   `COALESCE(value, '')` against a `jsonb` column crashed every review run outright

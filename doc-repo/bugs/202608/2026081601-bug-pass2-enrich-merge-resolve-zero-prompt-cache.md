@@ -162,7 +162,12 @@ Consequences: ~2 900 chars re-sent per call for nothing, and because the candida
 the shared constant prefix is truncated at **1 584 chars → 384 tokens**, which is exactly the
 384/448/640 partial hits seen in `llm_usage_event` for this call_reason.
 
-**RC-5 — thinking is never actually disabled.** `forceDisableThinking` (`extract-metrics.go:906-917`)
+**RC-5 — thinking is never actually disabled.** *(FIXED 2026-09-22: `extractTextWithFormat`
+now sends the `thinking` field for any non-empty `ThinkingType`, not only `"enabled"`.
+`{"thinking":{"type":"disabled"}}` was verified accepted by `api.deepseek.com` for both
+`deepseek-flash` and `deepseek-v4-pro`; both think by default. Note that disabling it is
+not universally desirable — on `extract_products` Pass 1 it costs ~20% of distinct
+mentions; see "Thinking Must Stay On For Pass 1" in `extract-products-spec.md`.)* `forceDisableThinking` (`extract-metrics.go:906-917`)
 sets `ThinkingType = "disabled"`, and `applyStructureModelConfigToExtractor`
 (`doc-structure-analyzer.go:536`) copies it to the client — but `extractTextWithFormat`
 (`openai_client.go:246-248`) only ever *adds* a `thinking` field when the value is `"enabled"`, and

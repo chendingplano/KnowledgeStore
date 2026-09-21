@@ -107,7 +107,7 @@ This is a replacement for Nginx.
   "https://www.kapa.ai/blog/how-we-prune-rag-context"
 )[#text(fill: blue)[How We Taught a Small LLM to Throw away 68% of RAG Context]]
 
-#a_004 \
+#a_004 23\
 Source: Hacker News
 
 There are two types of rerankers: (1) the reranker that fuses entries from two or more ordered lists
