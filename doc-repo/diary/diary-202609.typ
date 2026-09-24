@@ -262,6 +262,29 @@ It then check whether the given answers match its internal decisions.
 Pick the matched decisions, normalize the probabilities. These are the 
 scores.
 
+== Work for Today
+- Added 'Calendar' frontend page and the backend tables
+- Added 'Peak Hours' frontend page and the backend tables
+- Solve the uploading zip files not being able to handle Chinese characters that are
+  not UTF8.
+- Deleting an entry in '/home3/knowledge, File Management => Upload Files',
+  should ask users whether to delete the file.
+- Add a checkbox on '/home3/knowledge, File Management => Upload Files
+- Uploading files not setting 'tenant_id'
+- Add a 'tenant_id' field in the 'Modify' dialog of '/home3/knowledge, Knowledge Base'
+- Add 'User' field in the record list of '/home3/knowledge, File Management => Upload Files' 
+- Adjust the field widths in the input record list
+- Add 'Edit' button in the input record list
+- When uploading files, populate 'ks_store_id' and 'ks_desc' to all the records
+  of 'kb.inputs', including the records created by a zip file
+- Removed 'Convert' and 'Time', added 'Processing Mode' in the 'kb.inputs' list
+
+= 2026/09/25
+
+== Work for Today
+- Use BGE-M3 embedding model
+- Use Jev
+
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked
 
