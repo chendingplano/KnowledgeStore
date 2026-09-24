@@ -294,6 +294,45 @@ If a deploy already failed this way, the rolled-back-from binary is still sittin
 `~/chenweb-deploy/` on the box — sync `prompts/`, then just re-run
 `deploy-server-china.sh` again; no need to rebuild or re-`scp` the binary.
 
+### Workspace timezone and `config.local.toml`
+
+ChenWeb loads `config.toml` first and then merges the optional sibling
+`config.local.toml`; local values override the base file. `config.local.toml` is
+machine-specific and is intentionally not included in the binary deployment payload.
+Do not copy the Mac's local file to the China box.
+
+The China box must have this local setting:
+
+```toml
+[llm]
+workspace_timezone = "Asia/Shanghai"
+```
+
+On the Mac, use the workspace timezone appropriate for the Mac deployment, normally:
+
+```toml
+[llm]
+workspace_timezone = "America/Chicago"
+```
+
+After changing the file, restart every ChenWeb process that captures or reports LLM
+usage (`chenweb` and `doc-processor`). The timezone controls the workspace-day boundary,
+daily reconciliation, Today/Yesterday filters, and hourly Spend Reports labels. It does
+not change the stored UTC instant in `llm_usage_event.request_started_at`; it only
+converts that instant when assigning a workspace day or displaying an hourly bucket.
+
+Verify the file and service restart on the China box:
+
+```bash
+grep -A2 '^\[llm\]' ~/Workspace/ChenWeb/config.local.toml
+systemctl restart doc-processor
+systemctl restart chenweb
+journalctl -u doc-processor -n 40 --no-pager | grep -i timezone
+```
+
+For the complete timezone contract and troubleshooting examples, see
+`2026092302-devdoc-workspace-timezones.md`.
+
 ## 4. Kratos (manual — no mise task or deploy script)
 
 Kratos is a **separate project** (`~/Workspace/Kratos`, own `CLAUDE.md`/repo) that ships

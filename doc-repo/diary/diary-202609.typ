@@ -155,6 +155,26 @@ Anthropic score is 58, much higher.
 
 Significant improvements on performance. The price is even lower.
 
+*Prices*
+```text
+Model             Cache Miss  Cache Hit   5m Cache  1h Cache    Output
+                                          Writes    Writes 
+----------------------------------------------------------------------
+Fable 5.1         $10         $0.25       $12.50    $20         $50 
+Mythos 5.1        $10         $0.25       $12.50    $20         $50
+Fable             $10         $1          $12.50    $20         $50
+Mythos 5          $10         $1          $12.50    $20         $50
+Opus 5.5          $4          $0.20       $5.00     $8          $20
+Opus 5            $5          $0.50       $6.25.00  $10         $25
+Opus 4.8          $5          $0.50       $6.25.00  $10         $25
+Opus 4.7          $5          $0.50       $6.25.00  $10         $25
+Opus 4.6          $5          $0.50       $6.25.00  $10         $25
+Opus 4.5          $5          $0.50       $6.25.00  $10         $25
+Sonnet 5          $2          $0.20       $2.50     $4          $10
+Sonnet 4.6        $3          $0.30       $3.75     $6          $15
+Sonnet 4.5        $3          $0.30       $3.75     $6          $15
+----------------------------------------------------------------------
+```
 == Will OpenAI Eat Jev's Lunch?
 #let a_001 = link(
   "https://arcturus-labs.com/blog/2026/09/21/will-openai-eat-jevs-lunch/"
@@ -192,6 +212,55 @@ There are many Jev-equivalents in the benchmark.
 *Thoughts*
 
 We will wait a while to let the dust settle.
+
+= 2026/09/24
+== Jev vs LLMs 
+#let jev_vs_llms = link(
+  "https://github.com/dchristopoulos/jev-aita"
+)[#text(fill:blue)[Jev vs LLMs]]
+
+#jev_vs_llms
+
+Jev came second, behind Sonnet 5. Jev's median call was 6.3x faster than 
+Sonnet, and 62x cheaper. 
+
+*Thoughts*
+
+It is true that we can use LLMs to simulate Jev by formulating the prompt
+so that the LLMs can only generate one token (or very few). But the 
+real questions are:
+  - The speed
+  - The cost
+From this post, we can see Jev is not as powerful as the frontier models
+but pretty good. Its selling points are speed and cost.
+
+== Jev's Architecture Unmasked
+
+#let jev_architecture_unmasked = link(
+  "https://archerhume.com/posts/jevs-architecture-unmasked#what-would-change-my-mind"
+)[#text(fill: blue)[Jev Architecture Unmasked]]
+
+#jev_architecture_unmasked
+
+#quote(block: true, attribution: [#jev_architecture_unmasked])[
+  "Jev's proposition is to retain the knowledge of a pretrained LLM while replacing
+  generated confidence claims with decision probabilities read directly from its
+  internal representations. Those probabilities are trained against outcomes.
+  Give it shared state, questions and allowed answer; it returns the distributions
+  in parallel, without generating text."
+]
+
+In order to understand Jev (or System One Model), we need to understand how
+an LLM works. In the simplest form, for each 'state', it has a collection of
+'next word' with probabilities. The next word is a work in normal LLM. For
+Jev, it should be a decision.
+
+If you give a state, question + allowed answer pairs, for each pair, it
+uses 'state' + 'question' to reach a kind of internal node. Each internal
+node is associated with a number of 'decisions' with probabilities. 
+It then check whether the given answers match its internal decisions.
+Pick the matched decisions, normalize the probabilities. These are the 
+scores.
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked
