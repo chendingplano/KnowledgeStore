@@ -551,7 +551,7 @@ similarity search if not already present:
 
 ```sql
 CREATE INDEX IF NOT EXISTS idx_kb_artifact_categories_embedding
-    ON kb.artifact_categories USING hnsw ((embedding::vector(1536)) vector_cosine_ops)
+    ON kb.artifact_categories USING hnsw ((embedding::vector(1024)) vector_cosine_ops)  -- 1024 since bge-m3 (2026-09-25)
     WHERE status IN ('pending_review', 'approved');
 ```
 

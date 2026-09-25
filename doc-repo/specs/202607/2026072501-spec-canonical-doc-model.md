@@ -1875,7 +1875,7 @@ CREATE TABLE IF NOT EXISTS kb.cdm_projections (
     semantic_type      VARCHAR(64),
     projected_text     TEXT NOT NULL,
     metadata           JSONB,
-    embedding          vector(1536),
+    embedding          vector(1536),   -- vector(1024) since migration 20260925000004 (bge-m3)
     create_time        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_kb_cdm_projections

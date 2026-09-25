@@ -50,9 +50,11 @@ All four must be in place for embeddings to be written/queried:
 1. **pgvector installed** on the Postgres server. On the Nix-managed instance this means
    adding `pgvector` to the postgresql package set and restarting (it is not a plain
    `CREATE EXTENSION` — the extension binary must exist on the server first).
-2. **Migration `20260603000001` applied** (adds columns + HNSW indexes; see below).
-3. **`EMBEDDING_MODEL_NAME` configured** and resolvable in `.models.toml`. Current value
-   `gpt-embedding-small` → `text-embedding-3-small` (1536-dim).
+2. **Migrations `20260603000001` and `20260925000004` applied** (adds columns + HNSW
+   indexes; the second resizes them to 1024 — see below).
+3. **`EMBEDDING_MODEL_NAME` configured** and resolvable in `.models.toml`, with
+   `EMBEDDING_DIMENSIONS=1024`. Current value `bgem3-runshen-19` → bge-m3 (1024-dim).
+   Until 2026-09-25 it was `gpt-embedding-small` → `text-embedding-3-small` (1536-dim).
 4. **`SEARCH_SEMANTIC_ENABLED=true`**.
 
 ## Schema
@@ -75,8 +77,32 @@ ALTER TABLE kb.search_artifacts
 CREATE INDEX ... ON kb.search_artifacts_<type> USING hnsw (embedding vector_cosine_ops);
 ```
 
-- `embedding` — the 1536-dim vector (`vector(1536)`; dimension must match
-  `kbsearch.EmbeddingDim`). NULL ⇒ the row is lexical-only.
+- `embedding` — originally `vector(1536)`; now `vector(1024)` since migration
+  `20260925000004` (dimension must match `kbsearch.EmbeddingDim` /
+  `EMBEDDING_DIMENSIONS`). NULL ⇒ the row is lexical-only.
+
+### Changing the embedding model
+
+Vectors from different models are not comparable, so a model switch always means a
+full re-embed, and a dimension change also needs a migration. The 2026-09-25 switch to
+bge-m3 (`20260925000004`) resized every embedding column to `vector(1024)` with
+`USING NULL` — `kb.search_artifacts` (all partitions), `kb.ontology_class_contract_search`,
+`kb.product_profile_nodes`, `kb.object_nodes`, `kb.cdm_projections` — then re-embedded:
+
+- `kb.search_artifacts`: `mise exec -- go run ./server/cmd/search-embedding-backfill`
+  (batched, session-free; skips entity/relation when `EMBED_ENTITY_RELATION` is off).
+  The per-row `POST /kb/search/backfill-embeddings` endpoint is too slow for a full
+  corpus.
+- `kb.ontology_class_contract_search`: `class-contract-search-backfill --reembed-all`.
+- `kb.product_profile_nodes`: refilled lazily during product-review grounding.
+
+The shared vLLM bge-m3 host (`210.5.158.91:8801`) manages ~350 chars/s and times out
+under concurrent load, so bulk re-embeds should use the local llama.cpp profile
+(`EMBEDDING_MODEL_NAME=bge-m3-llama-cpp` for that command only); its vectors match the
+vLLM host's (cosine 0.99999 on the same text). Cosine thresholds tuned for
+`text-embedding-3-small` (`CATEGORY_MATCH_MIN_COSINE`, `ARTIFACT_CONNECT_MIN_COSINE`,
+product-review `object_embedding_min` / `hybrid_similarity_min`, semantic-clustering
+0.85 defaults) need recalibrating for bge-m3.
 - `embedding_text` — the exact text that was embedded (kept for re-embedding/debug).
 - HNSW indexes are created **per partition**, not on the parent. pgvector parent
   propagation works, but per-partition matches the doc-processor "Add New Doc Processor"
@@ -238,7 +264,7 @@ that share no query terms can still surface.
 
 | Name | Location | Value | Meaning |
 |---|---|---|---|
-| `EmbeddingDim` | kbsearch/semantic.go | 1536 | Vector dim; must match `vector(N)` + model |
+| `EmbeddingDim` | kbsearch/semantic.go | 1024 (was 1536) | Vector dim; must match `vector(N)` + model |
 | `rrfK` | kbhandler/search_registry.go | 60 | RRF constant |
 | `hybridCandidateLimit` | kbhandler/search_registry.go | 200 | Per-list candidate cap before fusion |
 | `maxEmbeddingRunes` | doc-processing/search_indexing_embedding.go | 6000 | Index-time embed text cap |
