@@ -12,13 +12,35 @@ ChenWeb's backend can now send text to Jev and ask named questions about it, suc
 
 ### Configuration
 
-ChenWeb's local `.models.toml` contains a `jev-latest` profile with the provider URL and an empty `api_key`. Keep the API key out of this file and configure it in the server environment instead:
+#### ChenWeb `.models.toml`
+
+Add this profile to `ChenWeb/.models.toml`:
+
+```toml
+[jev-latest]
+host = 'cloud'
+model_name = 'jev-latest'
+model_type = 'llm'
+api_key = ''
+base_url = 'https://jev-ai.pro/api'
+timeout_sec = 300
+thinking_type = ''
+max_inflight = 100
+max_requests_per_minute = 3000
+max_tokens_per_minute = 200000
+token_reserve_per_call = 256
+max_output_tokens = 0
+```
+
+The blank `api_key` is intentional. Keep the key out of `.models.toml` and configure it in the server environment instead:
 
 ```sh
 JEV_AI_API_KEY=<your Jev API key>
 ```
 
-`llm.NewClient` reads `JEV_AI_API_KEY` when `ProviderConfig.APIKey` is empty. It trims surrounding whitespace and returns `llm.ErrMissingAPIKey` if the environment variable is unset or blank. A nonempty `ProviderConfig.APIKey` takes precedence.
+ChenWeb's `.models.toml` is Git-ignored, so this profile is configured locally in each ChenWeb environment that needs Jev.
+
+`llm.NewClient` reads `JEV_AI_API_KEY` when `ProviderConfig.APIKey` is empty. It trims surrounding whitespace and returns `llm.ErrMissingAPIKey` if the environment variable is unset or blank. A nonempty `ProviderConfig.APIKey` takes precedence. The `.models.toml` profile tells ChenWeb which provider URL and model name to use; it does not contain the secret key.
 
 The shared client defaults to `https://jev-ai.pro/api`. Its request path is `/v1/systemone`, producing the documented endpoint `https://jev-ai.pro/api/v1/systemone`. ChenWeb's TOML importer recognizes `jev-ai.pro` and its subdomains as provider `jev`.
 
