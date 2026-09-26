@@ -1,6 +1,7 @@
 #import "@preview/diagraph:0.3.6"
 #import "@preview/oxdraw:0.1.0": *
 #import "../../Reviews/Review-ai-laya.typ": ref_review_laya
+#import "../../Reviews/review-knowhere.typ": ref_review_knowhere
 
 #set heading(numbering: "1.")
 #set quote(block: true)
@@ -134,8 +135,8 @@ Not sure the performance, should be pretty good. The best one is the price.
 | GPT-6 Astra Long Context  | $20.00 | $2.00     | $25.00       | $75.00 |
 | GPT-6 Sol Short Context   | $2.00  | $0.20     | $2.50        | $10.00 |
 | GPT-6 Sol Long Context    | $4.00  | $0.40     | $5.00        | $15.00 |
-| GPT-6 Sol Short Context   | $0.10  | $0.01     | $0.125       | $0.50  |
-| GPT-6 Sol Long Context    | $0.20  | $0.02     | $0.25        | $0.75  |
+| GPT-6 Luna Short Context  | $0.10  | $0.01     | $0.125       | $0.50  |
+| GPT-6 Luna Long Context   | $0.20  | $0.02     | $0.25        | $0.75  |
 | GPT‑5.6 Sol               | $5.00  | $0.50     | $6.25        | $30.00 |
 | GPT‑5.6 Terra             | $2.00  | $0.20     | $2.50        | $12.00 |
 | GPT‑5.6 Luna              | $0.20  | $0.02     | $0.25        | $1.20  |
@@ -143,15 +144,24 @@ Not sure the performance, should be pretty good. The best one is the price.
 | GPT‑5.4                   | $2.50  | $0.25     | —            | $15.00 |
 ```
 
+Below is DeepSeek 4.1 Flash
+```text
+Time      cache hit	  cache miss	  Output
+Off-Peak	$0.003	    $0.15	        $0.6
+Peak	    $0.006	    $0.3	        $1.20
+```
+
 #figure(
   image("Images/image_2026092302.png", width: 100%),
   caption: [#ref_gpt_6_sol]
 )
 
-Note that GPT-6-sol does not seem very powerful. Its score is 48, the same as Muse.
+Note that GPT-6 Sol does not seem very powerful. Its score is 48, the same as Muse.
 Anthropic score is 58, much higher.
 
-== Anthropic releases its Opus 5.5
+GPT-6 Luna is about the same as DeepSeek 4.1 Flash (37 vs 39).
+
+== Anthropic releases its Opus 5.5<openai-pricing>
 
 Significant improvements on performance. The price is even lower.
 
@@ -284,6 +294,151 @@ scores.
 == Work for Today
 - Use BGE-M3 embedding model
 - Use Jev
+
+= 2026/09/26
+
+== A Jev-like wrapper for LLMs, including vision models
+
+#let jev_like_wrapper = link(
+  "https://allanrbo.blogspot.com/2026/09/a-jev-like-wrapper-for-llms-including.html"
+)[#text(fill: blue)[Jev-like Wrapper for LLMs]]
+
+OpenAI `logprobs` can retrieve the probabilities of next words.
+
+```text
+State: My order arrived broken and I want a refund.
+Question: Which team should handle this?
+[A] billing
+[B] shipping
+[C] returns
+Answer with the letter of the best option only.
+```
+
+Then add a few JSON request parameters to a compatible Chat Completions request:
+
+```text
+{
+  "max_completion_tokens": 1,
+  "logprobs": true,
+  "top_logprobs": 20
+}
+```
+
+Note that it uses 'logprobs' to retrieve the probabilities.
+
+This article also includes the code for handling videos.
+His example captures webcam frames, sends base64 JPEGs, and prints a table:
+- is a person visible
+- are we indoors or outdoors
+- how bright is the scene
+
+He uses RTX 3090, running Gemma 4 12B, got 1 frames per second.
+Using OpenAI GPT-6 Luna, got 0.2 FPS. 
+
+== GPT-6 Luna
+
+GPT-6 Luna is very cheap (refer to @openai-pricing). We can use either DeepSeek 4.1 Flash
+or GPT-6 Luna for repeative work in the future.
+
+== SIMA in Go
+#let sima_in_go = link(
+  "https://go.dev/blog/simd-experiment"
+)[#text(fill: blue)[SIMA in Go]]
+
+#sima_in_go
+
+Go 1.26 and 1.27 include experimental APIs for SIMA, which can accelerate
+operations such as adding 8 pairs of floating 64 values in a single instruction.
+
+One thought about SIMA is calculating vector similarity.
+
+*Action*
+Keep it in mind in case we need it.
+
+== Typst Release 0.15.0 (June 15, 2026)
+#let typst_new_release = link(
+  "https://typst.app/docs/changelog/0.15.0/"
+)[#text(fill: blue)[Typst Release 0.15.0 (June 15, 2016)]]
+
+#let typst_big_stride = link(
+  "https://lwn.net/Articles/1092993/"
+)[#text(fill: blue)[Typst makes big strides]]
+
+#typst_new_release\
+#typst_big_stride
+
+Read the release notes for the features and bug fixes.
+
+=== Variable Fonts
+
+Most fonts are distributed in a set of files containing their glyphs in different
+weights, in variations such as italic, bold, and so on. A recent development
+in the world of typography is the advent of variable fonts, which can contain
+all their variations in a single file. This both saves space and can permit greater 
+flexibility on the part of the author or designer.
+
+```text
+#set text(font:"Roboto Flex")
+#for n in (-305, -200, -98) {
+   set text(variations:("YTDE": n)) 
+   [A penguin jumped quietly.
+
+   ]
+}
+   
+#set text(font:"Zycon")
+#for n in array.range(0, 10, inclusive:true) {
+   set text(variations:("M1  ": n/10))
+   str.from-unicode(127773)
+}
+```
+
+=== Multiple bibliographies
+
+Typst now permits multiple bibliographies in a single document, which was an eagerly
+awaited feature. Its canonical application is for books that may need a separate
+reference section for each chapter. 
+
+```text
+   #show bibliography: set text(size: 8pt)
+   
+   = Chapter I
+   
+   According to @smith, Smith is uncommonly smart.
+   
+   #bibliography("works.bib",
+   title: "References for Chapter I",
+   group: none)
+   
+   = Chapter II
+   
+   Jones@jones has a different view. The issue was
+   finally put to rest in the following year
+   in @mergutroid.
+   
+   #bibliography("works.bib",
+   title: "References for Chapter II",
+   group: none) 
+```
+
+Here the first line specifies that the bibliographies should use a font size smaller than 
+the default used in the main text. In that text, the "@" prefixes create a citation using 
+the default number-in-brackets style. At the end of each chapter, the bibliography() function 
+is called. Its first argument specifies which database should be used for the bibliographic 
+information; each bibliography section can use a different database, or collection of databases, 
+if desired (see our recent article on Pandoc for a description of these text-file databases). 
+The group argument controls how the citations are numbered. The value of none causes the 
+numbering to begin with one for each section; numbering can alternatively be continuous for 
+the entire work, or be grouped arbitrarily.
+
+== Knowhere
+#let knowhere = link(
+  "https://github.com/Ontos-AI/knowhere"
+)[#text(fill: blue)[Knowhere 2.0]]
+
+#knowhere 
+
+Refer to #ref_review_knowhere()
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked

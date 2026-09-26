@@ -7,7 +7,7 @@ with a tenant_id.
 
 | Stage | Service | JetStream Event | What It Does |
 |---|---|---|---|
-| Staging | `server/cmd/service-pdf-parser` (binary name as of 2026-09; this doc previously said `pdf-parser`) | Emit `kb.pdf_staged` | Refer to [Handle Staged Files](#handle-staged-files) |
+| Staging | `server/cmd/doc-service` (binary/task name as of 2026-09; this doc previously said `pdf-parser`, which is not a real binary in this repo — the closest-named one, `server/cmd/service-pdf-parser`, exists but is dead code not wired into any `mise` task) | Emit `kb.pdf_staged` | Refer to [Handle Staged Files](#handle-staged-files) |
 | Parsing | `python/pdf-parser` | Subscribe:`kb.pdf_staged`, Emit: `kb.pdf_parsed` | If a PDF file is staged, this service will receive an event with `kb.pdf_staged`. It parses the file using `kb.inputs.parser_name`. If the parser name is not specified, it uses the default PDF parser (refer to `spec-pdf-parser-python.md`) |
 | Doc Processing | `server/cmd/doc-processor` | Subscribe: `kb.pdf_parsed` | Refer to `spec-doc-processor.md` |
 ----
@@ -45,25 +45,31 @@ consolidated into one name to remove that footgun) one of two ways:
   through the admin UI, which performs the same kind of insert before
   renaming the file into place).
 
-Independently, `server/cmd/service-pdf-parser` polls the staging directory
-every 10s. For each file found there, it copies it to `DATA_BACKUP_DIR` and
-`DATA_HOME_DIR`, removes it from staging, and either **updates** the
-existing `kb.inputs` row matching `file_name = <staged path> AND
-backup_filename = ''` (the row the upload API or a pending-file claim
-already inserted) or, if no such row exists, **inserts a new unattributed
-row** and raises the `missing_user_id` alarm (see
+Independently, `server/cmd/doc-service` watches the staging directory via
+`fsnotify` (with a debounce, plus a periodic fallback rescan in case events
+are missed or the watch can't be established). For each file found there, it
+copies it to `DATA_BACKUP_DIR` and a record-sharded path under
+`DATA_HOME_DIR/Artifacts/{record_id/1000}/{record_id}/`, removes it from
+staging, and either **updates** the existing `kb.inputs` row matching
+`file_name = <staged path> AND backup_filename = ''` (the row the upload API
+or a pending-file claim already inserted) or, if no such row exists,
+**inserts a new unattributed row** and raises the `missing_user_id` alarm
+(see
 `KnowledgeStore/doc-repo/devdocs/202609/2026092403-devdoc-doc-processing-user-id-attribution.md`).
-It emits `kb.pdf-staged` if the file is a PDF; otherwise it emits
-`kb.file-staged`.
+It publishes a `kb.pdf.staged`-shaped JetStream event for PDFs (unless the
+record's processing mode is `upload_only`); non-PDF/non-docx types are not
+otherwise pushed downstream from here.
 
 ### Zip File Handling
 
-**As of 2026-09, zip files are not decomposed at ingestion time.** A staged
-`.zip` file becomes a single `kb.inputs` row with `type = 'zip'`, backed up
-and copied to the home directory like any other file — there is no
-per-entry child-record extraction (`ingestInputFile`/`ingestZipChildren`,
-described in an earlier version of this doc, do not exist in the current Go
-code). If per-entry zip ingestion is needed, it has not been built yet.
+A staged `.zip` file gets a `kb.inputs` parent row (`type = 'zip'`), backed
+up and copied to home like any other file. `doc-service` then opens the zip
+and calls `ingestInputFile` for every entry inside it (`ingestZipChildren`):
+each entry becomes its own `kb.inputs` row (`type` derived from the entry's
+extension), inheriting the parent zip record's `tenant_id`/`ks_store_id`/
+`ks_desc` and processing mode. Zip entries with non-UTF8 names (common for
+archives built on Chinese Windows) are decoded from GBK/GB18030. A PDF child
+gets its own stage event published, same as a top-level PDF upload.
 
 ### Pending Files
 
