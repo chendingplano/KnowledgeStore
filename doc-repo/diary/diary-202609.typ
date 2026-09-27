@@ -431,7 +431,7 @@ The group argument controls how the citations are numbered. The value of none ca
 numbering to begin with one for each section; numbering can alternatively be continuous for 
 the entire work, or be grouped arbitrarily.
 
-== Knowhere
+== Knowhere <ref-knowhere>
 #let knowhere = link(
   "https://github.com/Ontos-AI/knowhere"
 )[#text(fill: blue)[Knowhere 2.0]]
@@ -439,6 +439,46 @@ the entire work, or be grouped arbitrarily.
 #knowhere 
 
 Refer to #ref_review_knowhere()
+
+= 2026/09/27
+
+== Scrapling
+#let scrapling = link(
+  "https://github.com/d4vinci/Scrapling"
+)[text(fill: blue)[Scrapling]]
+
+#scrapling
+
+This is an open source project that can scrapt the web, adaptively,
+meaning it can detect web page changes and adept to the new format.
+
+*Action*
+
+- Not installed yet. Will install it.
+- Add a frontend page to manage it.
+
+== Open Books HK
+#let scrapling = link(
+  "https://openbookshongkong.com/en/"
+)[text(fill: blue)[香港大学开发图书库]]
+
+== Agentic Search
+
+Yesterday read @ref-knowhere. Knowhere is an agentic search engine. 
+Knowhere assumes its caller will determine the namespace to search.
+This means:
+- Knowhere organizes corpus by namespaces (similar to Knowledge Base in SemOS)
+- Callers are responsible for picking namespaces. If not, it will use 'default'.
+  Not sure what the 'default' does.
+- In SemOS, callers must tell which kb(s) to search. If users do not say,
+  SemOS will search all the kbs that the user has accesses.
+
+
+== Today Work
+- Bug (fixed): double click an image in uploading video closes the dialog
+- Improvement (done): make the '/development, System Admin => Resources => Videos' list sortable
+  by 'Name', 'Size' and 'Uploaded'
+
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked

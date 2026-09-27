@@ -1,6 +1,6 @@
 # Holiday Calendar Admin — Data Model, API, and Frontend
 
-**Date:** 2026-09-24 \
+**Date:** 2026-09-24 (updated 2026-09-27: adjusted working days) \
 **Scope:** Source of truth for the Holiday Calendar admin feature — what the tables mean, the
 full API surface, which frontend files implement it, and how it's wired into navigation.
 **Code root:** `ChenWeb/server/api/calendarhandler/`, `ChenWeb/web/src/lib/components/home3/calendar-admin-*`
@@ -14,6 +14,8 @@ full API surface, which frontend files implement it, and how it's wired into nav
   log, including what was *not* independently verified (no browser click-through as a logged-in
   admin was performed by the implementing agent — only DB-level SQL checks and `go
   build`/`svelte-check`)
+- `ChenWeb/openspec/changes/holiday-calendar-adjusted-days/` — the 2026-09-27 follow-up change
+  that added adjusted working days (`day_kind`, §2–§4); moves to `archive/` once archived
 - `ChenWeb/openspec/specs/holiday-calendar-admin/spec.md` — the canonical, currently-in-force
   requirements (SHALL/scenario form). **Update this spec file, not just this doc, if behavior
   changes** — this doc explains mechanics and points at code; the spec is the contract.
@@ -28,6 +30,10 @@ Two things are deliberately kept separate:
 - **Holiday info** (`public.holiday_info`) — a year-independent holiday *definition*: name,
   country, optional description/note. "Independence Day" for the US exists once, regardless of
   how many years it's scheduled for.
+- **Day kind** — each date bound to a holiday is either a `holiday` day (a day off) or an
+  `adjusted` day: a working day that exists because of the holiday. Example: CN New Year 2026
+  is Jan 1–3 off, with Sunday Jan 4 an adjusted working day. Both kinds bind to the same
+  holiday info; only `calendar_holidays.day_kind` tells them apart.
 - **Calendar** (`public.calendars` + `public.calendar_holidays`) — a year-specific *binding* of
   holiday infos to actual dates, keyed by `(year, country, calendar_type)`. Because holidays like
   "Thanksgiving" fall on different dates each year, dates are entered explicitly per year — there
@@ -48,6 +54,8 @@ pool per workspace convention; this feature does not open its own pool). Migrati
   `calendar_default_country`
 - `ChenWeb/project_migrations/20260924140000_add_holiday_display_seqno.sql` — adds and backfills
   `holiday_info.display_seqno` and enforces unique per-country ordering
+- `ChenWeb/project_migrations/20260927000001_add_calendar_holidays_day_kind.sql` — adds
+  `calendar_holidays.day_kind` (existing rows default to `'holiday'`)
 
 ```sql
 CREATE TABLE public.holiday_info (
@@ -78,6 +86,8 @@ CREATE TABLE public.calendar_holidays (
     calendar_id     BIGINT NOT NULL REFERENCES public.calendars(id) ON DELETE CASCADE,
     holiday_info_id BIGINT NOT NULL REFERENCES public.holiday_info(id) ON DELETE RESTRICT,
     holiday_date    DATE NOT NULL,
+    day_kind        TEXT NOT NULL DEFAULT 'holiday'
+                    CHECK (day_kind IN ('holiday', 'adjusted')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (calendar_id, holiday_date)
@@ -98,7 +108,13 @@ Key constraints and what they enforce:
 - `calendar_holidays` unique on `(calendar_id, holiday_date)` — a given date in a given calendar
   maps to exactly one holiday. Attaching a different holiday to an already-bound date **replaces**
   the binding via `INSERT ... ON CONFLICT (calendar_id, holiday_date) DO UPDATE SET
-  holiday_info_id = EXCLUDED.holiday_info_id` — it never creates a second row for that date.
+  holiday_info_id = EXCLUDED.holiday_info_id, day_kind = EXCLUDED.day_kind` — it never
+  creates a second row for that date. Because of this constraint, a date can't be both a day off
+  and an adjusted working day in the same calendar. That is why `day_kind` is a column rather
+  than a separate adjusted-days table.
+- `calendar_holidays.day_kind` is constrained by the CHECK constraint
+  `calendar_holidays_day_kind_check` to `'holiday'` or `'adjusted'`. In Go, these values are the
+  `DayKindHoliday` and `DayKindAdjusted` constants in `store.go`.
 - `calendar_holidays.holiday_info_id` is `ON DELETE RESTRICT` — a holiday info still bound to any
   date **cannot** be deleted at the database level. `deleteHolidayInfo`
   (`store.go`) pre-checks `EXISTS(SELECT 1 FROM calendar_holidays WHERE holiday_info_id = $1)`
@@ -135,8 +151,8 @@ middleware, not from `calendarhandler`).
 | POST | `/calendars/holiday-info` | `CreateHolidayInfo` | 409 on duplicate `(country, name)` |
 | PUT | `/calendars/holiday-info/:id` | `UpdateHolidayInfo` | |
 | DELETE | `/calendars/holiday-info/:id` | `DeleteHolidayInfo` | 409 if still bound to a date |
-| GET | `/calendars?year=&country=&calendar_type=` | `GetCalendar` | empty-shape record if no row exists yet (never auto-creates) |
-| PUT | `/calendars/dates` | `UpsertCalendarDates` | body: `{year, country, calendar_type, dates: [], holiday_info_id}`; creates the `calendars` row if missing, one holiday attached to N dates in one call |
+| GET | `/calendars?year=&country=&calendar_type=` | `GetCalendar` | empty-shape record if no row exists yet (never auto-creates); each date carries `day_kind` |
+| PUT | `/calendars/dates` | `UpsertCalendarDates` | body: `{year, country, calendar_type, dates: [], adjusted_dates: [], holiday_info_id}`; creates the `calendars` row if missing. `dates` are bound as `holiday`, `adjusted_dates` as `adjusted`, both in one transaction. At least one list must be non-empty (`CWB_CAL_112`). A date in both lists is rejected with 400 (`CWB_CAL_115`). Omitting `adjusted_dates` keeps the original behavior |
 | DELETE | `/calendars/:id/dates/:date` | `DeleteCalendarDate` | removes one binding |
 | DELETE | `/calendars/:id` | `DeleteCalendar` | cascades bindings via FK |
 | GET | `/calendars/default-country` | `GetDefaultCountry` | `{record: {country}}` or `{record: null}` |
@@ -162,7 +178,8 @@ calendar types — it's a plain string column, not an enum or a foreign key.
 - `calendar-admin-view.svelte` — the page itself: year (number input) / country (dropdown) /
   calendar-type (text input) selectors; a 12-month CSS-grid calendar for the selected year
   (`monthCells` computes each month's leading blanks + day numbers from `Date`); click-to-toggle
-  multi-select on empty day cells, click-to-remove on already-bound day cells; an "Attach
+  multi-select on empty day cells, click-to-remove on already-bound day cells; a "Set Holidays"
+  / "Set Adjusted Days" pair of mode buttons (see *Selection modes* below); an "Attach
   Holiday" modal (pick an existing holiday info for the selected country, or check "Create a new
   holiday" to define one inline before attaching); and a "Holiday Definitions ({country})" table
   (list/create/edit/delete), scoped to whichever country is currently selected. The definitions
@@ -172,6 +189,21 @@ calendar types — it's a plain string column, not an enum or a foreign key.
 - `country-list.ts` — the fixed ISO 3166-1 alpha-2 country dropdown list (15 entries as of this
   writing: US, CN, GB, CA, AU, DE, FR, JP, KR, IN, SG, HK, TW, MX, BR). This is a plain hardcoded
   array, not backed by any table — add entries here to support more countries.
+
+**Selection modes.** The toolbar reads `Set Holidays · Set Adjusted Days · Attach Holiday ·
+Clear Selection`. The two Set buttons choose `selectMode` (`'holiday'` by default). The page
+keeps two pending sets, `selectedHolidays` and `selectedAdjusted`. `toggleDay` toggles the
+clicked date in the active mode's set, and adding a date there also removes it from the other
+set, so a pending date always has exactly one kind. "Attach Holiday" is enabled when either set
+is non-empty, and it sends both sets in one `upsertCalendarDates(..., holidayInfoId,
+adjustedDates)` call. Cell colors, also shown in the legend under the toolbar:
+
+| State | Style |
+|---|---|
+| pending holiday day | indigo fill `#6366f1` |
+| pending adjusted day | amber outline `#f59e0b` |
+| saved holiday day | green fill `#15803d` |
+| saved adjusted day | amber fill `#d97706`, tooltip `<name> (adjusted working day)` |
 
 **Default-country flow:** on mount, the view calls `getDefaultCountry()` *before* loading the
 calendar or holiday-info list, and uses the result as the initial `country` state if present;
@@ -217,7 +249,16 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
   schema change should be needed, only UI/UX decisions about how multiple types are presented
   side by side.
 
-## 7. Verification status (as of 2026-09-24)
+## 7. Verification status
+
+**2026-09-27 (adjusted days):** The migration was applied to `miner` by the live `air` server,
+and the 33 existing bindings read `day_kind = 'holiday'`. A rolled-back SQL transaction
+confirmed two things: `ON CONFLICT` overwrites `day_kind`, and the CHECK constraint rejects
+values other than `holiday`/`adjusted`. `go build`, `go test ./api/calendarhandler/`
+(`TestOverlappingDate`) and `svelte-check` pass. Not yet checked by the implementing agent: a
+logged-in browser click-through of the two selection modes.
+
+**2026-09-24 (initial feature):**
 
 Confirmed by direct SQL against the live `miner` dev DB and by the user manually exercising the
 UI in a browser (screenshot review, 2026-09-24): creating holiday info, the `(country, name)`
