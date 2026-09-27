@@ -107,7 +107,7 @@ source fix (drop the `viper.GetStringSlice(...)` global-singleton fallback and c
 
 ## See also
 
-- `2026090701-devdoc-start-system-onto.md` §6.2 — the same "`.local.`-named file is actually
+- `2026090701-devdoc-deploy-start-system-onto.md` §6.2 — the same "`.local.`-named file is actually
   git-tracked and easy to leave out of a deploy" pattern, for `doc-review.local.toml`.
 - `project_util_tools_toolbox` / workspace `CLAUDE.md` — general non-code-file deployment
   discipline this incident prompted a review of.

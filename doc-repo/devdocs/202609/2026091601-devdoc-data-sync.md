@@ -13,8 +13,8 @@ choice, see the two OpenSpec changes instead of re-deriving it here:
 `ChenWeb/openspec/changes/production-data-sync/` (the original table-only design) and
 `ChenWeb/openspec/changes/configurable-data-sync-items/` (runtime-created items,
 `table_with_files`, cross-instance discovery). For starting/restarting the China box's
-other services and general box facts, see `2026090701-devdoc-start-system-onto.md`. For
-shipping a new `server-linux` binary, see `2026091501-devdoc-deploy-chenweb-china-box.md`.
+other services and general box facts, see `2026090701-devdoc-deploy-start-system-onto.md`. For
+shipping a new `server-linux` binary, see `2026090701-devdoc-deploy-start-system-onto.md` §7.
 
 **Status as of 2026-09-17:** both changes are implemented, unit- and integration-tested,
 and build cleanly for `linux/amd64` (`configurable-data-sync-items/tasks.md` items 1-5 and
@@ -77,16 +77,17 @@ key rather than by `kb.images.id`. **Not yet done:**
 ### 1.1 Ship the code
 
 The Mac's `mise dev` (air) already picks this up automatically in dev. To get it onto
-the China box, ship a normal `server-linux` build per
-`2026091501-devdoc-deploy-chenweb-china-box.md` §1-3:
+the China box, ship a selected `server-linux` build per
+`2026090701-devdoc-deploy-start-system-onto.md` §7:
 
 ```bash
+# Mac
 cd ~/Workspace/ChenWeb
-BINS=server mise run build-server-linux
-scp -P 8822 -r /tmp/chenweb-deploy gui@210.5.158.91:~/
-ssh -p 8822 gui@210.5.158.91
-su -
-bash ~/chenweb-deploy/deploy-server-china.sh ~/chenweb-deploy server
+BINS=server ./shell_server_build_rcp.sh
+
+# Production
+# Run after connecting to the Production box:
+DEPLOY_NAMES=server bash ~/Workspace/ChenWeb/shell_server_deploy.sh
 ```
 
 Migrations run automatically at `chenweb` startup on the box — **but only if the
@@ -165,7 +166,7 @@ nothing to do with ChenWeb — don't confuse it with the vars above.
 
 On a deployed box, add to `~/Workspace/ChenWeb/.env` (same secret value as §1.3; **no
 quotes, no spaces around `=`** — see the box's env-var translation rules in
-`2026090701-devdoc-start-system-onto.md`):
+`2026090701-devdoc-deploy-start-system-onto.md`):
 
 ```
 DATA_SYNC_SHARED_SECRET=<same token as the Mac>
@@ -483,7 +484,7 @@ scratch tables (§4.1's integration tests) and the Mac's own discovery/file endp
 - `ChenWeb/openspec/changes/configurable-data-sync-items/` — proposal/design/spec/tasks
   for everything added 2026-09-17 (runtime-created items, `table_with_files`,
   cross-instance discovery, edit/delete).
-- `2026090701-devdoc-start-system-onto.md` — China box operations (starting/restarting
+- `2026090701-devdoc-deploy-start-system-onto.md` — China box operations (starting/restarting
   services, box facts, env-var translation rules referenced in §1.4).
-- `2026091501-devdoc-deploy-chenweb-china-box.md` — how to ship the `server-linux`
-  binary this feature lives in.
+- `2026090701-devdoc-deploy-start-system-onto.md` §7 — how to build and deploy selected
+  ChenWeb binaries.

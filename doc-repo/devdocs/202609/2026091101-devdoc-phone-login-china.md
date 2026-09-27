@@ -4,7 +4,7 @@
 **Scope:** How phone-number + SMS-verification-code login/sign-up is built in ChenWeb.
 For an engineer who needs to understand, debug, extend, or re-deploy it. Phase 1 is
 **Chinese mobile numbers only**. Operations (how it's wired on the `onto.bzton.cn` box)
-are in `2026090701-devdoc-start-system-onto.md` §2.1.
+are in `2026090701-devdoc-deploy-start-system-onto.md` §2.1.
 
 Related: openspec change `ChenWeb/openspec/changes/add-phone-login-china/`,
 ADR `KnowledgeStore/doc-repo/adrs/202607/2026072801-adr-phone-login-china.md`,
@@ -409,7 +409,7 @@ a Chinese aggregator). WeChat mini-program login (`wxOpenId`) is a separate trac
 
 ## See also
 
-- `2026090701-devdoc-start-system-onto.md` §2.1 — running/troubleshooting phone login on the box
+- `2026090701-devdoc-deploy-start-system-onto.md` §2.1 — running/troubleshooting phone login on the box
 - `2026072401-devdoc-deploy-production.md` — build + deploy runbook
 - `ChenWeb/openspec/changes/add-phone-login-china/` — proposal / design / tasks
 - `KnowledgeStore/doc-repo/adrs/202607/2026072801-adr-phone-login-china.md` — "extend Kratos natively" decision

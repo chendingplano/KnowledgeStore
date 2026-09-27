@@ -24,12 +24,14 @@ Product Drawings pages fails with a generic "image generation failed"; still ope
 needs a key decision) and `PRODUCT_DRAWINGS_DIR` was likewise never set, so the "Keep"
 step silently no-op'd — fixed by adding `PRODUCT_DRAWINGS_DIR` and restarting `chenweb`;
 also fixed the underlying silent-failure bug in source (ChenWeb jj commit `9d34`, not yet
-deployed to this box's binary))
-**Scope:** How to start each component of the ChenWeb stack on the China production box
-`210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which now serves
-**`https://onto.bzton.cn`**. This is the **operations** counterpart to the build/deploy
-runbooks — it does not cover building or shipping code (see
-`2026072401-devdoc-deploy-production.md` and `2026073001-devdoc-deploy-production-china-dingbo.md`).
+deployed to this box's binary);
+rev 2026-09-28: consolidated the ChenWeb/Kratos build and deploy instructions, added
+selected-binary deployment, and documented the NATS/PDF-parser restart behavior)
+**Scope:** Operations, build, and deployment for the ChenWeb stack on the China production
+box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
+**`https://onto.bzton.cn`**. The original manual procedures and why this box deviates from
+a normal deployment are in `2026072401-devdoc-deploy-production.md` and
+`2026073001-devdoc-deploy-production-china-dingbo.md`.
 
 ## Box facts you need before touching anything
 
@@ -39,9 +41,11 @@ runbooks — it does not cover building or shipping code (see
   root@210.5.158.91` works key-only for the few root-needed steps (`systemctl`,
   editing root-owned files, `journalctl -u` for other-user units). Password login is
   the fallback (`gui` pw and root pw are held by the maintainer).
-- **`gui` has no sudo** ("not in the sudoers file"). Root commands run either through
-  the root SSH key above, or as `gui` via `su -`. The `su` password prompt is
-  localized (Chinese), so force C locale or `expect`-style prompt matching breaks:
+- **`gui` has no general sudo access.** A scoped passwordless sudoers rule permits
+  `systemctl {start,stop,restart,status}` for the ChenWeb service units. Root commands
+  outside that allowlist run through the root SSH key above, or as `gui` via `su -`.
+  The `su` password prompt is localized (Chinese), so force C locale or
+  `expect`-style prompt matching breaks:
   ```bash
   env LC_ALL=C LANG=C su -c '<command>'      # prompts for the root password
   ```
@@ -282,6 +286,46 @@ curl -s http://127.0.0.1:4433/self-service/login/api | grep -o '"group":"code"' 
 | Redirects to `/dashboard` not `/semos/workspace` | `VITE_DEFAULT_NORM_ROUTE` / `VITE_DEFAULT_ADMIN_ROUTE` missing from `.env` (affects email + Google too) |
 | Number stuck "try again later" for up to an hour | per-phone SMS rate limiter (5/hr, in-process). `systemctl restart chenweb` clears it, or use another number |
 
+### 2.2 Kratos build and deploy
+
+Kratos is a separate project. Its `kratos.yml`, identity schema, templates, and
+`kratos.env` are read from disk; most config or template changes need a file copy and a
+Kratos restart, not a binary rebuild. The Production `kratos.yml` is gitignored and has
+box-specific paths and URLs. Compare before replacing it with any Mac copy.
+
+A new `kratos-linux` binary is usually needed only when upgrading the vendored upstream
+`ory/kratos` source. There is no cross-build task; build it on the Mac from
+`Kratos/src/kratos`:
+
+```bash
+cd ~/Workspace/Kratos/src/kratos
+GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../../kratos-linux .
+file ../../kratos-linux
+shasum -a 256 ../../kratos-linux
+scp -P 8822 ~/Workspace/Kratos/kratos-linux gui@210.5.158.91:Workspace/Kratos/kratos-linux.new
+```
+
+Then install it on the box as root:
+
+```bash
+cd /home/gui/Workspace/Kratos
+systemctl stop kratos
+cp -a kratos-linux kratos-linux.bak-$(date +%Y%m%d-%H%M%S)
+mv kratos-linux.new kratos-linux
+chown gui:gui kratos-linux && chmod 0755 kratos-linux
+systemctl start kratos
+curl -s http://127.0.0.1:4433/health/alive
+journalctl -u kratos -n 30 --no-pager
+```
+
+If health checks fail, restore the backup and restart Kratos. The box has no automatic
+Kratos binary rollback. `GOWORK=off` ensures this upstream module builds against its own
+`go.mod` rather than the workspace's Go modules.
+
+**Session lifetime:** when extending session cookies, update both `COOKIE_TIMEOUT_HOURS`
+in ChenWeb's `.env` and `SESSION_LIFESPAN` in Kratos' `kratos.env` (for example,
+`240` and `240h`), then restart both `chenweb` and `kratos`.
+
 ---
 
 ## 3. JetStream (NATS)
@@ -361,10 +405,12 @@ journalctl -u pdf-parser -n 20 --no-pager      # -> "starting pdf_parser service
   wired via `~/Workspace/mineru.json` (`models-dir.pipeline`).
 - Relevant `.env` keys: `PDF_PARSER_NAME=mineru`, `MINERU_EXTRA_ARGS=-m ocr -l ch`,
   `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged`, `PDF_PIPELINE_MODE=jetstream`.
-- End-to-end has not been exercised against a real PDF on this box (all streams show 0
-  messages as of 2026-09-14) — **root cause: `doc-service`, the only thing that ever
-  publishes to `kb.pdf.staged`, was never deployed here**; see §8. Once it's deployed and a
-  file is dropped in `DATA_STAGING_DIR`, this stream should show its first message ever.
+- The unit has `Wants=nats-server.service` and `After=nats-server.service`. These order
+  startup, but they do not restart an already-running PDF parser when NATS is restarted.
+  A Production NATS restart on 2026-09-27 dropped the parser's connection; the Python
+  process stayed active while logging `UnexpectedEOF` and `ConnectionRefusedError`.
+  For a full-stack restart, stop `pdf-parser` before restarting NATS, verify NATS is ready,
+  then start the parser again. See the ordered restart procedure below.
 
 ---
 
@@ -400,7 +446,7 @@ journalctl -u parser-result-converter -n 20 --no-pager
   `PARSER_RESULT_CONVERTER_STREAM=pdf-parsed-events` are set in `.env`.
 - `SHARED_LIB_CONFIG_DIR` **must be a real exported env var**, not just present in `.env`
   (systemd sets it via `Environment=`; a foreground run must `export` it) — see deploy
-  devdoc §3.
+  procedure in §7.
 
 ---
 
@@ -585,36 +631,81 @@ curl -s -o /dev/null -w 'https edge -> %{http_code}\n' https://onto.bzton.cn/   
 journalctl -u chenweb -n 40 --no-pager | grep -v 'goose:'
 ```
 
-**The dev-loop equivalent on the box** is: rebuild on the Mac, transfer the binary,
-`systemctl restart chenweb`. As of 2026-09-11 this is packaged:
+### Build and deploy ChenWeb
+
+Builds run on the Mac; the China box has no Go toolchain or `mise`. The checked-in
+`shell_server_build_rcp.sh` builds the payload and sends its archive to the relay host.
+On Production, `shell_server_deploy.sh` pulls the latest archive and runs the deploy
+script from that payload.
+
+To deploy only the ChenWeb backend and its embedded frontend:
 
 ```bash
-# --- on the Mac, in ChenWeb/ ---
-mise run build-server-linux                 # all four linux/amd64 binaries + .sha256
-BINS=server mise run build-server-linux     # just server-linux (fast; frontend rebuilt too)
-#   output: /tmp/chenweb-deploy/{server-linux[,.sha256], deploy-server-china.sh, MANIFEST}
+# Mac
+cd ~/Workspace/ChenWeb
+BINS=server ./shell_server_build_rcp.sh
 
-scp -P 8822 -r /tmp/chenweb-deploy gui@210.5.158.91:~/
-
-# --- on the box, as root (su - or the root SSH key) ---
-bash ~/chenweb-deploy/deploy-server-china.sh ~/chenweb-deploy server
-#   per binary: verify sha256 + ELF/arch, back up the current one (.bak-<ts>, keeps 3),
-#   stop → install → start the mapped unit (server→chenweb, doc-processor→doc-processor,
-#   parser-result-converter→…, create-admin→install only), health-gate, auto-rollback
-#   on failure. DRY_RUN=1 to preview.
+# Production
+DEPLOY_NAMES=server bash ~/Workspace/ChenWeb/shell_server_deploy.sh
 ```
 
-`build-server-linux` is `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 -trimpath -ldflags "-s -w"`
-and rebuilds the embedded frontend first when `server` is in the set
-(`server/api/webbuild` is gitignored). The task lives in `ChenWeb/mise.toml`, the
-script in `ChenWeb/scripts/deploy-server-china.sh` (ChenWeb jj commit `012e`).
-Box-side enablement that a binary swap does **not** carry (config flags, env, Kratos)
-is in `ChenWeb/deploy/phone-login/`. Older/fuller procedure:
-`2026072401-devdoc-deploy-production.md` §2 and `project_chenweb_dingbo_deployment` (memory).
+For a selected set, use comma-separated names in both variables:
+
+```bash
+# Mac
+BINS=server,doc-processor ./shell_server_build_rcp.sh
+
+# Production
+DEPLOY_NAMES=server,doc-processor bash ~/Workspace/ChenWeb/shell_server_deploy.sh
+```
+
+The Mac helper currently checked in is named `shell_server_build_rcp.sh` (`rcp` is
+transposed in the filename). To bypass the relay helper, run `mise run build-server-linux`
+with the desired `BINS`, then copy `/tmp/chenweb-deploy/` to
+`gui@210.5.158.91:~/chenweb-deploy/` with `scp -P 8822`. Deploy directly on the box:
+
+```bash
+bash ~/chenweb-deploy/deploy-server-china.sh ~/chenweb-deploy server
+```
+
+Prefix that command with `DRY_RUN=1` to preview the plan.
+
+Valid names are `server`, `doc-processor`, `parser-result-converter`, `doc-service`,
+and `create-admin`. Omit `BINS` and `DEPLOY_NAMES` to build and deploy every packaged
+binary. The build task also accepts direct invocations such as
+`BINS=server mise run build-server-linux`. For a server-only build, it rebuilds the
+embedded frontend before cross-compiling `server-linux`.
+
+The deploy script validates checksums and Linux architecture, backs up the installed
+binary, replaces it, restarts only the corresponding systemd unit, and health-checks it.
+If the check fails, it restores the previous binary. The mapping is `server` → `chenweb`,
+`doc-processor` → `doc-processor`, `parser-result-converter` →
+`parser-result-converter`, `doc-service` → `doc-service`; `create-admin` is installed
+without restarting a service. The default selection deploys all these packaged binaries;
+it does not restart every process on the box and does not restart `nats-server`,
+`pdf-parser`, or `kratos`.
+
+Every payload also includes migration files, prompts, reviewer configs, `config.toml`,
+`config/`, and `docs/doc-templates/`. The deploy script synchronizes these files even
+when only one binary is selected. Migrations are copied additively before service startup;
+set `SKIP_MIGRATIONS=1` before the Production command to leave migration files untouched.
+The machine-specific `config.local.toml`, `.env`, and Kratos configuration are not in
+the payload.
+
+The build also writes a `MANIFEST` with the source revision, dirty-tree flag, build time,
+and selected binaries. The Production wrapper leaves it at
+`~/Workspace/ChenWeb/chenweb-deploy/MANIFEST`; inspect it to confirm which build was
+shipped.
+
+`build-server-linux` uses `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 -trimpath -ldflags
+"-s -w"`. Its task is in `ChenWeb/mise.toml`; deployment logic is in
+`ChenWeb/scripts/deploy-server-china.sh`. Box-side feature settings that a binary swap
+does not carry (config flags,
+environment variables, or Kratos changes) remain separate operational steps.
 
 **Notes**
 - `Environment=SHARED_LIB_CONFIG_DIR=...` in the unit is required — its `sync.Once` fires
-  before `.env` is parsed, so it will not work from `.env` alone (deploy devdoc §3).
+  before `.env` is parsed, so it will not work from `.env` alone (see §7).
 - Config precedence: `config.toml` <- `config.local.toml` (Linux overrides:
   `[app_info] host`, `[llm] archive_root`, `[config] config_filename`) <- `.env`.
 - If the HTTP port ever changes again it lives in: `.env` (`APP_PORT`/`PORT`),
@@ -909,8 +1000,11 @@ journalctl -u <unit> -n 100 --no-pager                       # -f to follow; no 
 Ordered full restart (after changing `.env` / `kratos.env` / `config.local.toml` / the vhost):
 ```bash
 env LC_ALL=C LANG=C su -c '
-  systemctl restart nats-server kratos && sleep 3 &&
-  systemctl restart chenweb doc-service doc-processor parser-result-converter pdf-parser && sleep 3 &&
+  systemctl stop pdf-parser &&
+  systemctl restart nats-server kratos &&
+  /home/gui/Workspace/bin/nats --server nats://127.0.0.1:4222 stream ls &&
+  systemctl restart chenweb doc-service doc-processor parser-result-converter &&
+  systemctl start pdf-parser &&
   nginx -t && systemctl reload nginx
 '
 ```
