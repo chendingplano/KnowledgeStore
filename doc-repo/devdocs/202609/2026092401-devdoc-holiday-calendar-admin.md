@@ -28,8 +28,10 @@ only.
 Two things are deliberately kept separate:
 
 - **Holiday info** (`public.holiday_info`) — a year-independent holiday *definition*: name,
-  country, optional description/note. "Independence Day" for the US exists once, regardless of
-  how many years it's scheduled for.
+  country, calendar type, optional description/note. Country + calendar type define the list
+  of specific holidays, which is reused across years but not across calendar types.
+  "Independence Day" for the US `holidays` type exists once, regardless of how many years it's
+  scheduled for. A future "Product A Promotion Days" type would have its own list.
 - **Day kind** — each date bound to a holiday is either a `holiday` day (a day off) or an
   `adjusted` day: a working day that exists because of the holiday. Example: CN New Year 2026
   is Jan 1–3 off, with Sunday Jan 4 an adjusted working day. Both kinds bind to the same
@@ -56,19 +58,23 @@ pool per workspace convention; this feature does not open its own pool). Migrati
   `holiday_info.display_seqno` and enforces unique per-country ordering
 - `ChenWeb/project_migrations/20260927000001_add_calendar_holidays_day_kind.sql` — adds
   `calendar_holidays.day_kind` (existing rows default to `'holiday'`)
+- `ChenWeb/project_migrations/20260928000002_add_holiday_info_calendar_type.sql` — adds
+  `holiday_info.calendar_type` (existing rows default to `'holidays'`) and makes the name and
+  display-order uniqueness per `(country, calendar_type)`
 
 ```sql
 CREATE TABLE public.holiday_info (
     id              BIGSERIAL PRIMARY KEY,
     country         TEXT NOT NULL,
+    calendar_type   TEXT NOT NULL DEFAULT 'holidays',
     name            TEXT NOT NULL,
     display_seqno   INT NOT NULL,
     description     TEXT,
     note            TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (country, name)
-    ,UNIQUE (country, display_seqno)
+    UNIQUE (country, calendar_type, name)
+    ,UNIQUE (country, calendar_type, display_seqno)
 );
 
 CREATE TABLE public.calendars (
@@ -102,7 +108,12 @@ CREATE TABLE public.calendar_default_country (
 
 Key constraints and what they enforce:
 
-- `holiday_info` unique on `(country, name)` — no duplicate holiday name within a country.
+- `holiday_info` unique on `(country, calendar_type, name)`: no duplicate holiday name
+  within one country's calendar type.
+- A bound date reaches (country, calendar type) through two paths: its `calendar_id` →
+  `calendars`, and its `holiday_info_id` → `holiday_info`. The database doesn't force them to
+  agree; `upsertCalendarDates` does, rejecting a holiday from a different country or calendar
+  type with 400 (`CWB_CAL_116`).
 - `calendars` unique on `(year, country, calendar_type)` — this triple *is* the calendar's
   identity; there is no separate surrogate "calendar key" concept anywhere else in the system.
 - `calendar_holidays` unique on `(calendar_id, holiday_date)` — a given date in a given calendar
@@ -147,8 +158,8 @@ middleware, not from `calendarhandler`).
 
 | Method | Path | Handler func | Notes |
 |---|---|---|---|
-| GET | `/calendars/holiday-info?country=` | `ListHolidayInfo` | optional country filter |
-| POST | `/calendars/holiday-info` | `CreateHolidayInfo` | 409 on duplicate `(country, name)` |
+| GET | `/calendars/holiday-info?country=&calendar_type=` | `ListHolidayInfo` | both filters optional |
+| POST | `/calendars/holiday-info` | `CreateHolidayInfo` | body includes `calendar_type` (empty means `holidays`); 409 on duplicate `(country, calendar_type, name)` |
 | PUT | `/calendars/holiday-info/:id` | `UpdateHolidayInfo` | |
 | DELETE | `/calendars/holiday-info/:id` | `DeleteHolidayInfo` | 409 if still bound to a date |
 | GET | `/calendars?year=&country=&calendar_type=` | `GetCalendar` | empty-shape record if no row exists yet (never auto-creates); each date carries `day_kind` |
@@ -163,10 +174,10 @@ middleware, not from `calendarhandler`).
 Response envelope matches every other admin CRUD page in this codebase:
 `{status, record?, results?, total?, error_msg?}`.
 
-Holiday-info results are ordered by `display_seqno`. New definitions use the current
-country’s maximum sequence number plus one. Updating a sequence number transactionally moves
-the definition to that position and shifts affected definitions, preserving unique positive
-sequence numbers within the country.
+Holiday-info results are ordered by `display_seqno`. New definitions use the maximum
+sequence number of their (country, calendar type) plus one. Updating a sequence number
+transactionally moves the definition to that position and shifts affected definitions,
+preserving unique positive sequence numbers within the (country, calendar type).
 
 `calendar_type` defaults to `"holidays"` wherever omitted, both in the DB column default and in
 `parseCalendarKey`/handler payload defaulting. It exists so a `(year, country)` pair could host
@@ -177,14 +188,14 @@ calendar types — it's a plain string column, not an enum or a foreign key.
 ## 4. Frontend
 
 - `calendar-admin-view.svelte` — the page itself: year (number input) / country (dropdown) /
-  calendar-type (text input) selectors; a 12-month CSS-grid calendar for the selected year
+  calendar-type (dropdown from `calendar-types.ts`) selectors; a 12-month CSS-grid calendar for the selected year
   (`monthCells` computes each month's leading blanks + day numbers from `Date`); click-to-toggle
   multi-select on empty day cells, staged edits on already-bound day cells saved by "Modify"
   (see *Editing saved days* below); a "Set Holidays"
   / "Set Adjusted Days" pair of mode buttons (see *Selection modes* below); an "Attach
   Holiday" modal (pick an existing holiday info for the selected country, or check "Create a new
   holiday" to define one inline before attaching); and a "Holiday Definitions ({country})" table
-  (list/create/edit/delete), scoped to whichever country is currently selected. The definitions
+  (list/create/edit/delete), scoped to the selected country and calendar type. The definitions
   table displays `display_seqno`, and the edit form allows administrators to change it.
 - `calendar-admin-client.ts` — typed `fetch` wrappers for every endpoint in §3, using the same
   `Envelope<T>` parsing pattern as `keyword-rewrite-rules-client.ts`.
@@ -271,6 +282,9 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
 
 - **Add a country to the dropdown:** edit `country-list.ts`'s `COUNTRIES` array. No backend or
   migration change needed — `country` is a free-text column everywhere.
+- **Add a calendar type** (e.g. "Product A Promotion Days"): add an entry to
+  `calendar-types.ts`'s `CALENDAR_TYPES` array. `calendar_type` is also free text in the
+  database, so nothing else changes. Each (country, type) starts with an empty holiday list.
 - **Query holidays from another feature:** there is currently no exported/shared Go package for
   this — either add read-only functions to `calendarhandler/store.go` and export them, or extract
   a small `calendarstore` package if a second consumer needs the same queries. Do this only once
@@ -281,6 +295,12 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
   side by side.
 
 ## 7. Verification status
+
+**2026-09-28 (calendar type on holiday definitions):** The migration was applied to `miner` by
+the live server; all 11 existing definitions (CN 7, US 4) read `calendar_type = 'holidays'`.
+Down then Up ran cleanly inside a rolled-back transaction. `go build ./api/...`, `go test
+./api/calendarhandler/` and `svelte-check` (calendar files) pass. Not yet checked by the
+implementing agent: a logged-in browser click-through.
 
 **2026-09-28 (Create calendar):** `go build ./api/...`, `go vet` and `go test
 ./api/calendarhandler/` pass; the live `air` binary rebuilt with the new route. `go build ./...`
