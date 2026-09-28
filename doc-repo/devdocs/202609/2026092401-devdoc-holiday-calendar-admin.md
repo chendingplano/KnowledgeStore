@@ -213,9 +213,15 @@ mode, a click toggles the day between that mode's kind and removed: in Set Holid
 day becomes "remove" and a rust day becomes a holiday day; Set Adjusted Days works the other way
 round. An edit that puts back the saved kind is dropped, so the map holds only real changes. The
 day keeps its holiday; to move a day to a different holiday, select it and use Attach Holiday,
-which overwrites the binding. "Modify" is disabled while `pendingEdits` is empty. It saves kind
-changes with one `upsertCalendarDates` call per holiday, then removals with
-`deleteCalendarDate`, then reloads the calendar. These calls are **not one transaction**: if one
+which overwrites the binding. "Modify" saves *every* change to the active calendar (the
+year / country / calendar type in the header): staged edits, plus any newly selected holiday or
+adjusted days. No dialog asks for a holiday. Each new day joins the holiday of the saved day
+nearest to it (`nearestHolidayId`), so selecting Jan 4 as an adjusted day next to 元旦 on
+Jan 1–3 adds it to 元旦. Modify is disabled when there are no changes. It is also disabled when
+the only changes are new selections and the calendar has no saved days yet, because they
+would have no holiday to join; use Attach Holiday for those. It saves with one
+`upsertCalendarDates` call per holiday, then removals with `deleteCalendarDate`, then reloads the
+calendar. These calls are **not one transaction**: if one
 fails, the earlier ones stay saved, the error is shown, and the reload shows what was actually
 saved. Clear Selection, and anything that reloads the calendar (Refresh, a successful Attach),
 discards staged edits.
@@ -266,7 +272,7 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
 
 ## 7. Verification status
 
-**2026-09-28 (Modify button):** `svelte-check` reports no errors in the calendar files. Not yet
+**2026-09-28 (Modify button, incl. new selections):** `svelte-check` reports no errors in the calendar files. Not yet
 checked by the implementing agent: a logged-in browser click-through of staging and saving edits.
 
 **2026-09-27 (adjusted days):** The migration was applied to `miner` by the live `air` server,
