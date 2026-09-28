@@ -203,14 +203,21 @@ calendar types — it's a plain string column, not an enum or a foreign key.
   writing: US, CN, GB, CA, AU, DE, FR, JP, KR, IN, SG, HK, TW, MX, BR). This is a plain hardcoded
   array, not backed by any table — add entries here to support more countries.
 
-**Calendar lifecycle.** A holiday calendar (the page's "holiday object") is identified by
-year + country + calendar type, the three header fields. It is made of specific holidays (元旦,
-春节, …), each with one or more holiday days and optional adjusted days. `keyValid` requires a
-positive year, a country and a non-blank calendar type; while it is false the page loads
-nothing. When the calendar has no `calendars` row (`calendar.id === 0`), the day grid and its
-Set/Attach buttons are disabled. The lower panel then shows a **Create** button, which calls
-`POST /calendars`, in place of the holiday definitions list. So selecting days always means
-editing a calendar that exists. Delete Calendar returns the page to this state.
+**Two concepts, two panels.**
+
+- **Holiday info** (lower panel) is identified by **country + calendar type** (`infoKeyValid`).
+  It is the list of specific holidays (元旦, 春节, …), the `holiday_info` rows of that pair, and
+  is not bound to any year. There is no parent row. A holiday info exists once it has at least
+  one holiday (`holidayInfoExists`). When none exists, the panel shows a **Create** button that
+  opens the New Holiday form; saving the first holiday creates the holiday info.
+- **Holidays** (upper panel) are a holiday info bound to one year, identified by **year +
+  country + calendar type** (`keyValid`), stored as a `calendars` row plus its
+  `calendar_holidays` dates. One holiday info is shared by the holidays of many years. While
+  the year is invalid, the grid is hidden. When the year's `calendars` row doesn't exist
+  (`calendar.id === 0`), the grid and its Set/Attach buttons are disabled. The upper panel
+  then shows **Create**, which calls `POST /calendars`, but only once the holiday info exists.
+  Otherwise it asks you to create the holiday info first. Delete Calendar returns the upper
+  panel to this state; the holiday info is unaffected.
 
 **Selection modes.** The toolbar reads `Set Holidays · Set Adjusted Days · Attach Holiday ·
 Modify · Clear Selection`. The two Set buttons choose `selectMode` (`'holiday'` by default). The page
