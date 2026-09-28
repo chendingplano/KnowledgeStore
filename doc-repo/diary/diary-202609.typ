@@ -472,13 +472,97 @@ This means:
   Not sure what the 'default' does.
 - In SemOS, callers must tell which kb(s) to search. If users do not say,
   SemOS will search all the kbs that the user has accesses.
-
+- If no kb is provided, it defaults to use all the kbs that the user can access.
 
 == Today Work
-- Bug (fixed): double click an image in uploading video closes the dialog
-- Improvement (done): make the '/development, System Admin => Resources => Videos' list sortable
+- Bug (fixed by Codex): double click an image in uploading video closes the dialog
+- Bug (fixed by Codex): user name and email shown in the left-lower corner are hard-coded
+- Bug (fixed by Codex): 'User Info' not working. Users can edit their info.
+- Bug (fixed by Codex): uploading a file requires the active knowledge store's 'tenant_id' must have a valid value.
+  Tenants are not supported yet. Ignore this field for now.
+- Improvement (done by Codex): make the '/development, System Admin => Resources => Videos' list sortable
   by 'Name', 'Size' and 'Uploaded'
+- Improvement (done by Codex): Disable 'Account' menu item
+- Improvement (done by Codex): add 'kb.inputs.user_id'. Remove 'kb.inputs.tenant_id'.
 
+
+= 2026/09/28
+
+== Agentic Search (Harness)
+
+(continue from yesterday 'Agentic Search')
+
+I have integrated Pi into 'ChenWeb' (refer to '2026091401-rqmt' and '2026091501-handoff').
+The idea is an AI system (such as 'ChenWeb') should have its own agentic loop or harness.
+In `ChenWeb`, we have many modules and apps that need to use LLMs, such as:
+- Doc Processors
+- Document review app
+- Product metric review app
+- Hybrid search
+
+A simple way of integrating LLMs in a system is through prompts and LLM calls,
+or one-short or fix-short LLM integration. This may be sufficient for simple
+use cases. 
+
+When we say 'Agentic', we mean:
+- It is undeterminisitic and thus needs LLMs to help
+- The number of shorts is undeterministic, thus an agentic loop is
+  needed. LLMs are now in the driver seat, determining what to do
+  next and when to stop.
+- An agentic loop
+- A system prompt
+
+A typical scenario of agentic app is hybrid search: user provides a query,
+which can be a question or a task. LLMs determines what to do with it:
+- Generate answer
+- Use a tool
+
+If it decides to use a tool:
+- Pick a tool
+- Compose the request for the tool
+- Invoke the tool
+- Analyze the tool results
+  - Ask users questions
+  - Need to use another tool
+
+== Working with multiple knowledge bases (kbs)
+[keyword: multiple knowledge base, shared knowledge base, shared kb,
+shared document]
+
+== Duplicate documents
+The same document may be in multiple kbs. The first question is:
+can we procuess a shared document in one kb and all other kbs that
+share the document can use the artifacts?
+
+*Shared Document*
+
+A *shared document* is a document that is included in multiple kbs.
+A shared document has one and only one *home knowledge store* and
+one or more *shared knowledge store*. 
+
+The question is: how a shared kb reuses the shared artifacts.
+One solution is to build a shared knowledge base:
+- Add a '`knowledge_stores`' field to documents. This field lists all the
+  kbs the document belongs to. 
+- When a document is not shared and becomes shared now, which is determineded by
+  the values of the document's '`knowledge_stores`' field, the document is
+  removed from its home kb and added to the shared kb. Similarly, when a shared
+  document is no longer shared, it is removed from the shared kb and added back
+  to its home kb.
+- When search, it always search the specified kbs and the shared kb.
+- When search the shared kb, the caller should specify the kbs.
+  Results are filtered by the kbs.
+
+== Today Work
+- Bug (fixed by Codex): upload 'docx' files, missing 'proc_status'
+- Improvement (done by Claude): Holidays can support adjusted days
+- Improvement (done by Codex Sol): PDF parsing monitoring, change to multiple phases.
+  Note that mineru running on Linux and Mac behaves differently!
+- Improvement (done by Codex): Add 'Status' in the upload file list
+- Improvement (by Codex): Added 'Process Failed' in the upload file window
+- Improvement (by Codex): Added 'Quick Filters' in the upload file window
+- New feature (done by Codex): Release page
+- New Feature (done by Claude): 'Pricing' page
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked

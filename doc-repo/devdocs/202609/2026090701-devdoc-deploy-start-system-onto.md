@@ -33,6 +33,25 @@ box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
 a normal deployment are in `2026072401-devdoc-deploy-production.md` and
 `2026073001-devdoc-deploy-production-china-dingbo.md`.
 
+## Quick Deployment
+On the Mac machine:
+```text
+cd ~/Workspace/ChenWeb
+BINS=server,doc-processor ./shell_server_build_rcp.sh # deploy 'chenweb' (server) and 'doc-processor'
+
+```
+Allowed binary names are:
+- server
+- doc-processor
+- parser-result-converter
+- doc-service
+- create-admin
+
+On the Production machine:
+```text
+DEPLOY_NAMES=server,doc-processor bash ~/Workspace/ChenWeb/shell_server_deploy.sh
+```
+
 ## Box facts you need before touching anything
 
 - **Access:** `ssh -p 8822 gui@210.5.158.91`. The maintainer's key is installed in

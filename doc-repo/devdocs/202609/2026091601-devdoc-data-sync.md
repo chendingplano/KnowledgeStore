@@ -35,7 +35,7 @@ key rather than by `kb.images.id`. **Not yet done:**
   `DATA_SYNC_SOURCE_URL` there still held the retired `https://dingbo.bzton.cn`; confirm
   this is fixed before expecting the box to actually reach the Mac.
 
-## How it works, briefly
+## 1. How it works, briefly
 
 - **Direction:** the deployed (target) box always initiates the connection out to the
   source — never the reverse. Deliberate: a customer box may sit behind a firewall that
@@ -57,10 +57,8 @@ key rather than by `kb.images.id`. **Not yet done:**
   the target, even if it disappeared at the source — and, for `table_with_files`, never
   deletes or overwrites a previously-materialized file either, even if the source's file
   later changes (an accepted trade-off — see
-  `configurable-data-sync-items/design.md`'s Risks section). `kb_product_names` is
-  further scoped to only catalog-imported rows
-  (`source = 'cn_nmpa_medical_device_classification_catalog'`) — a box's own
-  locally-extracted `status='proposed'` rows are never touched.
+  `configurable-data-sync-items/design.md`'s Risks section). `kb_product_names` syncs
+  every approved row, regardless of its `source` label; proposed rows are excluded.
 - **Auth:** a shared-secret bearer token, constant-time compared — same pattern as the
   SMS courier relay (`shared/go/api/auth/sms_relay.go`) and the mitmproxy-ingest /
   agent-tools internal routes. All four internal (`/api/internal/data-sync/...`) routes
@@ -238,6 +236,20 @@ and row count. Per item:
   its stored sync state. For a `learned` item this only clears the local cache row; it
   reappears on the next list refresh if the source still offers it, and stays gone if the
   source doesn't. Not offered for compiled items.
+
+### 2.1 What product-name rows are synced
+
+The compiled `kb_product_names` item includes every source row whose `status` is
+`approved`. The `source` value does not affect eligibility: NMPA imports, mechanical
+product imports, future import sources, and manually added names are all included once
+approved. Rows with another status, including locally proposed names, are not fetched.
+
+Sync remains incremental and upsert-only. It transfers the product-name fields (including
+the mechanical import metadata columns) and matches rows by `(source, seq_no,
+product_name)`. Matching rows are updated; new keys are inserted. Sync does not delete
+target rows. Because approval is the inclusion rule, changing a source row to `approved`
+makes it eligible for the next sync, provided its `update_time` is later than the saved
+cursor.
 
 There's no scheduling — every sync is a manual button click (`kb.schedules` is a
 plausible future hook; nothing wires it up today).
@@ -466,7 +478,7 @@ scratch tables (§4.1's integration tests) and the Mac's own discovery/file endp
 | Source returns `500 data sync source is not configured` | `DATA_SYNC_SHARED_SECRET` isn't set on the source. |
 | Preview always shows 0 changed rows even though the source's data looks different | The natural key didn't change and neither did the cursor column — confirm the edit went through an `UPDATE` (not a raw `id`-keyed patch bypassing the trigger) and that the `kb.set_update_time` trigger exists on the table (`\d <table>` on the source). |
 | Sync fails partway, "sync applied but failed to persist state" | The upsert (and, for `table_with_files`, file copy) succeeded but writing `kb.data_sync_state` failed — safe to click Sync again; worst case it re-applies already-correct data (idempotent). |
-| A target's own locally-extracted rows look wrong after a sync | They shouldn't be touched — check the item's `Filter` hasn't been broadened (for `kb_product_names`, it must stay exactly `source = 'cn_nmpa_medical_device_classification_catalog'`). |
+| A target's own locally-extracted rows look wrong after a sync | Product-name sync includes every `status = 'approved'` row, regardless of source. Check whether the row was approved on the source and whether its natural key matches a source row. `proposed` rows are excluded. |
 | New Data Syncher submission rejected with a validation error | Table must be `schema.table`; `table_with_files` needs a file column and at least one of file-dir-env/file-dir-default-subdir set (§3.1). |
 | "cursor column ... must be a timestamp column (found type ...)" | You picked a non-timestamp column as Cursor Column — pick one whose type shown in the dropdown is `timestamp with time zone` or `timestamp without time zone`. |
 | "natural key ... does not match any unique constraint on ... other than its primary key" | Either the picker showed "no eligible unique constraint" (add one via a migration first — §3.1), or this came from a direct API call bypassing the picker with a column set that isn't actually backed by a `UNIQUE` constraint. |
@@ -477,7 +489,7 @@ scratch tables (§4.1's integration tests) and the Mac's own discovery/file endp
 | A learned item never appears on a target's Sync Data list | The target's configured source must actually be reachable *at least once* for that item to be learned in the first place (discovery is best-effort per list load, not push-based) — check §1.5's discovery curl succeeds from the target. |
 | A synced video's cover image is missing/placeholder on the target | Either `kb-images` hasn't been synced to that target yet (`image_uid` is currently dangling — sync `kb-images`, then re-check; no re-sync of `video` itself is needed, see §4.1), or the source video's `image_id`/`image_uid` predates the 2026-09-17 migration and was never backfilled. |
 
-## See also
+## 8. See also
 
 - `ChenWeb/openspec/changes/production-data-sync/` — original proposal/design/spec/tasks
   (table-only sync, the compiled registry, the pull/preview/apply pipeline).
