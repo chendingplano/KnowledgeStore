@@ -225,7 +225,7 @@ adjustedDates)` call. Cell colors, also shown in the legend under the toolbar:
 | pending holiday day | indigo fill `#6366f1` |
 | pending adjusted day | amber fill `#f59e0b`, dark text |
 | saved holiday day | green fill `#15803d` |
-| saved adjusted day | rust fill `#9a3412`, tooltip `<name> (adjusted working day)` |
+| saved adjusted day | light blue fill `#7dd3fc`, dark blue text `#0c4a6e`, tooltip `<name> (adjusted working day)` |
 | saved day with an unsaved edit | pink dashed outline `#ec4899`, over the fill of its new kind (no fill if it will be removed) |
 
 **Editing saved days.** Clicking a saved day no longer deletes it at once. It records a staged
