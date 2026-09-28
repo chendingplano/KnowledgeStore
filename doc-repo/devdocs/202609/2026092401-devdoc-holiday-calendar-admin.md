@@ -178,7 +178,8 @@ calendar types — it's a plain string column, not an enum or a foreign key.
 - `calendar-admin-view.svelte` — the page itself: year (number input) / country (dropdown) /
   calendar-type (text input) selectors; a 12-month CSS-grid calendar for the selected year
   (`monthCells` computes each month's leading blanks + day numbers from `Date`); click-to-toggle
-  multi-select on empty day cells, click-to-remove on already-bound day cells; a "Set Holidays"
+  multi-select on empty day cells, staged edits on already-bound day cells saved by "Modify"
+  (see *Editing saved days* below); a "Set Holidays"
   / "Set Adjusted Days" pair of mode buttons (see *Selection modes* below); an "Attach
   Holiday" modal (pick an existing holiday info for the selected country, or check "Create a new
   holiday" to define one inline before attaching); and a "Holiday Definitions ({country})" table
@@ -191,7 +192,7 @@ calendar types — it's a plain string column, not an enum or a foreign key.
   array, not backed by any table — add entries here to support more countries.
 
 **Selection modes.** The toolbar reads `Set Holidays · Set Adjusted Days · Attach Holiday ·
-Clear Selection`. The two Set buttons choose `selectMode` (`'holiday'` by default). The page
+Modify · Clear Selection`. The two Set buttons choose `selectMode` (`'holiday'` by default). The page
 keeps two pending sets, `selectedHolidays` and `selectedAdjusted`. `toggleDay` toggles the
 clicked date in the active mode's set, and adding a date there also removes it from the other
 set, so a pending date always has exactly one kind. "Attach Holiday" is enabled when either set
@@ -201,9 +202,23 @@ adjustedDates)` call. Cell colors, also shown in the legend under the toolbar:
 | State | Style |
 |---|---|
 | pending holiday day | indigo fill `#6366f1` |
-| pending adjusted day | amber outline `#f59e0b` |
+| pending adjusted day | amber fill `#f59e0b`, dark text |
 | saved holiday day | green fill `#15803d` |
-| saved adjusted day | amber fill `#d97706`, tooltip `<name> (adjusted working day)` |
+| saved adjusted day | rust fill `#9a3412`, tooltip `<name> (adjusted working day)` |
+| saved day with an unsaved edit | pink dashed outline `#ec4899`, over the fill of its new kind (no fill if it will be removed) |
+
+**Editing saved days.** Clicking a saved day no longer deletes it at once. It records a staged
+edit in `pendingEdits` (`Map<date, DayKind | null>`, where `null` means remove). In the active
+mode, a click toggles the day between that mode's kind and removed: in Set Holidays mode a green
+day becomes "remove" and a rust day becomes a holiday day; Set Adjusted Days works the other way
+round. An edit that puts back the saved kind is dropped, so the map holds only real changes. The
+day keeps its holiday; to move a day to a different holiday, select it and use Attach Holiday,
+which overwrites the binding. "Modify" is disabled while `pendingEdits` is empty. It saves kind
+changes with one `upsertCalendarDates` call per holiday, then removals with
+`deleteCalendarDate`, then reloads the calendar. These calls are **not one transaction**: if one
+fails, the earlier ones stay saved, the error is shown, and the reload shows what was actually
+saved. Clear Selection, and anything that reloads the calendar (Refresh, a successful Attach),
+discards staged edits.
 
 **Default-country flow:** on mount, the view calls `getDefaultCountry()` *before* loading the
 calendar or holiday-info list, and uses the result as the initial `country` state if present;
@@ -250,6 +265,9 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
   side by side.
 
 ## 7. Verification status
+
+**2026-09-28 (Modify button):** `svelte-check` reports no errors in the calendar files. Not yet
+checked by the implementing agent: a logged-in browser click-through of staging and saving edits.
 
 **2026-09-27 (adjusted days):** The migration was applied to `miner` by the live `air` server,
 and the 33 existing bindings read `day_kind = 'holiday'`. A rolled-back SQL transaction
