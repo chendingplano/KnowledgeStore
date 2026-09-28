@@ -1,6 +1,6 @@
 # Peak Hours Admin — Data Model, API, and Frontend
 
-**Date:** 2026-09-24 \
+**Date:** 2026-09-24 (updated 2026-09-28: adjusted working days; off-peak consumer) \
 **Scope:** Source of truth for the Peak Hours admin feature — what the table means, the full API
 surface, which frontend files implement it, and how it's wired into navigation.
 **Code root:** `ChenWeb/server/api/peakhourshandler/`, `ChenWeb/web/src/lib/components/home3/peak-hours-*`
@@ -47,6 +47,13 @@ see `2026092401-devdoc-holiday-calendar-admin.md`). Each peak-hours record carri
 no calendar row exists yet for that country/year, "holidays" simply excludes nothing for that
 record — this is a deliberate fail-open choice, not an error, so a record that doesn't care about
 holidays isn't forced to pick a country.
+
+Only dates bound as `day_kind = 'holiday'` count as holidays. A date bound as an **adjusted
+working day** (`day_kind = 'adjusted'`, e.g. CN Sunday 2026-01-04) counts as a workday:
+it matches `applicable_days` mode `workdays`, and neither `"weekends"` nor `"holidays"`
+excludes it. (Before 2026-09-28 adjusted days were wrongly treated as holidays.) The lookup
+is `calendarDayKind` in `store.go`. It runs at most once per evaluation, and only when a
+rule needs it.
 
 ## 2. Schema
 
@@ -116,7 +123,7 @@ authenticated session; there is no fully public/unauthenticated path here).
 
 **Evaluation logic (`EvaluateActive`, `evaluate.go`):** convert the queried instant into the
 record's `timezone`, then check in order — `applicable_days` (cheap, no DB) → `exclude_days`
-(`"holidays"` is the only branch needing a DB lookup, against `calendar_holidays` joined to
+(`"holidays"`, and a weekend that might be an adjusted working day, are the only branches needing a DB lookup, against `calendar_holidays` joined to
 `calendars` for `(year, country, calendar_type='holidays')`) → each `hours` range. The first
 matching exclusion, or falling on a non-applicable day, short-circuits to inactive without
 checking `hours` at all.
@@ -157,6 +164,14 @@ package now uses a dedicated sentinel error (`errAdminCheckFailed`) instead. **`
 itself was left unchanged** — fixing it was out of scope for this change — so it likely still has
 this issue; anyone touching that package, or copying its `requireAdmin` pattern into a new one,
 should check for and fix this first.
+
+### Consumers
+
+- **Off-peak-only auto processing** (`2026092802-devdoc-offpeak-only-auto-processing.md`):
+  the doc-processor calls `GetPeakHoursByName` + `EvaluateActive` in-process, not over HTTP,
+  for the record named by `DOC_PROCESS_OFFPEAK_PEAK_HOURS_NAME` (default
+  `deepseek peak hours`). Renaming or deleting that record turns off-peak holding off, with
+  a WARN log.
 
 ## 6. Known limitations (by design — see design.md's Risks/Trade-offs and Non-Goals)
 
