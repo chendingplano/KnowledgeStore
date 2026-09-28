@@ -152,6 +152,7 @@ middleware, not from `calendarhandler`).
 | PUT | `/calendars/holiday-info/:id` | `UpdateHolidayInfo` | |
 | DELETE | `/calendars/holiday-info/:id` | `DeleteHolidayInfo` | 409 if still bound to a date |
 | GET | `/calendars?year=&country=&calendar_type=` | `GetCalendar` | empty-shape record if no row exists yet (never auto-creates); each date carries `day_kind` |
+| POST | `/calendars` | `CreateCalendar` | body: `{year, country, calendar_type}`, all required (`CWB_CAL_142`); creates the empty `calendars` row (idempotent, `ON CONFLICT DO NOTHING`) and returns it with `201` |
 | PUT | `/calendars/dates` | `UpsertCalendarDates` | body: `{year, country, calendar_type, dates: [], adjusted_dates: [], holiday_info_id}`; creates the `calendars` row if missing. `dates` are bound as `holiday`, `adjusted_dates` as `adjusted`, both in one transaction. At least one list must be non-empty (`CWB_CAL_112`). A date in both lists is rejected with 400 (`CWB_CAL_115`). Omitting `adjusted_dates` keeps the original behavior |
 | DELETE | `/calendars/:id/dates/:date` | `DeleteCalendarDate` | removes one binding |
 | DELETE | `/calendars/:id` | `DeleteCalendar` | cascades bindings via FK |
@@ -190,6 +191,15 @@ calendar types — it's a plain string column, not an enum or a foreign key.
 - `country-list.ts` — the fixed ISO 3166-1 alpha-2 country dropdown list (15 entries as of this
   writing: US, CN, GB, CA, AU, DE, FR, JP, KR, IN, SG, HK, TW, MX, BR). This is a plain hardcoded
   array, not backed by any table — add entries here to support more countries.
+
+**Calendar lifecycle.** A holiday calendar (the page's "holiday object") is identified by
+year + country + calendar type, the three header fields. It is made of specific holidays (元旦,
+春节, …), each with one or more holiday days and optional adjusted days. `keyValid` requires a
+positive year, a country and a non-blank calendar type; while it is false the page loads
+nothing. When the calendar has no `calendars` row (`calendar.id === 0`), the day grid and its
+Set/Attach buttons are disabled. The lower panel then shows a **Create** button, which calls
+`POST /calendars`, in place of the holiday definitions list. So selecting days always means
+editing a calendar that exists. Delete Calendar returns the page to this state.
 
 **Selection modes.** The toolbar reads `Set Holidays · Set Adjusted Days · Attach Holiday ·
 Modify · Clear Selection`. The two Set buttons choose `selectMode` (`'holiday'` by default). The page
@@ -271,6 +281,12 @@ There is no SvelteKit route for this page — `/home3` is a client-side SPA driv
   side by side.
 
 ## 7. Verification status
+
+**2026-09-28 (Create calendar):** `go build ./api/...`, `go vet` and `go test
+./api/calendarhandler/` pass; the live `air` binary rebuilt with the new route. `go build ./...`
+fails in `cmd/doc-benchmark` and `cmd/service-pdf-parser` (`AlarmMissingTenantIDAtInsert`),
+unrelated to this change. Not yet checked by the implementing agent: a logged-in browser
+click-through of Create.
 
 **2026-09-28 (Modify button, incl. new selections):** `svelte-check` reports no errors in the calendar files. Not yet
 checked by the implementing agent: a logged-in browser click-through of staging and saving edits.
