@@ -58,7 +58,8 @@ translate that report, which takes 10–20 seconds instead of the minute or more
 review takes. A translation only changes wording: counts, metric IDs, severities,
 categories and field codes (such as `lower_bound`) are copied from the original, and the
 report says "Translated from review #N". Pressing **Review** instead runs a fresh review
-in the current language.
+in the current language. If a translation fails, the page shows "Translation failed" with the
+**Translate** button again, so it can be retried without a full review.
 
 **Export** (next to Review) saves the review on screen:
 
