@@ -42,7 +42,7 @@ If the outer body itself is malformed JSON, the dialog falls back to escaped, pr
 
 ### Dialog sizing
 
-The dialog uses the browser's native two-axis resize handle (`resize: both`). Its initial size is up to 900 px wide and 80 vh high (capped at 760 px), and min/max dimensions keep it within the viewport. The dialog clips its own overflow while the body pane scrolls, so resizing changes the visible reading area without removing access to the full body.
+The dialog uses the browser's native two-axis resize handle (`resize: both`). Its initial size is up to 900 px wide and 80 vh high (capped at 760 px), and min/max dimensions keep it within the viewport. The dialog clips its own overflow while the body pane scrolls, so resizing changes the visible reading area without removing access to the full body. Backdrop dismissal is handled on pointer-down only when the press starts on the backdrop; pointer release after an internal resize does not close the dialog.
 
 ## Known limitations
 
