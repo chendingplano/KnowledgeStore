@@ -411,6 +411,13 @@ source explicit and centrally configured.
 
 ## 11. Turning a Page into a Configurable Page (Recipe)
 
+> **Translation is no longer done here (2026-09-30).** Per ADR
+> [2026093001](../../adrs/202609/2026093001-adr-paraglide-standard-i18n.md), all
+> interface text — including menu labels — comes from Paraglide messages
+> (`web/messages/{en,zh-cn}.json`). Use this recipe only when a page needs
+> operator-controlled visibility, role-based access, or runtime label overrides;
+> do not add `kb.page_config` rows just to translate text.
+
 This section is the normative how-to for onboarding a new page onto the
 DB-backed capability described in §9 (ADR
 [2026072003](../adrs/202607/2026072003-adr-db-backed-page-config.md)). It
