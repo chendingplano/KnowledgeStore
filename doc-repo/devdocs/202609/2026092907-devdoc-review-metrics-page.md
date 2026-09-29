@@ -7,7 +7,8 @@ format, or how reviews are stored.
 **Code root:** `ChenWeb/server/api/kbhandler/metric_review_handler.go`,
 `ChenWeb/web/src/lib/components/home3/metric-review-view.svelte`
 
-**Traceability — openspec** (change `llm-review-metrics`; paths move under
+**Traceability — openspec** (changes `llm-review-metrics` and
+`metric-review-i18n-export` (languages, translation, export); paths move under
 `openspec/changes/archive/` once archived):
 - `ChenWeb/openspec/changes/llm-review-metrics/proposal.md` — why this exists
 - `ChenWeb/openspec/changes/llm-review-metrics/design.md` — rationale, alternatives
@@ -15,7 +16,8 @@ format, or how reviews are stored.
 - `ChenWeb/openspec/changes/llm-review-metrics/tasks.md` — implementation log
 - `ChenWeb/openspec/specs/metric-extraction-review/spec.md` (after archive; until then
   `openspec/changes/llm-review-metrics/specs/metric-extraction-review/spec.md`) — the
-  canonical requirements. **Update this spec file, not just this doc, if behavior
+  canonical requirements; `openspec/changes/metric-review-i18n-export/specs/metric-extraction-review/spec.md`
+  adds the language, translation and export requirements. **Update this spec file, not just this doc, if behavior
   changes** — this doc explains the feature for humans and points at code; the spec
   is the contract for agents.
 
@@ -46,6 +48,27 @@ report straight away without calling the LLM again. To run a new review anyway �
 example after changing the extractor — tick **Force to Review**; the new review is
 saved alongside the old ones and becomes the one shown.
 
+### Languages, translation and export
+
+Each review is written in one language — the language the page is shown in (English or
+中文, switched in the site header). Selecting a document looks for a review **in the
+current language only**. If there is none, but a finished review exists in the other
+language, the page asks whether to translate it; pressing **Translate** has the LLM
+translate that report, which takes 10–20 seconds instead of the minute or more a new
+review takes. A translation only changes wording: counts, metric IDs, severities,
+categories and field codes (such as `lower_bound`) are copied from the original, and the
+report says "Translated from review #N". Pressing **Review** instead runs a fresh review
+in the current language.
+
+**Export** (next to Review) saves the review on screen:
+
+- *Export Markdown* downloads `review-<record>-<lang>.md`.
+- *Export PDF* opens a print-ready copy of the report and the browser's print dialog —
+  choose "Save as PDF" there. (This keeps Chinese text correct without bundling fonts.
+  If nothing opens, the browser blocked the pop-up; allow pop-ups for the site.)
+
+Both export only the current-language review.
+
 A review takes from under a minute to a few minutes. It runs in the background: the
 page shows "Reviewing…" and updates itself when the report is ready, so you can leave
 it open.
@@ -56,18 +79,22 @@ it open.
 |---|---|
 | Menu | System Admin → LLM → Review Metrics (nav id `sysadmin-llm-review-metrics`) |
 | Page | `web/src/lib/components/home3/metric-review-view.svelte` + `metric-review-client.ts` |
-| Server | `server/api/kbhandler/metric_review_handler.go` — `GET` / `POST /api/v1/kb/metric-reviews/:record_id` |
-| Stored reviews | table `kb.metric_reviews`, one row per run (migration `20260929000002_create_kb_metric_reviews.sql`) |
-| Prompt | `prompts/prompt-review-metric-extraction-v1.md`, named by env var `REVIEW_METRICS_PROMPT` |
+| Server | `server/api/kbhandler/metric_review_handler.go` — `GET /api/v1/kb/metric-reviews/:record_id?lang=`, `POST` (body `{force, lang}`), `POST …/:record_id/translate` (body `{lang}`) |
+| Stored reviews | table `kb.metric_reviews`, one row per run (migrations `20260929000002_create_kb_metric_reviews.sql`, `20260929000003_add_lang_to_kb_metric_reviews.sql`) |
+| Prompt | `prompts/prompt-review-metric-extraction-v2.md` (v1 = English-only), named by env var `REVIEW_METRICS_PROMPT` |
+| Translate prompt | `prompts/prompt-translate-metric-review-v1.md`, named by env var `REVIEW_METRICS_TRANSLATE_PROMPT` |
+| Page text | `web/messages/{en,zh-cn}.json`, keys `mrv_*`; export builders in `metric-review-client.ts` |
 | Model | any `llm` entry in `ChenWeb/.models.toml`, named by env var `REVIEW_METRICS_MODEL_NAME` (dev: `gpt-6-luna`) — see "Choosing the model" below |
-| LLM usage | logged like other calls; filter LLM Usage Logs by call reason `review_metrics` |
+| LLM usage | logged like other calls; filter LLM Usage Logs by call reason `review_metrics` (reviews) or `review_metrics_translate` (translations) |
 
 Document search reuses the existing `GET /kb/inputs` endpoint: a number searches by
 record ID, anything else searches titles. Admins see all records; other users see only
 their own.
 
-The two env vars live in `mise.local.toml` for development; **the production config
-must add them too**, or every review fails with an error naming the missing variable.
+The three env vars live in `mise.local.toml` for development; **the production config
+must add them too**, or every review (or translation) fails with an error naming the
+missing variable. If `REVIEW_METRICS_PROMPT` still names v1, reviews come out in English
+whatever the page language.
 
 The prompt is named `prompt-review-metric-extraction-*`, not `prompt-review-metrics-*`:
 the latter family already belongs to the Doc Review cross-document metric reviewer.
@@ -76,7 +103,7 @@ the latter family already belongs to the Doc Review cross-document metric review
 
 | Table | Used for | Access |
 |---|---|---|
-| `kb.metric_reviews` | The stored reviews — one row per run with status (`running` / `done` / `failed`), the report (JSON), error message, model and prompt names, metric count, who ran it and when. Created by this feature. | read + write |
+| `kb.metric_reviews` | The stored reviews — one row per run with language (`lang`: `en` / `zh-cn`), status (`running` / `done` / `failed`), the report (JSON), error message, model and prompt names, metric count, who ran it and when, and for a translation the review it was translated from (`translated_from_id`). Created by this feature. | read + write |
 | `kb.metrics` | The extracted metric rows being reviewed (all rows with `input_record_id` = the selected record). | read only |
 | `kb.inputs` | Document search on the page, and the reviewed document's title, doc number and `result_filename` (which locates its line-numbered text file). | read only |
 | `public.llm_usage_event` | One row per LLM call, written by the shared LLM client — this is what LLM Usage Logs shows. | written by the shared client |
@@ -116,9 +143,14 @@ code change is needed.
   the prompt, which are precision-first; treat findings as a checklist to confirm. The
   server does guard the numbers: it computes the counts itself and throws away any
   metric ID the LLM cites that does not exist.
-- **Only the latest review is shown.** Earlier reviews stay in `kb.metric_reviews` for
+- **Only the latest review in the current language is shown.** Earlier reviews stay in `kb.metric_reviews` for
   comparison, but the page has no history view.
 - **A server restart interrupts a running review.** It is shown as failed
   ("interrupted") after 10 minutes, and can be run again.
-- **Report prose is English**; quotes from the document stay in their original
-  language. The menu label has no Chinese translation yet.
+- **Only English and 中文** are supported (the site's two languages). Quotes from the
+  document stay in their original language in both.
+- **A translation repeats the original's mistakes**; it is not a second opinion. Run a
+  fresh Review for that.
+- **Export PDF goes through the print dialog**, not a direct download.
+- The menu label has no Chinese translation yet (menu labels come from the page-config
+  overrides, not from `messages/*.json`).
