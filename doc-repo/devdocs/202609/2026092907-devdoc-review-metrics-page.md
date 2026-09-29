@@ -59,7 +59,7 @@ it open.
 | Server | `server/api/kbhandler/metric_review_handler.go` — `GET` / `POST /api/v1/kb/metric-reviews/:record_id` |
 | Stored reviews | table `kb.metric_reviews`, one row per run (migration `20260929000002_create_kb_metric_reviews.sql`) |
 | Prompt | `prompts/prompt-review-metric-extraction-v1.md`, named by env var `REVIEW_METRICS_PROMPT` |
-| Model | `.models.toml` entry named by env var `REVIEW_METRICS_MODEL_NAME` (dev: `deepseek-flash-processor`) |
+| Model | `.models.toml` entry named by env var `REVIEW_METRICS_MODEL_NAME` (dev: `gpt-6-luna`, which needs `omit_temperature = true` — see [2026092908-devdoc-llm-omit-temperature.md](2026092908-devdoc-llm-omit-temperature.md)) |
 | LLM usage | logged like other calls; filter LLM Usage Logs by call reason `review_metrics` |
 
 Document search reuses the existing `GET /kb/inputs` endpoint: a number searches by
