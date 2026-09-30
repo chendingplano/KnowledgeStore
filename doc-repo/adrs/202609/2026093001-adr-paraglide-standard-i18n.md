@@ -9,6 +9,12 @@
 ## Change Logs
 * 2026/09/30, ADR created. Steps 1–3 below implemented (openspec change
   `i18n-paraglide-standard`); step 4 (converting existing pages) not started.
+* 2026/09/30, Conversion started. Added the converter `web/scripts/i18n-extract.ts`
+  and converted batch 1 (50 `home3` components). The check (DR2) now also counts
+  text-like string literals inside markup expressions (`{busy ? 'Saving…' : 'Save'}`),
+  the most common form of button text; the baseline was regenerated under the
+  stricter rule (195 files / 5,664 items). Language self-names (English, 中文) are
+  allowed as literals.
 
 ## Context
 
@@ -57,7 +63,9 @@ of `bun run check`:
 - *Parity* (hard failure): both message files have the same keys, none empty.
 - *Hard-coded text* (ratchet): text written directly in `.svelte` markup — text
   nodes and `placeholder`/`title`/`aria-label`/`alt`/`label` attributes, outside
-  `<code>`/`<pre>` — is counted per file against `web/i18n-baseline.json`. A new
+  `<code>`/`<pre>` — and text-like string literals inside markup expressions
+  (`{busy ? 'Saving…' : 'Save'}`) are counted per file against
+  `web/i18n-baseline.json`. A new
   file with any, or an existing file whose count grows, fails. When a page is
   converted, `bun scripts/check-i18n.ts --update` lowers its entry.
 - Not covered: strings built in `<script>` (e.g. option lists, toasts). The rule
