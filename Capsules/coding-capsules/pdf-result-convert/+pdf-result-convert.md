@@ -30,6 +30,13 @@ The service accepts JSON payloads with:
 - `type` optional filter
 - `status` optional filter
 - `force` optional reprocess flag
+- `operation` optional list of doc processors, sent by the Restart dialog's
+  `convert_parse_result` option with the processors the user selected:
+  - absent (the parser's own event): the completion event carries no
+    `operation`, so doc processing runs the record's full plan
+  - empty list `[]`: convert only; no completion event is published
+  - non-empty list: copied to the completion event's `operation`, so doc
+    processing runs only those processors
 
 ### Message Filtering
 
@@ -251,9 +258,13 @@ Current payload:
   "status": "success",
   "file_format": "json",
   "result_filename": "/path/to/parser-result.json",
-  "line_file_filename": "/path/to/parser-result_opendata.txt"
+  "line_file_filename": "/path/to/parser-result_opendata.txt",
+  "operation": ["extract_metrics"]
 }
 ```
+
+`operation` is present only when the incoming request carried a non-empty
+`operation` list.
 
 On conversion failure, `status` is `failed` and `error` is populated.
 
