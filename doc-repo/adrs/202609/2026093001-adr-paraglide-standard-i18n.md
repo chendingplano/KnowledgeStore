@@ -15,6 +15,11 @@
   the most common form of button text; the baseline was regenerated under the
   stricter rule (195 files / 5,664 items). Language self-names (English, 中文) are
   allowed as literals.
+* 2026/09/30, Main routes converted: every file reachable from /semos,
+  /semos/workspace, /home3/knowledge, /development and /resources (110 files,
+  ~4,900 messages). The check now also covers text props on components and
+  confirm/alert/prompt text in event handlers. Remaining baseline: 85 files /
+  1,083 items, all outside the main routes (largely unused demo/test pages).
 
 ## Context
 
