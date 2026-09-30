@@ -153,5 +153,6 @@ code change is needed.
 - **A translation repeats the original's mistakes**; it is not a second opinion. Run a
   fresh Review for that.
 - **Export PDF goes through the print dialog**, not a direct download.
-- The menu label has no Chinese translation yet (menu labels come from the page-config
-  overrides, not from `messages/*.json`).
+- The page and its menu label (指标审查) are translated through Paraglide
+  (`messages/*.json`, keys `mrv_*` and `nav_sysadmin_llm_review_metrics`), per ADR
+  2026093001.
