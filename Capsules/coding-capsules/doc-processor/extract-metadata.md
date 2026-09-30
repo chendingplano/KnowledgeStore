@@ -23,6 +23,7 @@ The input file MUST conform to the canonical Line File spec:
 - Retrieve the record by 'record_id'. 
 - Read the first EXTRACT_DOCMETA_NUM_PAGES pages from the input
 - Use the primary LLM (specified by `EXTRACT_DOCMETA_MODEL_NAME`) together with the models file (`EXTRACT_DOCMETA_MODELS_FILE` or `MODELS_FILE`) and the prompt (specified by `EXTRACT_DOCMETA_PROMPT`; when unset it defaults to the file `prompt_extract_doc_metadata_v1.txt`, resolved from `PROMPT_DIR` / `ChenWeb/prompts`) to extract the document metadata from the pages. The prompt is never hard-coded in the processor.
+- Provider-side reasoning is controlled by `EXTRACT_DOCMETA_REASONING` (`"true"` or `"false"`, default `"false"`; unset or unparseable means `"false"`). When `"false"`, thinking is forced off (`thinking_type="disabled"`) on both the primary and fallback models. When `"true"`, the models run exactly as declared in the models file — the flag never turns thinking on for a model that does not ask for it.
 - If the primary extraction request fails and `EXTRACT_DOCMETA_MODEL_FALLBACK` is configured, retry the same extraction with the fallback model.
 - If the LLM requests reading more pages, do so.
 - The LLM outputs its extracted doc metadata as a JSON doc. Below is an example:
