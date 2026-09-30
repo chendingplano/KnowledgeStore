@@ -91,6 +91,36 @@ Pass 1 rules:
 - do not generate category paths
 - do not translate
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
+- extract a clause that sets a requirement on an object but leaves its measurable criteria
+  to a cited document (e.g. "应按照 CJJ 27 的要求配置…") as a candidate, even though it has no
+  number (see 3.3.1)
+
+#### 3.3.1 Requirements Delegated To A Cited Document
+
+A clause such as "应按照 CJJ 27 和 GB 16889 的要求配置…设施" requires something of a specific
+object, but the numbers live in the cited document, not this one. Such clauses are kept as
+metric rows that record the pointer; the cited document's metrics are not copied in.
+
+Since candidates prompt v10 / enrich prompt v7, these rows are carried through the existing
+fields (no schema change):
+
+| Stage | Field | Value |
+|-------|-------|-------|
+| Pass 1 | `value_hint` | `ref:` + cited identifiers as written, joined by `; ` (e.g. `ref:CJJ 27; GB 16889`) |
+| Pass 1 | `confidence_reason` | starts with `external_reference:` |
+| Pass 2 | `value_range_type` | `qualitative` (not `limit_absent` — the source does not say there is no limit) |
+| Pass 2 | `value_class` | `reference` (normalizes to assertion kind `reference`) |
+| Pass 2 | `is_explicit_metric` | `false`; `metric_value`, `unit`, `formula_or_definition` empty |
+| Pass 2 | `threshold_or_target` | the clause wording, including the cited identifiers |
+| Pass 2 | `reasoning_tags` | `external_reference` plus one `cited_doc:<identifier>` per cited document |
+| Pass 2 | `keywords` | include each cited identifier |
+
+Not covered: entries in a normative-references list, terms-and-definitions boilerplate, and
+clauses that state their own number and cite a document only for the test method (those
+stay ordinary metrics).
+
+Resolving `cited_doc:` identifiers to records in `kb.inputs` and linking to the cited
+document's metrics is not implemented yet.
 
 Pass 2 batching:
 
