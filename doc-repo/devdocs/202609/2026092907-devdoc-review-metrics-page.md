@@ -45,7 +45,7 @@ metric's name, value and line.
 
 The page has a document menu, review report, and PDF pane. Drag either divider to
 resize adjacent panes. Selecting a missed finding, non-metric row, or attribute issue
-moves the PDF to its source page and highlights the cited lines. New reviews keep
+marks the selected entry, moves the PDF to its source page, and highlights the cited lines. New reviews keep
 `source_line_spans` on missed findings and metric snapshots; existing reviews use
 their `lines` text for the same navigation. The viewer uses the shared
 `PdfViewWindow` and the document's raw-line coordinates.
