@@ -873,8 +873,25 @@ especially important for the ones that causes writing back.
 - Pricing is very friendly (refer to @ref_gpt_release)
 
 == Today Work
+- Bug (fixed by Claude): When export PDF in Review Metrics, it freeze the browser tab
+- Bug (fixed by Claude): PDF parser failed extracting ICS, CCS, doc_no
+- Bug (fixed by Claude): selected only convert but processed 'extract_metrics' and 'extract_products'
+- Bug (by Claude): when an input record's working directory not exist or missing its file,
+  create the working directory and copy the file from the backup
 - Improvement (done by Claude): use Paraglide for internationalization
-- Improvement (by Claude): convert existing 234 files to support both Chinese and English
+- Improvement (done by Claude): convert existing 234 files to support both Chinese and English
+- Improvement (done by Codex): Add PDF display in Metric Review page
+- Improvement (done by Claude): Reconfigured menus for 'dev' and 'admin'
+- Improvement (done by Claude): Add 'Models' to Review Metrics
+- Improvement (done by Claude): Add 'GPT 6 Sol' model to '.models'
+- Improvement (done by Claude): Changed the PDF export to include the grounding
+- Improvement (done by Claude): Highlight the grounding row for tables in Review Report
+- Improvement (done by Claude): Add 'EXTRACT_DOCMETA_REASONING' to extract_metadata.
+
+- Improvement (plan): Add an 'Add Missed' button in Metric Review page
+- Improvement (plan): Add an 'Analyze' button. When the button is clicked, it lets users select
+  multiple models. It then runs 'extract_metrics' for each of the models, saves the results in
+  files. After 
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked

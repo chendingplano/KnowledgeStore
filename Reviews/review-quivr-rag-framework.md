@@ -6,7 +6,12 @@ Author: Codex
 
 ## 1) Executive Summary
 
-Quivr is best understood as an opinionated RAG framework packaged as a developer-facing "brain" abstraction: you feed files, configure retrieval/generation workflows, and get a question-answering assistant with configurable storage, vector backends, parsers, and model providers. The project positions itself around reducing RAG plumbing overhead so teams can focus on product UX and domain workflows.
+Quivr is best understood as an opinionated RAG framework packaged as a 
+developer-facing "brain" abstraction: you feed files, configure 
+retrieval/generation workflows, and get a question-answering assistant 
+with configurable storage, vector backends, parsers, and model providers. 
+The project positions itself around reducing RAG plumbing overhead 
+so teams can focus on product UX and domain workflows.
 
 At the architecture level, Quivr exposes two major value layers:
 - A reusable core package (`quivr-core`) centered on `Brain` lifecycle methods (`from_files`, `ask`, `ask_streaming`, `save`, `load`) and workflow configs.

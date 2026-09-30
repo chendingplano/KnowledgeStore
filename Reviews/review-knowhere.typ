@@ -92,6 +92,77 @@ relevant design ideas. The developers also report improvements in retrieval
 accuracy and efficiency, although the published benchmark figures come from 
 their internal evaluations rather than independent testing.
 
+== Tools
+Knowhere exposes a fairly small, concrete toolset to agents through its 
+*MCP server*. The current documentation lists nine tools. ([Knowhere][1])
+
+```text
+| Tool                            | Purpose                                                          |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `knowhere_list_documents`       | List documents in the corpus/namespace                           |
+| `knowhere_get_document_outline` | Get the hierarchical outline/tree of a document                  |
+| `knowhere_read_chunks`          | Read exact chunks by page, section path, chunk ID/type, or range |
+| `knowhere_grep_chunks`          | Literal or regex search *within one document*                    |
+| `knowhere_search`               | Broad retrieval/search across published documents                |
+| `knowhere_async_parse_url`      | Ingest/parse a document from a URL                               |
+| `knowhere_async_parse_file`     | Ingest/parse a local file                                        |
+| `knowhere_async_get_job_status` | Check asynchronous parsing status/results                        |
+| `knowhere_delete_document`      | Soft-delete/archive a document                                   |
+```
+
+The first five are the particularly interesting ones for *agentic exploration*. 
+They effectively give the agent several different information-access primitives 
+rather than one generic `search()` function. `knowhere_search` is corpus-level 
+discovery; `knowhere_grep_chunks` provides deterministic exact/regex search 
+inside a selected document; `knowhere_get_document_outline` lets the agent 
+inspect document structure; and `knowhere_read_chunks` lets it retrieve the 
+actual evidence after deciding where to look. ([Knowhere][1])
+
+For example, an agent investigating *"What are the calibration requirements for 
+temperature data loggers?"* could conceptually do:
+
+```text
+knowhere_search("temperature data logger calibration")
+        ↓
+candidate documents
+        ↓
+knowhere_get_document_outline(documentId)
+        ↓
+identify "Calibration / Verification" section
+        ↓
+knowhere_grep_chunks(documentId, "calibrat|verification")
+        ↓
+knowhere_read_chunks(documentId, section/path/pages)
+        ↓
+actual evidence
+```
+
+This distinction is important. *The LLM is not required to accept whatever 
+a top-K RAG query returns.* It can first discover candidates, inspect their 
+structure, search within them, and then selectively read evidence. Knowhere 
+describes the underlying corpus as containing hierarchical sections/chunks 
+plus document-level graph relationships; its retrieval implementation also 
+maintains separate content, path, and term/grep search representations. ([GitHub][2])
+
+This is quite close to the *"candidate retrieval → investigative exploration"* 
+architecture we discussed for SemOS. In fact, the interesting part of Knowhere 
+is arguably not its RAG algorithm but this tool boundary:
+
+*Corpus search → document selection → structural navigation → local search → selective reading.*
+
+One difference from a filesystem-style SemOS interface is that Knowhere exposes these 
+as *semantic/document operations* (`outline`, `grep_chunks`, `read_chunks`, `search`) 
+rather than generic filesystem operations such as `ls`, `cat`, `grep`, and following 
+`[[links]]`. Conceptually, though, they are solving much the same problem: give the 
+agent enough cheap, progressively more detailed operations that it can *investigate 
+knowledge rather than having retrieval make the entire decision for it*. ([Knowhere][1])
+
+[Knowhere MCP documentation](https://docs.knowhereto.ai/mcp?utm_source=chatgpt.com)
+[Knowhere GitHub repository](https://github.com/Ontos-AI/knowhere?utm_source=chatgpt.com)
+
+[1]: https://docs.knowhereto.ai/mcp?utm_source=chatgpt.com "Model Context Protocol (MCP) | Knowhere"
+[2]: https://github.com/Ontos-AI/knowhere/blob/main/AGENTS.md?utm_source=chatgpt.com "knowhere/AGENTS.md at main · Ontos-AI/knowhere · GitHub"
+
 Sources: 
 [Knowhere repository and README](https://github.com/Ontos-AI/knowhere), 
 
