@@ -52,8 +52,10 @@ Only fields relevant to conversion are parsed. `sub_type`, `text_format`, `img_p
 |---|---|---|---|
 | `text` | `text_level` non-nil and > 0 | `heading(N)` where N = `*text_level` | 1 line |
 | `text` | `text_level` nil or 0 | `paragraph` | 1 line |
-| `header` | — | — | **skip** |
-| `footer` | — | — | **skip** |
+| `header` | page 1 (cover) | `paragraph`, emitted **before** the page's body items | 1 line |
+| `header` | page > 1 | — | **skip** (running header) |
+| `footer` | page 1 (cover) | `paragraph`, emitted **after** the page's body items | 1 line |
+| `footer` | page > 1 | — | **skip** (running footer) |
 | `page_number` | — | — | **skip** |
 | `list` | — | `list-item` (one line per non-empty string in `list_items`) | N lines |
 | `equation` | — | `equation` | 1 line |
@@ -91,11 +93,20 @@ extractMineruLineItems(pages):
   for each page in pages:
     pageStr = str(page.page_number)
 
+    # Cover page: MinerU tags a standard's masthead (ICS/CCS codes,
+    # "中华人民共和国国家标准", the standard number) as header and the
+    # publisher block as footer, listed after the body items.
+    coverFooters = []
+    if page.page_number == 1:
+      for each item in page.items with non-empty trim(item.text):
+        if type == "header": emit paragraph now (before body)
+        if type == "footer": coverFooters.append(paragraph)
+
     for each item in page.items:
       switch lowercase(trim(item.type)):
 
         case "header", "footer", "page_number":
-          skip
+          skip   # page-1 header/footer already emitted above
 
         case "text":
           content = trim(item.text)
@@ -131,6 +142,8 @@ extractMineruLineItems(pages):
               append {page: pageStr, type: "table-footnote", bbox: bbox, content: trim(fn)}
 
         // no default case — unknown types are silently skipped
+
+    items.extend(coverFooters)   # page-1 footers after the body
 
   return items
 ```
