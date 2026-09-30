@@ -120,7 +120,7 @@ which is too big.
 - If turn it off, whether it affects the extraction performance and accuracy
 
 = 2026/09/23 
-== OpenAI releases its GPT 6 Sol and GPT 6 Luna
+== OpenAI releases its GPT 6 Sol and GPT 6 Luna <ref_gpt_release>
 
 #let ref_gpt_6_sol = link(
   "https://artificialanalysis.ai/models/gpt-6-sol"
@@ -134,9 +134,13 @@ Not sure the performance, should be pretty good. The best one is the price.
 | GPT-6 Astra Short Context | $10.00 | $1.00     | $12.50       | $50.00 |
 | GPT-6 Astra Long Context  | $20.00 | $2.00     | $25.00       | $75.00 |
 | GPT-6 Sol Short Context   | $2.00  | $0.20     | $2.50        | $10.00 |
+| GPT-6.1 Sol Short Context | $2.00  | $0.10     | $2.50        | $10.00 |
 | GPT-6 Sol Long Context    | $4.00  | $0.40     | $5.00        | $15.00 |
+| GPT-6.6 Sol Long Context  | $4.00  | $0.20     | $5.00        | $15.00 |
 | GPT-6 Luna Short Context  | $0.10  | $0.01     | $0.125       | $0.50  |
+| GPT-6.1 Luna Short Context| $0.10  | $0.01     | $0.125       | $0.50  |
 | GPT-6 Luna Long Context   | $0.20  | $0.02     | $0.25        | $0.75  |
+| GPT-6.1 Luna Long Context | $0.20  | $0.02     | $0.25        | $0.75  |
 | GPT‑5.6 Sol               | $5.00  | $0.50     | $6.25        | $30.00 |
 | GPT‑5.6 Terra             | $2.00  | $0.20     | $2.50        | $12.00 |
 | GPT‑5.6 Luna              | $0.20  | $0.02     | $0.25        | $1.20  |
@@ -175,6 +179,7 @@ Mythos 5.1        $10         $0.25       $12.50    $20         $50
 Fable             $10         $1          $12.50    $20         $50
 Mythos 5          $10         $1          $12.50    $20         $50
 Opus 5.5          $4          $0.20       $5.00     $8          $20
+Sonnet 5.5        $2          $0.20       $2.50     $???        $10
 Opus 5            $5          $0.50       $6.25.00  $10         $25
 Opus 4.8          $5          $0.50       $6.25.00  $10         $25
 Opus 4.7          $5          $0.50       $6.25.00  $10         $25
@@ -302,6 +307,8 @@ scores.
 #let jev_like_wrapper = link(
   "https://allanrbo.blogspot.com/2026/09/a-jev-like-wrapper-for-llms-including.html"
 )[#text(fill: blue)[Jev-like Wrapper for LLMs]]
+
+#jev_like_wrapper 
 
 OpenAI `logprobs` can retrieve the probabilities of next words.
 
@@ -559,10 +566,315 @@ One solution is to build a shared knowledge base:
 - Improvement (done by Codex Sol): PDF parsing monitoring, change to multiple phases.
   Note that mineru running on Linux and Mac behaves differently!
 - Improvement (done by Codex): Add 'Status' in the upload file list
-- Improvement (by Codex): Added 'Process Failed' in the upload file window
-- Improvement (by Codex): Added 'Quick Filters' in the upload file window
+- Improvement (done by Codex): Added 'Process Failed' in the upload file window
+- Improvement (done by Codex): Added 'Quick Filters' in the upload file window
 - New feature (done by Codex): Release page
 - New Feature (done by Claude): 'Pricing' page
+
+= 2026/09/29
+
+== Jeff - A Replacement of Jev
+#let ref_jeff = link(
+  "https://github.com/firelex/jeff"
+)[#text(fill: blue)[Jeff - a replacement of Jev]]
+
+#ref_jeff
+
+This is an open source project, training Qwen3.5 and Gemma 4 for zero-shot 
+classification: small, fast decision models. Its performce approaches Jev.
+Trained on RTX PRO 6000.
+
+== Anthropic release Sonnet 5.5
+#let ref_sonnet_5_5_release = link(
+  "https://www.anthropic.com/claude-sonnet-5-5"
+)[#text(fill: blue)[Anthropic Release Sonnet 5.5]]
+
+- Much faster than Opus 5.5 (30% faster)
+- About half price of Sonnet 5: Cache Read: \$0.20, Miss: \$2, Output: \$10
+- Pretty good at coding (comparable with Opus 5.5)
+- Write more clearly
+
+== Thoughts on Vector Database
+FAISS is definitely not what we need because it requires all vectors must be in memory.
+When the system becomes big, there is a serious memory issue.
+
+PostgreSQL has disk-based vector index, but I don't think it is good enough.
+
+Today, we explored the possibility of not building a gigantic global vector index or database
+at all. For this approach to work, it is important that we can pick candidates with good enough
+accuracy.
+
+BM25 is important but it can easily miss candidates even with single-character drift
+over the keywords, let alone aliases, multilingual issues, etc.
+
+It appears to me that 'categories' may be the solution. Categories are essentially
+'indexes' on semantics. Instead of using vectors for semantic similarities, we should
+use categories.
+
+Categories must be hierarchical:
+
+```text
+root category 01
+root category 02
+...
+root category 19
+root category 20
+```
+
+Root category 01-19 are normaly root-level categories. 20 is reserved for 'others'.
+(note: the number 20 is configurable)
+
+When there are too many entries (such as 1000), we can ask LLMs to create new
+root-level categories, given the existing categories. This will result in
+up to N root-level categories.
+
+We can then ask LLMs to create a higher-level categories over these root-level
+categories, up to 19. The category hierarchy is expanded by adding one more level.
+
+If each node in the hiearchy holds no more than 20 children:
+```text
+Level       Max Categories
+----------------------------------------------
+1           20
+2           400
+3           8000
+4           160,000
+5           3,200,000           3 millions
+6           64,000,000          64 millions
+7           1,280,000,000       1.28 billions
+8           25,600,000,000      25 billions
+9           512,000,000,000     512 billions
+10          10,240,000,000,000  10 trillions
+----------------------------------------------
+```
+
+Given a user query, we need to find its categories:
+1. Which category the query belongs to, given the level-0 categories (up to 20)
+2. If the query matches no given categories, stop with 'no-match-found'
+3. If the matched category is a leaf category, stop 'leaf-reached'
+4. Otherwise, push the matched categoy to the category path, retrieve the 
+   matched category children and repeat Step 1.
+
+When the search loop finishes:
+- Stopped with 'no-match-found':
+  - If the category path is empty, return none
+  - If the category path length is 1, 
+
+== China's version of Palantir
+#let ref_china_palantir = link(
+  "https://www.toutiao.com/article/7690401759138710058/?app=news_article&category_new=__all__&module_name=iOS_tt_others&req_id_new=20260929031740D05023942D785F16B9BA&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=b9ee8484-bb71-11f1-be5c-a088c22778dc&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1790623255&tt_from=weixin&upstream_biz=iOS_wechat&use_new_style=1&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
+)[#text(fill: blue)[China's version of Palantir]]
+
+#ref_china_palantir
+
+=== Ontology Model
+
+Its ontology model has four layers:
+- Application Layer
+- Ontology Layer
+- Model Layer
+- Data Layer
+
+Data are integrated into the model layer. Model layer defines:
+- constraints
+- allowed properties
+- name normalization and unification
+- value normalization and unification
+- ...
+
+The ontology layer uses the models to:
+- reasoning
+- make decision
+- actions
+- write-back
+- ...
+
+#figure(
+  image("Images/image_2026092901.png"),
+  caption:["Four-Layer Model"],
+)
+
+=== Ontology Layer
+It consists of:
+- Entity
+- Relations
+- Actions
+
+Focus on:
+- What an enterprise has (entities)
+- How they are related (relations)
+- What we can do about the entities (actions)
+
+Each entity may map to a model in the Model Layer,
+which defines constraints, relations, actions, values,
+names, etc. The ontology layer uses the entities,
+the Model Layer defines them.
+
+The entities are not the entities NER (named entity-relation extraction)
+refers, which are at much lower layer. We can call the entities 
+defined in the Model Layer 'Business Semantic Entity' (BSE).
+
+Users can use the frontend page to create, review, modify, and delete
+BSEs.
+
+==== Decision Module
+This module manages the decisions: when something happens, do something.
+Most decisions are defined in form of rules.
+
+It uses a decision LLM model, such as the System One model, to handle
+undeterministic decisions.
+
+==== Ontology write-back
+After the ontology module made a decision, it should write back about the
+decision, either as a log, or possibly modify the ontology itself, such
+as:
+- Adding new rules (such as 'when fixed a bug, add a test suite to 
+  the smoke test module')
+
+The most important benefits of writing back is to make ontology more
+and more useful as it is used more.
+
+Ontology Write-Back resides in the Ontology Layer.
+
+==== Enforce Guard Rails
+Any time when the ontology makes decisions, make sure check the guard rails
+to ensure the entire system strictly follows the defined guard rails.
+
+==== Errors and Bugs
+When problems occur, such as software bugs, workflow errors, product
+quality issues, customer feedbacks, etc.
+
+- Create rules to avoid the problem in the future
+- Modify rules
+- Modify workflows
+- Modify decision chains
+- Modify the reasoning
+
+This is a form of self-learning/self-improvement, extremely important.
+
+=== Model Layer
+
+==== Name Module
+This module normalizes names. It solves the problem of different systems,
+modules, databases, datasets, etc., use different names for the same thing.
+Any time when a name is used, it should look up this module. If it matches
+one and only one entry, use its canonical name.
+
+If more than one entries are found, it is ambiguous. We may use a decision
+model to let LLMs decide which one it really belongs to.
+
+If none is matched, we should add it to the module, with a flag 'proposed'.
+
+SemOS Keyword Manager is responsible for this.
+
+In a deployment, we should list all the important names, such as:
+- Product Names
+- Part Names
+- Department Names
+- Employee Names
+- Vendor Names
+- Equipment Names
+- And so on
+
+The frontend should have a 'Name Manager', which lets users create, review, 
+modify, query and delete names, including individual names and namespaces.
+
+Name Model resides in the Model Layer
+
+==== Rule Module
+- Rules should be separated from code
+- Rules are centrally managed
+- "企业最贵的从来不是数据，是那些没被写下来的专家规则"
+- Updating rules should not require restarting the system, normally
+- If updating a rule requires restarting the system, how to
+  control the switch over?
+- Rules and schemas?
+- Rules should be versioned
+- Rule format?
+
+Rule Module resides in the Model Layer.
+
+==== Workflow Module
+Workflow Model manages workflows.
+
+==== Actions
+One of the most important purposes of using ontology is to make decisions.
+Decisions normally relate to actions.
+
+Actions are related to BSEs and defined in the Model Layer.
+
+==== Guard Rails
+This module manages the gard rails.
+
+=== Deployment
+
+==== Step 1: Investigation
+- What BSEs the enterprise has/uses
+- relations among BSEs
+- rules
+- workflows
+- names
+- actions
+- reasoning
+
+==== Step 2: Incremental 
+Don't start with everything. Start small, add more incrementally.
+
+==== Step 3: Agents
+Agents are in the application layer. 
+- Write agents for applications
+
+==== Step 4: Evaluation
+Check whether it works, how much it improves
+
+==== Step 5: Human Involvement
+All steps should involve human experts.
+
+==== Errors People Often Make
+
+===== Over engineering
+Start with hundreds or even more BSEs, relations, etc., without first 
+actually use the ontology. Start small, test it, evaluate it, use it,
+and incrementally improve it.
+
+===== Semantic Alignment
+This is quite conceptual. What it really means is: use the same semantics
+for the same BSEs or the related. For instance, when making decisions,
+use the same decision model regardless of which agents are used. Avoid
+Agent A uses one decision model and Agent B uses another decision model.
+
+===== Hard-Code Rules
+Do not hard-code rules. Separate rules and code, make rules dynamic.
+Rules should fully use the ontology model.
+
+===== Wrong Decisions
+When the ontology model writes back, be careful writing back the wrong
+decisions. 
+
+Human users may need to review the decisions the system made. This is 
+especially important for the ones that causes writing back.
+
+== Today Work
+- Bugs (fixed by Claude): some 'tenant_id' bugs
+- Improvement (done by Claude): knowledge => Metrics page, change 'Global Search' and add 
+  search-by-metric-id
+- Improvement (done by Claude): Add 'Order by' pulldown menu for 'Metrics' in Knowledge page
+- Improvement (done by Claude): Add metric ID to the metrics cards and the prompt in the PDF display
+- Improvement (done by Claude): 'extract_metrics' not processing 'kb.metrics.metric_context' properly
+  when the source is tables.
+- Improvement (done by Codex): '/development, System Admin => Logs => LLM Usage Logs', the output body
+  view, show the JSON in name-value format.
+- New (done by Claude): A new page to analyze extracted metrics
+
+= 2026/09/30
+
+== OpenAI releases GPT 6.1 Sol and Tuna
+- GPT 6.1 Sol is nearly as good as GPT 6 Astra
+- Pricing is very friendly (refer to @ref_gpt_release)
+
+== Today Work
+- Improvement (done by Claude): use Paraglide for internationalization
+- Improvement (by Claude): convert existing 234 files to support both Chinese and English
 
 = References
 [1]: Jev's Architecture Unmasked, https://archerhume.com/posts/jevs-architecture-unmasked

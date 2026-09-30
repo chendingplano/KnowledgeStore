@@ -144,6 +144,11 @@ the report for a later run shows what's new, what's gone, and what moved to a di
 compared to the run before it — while every earlier run still shows exactly what it showed when
 it ran.
 
+### 4.5 Filter unrelated metrics
+
+Having retrieved metrics, the reviewer needs to determine whether a metric is truly
+relevant to the product (or the parts/modules of the product).
+
 ## 5. Current status
 
 As of 2026-09-13, this capability is fully built and its full task list (38 items, spanning the

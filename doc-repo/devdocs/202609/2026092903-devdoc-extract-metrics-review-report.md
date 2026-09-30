@@ -1,4 +1,4 @@
-# Extract-Metrics Review, Record 416 — research report on what the metric extractor got right and wrong for one standard
+# Extract-Metrics Review Report, Record 416 — research report on what the metric extractor got right and wrong for one standard
 
 **Date:** 2026-09-29 \
 **Scope:** A manual, line-by-line review of the `extract_metrics` output for input record 416
