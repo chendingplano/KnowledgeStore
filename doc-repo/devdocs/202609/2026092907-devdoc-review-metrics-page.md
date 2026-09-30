@@ -43,6 +43,13 @@ removed by reason, missed), then one section per question, with every finding po
 at the metric rows and source lines it is about. Hovering a metric ID shows that
 metric's name, value and line.
 
+The page has a document menu, review report, and PDF pane. Drag either divider to
+resize adjacent panes. Selecting a missed finding, non-metric row, or attribute issue
+moves the PDF to its source page and highlights the cited lines. New reviews keep
+`source_line_spans` on missed findings and metric snapshots; existing reviews use
+their `lines` text for the same navigation. The viewer uses the shared
+`PdfViewWindow` and the document's raw-line coordinates.
+
 Reviews are saved. Selecting a document that has already been reviewed shows the saved
 report straight away without calling the LLM again. To run a new review anyway — for
 example after changing the extractor — tick **Force to Review**; the new review is
