@@ -20,6 +20,9 @@
   ~4,900 messages). The check now also covers text props on components and
   confirm/alert/prompt text in event handlers. Remaining baseline: 85 files /
   1,083 items, all outside the main routes (largely unused demo/test pages).
+* 2026/09/30, Conversion complete: 19 unused routes and their dead components deleted
+  (user-approved list), everything else converted. `web/i18n-baseline.json` is empty, so
+  any hard-coded text now fails `bun run check`.
 
 ## Context
 
