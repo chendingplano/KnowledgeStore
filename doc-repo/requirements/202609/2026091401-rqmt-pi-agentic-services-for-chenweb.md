@@ -3,6 +3,7 @@
 - Document ID: `doc-2026091401`
 - Status: Proposed
 - Date: 2026-09-14
+- Revised: 2026-10-04 — conversation history is a time-limited snapshot (§11); tool calls and their full results are stored with the conversation (§11, §12); new tool to retrieve a saved tool result (§9.1.6)
 - Audience: Product owners, subject-matter experts, designers, developers, testers, and operators
 
 ## 1. Purpose
@@ -107,7 +108,7 @@ The expected experience is:
 6. Pi follows the selected profile's instructions. It may ask the user a clarifying question or request one or more approved tools. It may answer without searching only for conversational matters that do not depend on facts from ChenWeb's knowledge base, such as explaining what the service can do.
 7. When Pi requests a tool, ChenWeb checks that the profile and the user are allowed to use it. ChenWeb performs the action and returns a limited, structured result to Pi.
 8. Pi produces a response. ChenWeb shows the response progressively when possible, along with its status and supporting sources.
-9. ChenWeb saves the conversation, tool activity, source references, timing, model usage, and any errors needed for later review.
+9. ChenWeb saves the conversation, tool calls with their full results, source references, timing, model usage, and any errors needed for later review.
 
 The browser must not connect directly to Pi or hold model credentials. Closing or refreshing the page should not corrupt the conversation. A user should be able to stop a response that is taking too long.
 
@@ -210,6 +211,12 @@ Pi provides a document identifier. ChenWeb returns basic information such as tit
 
 Pi provides an artifact or document identifier. ChenWeb returns directly connected or strongly related artifacts, with a short explanation of each relationship. This supports questions such as “What product does this metric describe?”, “What provision governs this requirement?”, or “What other documents discuss the same item?”
 
+#### 9.1.6 Retrieve a saved tool result
+
+Pi provides the identifier of an earlier tool call in the same conversation. ChenWeb returns that call's full stored result. This is needed because conversation history may carry only a shortened copy of a long tool result (§11). When the full result matters for the current turn, Pi can fetch it instead of repeating the original call.
+
+The tool returns only results from the user's own conversation. It follows the same snapshot rule as the rest of the history (§11): within the snapshot period it returns the result as saved; after it, it returns nothing for a result that references a resource the user can no longer access.
+
 ### 9.2 Useful follow-on tools
 
 After the essential tools are proven, ChenWeb should consider:
@@ -262,9 +269,17 @@ If the tools do not find enough evidence, the response should say so and may sug
 
 Each conversation must belong to the signed-in user and the selected service. ChenWeb must prevent users from viewing or continuing conversations they are not permitted to access.
 
-Access must also be checked when a saved conversation is opened or resumed. If the user has lost access to a source used earlier, ChenWeb must not show or resend to Pi the protected passage, artifact details, tool result, summary content, or answer content derived from that source. The page should explain that part of the conversation is unavailable because access changed. Restoring access may restore the hidden content; starting a new conversation must not carry the hidden content forward.
+Conversation history is a snapshot of the knowledge base as it was when each turn took place. Its messages, tool calls, tool results, sources, and summaries show what the user and Pi saw at that time, not the current state of the knowledge base. Showing content that has since changed is acceptable because the user is told the history is a snapshot.
 
-A saved conversation should include the user and assistant messages, source references, tool activity, service slug, Pi-profile slug and version, model used, creation and update times, and final outcome. Sensitive internal reasoning must not be stored or shown.
+The snapshot period is set by the `PI_HISTORY_SNAPSHOT_DUR` environment variable, in hours, with a default of 48. Age is measured for each turn from the time it was saved.
+
+- **Turns within the snapshot period** are shown to the user, and resent to Pi, exactly as saved. This holds even if the user has since lost access to a referenced resource, or the resource has changed.
+- **Turns older than the snapshot period** are rechecked when the conversation is opened or resumed. ChenWeb checks whether the user still has access to each resource and artifact the turn references: documents, passages, artifacts, tool results, and the sources of answers and summaries. Anything the user can no longer access is removed. It is not shown and not resent to Pi, and neither is any answer or summary content derived from it. ChenWeb does not check whether the remaining resources have changed since the turn was saved. Restoring access may restore the removed content. Starting a new conversation must not carry removed content forward.
+- **Warnings.** Whenever a saved conversation is opened, the page must tell the user that its history is a snapshot of the knowledge base at the time of each turn, and that the knowledge base may have changed since then. When content was removed because access changed, the page must also say that part of the conversation is unavailable for that reason.
+
+A saved conversation should include the user and assistant messages, tool calls with their arguments and full results, source references, service slug, Pi-profile slug and version, model used, creation and update times, and final outcome. Sensitive internal reasoning must not be stored or shown.
+
+Tool calls and their results are part of the history sent back to Pi on later turns, subject to the snapshot rule above. The database always keeps a tool result in full. A result longer than a server-configured limit is shortened before it is added to the history, and the shortened copy says so and identifies the tool call. Pi can retrieve the full result with the tool in §9.1.6 when it needs it.
 
 ChenWeb already records local harness sessions, including Pi sessions. The proof of concept should reuse useful parts of that work where appropriate, but a user-facing agentic conversation needs stronger ownership, access control, service identity, and lifecycle behavior than a read-only local session viewer.
 
@@ -284,7 +299,7 @@ The proof of concept must meet these requirements:
 - Before the pilot begins, ChenWeb must publish the retention period and deletion behavior for model input, saved conversations, tool records, and operational logs.
 - Users must be told which outside model provider receives their messages and retrieved evidence. A profile must not use a provider that is incompatible with the knowledge store's data-handling rules.
 - Users must be able to delete their own saved conversations unless a disclosed legal or operational retention rule prevents deletion.
-- Only authorized users and operators may view conversation or tool records. Logs should avoid full prompts and full retrieved passages unless they are explicitly required for an approved investigation mode.
+- Only authorized users and operators may view conversation or tool records. Saved conversations may store tool calls and their full tool results (§11), under the same ownership, access, retention, and deletion rules as the rest of the conversation. Operational logs, which are separate from the conversation record, should still avoid full prompts and full retrieved passages unless they are explicitly required for an approved investigation mode.
 - Administrators must be able to disable a service or profile promptly.
 - Read-only service profiles must be unable to change source documents, extracted artifacts, settings, or processing status.
 - If future tools can make changes, the user must see the proposed action and explicitly confirm consequential actions before they occur.
@@ -352,7 +367,7 @@ The first release should include:
 - service selection and routing by Pi-profile slug;
 - new and resumable user-owned conversations;
 - progressive responses and cancellation;
-- the five essential read-only knowledge tools;
+- the six essential read-only knowledge tools (§9.1);
 - visible source references;
 - profile versioning and server-side prompt files;
 - basic health, error, timing, model-usage, and tool-usage records;
@@ -382,7 +397,7 @@ The proof of concept is considered successful when:
 6. Access checks prevent a user or profile from retrieving knowledge outside its permitted scope.
 7. A user can stop a response, recover from ordinary failures, and understand the current state without seeing internal implementation details.
 8. Operators can trace a reported answer through its profile version, model, tool calls, sources, timing, and outcome.
-9. Both services pass their agreed evaluation set: normal scenarios reach the expected outcome, unsupported scenarios disclose missing evidence, hostile-document scenarios do not change Pi's instructions, and every access-control scenario—including access revoked after a conversation was saved—is denied without leaking protected information.
+9. Both services pass their agreed evaluation set: normal scenarios reach the expected outcome, unsupported scenarios disclose missing evidence, hostile-document scenarios do not change Pi's instructions, and every access-control scenario is denied without leaking protected information. This includes access revoked after a conversation was saved, once the affected turns are older than the snapshot period (§11).
 10. The team can describe, using evidence from the proof of concept, which parts are ChenWeb service behavior and which parts are specific to Pi.
 
 ## 18. Questions to Resolve During the Proof of Concept
