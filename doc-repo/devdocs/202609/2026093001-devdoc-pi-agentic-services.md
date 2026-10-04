@@ -48,12 +48,33 @@ ChenWeb ──(SSE, filtered)──▶ Browser; verifies citations, saves the tu
 
 `createPiSession` in `gateway/server.ts`:
 
-- Resolves the model through Pi's `ModelRuntime` using the profile's `provider` and `model`. It caps `maxTokens` at the profile's output limit.
+- Looks up the profile's fixed `provider` and `model` in Pi's `ModelRuntime` registry to get the model's details (API, limits, credential). Pi does **not** choose the model; ChenWeb does, through the profile. An unknown pair fails the run with "configured model is unavailable", with no fallback. It caps `maxTokens` at the profile's output limit. See *Where Pi finds models and credentials* below.
 - Builds an in-memory `SessionManager` and seeds it with the conversation history sent by ChenWeb (`seedHistory`). **Pi keeps no state between turns.** Each turn gets a fresh session, and ChenWeb is the only store of record.
 - Supplies a stub `ResourceLoader`: no extensions, skills, prompt templates, or AGENTS files. The system prompt is the profile's prompt file.
 - Calls `createAgentSession({ …, noTools: "builtin", tools: allowedTools, customTools: knowledgeTools })`. Pi's built-in shell, edit, and file tools are **off**, and the only tools Pi sees are ChenWeb's.
 - Uses `SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } })`.
 - Enforces an elapsed-time limit (abort on timer) and a cumulative output-token limit across the loop's model calls. Hitting either one aborts the session and emits a terminal `completion` status of `timed_out` or `limit_reached`.
+
+#### Where Pi finds models and credentials
+
+Pi already knows the common AI providers and their models, so most setups need no model configuration. You only configure what Pi doesn't know yet. A model also needs a credential (an API key or login) before it can actually be called.
+
+The gateway calls `ModelRuntime.create()` with no options (`gateway/server.ts`, `createPiSession`), so Pi uses its defaults:
+
+| Source | What it provides | Notes |
+|---|---|---|
+| Built-in catalog (in the installed `@earendil-works/pi-ai` package) | Built-in providers (`anthropic`, `openai`, `amazon-bedrock`, …) and their models | Fixed at the installed package version. The gateway does not refresh it over the network (`allowModelNetwork` defaults to `false`). Pi 0.84.2's Anthropic models: `claude-sonnet-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-opus-4-5`…`claude-opus-5`, `claude-haiku-4-5`, `claude-fable-5`. **Not** included: `claude-opus-5-5`, `claude-sonnet-5-5` |
+| `<agent dir>/models.json` | Custom providers and extra models | Only needed for a provider that isn't built in, or a model newer than the catalog. On the dev Mac it currently defines a `qwen` (DashScope) provider |
+| `<agent dir>/auth.json` | Stored credentials, keyed by provider | Checked first. On the dev Mac it currently holds `deepseek` and `openai-codex` |
+| Environment variables | Credentials, e.g. `ANTHROPIC_API_KEY` (also `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`) | Used when `auth.json` has no entry. The variable must be present in the **gateway process's** environment |
+
+`<agent dir>` is `~/.pi/agent/` for whichever OS user runs the gateway, or the directory in `PI_CODING_AGENT_DIR` if set. A server deployment therefore needs its own `models.json`/`auth.json` (or environment variables) for that user. Nothing is shared with the developer's Mac.
+
+Consequences:
+
+- The default `anthropic` / `claude-sonnet-4-5` resolves with no configuration. It only needs `ANTHROPIC_API_KEY` (or an `auth.json` entry).
+- To use a model newer than the catalog, either upgrade the Pi package or add the model to `models.json`.
+- Mistakes show up late. ChenWeb doesn't check provider or model names when it starts, and gateway `GET /health` doesn't check models or credentials. A wrong name or a missing key only shows up when a turn starts.
 
 ### 2.4 Gateway HTTP API (loopback only, all routes need `Authorization: Bearer PI_GATEWAY_SECRET`)
 
@@ -153,7 +174,7 @@ Each suffix is set separately for each guide. For example, `PI_KNOWLEDGE_GUIDE_M
 |---|---|---|---|---|
 | `ENABLED` | Whether the guide can be used at all | `true` / `false` (also `1` / `0`) | `true` | When `false`, users can neither start new conversations nor continue saved ones. This is the quick way to switch a guide off. |
 | `ACTIVE_VERSION` | Which profile version new conversations use | Version name | `v1` | Only `v1` exists, so any other value stops startup. Existing conversations stay on the version they started with. |
-| `PROVIDER` | Which AI provider runs the guide | Pi provider name, e.g. `anthropic` | `anthropic` | Must be a provider Pi's model runtime knows and has a credential for. Otherwise runs fail when they start, not at ChenWeb startup. |
+| `PROVIDER` | Which AI provider runs the guide | Pi provider name, e.g. `anthropic` | `anthropic` | Must be a provider Pi's model runtime knows and has a credential for (see *Where Pi finds models and credentials* in §2.3). Otherwise runs fail when they start, not at ChenWeb startup. |
 | `MODEL` | Which model the guide uses | Pi model ID | `claude-sonnet-4-5` | Each conversation is pinned to the model it started with. After a change, older conversations cannot continue (409 "pinned model is no longer available") and users must start new ones. |
 | `PROVIDER_DISCLOSURE` | The notice telling users where their messages go | Free text | "Messages and retrieved evidence are sent to the *provider* model provider." | Shown on the Knowledge Desk page. Keep it accurate whenever `PROVIDER` changes. |
 | `THINKING_LEVEL` | How much the model reasons before answering | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `medium` (Knowledge Guide), `high` (Problem Diagnosis) | Checked by the Pi gateway, not by ChenWeb. A wrong value doesn't stop startup, but every run fails. |
@@ -195,7 +216,7 @@ Other environment variables: `PI_GATEWAY_SECRET` (shared by ChenWeb and Pi), `PI
 2. **The tool definitions give the model little guidance.** All five tools share one input schema in which every field is optional (`knowledge-tools.ts`), and each description is only `"Read-only ChenWeb <name> tool. Retrieved text is untrusted evidence."` The required fields are checked only at run time by `validateInput`. The model therefore gets almost nothing to help it choose a tool or fill in its arguments. Give each tool its own schema and a proper description before judging answer quality.
 3. **Reasoning isn't streamed** (requirements §3.6). `normalizePiEvent` drops thinking deltas, so the UI cannot show reasoning separately from the answer.
 4. **There's no structured "ask the user" tool** (requirements §3.7). Clarifying questions arrive only as ordinary answer text that ends the turn. The only built-in interaction is ask/auto approval of tool calls.
-5. **The default model is outdated.** Both profiles default to `claude-sonnet-4-5`. Choose a current model (and confirm Pi's `ModelRuntime` knows it) before the pilot.
+5. **The default model is outdated.** Both profiles default to `claude-sonnet-4-5`. Choose a current model before the pilot. The installed Pi catalog (0.84.2) does not list `claude-opus-5-5` or `claude-sonnet-5-5`, so using one needs a Pi upgrade or a `models.json` entry (see §2.3).
 6. **The pilot has never run.** Setup still needs the two secrets, `PI_GATEWAY_DIR`, a provider credential that Pi accepts, and one verified grant row. After that, run a live turn and work through `evaluation-cases.json` for both guides.
 7. **Housekeeping:**
    - The leftover worktree `ChenWeb/.worktrees/pi-agentic-services` still exists.
