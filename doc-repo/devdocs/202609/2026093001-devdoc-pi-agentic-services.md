@@ -55,12 +55,22 @@ ChenWeb ──(SSE, filtered)──▶ Browser; verifies citations, saves the tu
 5. Uses `SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } })`.
 6. Enforces an elapsed-time limit (abort on timer) and a cumulative output-token limit across the loop's model calls. Hitting either one aborts the session and emits a terminal `completion` status of `timed_out` or `limit_reached`.
 
-#### 2.3.1 Where Pi finds models and credentials
+#### 2.3.1 How ChenWeb picks a model
+In the current implementation, ChenWeb picks the model by the guide's profile
+and pinned to each conversation (i.e., fixed), and nothing chooses a model 
+per turn.
+
+In the future, we should implement a Model Router that picks the right model
+that best fits the current turn.
+
+Changing models during a session can be a cache issue. We will work on it 
+in the future.
+
+#### 2.3.2 Where Pi finds models and credentials
 
 Pi doesn't choose a model. It is the app (such as ChenWeb) to decide which model to use. Pi has
-its own way of defining models. ChenWeb somehow picks a model that is best fit for the
-current turn. It then asks Pi to 'resolve' or to make sure Pi recognizes the model
-that ChenWeb picked.
+its own way of defining models. ChenWeb picks a model based on the guide's profile. It then 
+asks Pi to 'resolve' or to make sure Pi recognizes the model that ChenWeb picked.
 
 Here is the code, from server.ts:144-147:
 ```text
@@ -109,7 +119,7 @@ Consequences:
 - To use a model newer than the catalog, either upgrade the Pi package or add the model to `models.json`.
 - Mistakes show up late. ChenWeb doesn't check provider or model names when it starts, and gateway `GET /health` doesn't check models or credentials. A wrong name or a missing key only shows up when a turn starts.
 
-#### 2.3.2 Sessions: ChenWeb conversations are the real sessions
+#### 2.3.3 Sessions: ChenWeb conversations are the real sessions
 
 A user's ongoing dialog with a guide, the equivalent of a Claude Code session, is a **conversation** in ChenWeb. It holds one or more turns. ChenWeb owns it, saves it in the database, and lists it on the Knowledge Desk so the user can reopen it later and keep going. Pi has no lasting sessions of its own. A "Pi session" lives for exactly one turn, starting from a copy of the conversation that ChenWeb gives it.
 
@@ -125,36 +135,43 @@ How one turn uses the conversation (`RunHandler.Start` in `run_handler.go`):
 1. Load the conversation and its messages (`LoadResumeState`). Check that the user still has access to the guide (`ResolveVersion`) and that the pinned model still matches (`409` otherwise).
 2. Run `FilterResumeState`: hide any saved answer whose cited sources the user can no longer see, or which have changed.
 3. Create a response attempt. A database guard allows only one running attempt per conversation. Then save the new user message and an empty assistant message (`status = streaming`).
-4. Build the history from the visible messages that came **before** this turn:
-   - Only `user` and `assistant` messages with `status = complete`.
-   - Messages longer than 16,000 characters are skipped.
-   - At most the last 100 messages are kept.
-   - Only the plain text is sent.
-5. Send `{history, message, profile, capability, knowledge}` to the gateway. `seedHistory` writes the history into a new in-memory Pi session, and `session.prompt(message)` runs the loop.
-6. Stream the answer back, check citations, and save the answer, sources, tool-call records and attempt outcome. The Pi session is then thrown away.
+4. On the first turn, set the conversation's title from the question (`titleFromMessage`): first line, whitespace collapsed, cut at 60 characters. An existing title is never overwritten.
+5. Build the history from the turns that came **before** this one (`history.go`):
+   - **Whole turns only.** A turn is a user message and a `complete`, visible assistant message with the same `attempt_id`. A question whose answer failed, stopped, was interrupted, or is hidden is left out, so the model never sees two user messages in a row.
+   - **Shortened, not skipped.** Each message is cut to 15,000 UTF-16 units (ending in `…[truncated]`) so it stays under the gateway's per-message limit.
+   - **Sources carried forward.** Each earlier answer ends with `[Sources cited in this answer]` and up to 8 of its cited sources (title, page, lines), so the model knows what was cited and can re-read it.
+   - **Budgeted.** Turns are taken newest first until they fill the history budget (below), at most 50 turns, then sent oldest first. As a final guard the encoded request is kept under 480 KiB.
+   - **Summary.** If the conversation has a rolling summary, only turns after it are candidates, and the summary goes with the run as `historySummary`. A summary that covers a since-hidden answer is not sent and is cleared.
+6. Send `{history, historySummary, message, profile, capability, knowledge}` to the gateway. `seedHistory` writes the history into a new in-memory Pi session, the gateway appends the summary to the system prompt under "Summary of earlier turns in this conversation", and `session.prompt(message)` runs the loop.
+7. Stream the answer back, check citations, and save the answer, sources, tool-call records and attempt outcome. The Pi session is then thrown away.
+8. If the turn completed, fold history in the background (`foldHistory`). If the unsummarized turns now exceed the budget, the oldest are sent with the previous summary to the gateway's `POST /v1/summaries`. The gateway summarizes them with the conversation's own provider and model, without tools, using `prompts/prompt-agent-history-summary-v1.md`. Folding continues until the remaining turns fit in half the budget. The new summary is stored on the conversation with a compare-and-set, so a stale concurrent fold is discarded. A failure is logged and changes nothing; the next turn simply drops the oldest turns.
+
+The **history budget** (estimated tokens: four ASCII characters or one non-ASCII character per token) is `max(2000, min(cap, contextWindow / 4))`. `contextWindow` is the pinned model's context window, from the gateway's `GET /v1/models/:provider/:model` and cached for 10 minutes. `cap` is `PI_<GUIDE>_MAX_HISTORY_TOKENS`, which defaults to 32,000. The cap matters because Pi's catalog lists some models, `claude-sonnet-4-5` among them, with a 1,000,000-token window. If the gateway can't report the window, the budget is `min(cap, 16000)`.
 
 What the model sees of earlier turns:
 
 | Carried into the next turn | Not carried |
 |---|---|
-| The user's earlier questions and the guide's final answers, as plain text | Tool calls and their results (retrieved passages, search hits). The audit rows in `kb.agentic_tool_calls` don't store them, so the model has to search again if it needs them |
-| | Model reasoning (never stored) |
-| | Answers hidden because their sources were revoked or changed, failed or stopped answers, and messages over 16,000 characters |
+| Recent complete turns that fit the budget, as plain text | Tool calls and their results (retrieved passages, search hits). The audit rows in `kb.agentic_tool_calls` don't store them |
+| A list of the sources each earlier answer cited | Model reasoning (never stored) |
+| A rolling summary of older turns, in the system prompt | Hidden, failed, stopped, or interrupted answers, and the questions that led to them |
 
 Consequences of this design:
 
 - **Pi holds no state, so the gateway can restart or scale at any time.** No session is lost because ChenWeb holds the whole conversation.
-- **History grows without a budget.** The only limits are 100 messages and 16,000 characters per message. There is no token-based trimming, summary, or compaction (Pi's compaction is turned off). A long conversation re-sends its whole history every turn, so cost goes up each turn. Eventually it can overflow the model's context window, and that turn fails.
-- **Dropped answers leave gaps.** When an answer is hidden, fails, or is stopped, the user question before it is still sent. The model then sees two user messages in a row with nothing between them.
+- **Per-turn cost is bounded.** History never exceeds the budget. Older turns survive only in summary form. Detail the summary dropped can be recovered by the model re-reading the cited sources.
+- **Summaries cost one extra model call.** Each fold is a call to the guide's provider. It runs after the answer has been delivered, and its usage is recorded as `pi_gateway_summary`.
+- **The token count is an estimate.** No tokenizer is used. The 25 % share of the context window leaves a wide margin.
 - **Model pinning ends a conversation.** After the guide's model changes, older conversations return `409` and can't continue.
-- **Titles are never filled in.** The page creates every conversation with the fixed title "New conversation" (localized), and nothing updates it later. The conversation list doesn't help users tell conversations apart.
 
 ### 2.4 Gateway HTTP API (loopback only, all routes need `Authorization: Bearer PI_GATEWAY_SECRET`)
 
 | Method / path | Purpose |
 |---|---|
 | `GET /health` | Liveness only. Does **not** check model credentials |
-| `POST /v1/runs` | Start a turn and stream NDJSON events. Body is limited to 128 KiB and validated by `validateRunRequest` |
+| `POST /v1/runs` | Start a turn and stream NDJSON events. Body is limited to 512 KiB and validated by `validateRunRequest`. Optional `historySummary` (at most 16,000 characters) is appended to the system prompt |
+| `GET /v1/models/:provider/:model` | `{provider, model, contextWindow, maxTokens}` from Pi's model registry; `404` if unknown |
+| `POST /v1/summaries` | `{provider, model, systemPrompt, previousSummary?, messages, maxTokens}` → `{summary}`. One-shot `completeSimple` call, no tools. `502` on failure |
 | `POST /v1/runs/:runId/cancel` | Abort the run and release pending permission requests |
 | `POST /v1/runs/:runId/permissions/:requestId` | `{allowed: boolean}` answers an ask-mode tool approval |
 
@@ -239,7 +256,7 @@ So what the model actually receives is:
 | `knowledge-guide` | Knowledge Guide | anthropic / `claude-sonnet-4-5` | medium | 12 | 90 s | 1200 | 64 KiB |
 | `problem-diagnostics` | Problem Diagnosis Guide | anthropic / `claude-sonnet-4-5` | high | 16 | 120 s | 1600 | 96 KiB |
 
-Both default to allowed store `Research` and permission mode `auto`. Every value can be overridden with `PI_KNOWLEDGE_GUIDE_*` or `PI_PROBLEM_DIAGNOSTICS_*` plus one of these suffixes: `ENABLED`, `ACTIVE_VERSION`, `PROVIDER`, `MODEL`, `PROVIDER_DISCLOSURE`, `THINKING_LEVEL`, `PERMISSION_DEFAULT`, `ALLOWED_STORES`, `ALLOWED_DOCUMENT_GROUPS`, `PILOT_USERS`, `MAX_TOOL_CALLS`, `MAX_ELAPSED_SECONDS`, `MAX_OUTPUT_TOKENS`, `MAX_EVIDENCE_BYTES`. Only `v1` exists for each profile.
+Both default to allowed store `Research` and permission mode `auto`. Every value can be overridden with `PI_KNOWLEDGE_GUIDE_*` or `PI_PROBLEM_DIAGNOSTICS_*` plus one of these suffixes: `ENABLED`, `ACTIVE_VERSION`, `PROVIDER`, `MODEL`, `PROVIDER_DISCLOSURE`, `THINKING_LEVEL`, `PERMISSION_DEFAULT`, `ALLOWED_STORES`, `ALLOWED_DOCUMENT_GROUPS`, `PILOT_USERS`, `MAX_TOOL_CALLS`, `MAX_ELAPSED_SECONDS`, `MAX_OUTPUT_TOKENS`, `MAX_EVIDENCE_BYTES`, `MAX_HISTORY_TOKENS`. Only `v1` exists for each profile.
 
 Each suffix is set separately for each guide. For example, `PI_KNOWLEDGE_GUIDE_MODEL` changes only the Knowledge Guide. Values are read once when ChenWeb starts, so restart ChenWeb after changing any of them. An invalid value stops ChenWeb from starting, except where the table says otherwise. A variable that is unset or blank keeps its default. The two list variables are the exception: setting one to an empty value gives an empty list.
 
@@ -259,6 +276,7 @@ Each suffix is set separately for each guide. For example, `PI_KNOWLEDGE_GUIDE_M
 | `MAX_ELAPSED_SECONDS` | Longest time one answer may take | Positive integer (seconds) | 90 / 120 | Must be 600 or less, or every run fails. Once reached, the run stops and is recorded as timed out. |
 | `MAX_OUTPUT_TOKENS` | Total text the model may write for one answer, across all its steps | Positive integer (tokens) | 1200 / 1600 | Must be 100,000 or less, or every run fails. Once reached, the run stops with "reached its output limit". |
 | `MAX_EVIDENCE_BYTES` | Largest single tool result passed to the model | Positive integer (bytes) | 65536 / 98304 | Must be 131072 (128 KiB) or less, or every run fails. Larger results are rejected, not cut short. |
+| `MAX_HISTORY_TOKENS` | Most estimated tokens of earlier turns sent with each answer | Positive integer (tokens) | 32000 | The actual budget is the lower of this and a quarter of the model's context window, and at least 2,000 (§2.3.3). Older turns are folded into a rolling summary. |
 
 Where there are two defaults, the first is the Knowledge Guide's and the second is the Problem Diagnosis Guide's.
 
@@ -266,7 +284,7 @@ Other environment variables: `PI_GATEWAY_SECRET` (shared by ChenWeb and Pi), `PI
 
 ### 2.9 Persistence (project DB, schema `kb`)
 
-`agentic_conversations`, `agentic_response_attempts`, `agentic_messages`, `agentic_tool_calls`, `agentic_sources`, `agentic_feedback`, and `agentic_knowledge_grants`.
+`agentic_conversations` (with `history_summary`, `history_summary_through_seq`, `history_summary_updated_at` for the rolling summary, migration `20261004000001`), `agentic_response_attempts`, `agentic_messages`, `agentic_tool_calls`, `agentic_sources`, `agentic_feedback`, and `agentic_knowledge_grants`.
 
 `uq_agentic_one_running_attempt_per_conversation` allows only one running attempt per conversation. Grants are explicit rows keyed by `(user_id, knowledge_store_id)` with an optional `document_id` and `expires_at`, and are provisioned by an operator in SQL (see the operations guide). Tool arguments and passages, model reasoning, and credentials are **not** stored.
 
@@ -291,11 +309,7 @@ Other environment variables: `PI_GATEWAY_SECRET` (shared by ChenWeb and Pi), `PI
 4. **There's no structured "ask the user" tool** (requirements §3.7). Clarifying questions arrive only as ordinary answer text that ends the turn. The only built-in interaction is ask/auto approval of tool calls.
 5. **The default model is outdated.** Both profiles default to `claude-sonnet-4-5`. Choose a current model before the pilot. The installed Pi catalog (0.84.2) does not list `claude-opus-5-5` or `claude-sonnet-5-5`, so using one needs a Pi upgrade or a `models.json` entry (see §2.3).
 6. **The pilot has never run.** Setup still needs the two secrets, `PI_GATEWAY_DIR`, a provider credential that Pi accepts, and one verified grant row. After that, run a live turn and work through `evaluation-cases.json` for both guides.
-7. **Conversations aren't ready for long use** (§2.3.2). Sessions themselves exist: ChenWeb conversations persist across turns. But the history has no token budget or summarization, so a long conversation gets more expensive every turn and can eventually overflow the context window. Tool results aren't carried over, so follow-up questions trigger repeat searches. Dropped answers leave two user messages in a row. Titles are never set. Suggested fixes, all on the ChenWeb side:
-   - Trim the history to a token budget derived from the pinned model's context window, and summarize older turns into a rolling summary stored on the conversation.
-   - Optionally carry a compact list of each earlier answer's cited sources.
-   - Skip the user message of a dropped turn, or insert a placeholder.
-   - Generate a title from the first question.
+7. **Long-conversation handling: resolved 2026-10-04** (§2.3.3, OpenSpec change `agent-conversation-history-budget`). History now has a token budget, a rolling summary, a source footer on each answer, whole-turn pairing, and titles from the first question. Still open: none of this has run against a live model, and the 25 % budget share should be revisited using the pilot's recorded `input_tokens`.
 8. **Housekeeping:**
    - The leftover worktree `ChenWeb/.worktrees/pi-agentic-services` still exists.
    - The handoff links the requirements doc under the wrong filename (`…-requirements-…` instead of `2026091401-rqmt-…`).
@@ -317,5 +331,5 @@ These are by design for the proof of concept:
 - Knowledge grants are managed in SQL by an operator. There is no admin page.
 - There is no automatic retention job. Conversations last until the user deletes them.
 - Source cards open the document page and show line and page references, but they do not jump to the cited line.
-- The real session is the ChenWeb conversation (§2.3.2). Each turn starts a new, one-turn Pi session with the saved text history seeded back in. Nothing is kept warm between turns, tool results aren't carried over, and compaction is disabled, so long conversations send their full history each turn.
+- The real session is the ChenWeb conversation (§2.3.3). Each turn starts a new, one-turn Pi session with a budgeted text history and a rolling summary seeded back in. Nothing is kept warm between turns, and tool results aren't carried over (only a list of cited sources).
 - Profiles are defined in Go code with environment-variable overrides. Only `v1` exists, and there is no system for publishing new profile versions or testing them with selected users.
