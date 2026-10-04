@@ -48,18 +48,51 @@ ChenWeb ──(SSE, filtered)──▶ Browser; verifies citations, saves the tu
 
 `createPiSession` in `gateway/server.ts`:
 
-- Looks up the profile's fixed `provider` and `model` in Pi's `ModelRuntime` registry to get the model's details (API, limits, credential). Pi does **not** choose the model; ChenWeb does, through the profile. An unknown pair fails the run with "configured model is unavailable", with no fallback. It caps `maxTokens` at the profile's output limit. See *Where Pi finds models and credentials* below.
-- Builds an in-memory `SessionManager` and seeds it with the conversation history sent by ChenWeb (`seedHistory`). **Pi keeps no state between turns.** Each turn gets a fresh session, and ChenWeb is the only store of record.
-- Supplies a stub `ResourceLoader`: no extensions, skills, prompt templates, or AGENTS files. The system prompt is the profile's prompt file.
-- Calls `createAgentSession({ …, noTools: "builtin", tools: allowedTools, customTools: knowledgeTools })`. Pi's built-in shell, edit, and file tools are **off**, and the only tools Pi sees are ChenWeb's.
-- Uses `SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } })`.
-- Enforces an elapsed-time limit (abort on timer) and a cumulative output-token limit across the loop's model calls. Hitting either one aborts the session and emits a terminal `completion` status of `timed_out` or `limit_reached`.
+1. Looks up the profile's fixed `provider` and `model` in Pi's `ModelRuntime` registry to get the model's details (API, limits, credential). Pi does **not** choose the model; ChenWeb does, through the profile. An unknown pair fails the run with "configured model is unavailable", with no fallback. It caps `maxTokens` at the profile's output limit. See *Where Pi finds models and credentials* below.
+2. Builds an in-memory `SessionManager` and seeds it with the conversation history sent by ChenWeb (`seedHistory`). **Pi keeps no state between turns.** Each turn gets a fresh session, and ChenWeb is the only store of record.
+3. Supplies a stub `ResourceLoader`: no extensions, skills, prompt templates, or AGENTS files. The system prompt is the profile's prompt file.
+4. Calls `createAgentSession({ …, noTools: "builtin", tools: allowedTools, customTools: knowledgeTools })`. Pi's built-in shell, edit, and file tools are **off**, and the only tools Pi sees are ChenWeb's.
+5. Uses `SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } })`.
+6. Enforces an elapsed-time limit (abort on timer) and a cumulative output-token limit across the loop's model calls. Hitting either one aborts the session and emits a terminal `completion` status of `timed_out` or `limit_reached`.
 
-#### Where Pi finds models and credentials
+#### 2.3.1 Where Pi finds models and credentials
 
-Pi already knows the common AI providers and their models, so most setups need no model configuration. You only configure what Pi doesn't know yet. A model also needs a credential (an API key or login) before it can actually be called.
+Pi doesn't choose a model. It is the app (such as ChenWeb) to decide which model to use. Pi has
+its own way of defining models. ChenWeb somehow picks a model that is best fit for the
+current turn. It then asks Pi to 'resolve' or to make sure Pi recognizes the model
+that ChenWeb picked.
 
-The gateway calls `ModelRuntime.create()` with no options (`gateway/server.ts`, `createPiSession`), so Pi uses its defaults:
+Here is the code, from server.ts:144-147:
+```text
+const modelRuntime = await ModelRuntime.create();
+const configuredModel = modelRuntime.getModel(run.profile.provider, run.profile.model);
+if (!configuredModel) throw new Error("configured model is unavailable");
+const model = { ...configuredModel, maxTokens: Math.min(configuredModel.maxTokens, run.profile.maxOutputTokens) };
+```
+
+How it works:
+
+1. ChenWeb picks the model. It comes from the guide's profile in profiles.go. The default 
+   is anthropic / claude-sonnet-4-5, and you can override it with PI_<GUIDE>_PROVIDER and
+   PI_<GUIDE>_MODEL. Each conversation is pinned to the model it started with (see §2.8). 
+   ChenWeb sends that provider and model to the gateway in the /v1/runs request.
+2. Pi only looks it up. ModelRuntime.getModel(provider, id) looks up that exact pair in 
+   Pi's model registry. It returns the model's details: which API to call, the context window, 
+   the maximum output tokens, and the credential to use. It doesn't decide anything. If Pi 
+   doesn't know the pair, the run fails with "configured model is unavailable". Nothing falls 
+   back to another model.
+3. The output cap is applied. maxTokens is set to the lower of the model's own limit and 
+   the profile's maxOutputTokens. Later, while the loop runs, server.ts:80 lowers it further 
+   as the turn's total output budget gets used up.
+
+So the same model is used for every step of every turn, and nothing chooses a model per turn.
+
+Pi already knows the common AI providers and their models, so most setups need no model 
+configuration. You only configure what Pi doesn't know yet. A model also needs a credential 
+(an API key or login) before it can actually be called.
+
+The gateway calls `ModelRuntime.create()` with no options (`gateway/server.ts`, `createPiSession`), 
+so Pi uses its defaults:
 
 | Source | What it provides | Notes |
 |---|---|---|
@@ -75,6 +108,46 @@ Consequences:
 - The default `anthropic` / `claude-sonnet-4-5` resolves with no configuration. It only needs `ANTHROPIC_API_KEY` (or an `auth.json` entry).
 - To use a model newer than the catalog, either upgrade the Pi package or add the model to `models.json`.
 - Mistakes show up late. ChenWeb doesn't check provider or model names when it starts, and gateway `GET /health` doesn't check models or credentials. A wrong name or a missing key only shows up when a turn starts.
+
+#### 2.3.2 Sessions: ChenWeb conversations are the real sessions
+
+A user's ongoing dialog with a guide, the equivalent of a Claude Code session, is a **conversation** in ChenWeb. It holds one or more turns. ChenWeb owns it, saves it in the database, and lists it on the Knowledge Desk so the user can reopen it later and keep going. Pi has no lasting sessions of its own. A "Pi session" lives for exactly one turn, starting from a copy of the conversation that ChenWeb gives it.
+
+Two different things share the word "session":
+
+| Term | Lifetime | Owner | Where it lives |
+|---|---|---|---|
+| **Conversation** (the real session) | Until the user deletes it | ChenWeb | `kb.agentic_conversations` + `kb.agentic_messages` (+ attempts, tool calls, sources, feedback) |
+| **Pi session** | One turn | Pi gateway | In memory (`SessionManager.inMemory()`), thrown away when the turn ends |
+
+How one turn uses the conversation (`RunHandler.Start` in `run_handler.go`):
+
+1. Load the conversation and its messages (`LoadResumeState`). Check that the user still has access to the guide (`ResolveVersion`) and that the pinned model still matches (`409` otherwise).
+2. Run `FilterResumeState`: hide any saved answer whose cited sources the user can no longer see, or which have changed.
+3. Create a response attempt. A database guard allows only one running attempt per conversation. Then save the new user message and an empty assistant message (`status = streaming`).
+4. Build the history from the visible messages that came **before** this turn:
+   - Only `user` and `assistant` messages with `status = complete`.
+   - Messages longer than 16,000 characters are skipped.
+   - At most the last 100 messages are kept.
+   - Only the plain text is sent.
+5. Send `{history, message, profile, capability, knowledge}` to the gateway. `seedHistory` writes the history into a new in-memory Pi session, and `session.prompt(message)` runs the loop.
+6. Stream the answer back, check citations, and save the answer, sources, tool-call records and attempt outcome. The Pi session is then thrown away.
+
+What the model sees of earlier turns:
+
+| Carried into the next turn | Not carried |
+|---|---|
+| The user's earlier questions and the guide's final answers, as plain text | Tool calls and their results (retrieved passages, search hits). The audit rows in `kb.agentic_tool_calls` don't store them, so the model has to search again if it needs them |
+| | Model reasoning (never stored) |
+| | Answers hidden because their sources were revoked or changed, failed or stopped answers, and messages over 16,000 characters |
+
+Consequences of this design:
+
+- **Pi holds no state, so the gateway can restart or scale at any time.** No session is lost because ChenWeb holds the whole conversation.
+- **History grows without a budget.** The only limits are 100 messages and 16,000 characters per message. There is no token-based trimming, summary, or compaction (Pi's compaction is turned off). A long conversation re-sends its whole history every turn, so cost goes up each turn. Eventually it can overflow the model's context window, and that turn fails.
+- **Dropped answers leave gaps.** When an answer is hidden, fails, or is stopped, the user question before it is still sent. The model then sees two user messages in a row with nothing between them.
+- **Model pinning ends a conversation.** After the guide's model changes, older conversations return `409` and can't continue.
+- **Titles are never filled in.** The page creates every conversation with the fixed title "New conversation" (localized), and nothing updates it later. The conversation list doesn't help users tell conversations apart.
 
 ### 2.4 Gateway HTTP API (loopback only, all routes need `Authorization: Bearer PI_GATEWAY_SECRET`)
 
@@ -218,7 +291,12 @@ Other environment variables: `PI_GATEWAY_SECRET` (shared by ChenWeb and Pi), `PI
 4. **There's no structured "ask the user" tool** (requirements §3.7). Clarifying questions arrive only as ordinary answer text that ends the turn. The only built-in interaction is ask/auto approval of tool calls.
 5. **The default model is outdated.** Both profiles default to `claude-sonnet-4-5`. Choose a current model before the pilot. The installed Pi catalog (0.84.2) does not list `claude-opus-5-5` or `claude-sonnet-5-5`, so using one needs a Pi upgrade or a `models.json` entry (see §2.3).
 6. **The pilot has never run.** Setup still needs the two secrets, `PI_GATEWAY_DIR`, a provider credential that Pi accepts, and one verified grant row. After that, run a live turn and work through `evaluation-cases.json` for both guides.
-7. **Housekeeping:**
+7. **Conversations aren't ready for long use** (§2.3.2). Sessions themselves exist: ChenWeb conversations persist across turns. But the history has no token budget or summarization, so a long conversation gets more expensive every turn and can eventually overflow the context window. Tool results aren't carried over, so follow-up questions trigger repeat searches. Dropped answers leave two user messages in a row. Titles are never set. Suggested fixes, all on the ChenWeb side:
+   - Trim the history to a token budget derived from the pinned model's context window, and summarize older turns into a rolling summary stored on the conversation.
+   - Optionally carry a compact list of each earlier answer's cited sources.
+   - Skip the user message of a dropped turn, or insert a placeholder.
+   - Generate a title from the first question.
+8. **Housekeeping:**
    - The leftover worktree `ChenWeb/.worktrees/pi-agentic-services` still exists.
    - The handoff links the requirements doc under the wrong filename (`…-requirements-…` instead of `2026091401-rqmt-…`).
    - The ops guide describes `/api/v1/agent-services/health` as a routing check. It does not detect a gateway or model outage.
@@ -239,5 +317,5 @@ These are by design for the proof of concept:
 - Knowledge grants are managed in SQL by an operator. There is no admin page.
 - There is no automatic retention job. Conversations last until the user deletes them.
 - Source cards open the document page and show line and page references, but they do not jump to the cited line.
-- Each turn starts a new Pi session with the saved history seeded back in. Nothing is kept warm between turns, and compaction is disabled, so long conversations send their full history each turn.
+- The real session is the ChenWeb conversation (§2.3.2). Each turn starts a new, one-turn Pi session with the saved text history seeded back in. Nothing is kept warm between turns, tool results aren't carried over, and compaction is disabled, so long conversations send their full history each turn.
 - Profiles are defined in Go code with environment-variable overrides. Only `v1` exists, and there is no system for publishing new profile versions or testing them with selected users.
