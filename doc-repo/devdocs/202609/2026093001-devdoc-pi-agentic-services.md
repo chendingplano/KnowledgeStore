@@ -1,7 +1,7 @@
 # Pi Agentic Services — Pi as the agentic engine behind ChenWeb's Knowledge Desk
 
-**Date:** 2026-09-30 \
-**Scope:** How ChenWeb (SemOS) uses Pi as its "Claude Code inside": the agentic loop that answers user requests by calling ChenWeb's knowledge-base tools. Also records the implementation status verified on 2026-09-30 and the known gaps. Open this before extending the tool set, running the pilot, or replacing Pi with another harness. \
+**Date:** 2026-09-30 (updated 2026-10-05) \
+**Scope:** How ChenWeb (SemOS) uses Pi as its "Claude Code inside": the agentic loop that answers user requests by calling ChenWeb's knowledge-base tools, and how conversations carry history from turn to turn. Also records the implementation status verified on 2026-10-05 and the known gaps. Open this before extending the tool set, running the pilot, or replacing Pi with another harness. \
 **Code root:** `ChenWeb/server/api/agentservicehandler/` (ChenWeb side), `ThirdParty/pi/gateway/` (Pi side)
 
 ## 1. Summary
@@ -12,7 +12,9 @@ Users never talk to Pi directly. They use the **Knowledge Desk** page in ChenWeb
 
 Two guides are available: **Knowledge Guide** (answers questions from documents) and **Problem Diagnosis Guide** (helps investigate product, process, or documentation problems). Both are read-only.
 
-**Status (2026-09-30):** Everything is built, committed, and passes its automated tests. It has **never been run with a real AI model or a real user**. As currently configured it cannot start, because its secrets are not set and no user has been granted knowledge access. The tools it offers are general document-search tools. Most SemOS-specific knowledge, such as the metric ontology, class contracts, and terminology, is **not yet available to Pi**.
+A conversation with a guide works like a Claude Code session: ChenWeb keeps every turn, including each tool call and its full result, and replays the earlier turns to Pi on the next question. Long conversations stay affordable because ChenWeb sends only as much history as fits a budget and summarizes older turns. Saved history is a *snapshot*: for 48 hours it is shown exactly as it was, even if the knowledge base or the user's access changes; after that, anything the user can no longer access is removed.
+
+**Status (2026-10-05):** Everything is built, committed, and passes its automated tests. It has **never been run with a real AI model or a real user**. As currently configured it cannot start, because its secrets are not set and no user has been granted knowledge access. The tools it offers are general document-search tools. Most SemOS-specific knowledge, such as the metric ontology, class contracts, and terminology, is **not yet available to Pi**.
 
 ## 2. Details
 
@@ -20,14 +22,16 @@ Two guides are available: **Knowledge Guide** (answers questions from documents)
 
 | Piece | Location | Role |
 |---|---|---|
-| Requirements | `KnowledgeStore/doc-repo/requirements/202609/2026091401-rqmt-pi-agentic-services-for-chenweb.md` | Intent (doc-2026091401) |
+| Requirements | `KnowledgeStore/doc-repo/requirements/202609/2026091401-rqmt-pi-agentic-services-for-chenweb.md` | Intent (doc-2026091401), revised 2026-10-04 for snapshot history and stored tool results |
+| OpenSpec | `ChenWeb/openspec/specs/agent-conversation-history/spec.md`; changes `archive/2026-10-04-agent-conversation-history-budget`, `agent-conversation-snapshot-tool-history` (not yet archived) | Contract for conversation history; update the spec when history behavior changes |
 | Handoff | `KnowledgeStore/doc-repo/hand-offs/202609/2026091501-handoff-pi-agentic-services-handoff.md` | Implementation handoff, 2026-09-15 |
 | Operations guide | `ChenWeb/docs/pi-agentic-services-operations.md` | Setup, grants, troubleshooting, evaluation |
-| ChenWeb backend | `ChenWeb/server/api/agentservicehandler/` | Profiles, conversation APIs, run bridge, knowledge tools, persistence |
+| ChenWeb backend | `ChenWeb/server/api/agentservicehandler/` | Profiles, conversation APIs, run bridge, knowledge tools, persistence; `history.go` builds the history, `types.go` holds the snapshot filter |
+| Shared gateway client | `shared/go/api/llm/gateway.go` | `PiGatewayClient`: runs, model info, summaries |
 | Route wiring | `ChenWeb/server/api/routes.go` (around line 280) | Profile registry, capability signer, route registration |
-| Pi gateway | `ThirdParty/pi/gateway/` (`server.ts`, `knowledge-tools.ts`, `permission-gate.ts`, `session-registry.ts`, `types.ts`) | Runs Pi sessions; proxies tool calls to ChenWeb |
-| Prompts | `ChenWeb/prompts/prompt-agent-knowledge-guide-v1.md`, `prompt-agent-problem-diagnosis-v1.md` | System prompts (override the directory with `PROMPT_DIR`) |
-| Migrations | `ChenWeb/project_migrations/20260914000001_*`, `20260914000002_*`, `20260915000001_*` | Agentic tables, grants, one-running-turn guard |
+| Pi gateway | `ThirdParty/pi/gateway/` (`server.ts`, `knowledge-tools.ts`, `permission-gate.ts`, `session-registry.ts`, `types.ts`) | Runs Pi sessions, replays history, proxies tool calls to ChenWeb, writes summaries |
+| Prompts | `ChenWeb/prompts/prompt-agent-knowledge-guide-v1.md`, `prompt-agent-problem-diagnosis-v1.md`, `prompt-agent-knowledge-context-v1.md`, `prompt-agent-history-summary-v1.md` | Guide system prompts, the per-run knowledge context, and the summarizer prompt (override the directory with `PROMPT_DIR`) |
+| Migrations | `ChenWeb/project_migrations/20260914000001_*`, `20260914000002_*`, `20260915000001_*`, `20261004000001_*`, `20261004000002_*` | Agentic tables, grants, one-running-turn guard, rolling-summary columns, stored tool results |
 | UI | `ChenWeb/web/src/routes/home3/agent-services/+page.svelte` | Knowledge Desk (Workspace → Knowledge Desk) |
 | Eval set | `ChenWeb/server/api/agentservicehandler/testdata/evaluation-cases.json` | Pilot scenarios for both guides |
 | Launcher | `mise dev-agent-services` (ChenWeb) | Runs API + web + `mise dev-agent-gateway` together |
@@ -37,11 +41,14 @@ Two guides are available: **Knowledge Guide** (answers questions from documents)
 ```text
 Browser ──(signed-in, /api/v1/agent-services/...)──▶ ChenWeb
 ChenWeb ──(POST /v1/runs, Bearer PI_GATEWAY_SECRET, NDJSON stream back)──▶ Pi gateway 127.0.0.1:4317
-Pi gateway: createAgentSession(...) → Pi's agent loop → model provider
+ChenWeb ──(GET /v1/models/:provider/:model, cached 10 min)──▶ Pi gateway   (context window for the history budget)
+Pi gateway: seedHistory(history with tool calls) → createAgentSession(...) → Pi's agent loop → model provider
 Pi tool call ──(POST /api/internal/agent-tools/<tool>, Bearer PI_GATEWAY_SECRET
-               + x-chenweb-run-capability, x-chenweb-run-id)──▶ ChenWeb
+               + x-chenweb-run-capability, x-chenweb-run-id, x-chenweb-tool-call-id)──▶ ChenWeb
 ChenWeb: verify capability → re-check user grant + profile scope → SQL → bounded JSON
+         → store arguments + exact result in kb.agentic_tool_results
 ChenWeb ──(SSE, filtered)──▶ Browser; verifies citations, saves the turn
+ChenWeb ──(after a completed turn, if history overflows: POST /v1/summaries)──▶ Pi gateway → rolling summary
 ```
 
 ### 2.3 How Pi is used (the loop is Pi's, not ours)
@@ -50,8 +57,8 @@ ChenWeb ──(SSE, filtered)──▶ Browser; verifies citations, saves the tu
 
 1. Looks up the profile's fixed `provider` and `model` in Pi's `ModelRuntime` registry to get the model's details (API, limits, credential). Pi does **not** choose the model; ChenWeb does, through the profile. An unknown pair fails the run with "configured model is unavailable", with no fallback. It caps `maxTokens` at the profile's output limit. See *Where Pi finds models and credentials* below.
 2. Builds an in-memory `SessionManager` and seeds it with the conversation history sent by ChenWeb (`seedHistory`). **Pi keeps no state between turns.** Each turn gets a fresh session, and ChenWeb is the only store of record.
-3. Supplies a stub `ResourceLoader`: no extensions, skills, prompt templates, or AGENTS files. The system prompt is the profile's prompt file.
-4. Calls `createAgentSession({ …, noTools: "builtin", tools: allowedTools, customTools: knowledgeTools })`. Pi's built-in shell, edit, and file tools are **off**, and the only tools Pi sees are ChenWeb's.
+3. Supplies a stub `ResourceLoader`: no extensions, skills, prompt templates, or AGENTS files. The system prompt is the profile's prompt file, with ChenWeb's knowledge context and, when present, the conversation's rolling summary appended.
+4. Calls `createAgentSession({ …, noTools: "builtin", tools: allowedTools, customTools: knowledgeTools })`. Pi's built-in shell, edit, and file tools are **off**, and the only tools Pi sees are ChenWeb's: the five knowledge tools plus `get_saved_tool_result`.
 5. Uses `SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } })`.
 6. Enforces an elapsed-time limit (abort on timer) and a cumulative output-token limit across the loop's model calls. Hitting either one aborts the session and emits a terminal `completion` status of `timed_out` or `limit_reached`.
 
@@ -72,7 +79,7 @@ Pi doesn't choose a model. It is the app (such as ChenWeb) to decide which model
 its own way of defining models. ChenWeb picks a model based on the guide's profile. It then 
 asks Pi to 'resolve' or to make sure Pi recognizes the model that ChenWeb picked.
 
-Here is the code, from server.ts:144-147:
+Here is the code, from server.ts:176-179:
 ```text
 const modelRuntime = await ModelRuntime.create();
 const configuredModel = modelRuntime.getModel(run.profile.provider, run.profile.model);
@@ -92,7 +99,7 @@ How it works:
    doesn't know the pair, the run fails with "configured model is unavailable". Nothing falls 
    back to another model.
 3. The output cap is applied. maxTokens is set to the lower of the model's own limit and 
-   the profile's maxOutputTokens. Later, while the loop runs, server.ts:80 lowers it further 
+   the profile's maxOutputTokens. Later, while the loop runs, server.ts:100 lowers it further 
    as the turn's total output budget gets used up.
 
 So the same model is used for every step of every turn, and nothing chooses a model per turn.
@@ -196,14 +203,14 @@ Events emitted by `normalizePiEvent` are `answer_delta`, `activity` (tool `start
 | `GET /health` | ChenWeb routing health (not gateway or model health) |
 | `GET /conversations` | User's conversations |
 | `POST /:slug/conversations` | Create a conversation, pinned to the slug, profile version, and model |
-| `GET /conversations/:id` | Read it. Rechecks each cited source and hides answers whose sources were revoked or changed |
+| `GET /conversations/:id` | Read it under the snapshot rule (§2.3.3): records within `PI_HISTORY_SNAPSHOT_DUR` come back as saved; in older ones, sources the user can no longer access are dropped. Answers are never hidden. Returns `snapshot_hours`, `removed_sources`, `removed_tool_results`; tool results themselves are not sent to the browser |
 | `DELETE /conversations/:id` | Delete (cascades) |
 | `POST /conversations/:id/messages/:messageId/feedback` | Helpful/unhelpful |
 | `POST /conversations/:id/runs` | Start a turn (idempotent; `409` if a turn is already active) |
 | `POST /conversations/:id/runs/:runId/cancel` | Stop |
 | `POST /conversations/:id/runs/:runId/permissions/:requestId` | Approve or deny a tool call |
 
-Internal tool routes: `POST /api/internal/agent-tools/<tool>`. They are registered outside `/api/v1`, need the gateway secret plus a signed short-lived run capability (`PI_RUN_CAPABILITY_SECRET`, at least 32 bytes), and must never be publicly proxied.
+Internal tool routes: `POST /api/internal/agent-tools/<tool>`, one per knowledge tool plus `get_saved_tool_result`. Each stores the call (when the gateway sends `X-ChenWeb-Tool-Call-ID`) before returning. They are registered outside `/api/v1`, need the gateway secret plus a signed short-lived run capability (`PI_RUN_CAPABILITY_SECRET`, at least 32 bytes), and must never be publicly proxied.
 
 ### 2.6 Knowledge tools exposed to Pi
 
@@ -216,14 +223,13 @@ Internal tool routes: `POST /api/internal/agent-tools/<tool>`. They are register
 | `find_related_knowledge` | `related` | `kb.search_artifacts` anchored on an artifact or document |
 | `get_saved_tool_result` | `InternalToolHandler.executeSavedResult` | `kb.agentic_tool_results` for the same conversation, under the snapshot rule (§2.3.3). Offered whenever a run has knowledge tools; no citations |
 
-Every result item carries `knowledge_store_id`, `document_id`, `artifact_id`/`artifact_type`, `source_title`, `source_version`/`source_fingerprint`, `page`, `line_start`/`line_end`, `validation_status` (default `unreviewed`), and `untrusted_evidence: true`. The gateway wraps the tool text as `{"untrusted_evidence": true, "evidence": …}`, caps the response at `maxEvidenceBytes` (hard ceiling 128 KiB), and caps call count at `maxToolCalls`.
+Every result item carries `knowledge_store_id`, `document_id`, `artifact_id`/`artifact_type`, `source_title`, `source_version`/`source_fingerprint`, `page`, `line_start`/`line_end`, `validation_status` (default `unknown`), and `untrusted_evidence: true`. The gateway wraps the tool text as `{"untrusted_evidence": true, "evidence": …}`, caps the response at `maxEvidenceBytes` (hard ceiling 128 KiB), and caps call count at `maxToolCalls`.
 
 ### 2.7 Guides
-## 1. What the guides are
 
 A guide is effectively an **app built on Pi**. Pi provides the engine (the loop, model calls, tool dispatch 
 and streaming), and a guide is a configuration of that engine. In the code this configuration is a 
-**profile** (`PiProfile` in [profiles.go:78-95](server/api/agentservicehandler/profiles.go#L78-L95)), 
+**profile** (`PiProfile` in `ChenWeb/server/api/agentservicehandler/profiles.go`), 
 identified by its slug.
 
 | Part of a guide | What it controls |
@@ -232,7 +238,7 @@ identified by its slug.
 | Provider and model | Which AI model it uses, and how hard it thinks |
 | Allowed tools | Which ChenWeb tools it may call |
 | Allowed stores and document groups | Which knowledge it may reach |
-| Limits | Tool calls, time, output tokens and evidence size |
+| Limits | Tool calls, time, output tokens, evidence size, history tokens and history tool-result size |
 | Permission mode | Ask before each tool call, or run automatically |
 | Pilot users, enabled flag, version | Who can see it and which version runs |
 
@@ -246,8 +252,9 @@ Each guide has a guide-specific prompt, serving as the 'system prompt' for Pi,
 with one small addition by Pi. The gateway passes the prompt file as Pi's custom system prompt, 
 through `getSystemPrompt: () => run.profile.systemPrompt` in `server.ts`. When 
 Pi's `buildSystemPrompt` sees a custom prompt, it **replaces** Pi's default coding-agent prompt 
-entirely. It then appends only what is turned on, and the gateway turns off appended text, 
-context files and skills. The one thing Pi always appends is:
+entirely. It then appends only what the gateway supplies: ChenWeb's knowledge context (the 
+stores the user is granted) and the conversation's rolling summary, if any. Context files and 
+skills are off. The one thing Pi always appends is:
 
 ```
 Current working directory: /Users/cding/Workspace/ThirdParty/pi
@@ -255,11 +262,13 @@ Current working directory: /Users/cding/Workspace/ThirdParty/pi
 
 So what the model actually receives is:
 
-- **System prompt:** the guide's prompt file, which is short (15–17 lines), plus that working-directory 
-  line. The line is harmless, but it slightly contradicts the requirement not to expose internal details.
+- **System prompt:** the guide's prompt file, which is short (15–17 lines), then the knowledge context, 
+  then the summary of earlier turns (when there is one), then that working-directory line. The line is 
+  harmless, but it slightly contradicts the requirement not to expose internal details.
 - **Tool definitions:** sent separately through the provider's tools parameter, not inside the 
   system prompt. These are the weak shared schema and one-line descriptions noted earlier.
-- **Messages:** the saved history, then the user's message exactly as typed. ChenWeb adds no context.
+- **Messages:** the budgeted history (each earlier turn as question, tool calls, tool results, answer), 
+  then the user's message exactly as typed.
 
 ### 2.8 Profiles (`profiles.go`, loaded at startup, so restart after changes)
 
@@ -297,22 +306,24 @@ Other environment variables: `PI_HISTORY_SNAPSHOT_DUR` (snapshot period in hours
 
 ### 2.9 Persistence (project DB, schema `kb`)
 
-`agentic_conversations` (with `history_summary`, `history_summary_through_seq`, `history_summary_updated_at` for the rolling summary, migration `20261004000001`), `agentic_response_attempts`, `agentic_messages`, `agentic_tool_calls`, `agentic_sources`, `agentic_feedback`, and `agentic_knowledge_grants`.
+`agentic_conversations` (with `history_summary`, `history_summary_through_seq`, `history_summary_updated_at` for the rolling summary, migration `20261004000001`), `agentic_response_attempts`, `agentic_messages`, `agentic_tool_calls`, `agentic_tool_results`, `agentic_sources`, `agentic_feedback`, and `agentic_knowledge_grants`.
 
 `uq_agentic_one_running_attempt_per_conversation` allows only one running attempt per conversation. Grants are explicit rows keyed by `(user_id, knowledge_store_id)` with an optional `document_id` and `expires_at`, and are provisioned by an operator in SQL (see the operations guide). `agentic_tool_results` (migration `20261004000002`) stores each tool call's arguments, exact result, error flag and referenced document IDs; it cascades with the conversation. Model reasoning and credentials are **not** stored.
 
-### 2.10 Verified status (2026-09-30)
+### 2.10 Verified status (2026-10-05)
 
 | Check | Result |
 |---|---|
-| ChenWeb commits | 7 feature/docs commits on 2026-09-15 (`384c122`…`7e0ac0d`). Later touched by `fd7c8b0` (shared AI transports, 09-20) and `fd470cf` (tenant_id→user_id, 09-28). No uncommitted changes in this area |
-| Pi commits | `2aab956`, `645aad0`, `0f6c4c1` (09-15). Working copy clean |
-| `go test` / `go vet ./server/api/agentservicehandler/` | Pass |
-| `bun test gateway` / `bun run check` in `ThirdParty/pi` | 16/16 pass; `tsc` clean |
-| Migrations on `miner` | Applied; all 7 `kb.agentic_*` tables exist |
+| ChenWeb commits | Initial build: 7 commits on 2026-09-15 (`384c122`…`7e0ac0d`), touched by `fd7c8b0` (09-20) and `fd470cf` (09-28). History work: `255bfad` (budget, summary, titles, 10-04), `d07ffa6` (OpenSpec archive), `b434c70` (snapshot history, stored tool calls, 10-04) |
+| Pi commits | `2aab956`, `645aad0`, `0f6c4c1` (09-15), `950ca99` (09-30), `f1e41a2`, `153da1f` (10-04). Working copy clean |
+| Shared library commit | `2e9f` (10-04): gateway client model info, summaries, history summary, 512 KiB limit |
+| `go test` / `go vet ./server/api/agentservicehandler/` | Pass, including under `-race` |
+| `bun test gateway` / `bun run check` in `ThirdParty/pi` | 28/28 pass; `tsc` clean |
+| `bun run check` in `ChenWeb/web` | 0 errors; i18n ok |
+| Migrations on `miner` | Applied through `20261004000002`; all 8 `kb.agentic_*` tables exist |
 | Rows in `kb.agentic_*` on `miner` | **0 in every table**: no conversation has ever run, and no grant exists |
 | `PI_*` variables in ChenWeb's `mise env` | **None set**, so the gateway cannot start and runs fail closed |
-| Live model pilot / evaluation set | **Not run** |
+| Live model pilot / evaluation set | **Not run**. The replayed tool-call message shape has not been tried against a real provider |
 
 ### 2.11 Findings: gaps between the goal and what exists
 
@@ -322,7 +333,11 @@ Other environment variables: `PI_HISTORY_SNAPSHOT_DUR` (snapshot period in hours
 4. **There's no structured "ask the user" tool** (requirements §3.7). Clarifying questions arrive only as ordinary answer text that ends the turn. The only built-in interaction is ask/auto approval of tool calls.
 5. **The default model is outdated.** Both profiles default to `claude-sonnet-4-5`. Choose a current model before the pilot. The installed Pi catalog (0.84.2) does not list `claude-opus-5-5` or `claude-sonnet-5-5`, so using one needs a Pi upgrade or a `models.json` entry (see §2.3).
 6. **The pilot has never run.** Setup still needs the two secrets, `PI_GATEWAY_DIR`, a provider credential that Pi accepts, and one verified grant row. After that, run a live turn and work through `evaluation-cases.json` for both guides.
-7. **Long-conversation handling: resolved 2026-10-04** (§2.3.3, OpenSpec change `agent-conversation-history-budget`). History now has a token budget, a rolling summary, a source footer on each answer, whole-turn pairing, and titles from the first question. Still open: none of this has run against a live model, and the 25 % budget share should be revisited using the pilot's recorded `input_tokens`.
+7. **Conversation history: resolved 2026-10-04** (§2.3.3; OpenSpec changes `agent-conversation-history-budget` and `agent-conversation-snapshot-tool-history`). History has a token budget, a rolling summary, a source footer on each answer, whole-turn pairing, titles from the first question, stored and replayed tool calls, and the snapshot rule. Still open:
+   - none of it has run against a live model; the first turn on a conversation with earlier tool calls will show whether the provider accepts the replayed messages;
+   - the 25 % budget share and the 4 KB tool-result limit should be revisited from the pilot's recorded `input_tokens`;
+   - the summary sees question and answer text only, not tool calls;
+   - `agent-conversation-snapshot-tool-history` still needs archiving.
 8. **Housekeeping:**
    - The leftover worktree `ChenWeb/.worktrees/pi-agentic-services` still exists.
    - The handoff links the requirements doc under the wrong filename (`…-requirements-…` instead of `2026091401-rqmt-…`).
@@ -332,7 +347,7 @@ Other environment variables: `PI_HISTORY_SNAPSHOT_DUR` (snapshot period in hours
 
 1. Configure the environment, add one grant, and do a single live turn to prove the end-to-end plumbing.
 2. Give each tool its own schema and description (finding 2), and update the default model (finding 5).
-3. Add SemOS tools: a metric graph and related metrics wrapping the existing `/kb/metrics/:metric_id/…` reads, a terminology lookup, and processing status. Each new tool needs a ChenWeb handler that checks grants, an entry in `KNOWLEDGE_TOOLS` and `knowledgeToolNames`, and bounded output.
+3. Add SemOS tools: a metric graph and related metrics wrapping the existing `/kb/metrics/:metric_id/…` reads, a terminology lookup, and processing status. Each new tool needs a ChenWeb handler that checks grants and records its result (`InternalToolHandler.respond`), an entry in `KNOWLEDGE_TOOLS` and `knowledgeToolNames`, and bounded output.
 4. Stream reasoning (finding 3). Then decide whether a structured ask-user tool is needed (finding 4).
 
 ## 3. Known limitations
@@ -344,5 +359,6 @@ These are by design for the proof of concept:
 - Knowledge grants are managed in SQL by an operator. There is no admin page.
 - There is no automatic retention job. Conversations last until the user deletes them.
 - Source cards open the document page and show line and page references, but they do not jump to the cited line.
-- The real session is the ChenWeb conversation (§2.3.3). Each turn starts a new, one-turn Pi session with a budgeted text history and a rolling summary seeded back in. Nothing is kept warm between turns, and tool results aren't carried over (only a list of cited sources).
+- The real session is the ChenWeb conversation (§2.3.3). Each turn starts a new, one-turn Pi session with the budgeted history (including tool calls) and the rolling summary seeded back in. Nothing is kept warm between turns.
+- Within the snapshot period, users can see saved content from resources they have since lost access to. After it, only the resources themselves are removed; answers and summaries derived from them stay (requirements §11, §18).
 - Profiles are defined in Go code with environment-variable overrides. Only `v1` exists, and there is no system for publishing new profile versions or testing them with selected users.
