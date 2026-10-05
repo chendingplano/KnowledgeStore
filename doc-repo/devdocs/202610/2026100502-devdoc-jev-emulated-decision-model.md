@@ -46,6 +46,8 @@ Same as `jev_compatible`: questions go in `Request.JevQuestions` (`map[string]Je
 - A multipart user message is accepted. `Content` and `text` parts are joined with a blank line to form the state. `image_url` and `image_b64` parts (`MIME` defaults to `image/jpeg`) are attached to every question; this needs a vision model. Other part types are rejected.
 - The state must contain text or at least one image.
 
+Task-specific instructions that all questions share (a **policy**, such as a definition of prompt injection) belong in the state, e.g. `{"text": …, "policy": …}`. That way they lead every prompt and can be prefix-cached. Policies are stored and versioned in the decision policy store; see [2026100503-devdoc-decision-policy-store](2026100503-devdoc-decision-policy-store.md).
+
 Question validation (`jevEmulatedOptions`), per type:
 
 | Type | Criteria | Options shown to the model | Answer key per option |
