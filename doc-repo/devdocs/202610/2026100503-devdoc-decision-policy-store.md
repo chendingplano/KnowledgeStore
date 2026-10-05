@@ -6,12 +6,10 @@
 
 **Traceability — openspec:**
 
-Until the change is archived these files are under `shared/openspec/changes/add-decision-policy-store/`; after archiving they move to `shared/openspec/changes/archive/<date>-add-decision-policy-store/`, and the spec to `shared/openspec/specs/decision-policy-store/spec.md`.
-
-- `proposal.md`: why this exists.
-- `design.md`: table layout, API, rationale, alternatives considered, risks and trade-offs.
-- `tasks.md`: implementation log.
-- `specs/decision-policy-store/spec.md`: the requirements in force. **If behavior changes, update this spec file, not just this doc.** This doc explains the feature for people and points at the code; the spec is the contract.
+- `shared/openspec/changes/archive/2026-10-05-add-decision-policy-store/proposal.md`: why this exists.
+- `shared/openspec/changes/archive/2026-10-05-add-decision-policy-store/design.md`: table layout, API, rationale, alternatives considered, risks and trade-offs.
+- `shared/openspec/changes/archive/2026-10-05-add-decision-policy-store/tasks.md`: implementation log.
+- `shared/openspec/specs/decision-policy-store/spec.md`: the requirements in force. **If behavior changes, update this spec file, not just this doc.** This doc explains the feature for people and points at the code; the spec is the contract.
 
 ## Summary
 
