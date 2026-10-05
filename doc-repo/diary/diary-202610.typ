@@ -294,3 +294,323 @@ and add anything new you find."
 ]
 
 )
+
+= 2026/10/05
+
+== Jev Is Not Always Better than LLM-as-a-judge
+#let ref-jev-compare-llm = link(
+  "https://developers.redhat.com/articles/2026/10/02/benchmarking-ai-decision-models-against-traditional-guardrails#on_prompt_engineering"
+)[#text(fill: blue)[Jev and LLM-as-a-jedge]]
+
+#ref-jev-compare-llm
+
+#callout(
+  "Conclusion",
+  [
+we did not find that decision models produced faster, cheaper, or higher-quality answers compared 
+with LLM-as-a-judge. The exception here would be Laya, whose compact size is a clear advantage, 
+assuming you can prompt engineer your way around its limitations.
+
+Our benchmarks show that decision models like *Jev do not reliably outperform LLM-as-a-judge*, 
+pre-trained predictive models, or open source decision models in speed or accuracy. However, 
+*they rightly refocus industry attention on lightweight, task-specific inference paradigm 
+that more closely resembles predictive machine learning*.  
+
+Apps should use the right tool for the job. In recent years, LLMs have been presented as 
+the answer regardless of problem size or scope. The excitement around Jev should signify 
+a shift toward greater pragmatism in model selection.
+]
+)
+
+== DS4 - Inference Engine Written in C
+
+DwarfStar (DS4) aims to be the best way to run a few excellent large language models on 
+consumer hardware (that is, hardware that people can actually own). To reach this goal, 
+we are building a small native inference engine optimized first for DeepSeek V4 Flash 
+(including the experimental vision model), DeepSeek V4.1 Flash (Metal, and text inference 
+on CUDA), and additionally GLM 5.2 and 5.3, GLM 5.3 Flash and DeepSeek V4 PRO, and 
+Qwen3.8 Flash Next (Metal and CUDA). The code is self-contained and deliberately narrow, 
+not a general GGUF runner: you need to use the GGUF files the project produces, that are 
+part of the project itself.
+
+*DwarfStar (ds4) supports Macs, specifically Apple Silicon Macs via Metal*, and Metal 
+is actually its *primary target*. The project documentation says the same build 
+supports M3 and M5 Macs, with hardware-specific fast paths selected automatically. 
+
+For RAM, there is no single requirement because it depends strongly on the model and quantization:
+
+#table(
+  columns: 3,
+  align: left,
+
+[Model / configuration], [Approx. model memory], [Mac recommendation],
+[Qwen3.8 Flash Next Q2], [41.73 GiB resident weights],[Official starting point: 64 GB Mac],
+[DeepSeek V4 Flash Q2], [~81 GiB],[96 GB+ normally; 64 GB possible with SSD streaming],
+[GLM 5.3 Flash Q2], [~90 GiB],[128 GB recommended],
+[DeepSeek V4.1 Flash Q2], [152 GiB main weights],[128 GB with SSD streaming; 256 GB+ for more residency],
+[DeepSeek V4 Flash Q4], [substantially >81 GiB],[256 GB class],
+[DeepSeek V4 PRO Q2], [very large],[512 GB resident target, or SSD streaming],
+)
+
+Importantly, those figures are not the complete runtime RAM requirement. ds4 also 
+needs memory for the KV cache/context, activations, scratch buffers, Metal/runtime 
+allocations, and the OS. For example, Qwen3.8 Q2 has 41.73 GiB of main/MTP weights, 
+but that already puts it uncomfortably close to the physical limit of a 48 GB Mac.
+
+*What this means for your 48 GB M4 Mac mini*
+
+Your machine is *below ds4's documented 64 GB minimum starting configuration*. The docs explicitly give:
+
+- *64 GB:* DeepSeek V4 Flash Q2 with `--ssd-streaming`
+- *96 GB:* DeepSeek V4 Flash Q2 resident
+- *128 GB:* DeepSeek V4 Flash Q2 or GLM 5.3 Flash Q2
+- *256 GB:* Flash Q4 / GLM 5.3 Flash Q4
+- *512 GB:* larger models such as PRO Q2
+
+SSD streaming is ds4's mechanism for running models larger than RAM. Instead of 
+loading all routed-expert weights into unified memory, it keeps a bounded expert 
+cache in RAM and fetches missing experts from the GGUF on a fast SSD. However, 
+*SSD streaming does not eliminate RAM requirements*: non-routed weights, 
+context/KV cache, activations and runtime buffers still need memory.
+
+So for your *48 GB M4*, I would characterize ds4 as *technically relevant but 
+not a particularly comfortable fit at present*. Even its smallest highlighted 
+model, Qwen3.8 Flash Next Q2, has *41.73 GiB of resident weights*, and the 
+project's authors target it at 64 GB Macs. DeepSeek V4 Flash Q2 is ~81 GiB 
+and would require aggressive SSD streaming on your machine.
+
+If your main objective is running useful models efficiently on your 48 GB M4, 
+*llama.cpp/MLX/Ollama with models sized for 32–40 GB working sets remain much 
+more natural choices*. DwarfStar becomes especially interesting at *64 GB*, 
+and much more compelling at *96–128 GB+*, because its focus is unusually 
+large MoE models such as DeepSeek V4 and GLM 5.x rather than ordinary 
+7B–70B-class local models.
+
+== Langfuse
+
+#let ref-langfuse = link(
+  "https://github.com/langfuse/langfuse"
+)[#text(fill: blue)[Langfuse]]
+
+#ref-langfuse 
+
+Langfuse is an *open-source LLM engineering / observability platform*. 
+The easiest way to think about it is as something like *“Datadog + 
+experiment tracking + prompt management for LLM applications.”* 
+You instrument an LLM application, send traces and metadata to Langfuse, 
+and then use its UI/APIs to inspect what happened, measure quality, 
+compare experiments, and manage prompts. It is not an LLM framework 
+like LangChain or an agent runtime; it sits alongside your application 
+as an *LLMOps/observability layer*.
+
+Its most important feature is *tracing*. Langfuse records an end-to-end 
+execution as a trace, including nested operations such as LLM calls, 
+retrieval, embeddings, tool/agent actions, and arbitrary application 
+logic. This is particularly useful for RAG and agent systems, where 
+a single user request may involve many steps. You can inspect 
+inputs/outputs, latency, token usage, cost, model parameters, sessions, 
+and failures. In practical terms, instead of only seeing “the model 
+gave a bad answer,” you can see something closer to:
+
+```text
+User request
+  └─ Trace
+      ├─ classify_query
+      ├─ retrieve_documents
+      │    ├─ embedding
+      │    └─ vector_search
+      ├─ rerank
+      ├─ LLM generation
+      └─ postprocess
+```
+
+Langfuse goes considerably beyond logging. It includes *prompt management*, 
+with centralized prompts, versioning and deployment; an *LLM playground* 
+for changing prompts/model parameters interactively; *datasets* for storing 
+test cases and benchmarks; and an *evaluation system* supporting LLM-as-a-judge, 
+deterministic/code-based evaluators, manual labeling, user feedback, and 
+custom evaluation pipelines. This makes it possible to build a loop such 
+as `production trace → identify failure → add case to dataset → modify prompt/retrieval → run evaluation → compare results → deploy`. 
+It exposes APIs plus Python and JS/TypeScript SDKs, and integrates with 
+OpenAI, LangChain, LlamaIndex, Haystack, LiteLLM, Vercel AI SDK, Ollama, 
+CrewAI and many other frameworks.
+
+Architecturally, Langfuse is a real server-side platform rather than a 
+lightweight tracing library. It can be run as Langfuse Cloud or 
+*self-hosted* using Docker Compose, Kubernetes/Helm, or cloud deployment 
+templates. The current project explicitly highlights *ClickHouse* as a 
+core database technology, which makes sense because LLM tracing generates 
+large, append-heavy analytical datasets. For production self-hosting, 
+this means Langfuse should be considered infrastructure: you run the 
+service and its backing storage, while your applications asynchronously 
+send telemetry to it. The repository is MIT licensed, although, as 
+with many commercial open-source platforms, you should distinguish the 
+OSS functionality from any hosted/enterprise features when evaluating 
+deployment.
+
+For something like SemOS architecture, I would mainly view Langfuse as 
+an *instrumentation and experimental-analysis layer*, not as part of 
+the knowledge-retrieval architecture itself. For example, one SemOS 
+request might generate a trace containing 
+
+```text
+query interpretation
+  → discriminator generation
+  → BM25 candidate retrieval
+  → graph expansion
+  → semantic reranking
+  → file exploration
+  → LLM answer 
+```
+
+You could then compare retrieval strategies, record the documents 
+each stage selected, measure latency/cost, attach evaluation scores, 
+and discover systematically which pipeline variants actually improve 
+answers. That is probably the most interesting aspect of Langfuse 
+for your use case: *it gives you the infrastructure for observing 
+and evaluating your evolving retrieval/exploration pipeline without 
+dictating how that pipeline should work.* 
+
+=== LLM Proxy
+*Langfuse's full tracing normally depends on instrumentation*, but 
+you can put an *LLM gateway/proxy in front of your providers and 
+capture every LLM request that passes through it without modifying 
+each application's tracing code*. Langfuse explicitly supports this 
+pattern and lists gateways such as LiteLLM Proxy, Kong, Portkey, 
+OpenRouter, and others. 
+[Langfuse](https://langfuse.com/integrations?utm_source=chatgpt.com)
+
+For example:
+
+```text
+App A ──┐
+App B ──┼──> LiteLLM Proxy ───> OpenAI
+App C ──┤        │             DeepSeek
+Codex? ─┘        │             Anthropic
+                 │
+                 └── telemetry ──> Langfuse
+```
+
+With *LiteLLM Proxy + Langfuse*, LiteLLM can automatically send telemetry 
+for all requests passing through the proxy. Langfuse says this captures 
+request messages, model and parameters, generated response, token usage, 
+latency/time-to-first-token, errors, and available metadata. 
+[Langfuse](https://langfuse.com/integrations/frameworks/litellm-sdk?utm_source=chatgpt.com)
+
+The distinction, however, is important: *proxy tracing gives you LLM-call 
+observability, not complete application tracing*. Suppose SemOS does this:
+
+```text
+query
+  ↓
+generate discriminators
+  ↓
+BM25 search
+  ↓
+select 20 documents
+  ↓
+explore documents
+  ↓
+LLM call
+  ↓
+graph expansion
+  ↓
+LLM call
+  ↓
+answer
+```
+
+A transparent gateway can naturally observe the two LLM calls—the prompts, 
+responses, tokens, model, latency, etc. But it cannot inherently know that 
+the application performed `BM25 search`, selected particular documents, or 
+did `graph expansion`. Those events happen inside SemOS and never cross 
+the LLM proxy. Langfuse's own documentation makes exactly this distinction: 
+a gateway sees requests passing through it, while application-level 
+instrumentation is what provides the nested retrieval/tool/application 
+execution trace. 
+[Langfuse](https://langfuse.com/resources/engineering/llm-gateway?utm_source=chatgpt.com)
+
+So there are effectively *three levels*:
+
+#table(
+  columns: 4,
+  align: left,
+[Approach], [App modification], [Sees all LLM calls], [Sees retrieval/tools/app logic],
+[Langfuse SDK instrumentation], [Yes], [Yes], [*Yes*],
+[LiteLLM/gateway → Langfuse], [Minimal\*], [*Yes*], [No],
+[Network MITM proxy], [No], [Potentially], [No],
+)
+
+\* Applications at least need to send their LLM traffic to the gateway, 
+typically by changing an API base URL/configuration.
+
+Given that you already use a local MITM proxy for LLM traffic, there is an 
+even more interesting possibility: you don't necessarily need LiteLLM 
+if your objective is simply *“observe every LLM call made by everything 
+on this machine.”*
+
+Conceptually:
+
+```text
+                   ┌── OpenAI
+                   │
+Apps ──> MITM ─────┼── DeepSeek
+          │        ├── Anthropic
+          │        └── ...
+          │
+          └──> trace collector ──> Langfuse
+```
+
+Your proxy could recognize provider endpoints such as `/v1/chat/completions` 
+or `/v1/responses`, parse requests/responses, and emit OpenTelemetry/Langfuse 
+observations. Langfuse is built around OpenTelemetry and provides an OTLP 
+ingestion endpoint, so you are not fundamentally required to use its SDK 
+to produce the telemetry. 
+[Langfuse](https://langfuse.com/integrations?utm_source=chatgpt.com)
+
+There is one major architectural limitation, though. A pure network proxy usually sees:
+
+```text
+LLM call #123
+LLM call #124
+LLM call #125
+```
+
+but it may *not know that #123 and #124 belong to the same SemOS user 
+request*, nor what semantic role each call has. You would need correlation 
+metadata—trace IDs, application identifiers, session IDs, etc.—to 
+reconstruct good traces.
+
+So for your situation, I would seriously consider a *hybrid*:
+
+```text
+                    ┌──────────────────────┐
+SemOS ─────────────>│                      │
+Codex ─────────────>│ Central LLM Proxy    │──> providers
+Claude Code ───────>│                      │
+other programs ────>│                      │
+                    └──────────┬───────────┘
+                               │
+                         Langfuse
+```
+
+The proxy automatically captures *100% of LLM traffic*, giving you 
+a baseline with essentially no per-call instrumentation. SemOS can 
+optionally attach a small amount of metadata such as `trace_id`, 
+`session_id`, `operation=retrieval_query_generation`, etc. Then you 
+instrument only the higher-level SemOS operations that actually 
+matter—retrieval, exploration, reranking, graph traversal—rather 
+than every LLM invocation.
+
+That gets you most of the benefit of Langfuse while avoiding 
+invasive instrumentation throughout your codebase. Langfuse 
+specifically documents shared-proxy scenarios and supports 
+metadata such as trace/session identifiers for correlating 
+requests. [Langfuse](https://langfuse.com/integrations/frameworks/litellm-sdk?utm_source=chatgpt.com)
+
+*Repository*: 
+
+[Langfuse on GitHub](https://github.com/langfuse/langfuse?utm_source=chatgpt.com)
+
+[Langfuse's LiteLLM Proxy integration](https://langfuse.com/integrations/gateways/litellm?utm_source=chatgpt.com)
+
