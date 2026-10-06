@@ -30,8 +30,9 @@ twice the size it should be. That would wrongly lower `extract_metrics` recall: 
 production `kb.metrics` holds 45 rows for this record. Do not use run `22aa157c` for scoring until a
 corrected run exists.
 
-Skill versioning was added at the same time (v1.1.0). Every benchmark row now records which version of
-the skill produced it (see "Versioning" below), so a corrected run can be told apart from this one.
+Skill versioning was added at the same time (now v1.2.0). Every benchmark row records the skill name,
+the skill version, and the model that ran it (see "Provenance" below), so a corrected run can be told
+apart from this one.
 
 ## Details
 
@@ -41,7 +42,7 @@ the skill produced it (see "Versioning" below), so a corrected run can be told a
 |---|---|
 | Document | `kb.inputs.id = 416`, DB33/T 2030—2018 《农村生活垃圾分类处理规范》 |
 | Source | `/Users/cding/Apps/SemOS/Artifacts/0/416/std_1503937_mineru.txt`, 169 lines, sha256 `5acb3df6…0fcd` |
-| Benchmark run | `22aa157c-d712-46be-abc8-d7f195cff483`, 134 rows, `skill_version = '1.0.0'` (backfilled) |
+| Benchmark run | `22aa157c-d712-46be-abc8-d7f195cff483`, 134 rows; backfilled `skill_name = 'extract-metrics-benchmark'`, `skill_version = '1.0.0'`, `model_name = 'gpt-6.1-sol'` (Codex session rollout 2026-10-06T06-22-06) |
 | Ledger | `ext_info.candidates` (295 candidates: 134 accepted, 161 excluded) |
 
 The whole source and all 134 rows were read. The excluded candidates in the ledger were read too, to
@@ -154,14 +155,21 @@ test conditions (S4).
   each `threshold_or_target` states the requirement on its own.
 - **S8** Rows in group D need your decision before S1–S7 are finalized.
 
-### Versioning (added with this review)
+### Provenance (added with this review)
 
-- The version is declared in SKILL.md frontmatter `metadata.version`. The current version is
-  **1.1.0**, and history is kept in `CHANGELOG.md` next to it.
-- `scripts/benchmark_io.py` writes `skill_version` into the prepared payload, rejects a payload
-  prepared under another version, and stores it in **`testbed.metrics.skill_version`**
-  (`TEXT NOT NULL`, migration `ChenWeb/project_migrations/20261006000002_add_skill_version_to_testbed_metrics.sql`).
-- Rows saved before versioning existed (run `22aa157c`, 134 rows) were backfilled with `'1.0.0'`.
+Each `testbed.metrics` row now records who produced it:
+
+| Column | Source | Migration |
+|---|---|---|
+| `skill_name` | SKILL.md frontmatter `name` | `20261006000003_add_skill_and_model_name_to_testbed_metrics.sql` |
+| `skill_version` | SKILL.md frontmatter `metadata.version` (currently **1.2.0**; history in the skill's `CHANGELOG.md`) | `20261006000002_add_skill_version_to_testbed_metrics.sql` |
+| `model_name` | `benchmark_io.py prepare --model-name <exact model ID>` (required) | `20261006000003_…` |
+
+- All three columns are `TEXT NOT NULL`. `benchmark_io.py` writes them into the prepared payload and
+  rejects a payload prepared under another skill or version, or one without a model name.
+- Rows saved before these columns existed (run `22aa157c`, 134 rows) were backfilled with
+  `extract-metrics-benchmark` / `1.0.0` / `gpt-6.1-sol`. The model was identified from the Codex
+  session log that saved the run.
 - Bump rule: patch for wording changes that don't affect outcomes, minor for compatible additions,
   major for rules that change which assertions are metrics. The fixes above are a major change
   (2.0.0).
@@ -173,4 +181,4 @@ test conditions (S4).
 - Run `22aa157c` stays in `testbed.metrics`, because runs are immutable snapshots. A corrected run
   will sit beside it, and evaluation must name the run explicitly.
 - The Gold Metrics view (`metrics_handler.go`, `testbedMetricsQuery`) shows the latest run per
-  document. It does not display `skill_version` yet.
+  document. It does not display `skill_name`, `skill_version` or `model_name` yet.
