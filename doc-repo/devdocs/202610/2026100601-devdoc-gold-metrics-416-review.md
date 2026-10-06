@@ -30,9 +30,10 @@ twice the size it should be. That would wrongly lower `extract_metrics` recall: 
 production `kb.metrics` holds 45 rows for this record. Do not use run `22aa157c` for scoring until a
 corrected run exists.
 
-Skill versioning was added at the same time (now v1.2.0). Every benchmark row records the skill name,
-the skill version, and the model that ran it (see "Provenance" below), so a corrected run can be told
-apart from this one.
+Skill versioning was added at the same time. The annotation rules now live in frozen, versioned files.
+Any released version can be run again, so the corrected rules can be compared directly against these.
+Every benchmark row records the skill name, the rules version, and the model that ran it (see
+"Provenance" below).
 
 ## Details
 
@@ -155,24 +156,35 @@ test conditions (S4).
   each `threshold_or_target` states the requirement on its own.
 - **S8** Rows in group D need your decision before S1–S7 are finalized.
 
-### Provenance (added with this review)
+### Provenance and runnable versions (added with this review)
 
-Each `testbed.metrics` row now records who produced it:
+The skill is split into versioned rules and shared tooling:
+
+- **Rules**: `.agents/skills/extract-metrics-benchmark/rules/<version>.md` holds the annotation rules
+  (inventory, annotation, audits). These files are frozen once released. `rules/versions.json` lists
+  each version, its file, its SHA-256, and the default version (currently 1.0.0). Versions 1.1.0 and
+  1.2.0 are aliases of the 1.0.0 rules, because those releases changed tooling only.
+- **Tooling**: `SKILL.md` (procedure), `references/benchmark-contract.md` and `scripts/` are shared by
+  all versions and always the latest.
+- **Running a version**: `benchmark_io.py prepare --skill-version <v> --model-name <model ID>`. The
+  helper refuses an unknown version or a rules file that differs from its released hash. To compare
+  versions, run the same document once per version and compare the runs by `benchmark_run_id`.
+- **New rules**: copy the newest rules file to a new version, edit the copy, register it in
+  `versions.json`, and add a CHANGELOG entry. Drafts are released as pre-releases (`2.0.0-rc.1`). The
+  fixes above become rules version 2.0.0.
+
+Each `testbed.metrics` row records:
 
 | Column | Source | Migration |
 |---|---|---|
 | `skill_name` | SKILL.md frontmatter `name` | `20261006000003_add_skill_and_model_name_to_testbed_metrics.sql` |
-| `skill_version` | SKILL.md frontmatter `metadata.version` (currently **1.2.0**; history in the skill's `CHANGELOG.md`) | `20261006000002_add_skill_version_to_testbed_metrics.sql` |
-| `model_name` | `benchmark_io.py prepare --model-name <exact model ID>` (required) | `20261006000003_…` |
+| `skill_version` | `prepare --skill-version` (rules version) | `20261006000002_add_skill_version_to_testbed_metrics.sql` |
+| `model_name` | `prepare --model-name` (required) | `20261006000003_…` |
+| `ext_info.rules_sha256` | SHA-256 of the rules file used | none (inside `ext_info`) |
 
-- All three columns are `TEXT NOT NULL`. `benchmark_io.py` writes them into the prepared payload and
-  rejects a payload prepared under another skill or version, or one without a model name.
-- Rows saved before these columns existed (run `22aa157c`, 134 rows) were backfilled with
-  `extract-metrics-benchmark` / `1.0.0` / `gpt-6.1-sol`. The model was identified from the Codex
-  session log that saved the run.
-- Bump rule: patch for wording changes that don't affect outcomes, minor for compatible additions,
-  major for rules that change which assertions are metrics. The fixes above are a major change
-  (2.0.0).
+Rows saved before these columns existed were backfilled: run `22aa157c` as `1.0.0` / `gpt-6.1-sol`, and
+the `model_name` of run `e6bd8f49` (record 753, labelled 1.1.0) as `gpt-6.1-sol`. Both models were
+identified from the Codex session log that saved them.
 
 ## Known limitations
 
