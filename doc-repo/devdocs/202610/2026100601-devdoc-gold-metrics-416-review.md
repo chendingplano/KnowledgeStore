@@ -156,6 +156,12 @@ test conditions (S4).
   each `threshold_or_target` states the requirement on its own.
 - **S8** Rows in group D need your decision before S1–S7 are finalized.
 
+**Outcome (2026-10-06):** released as rules version **2.0.0** (`rules/2.0.0.md`). Decisions taken:
+group C kept as `test_condition` (rule A6); licences, certificates and provenance excluded (X10);
+housekeeping states kept only when presence/absence is observable (A2), subjective ones excluded (X11);
+unnamed "达标"/"requirements" excluded (X9); 可/宜/鼓励/提倡/尽量 excluded (X8); strict bounds stored
+as the bare number with tag `strict_bound`. Record 416 has not yet been re-run under 2.0.0.
+
 ### Provenance and runnable versions (added with this review)
 
 The skill is split into versioned rules and shared tooling:
