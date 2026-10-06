@@ -91,7 +91,12 @@ and confines model creativity to explanatory text.
 
 - Models resolved from `WIKIPAGE_CREATION_MODEL_NAME` (required) then
   `WIKIPAGE_CREATION_FALLBACK` (optional) via `.models.toml`, reusing the existing
-  OpenAI JSON client; thinking disabled, as with the extractors.
+  OpenAI JSON client. `MODEL_DEFAULT_REASONING_POLICY=no-reasoning` forces
+  `thinking.type=disabled` for both primary and fallback metric wiki generation
+  calls (case-insensitive, surrounding whitespace ignored). When unset, empty,
+  or set to another value, the model's `.models.toml` `thinking_type` is used.
+  Generation logs include the effective `thinking_type`. Cached pages are
+  served without a new LLM call, so this policy applies to newly generated pages.
 - The built-in prompt (overridable by `WIKIPAGE_CREATION_PROMPT` → `prompts/<file>`)
   instructs the model to write **English**, ground in the provided facts, and
   **not guess or hallucinate** — leaving a field empty when unsure (best-effort).
