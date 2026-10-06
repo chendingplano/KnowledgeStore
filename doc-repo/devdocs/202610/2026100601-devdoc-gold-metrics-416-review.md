@@ -162,7 +162,8 @@ The skill is split into versioned rules and shared tooling:
 
 - **Rules**: `.agents/skills/extract-metrics-benchmark/rules/<version>.md` holds the annotation rules
   (inventory, annotation, audits). These files are frozen once released. `rules/versions.json` lists
-  each version, its file, its SHA-256, and the default version (currently 1.0.0). Versions 1.1.0 and
+  each version, its file, and its SHA-256. With no version named, the newest released version is used
+  (pre-releases only when named). Versions 1.1.0 and
   1.2.0 are aliases of the 1.0.0 rules, because those releases changed tooling only.
 - **Tooling**: `SKILL.md` (procedure), `references/benchmark-contract.md` and `scripts/` are shared by
   all versions and always the latest.
