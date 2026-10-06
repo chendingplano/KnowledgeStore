@@ -19,6 +19,12 @@ report `20261006-1311` (record 416, rules 2.0.0) \
   migration of current rows; (2) the requirement-to-metric link is a `provision_id` column on
   `kb.metrics`; (3) `extract_provisions` work is deferred to a later change. Updated DR2, DR4,
   Scope, Database Migrations, Implementation, Consequences and Tests accordingly.
+* 2026/10/06, Phase 1 implemented (openspec change `requirements-metrics-phase1`): migration
+  `20261006000005_add_provision_id_to_kb_metrics.sql`; evidence retired before re-extraction
+  deletes metrics; statement-kind classifier and badge in the metric wiki, category panel, Metric
+  Ontology Explorer search and metric detail groups. The benchmark delete sites were left
+  unchanged: they cannot reuse `metric_id`, because the benchmark's own input is deleted with
+  its metrics. The search and wiki responses now also carry the fields the classifier needs.
 
 ## Context
 

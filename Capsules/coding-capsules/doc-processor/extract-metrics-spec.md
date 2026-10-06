@@ -492,6 +492,13 @@ Metrics are identified by:
 
 where `seqno` starts at `1`.
 
+`metric_id` is reused: a forced (`force_clear`) re-extraction deletes the record's rows and
+numbers the new ones from `1` again. Deleting the rows (`DeleteMetricsByInputRecordID`) therefore
+first retires every active `kb.assertion_evidence` row with `artifact_type = 'metric'` for the
+record (reason "metric rows deleted for re-extraction"). Assertions that lose their last support
+become `unsupported`, and a reused `metric_id` never inherits old evidence (ADR 2026100603,
+openspec change `requirements-metrics-phase1`).
+
 ## 4. Workflow
 
 - For each chunk, run Pass 1 to extract metric candidates.
@@ -600,6 +607,14 @@ Rules:
   - `kb.artifact_objects.artifact_id = kb.metrics.metric_id`
   - the preferred row should favor `object_role IN ('measured_object', 'self')`, then first row order
 - this is forward-only behavior; no backfill is required for existing metric rows
+
+`provision_id` (nullable, references `kb.provisions.id`, `ON DELETE SET NULL`) names the provision
+clause a requirement row is a criterion of (ADR 2026100603 DR2). `extract_metrics` does not fill
+it yet. It stays `NULL` until the deferred `extract_provisions` linking work lands.
+
+Customer-facing views label each row's statement kind (requirement, metric, test parameter,
+definition) at read time from `value_class`, `value_range_type`, `formula_or_definition` and
+`reasoning_tags` (`web/src/lib/metric-statement-kind.ts`). Nothing about the kind is stored.
 
 ### 5.1.1 Read Payload and Metric Detail UI
 
