@@ -15,6 +15,10 @@ report `20261006-1311` (record 416, rules 2.0.0) \
 ## Change Logs
 * 2026/10/06, ADR created (proposed). Prompted by the record-416 benchmark review: rows shown to
   customers as "metrics" are, to a domain expert, requirements.
+* 2026/10/06, Review decisions: (1) existing records are out of scope, with no backfill or
+  migration of current rows; (2) the requirement-to-metric link is a `provision_id` column on
+  `kb.metrics`; (3) `extract_provisions` work is deferred to a later change. Updated DR2, DR4,
+  Scope, Database Migrations, Implementation, Consequences and Tests accordingly.
 
 ## Context
 
@@ -106,8 +110,16 @@ the 2 records that have metric evidence (416 among them), every linked `kb.metri
 assertion (2026-09-05 / 09-13). The `metric_id` strings are reused when a document is
 re-extracted, so the evidence now points at different metrics: a qualitative requirement linked
 to `mea:lower_bound_requirement`, a lower bound linked to `mea:upper_bound_requirement`, and so on.
-This needs fixing regardless of this ADR (Phase 0), and it must be fixed before any data is
-migrated.
+The stale links on existing records are out of scope (see Scope). The reuse of `metric_id` must
+still be fixed, so that new extractions link correctly (Phase 1).
+
+### Scope
+
+- **New extractions only.** Existing `kb.metrics`, `kb.provisions` and assertion rows are not
+  migrated, backfilled or re-linked. They are replaced when a document is re-extracted.
+- **`extract_provisions` is deferred.** Its prompt, its coverage (2 documents today) and how it
+  runs alongside `extract_metrics` will be handled in a later change. This ADR fixes the target
+  model now and states what waits for that change (DR4, Phase 2).
 
 ## Decision
 
@@ -142,9 +154,16 @@ provision P  (prov:required)  "机器成肥产出的肥料…重金属限量应�
                         └─ instance_of ─>  metric class  总砷（As）含量
 ```
 
-The link is a `kb.assertion_relations` row with `relation_kind = 'constrains'`, from the provision
-assertion to the metric instance. No new table is needed. One provision may constrain many metric
-values (Table 3 gives five); one metric value may be constrained by several provisions.
+The link is a new column **`kb.metrics.provision_id`**: a nullable reference to `kb.provisions.id`
+naming the provision clause that the metric row is a criterion of. It is the authoritative link
+(ADR `2026072701` DR7). One provision may be referenced by many metric rows (Table 3 gives five).
+A metric row has at most one source provision. It is null for observations, design capabilities
+and targets, which have no provision, and until linking runs.
+
+At the assertion layer, normalization derives a `kb.assertion_relations` row with
+`relation_kind = 'constrains'` from the provision assertion to the metric instance. That row is a
+projection of `provision_id`, not a second owner. It is also where a metric value constrained by
+more than one provision, for example the same limit repeated in another clause, is recorded.
 
 ### DR3 — Where each kind of current "metric" row belongs
 
@@ -169,10 +188,14 @@ values (Table 3 gives five); one metric value may be constrained by several prov
 - `extract_provisions` runs on every document that `extract_metrics` runs on. It owns qualitative,
   delegated and permissive clauses.
 - The lossless invariant of ADR `2026081801` holds **across families**: a qualitative requirement
-  removed from `extract_metrics` must be present in `kb.provisions`. The cutover gate (Phase 3)
-  checks this per document before the old prompt is retired.
-- Linking (DR2) is a deterministic step after both processors have run. It matches on source line
-  span, subject and evidence. An LLM is used only for ambiguous cases (ADR `2026081701` DR12).
+  removed from `extract_metrics` must be present in `kb.provisions`.
+- Linking (DR2) is a deterministic step after both processors have run. It fills
+  `kb.metrics.provision_id`, matching on source line span, subject and evidence. An LLM is used
+  only for ambiguous cases (ADR `2026081701` DR12).
+- **Gate: this DR waits for the `extract_provisions` change.** Until provisions run reliably on
+  the same documents, `extract_metrics` keeps emitting qualitative and delegated requirements, so
+  that nothing is lost. During that period customer pages classify those rows as requirements by
+  the DR3 table (Phase 1), and `provision_id` stays null.
 
 ### DR5 — Customer-facing pages use the two words correctly
 
@@ -201,8 +224,13 @@ ontology would keep creating metric classes with nothing to measure.
 
 **AD2 — Add a `row_kind` flag to `kb.metrics`.** Cheaper: one column, one prompt change, and
 filtering in the UI. Rejected as the end state because it puts two owner stores in one table
-(ADR `2026072701` DR7) and duplicates `kb.provisions`. It is acceptable as an **interim display
-fix** (Phase 1) while DR4 is built.
+(ADR `2026072701` DR7) and duplicates `kb.provisions`. A display-time classifier with the same
+effect, needing no column, is used while DR4 waits (Phase 1).
+
+**AD5 — Link only through `kb.assertion_relations`.** Rejected (review decision). The link is
+needed on the extraction record itself, before and independently of normalization. Customer pages
+and the benchmark read `kb.metrics` directly. `provision_id` is the owner. The relation row is
+derived from it.
 
 **AD3 — Create a new `kb.requirements` table.** Rejected: `kb.provisions`, its prompt, its
 normalizer and the `prov:*` assertion kinds already exist.
@@ -214,26 +242,35 @@ on the class contract (DR3), so nothing is lost.
 
 ### Database Migrations
 
-To be confirmed in the implementation plan; expected to be small:
+One Goose project migration in `ChenWeb/project_migrations` (follow the `db-migration` skill):
 
-- `kb.provisions`: add a structured `modality` column. `provision_normalizer.go` notes this is
-  missing and parses modality from text today.
-- `kb.metrics`: add `provision_id` (nullable) referencing the source provision of a requirement
-  row, so the link survives before normalization. Alternatively rely only on
-  `kb.assertion_relations`; decide in the plan.
-- `kb.assertion_evidence`: reference metrics by a stable key that is not reused across
-  re-extraction (Phase 0 defect).
-- Register the `constrains` relation kind as a governed term.
+```sql
+ALTER TABLE kb.metrics
+  ADD COLUMN provision_id BIGINT NULL
+    REFERENCES kb.provisions (id) ON DELETE SET NULL;
+CREATE INDEX metrics_provision_id_idx ON kb.metrics (provision_id)
+  WHERE provision_id IS NOT NULL;
+```
 
-No destructive migration. Existing `kb.metrics` rows stay; re-extraction replaces them per
-document.
+- It references the surrogate `kb.provisions.id`, not the text `prov_id`. Like `metric_id`,
+  `prov_id` is likely reused when a document is re-extracted (verify in Phase 1).
+- `ON DELETE SET NULL`: re-extracting provisions must not delete metric rows. The metric row
+  loses its link until linking runs again.
+- No backfill. Existing rows keep `provision_id = NULL` (Scope).
+
+Also in Phase 1: `kb.assertion_evidence` must reference metrics by a key that is not reused
+across re-extraction. Register `constrains` as a governed relation kind.
+
+Deferred to the `extract_provisions` change: a structured `modality` column on `kb.provisions`
+(`provision_normalizer.go` parses modality from text today).
 
 ### Data Formats
 
 The metric prompt's output loses the `qualitative` + `requirement` and `reference` shapes for
 non-measurable clauses. It keeps `limit_absent` only for a named quantity. The provision output
-gains `constrains` hints (line span plus metric name) to help linking. Exact JSON changes belong to
-the prompt versions written in Phase 2.
+may gain `constrains` hints (line span plus metric name) to help linking; that is part of the
+deferred `extract_provisions` change. Exact JSON changes belong to the prompt versions written in
+Phase 2.
 
 ### Environment Variables
 
@@ -244,22 +281,25 @@ ADR `2026081801` and quote booleans in `mise.toml`.
 
 ### Phases
 
-0. **Fix the evidence link defect.** Make `assertion_evidence` → `kb.metrics` links stable across
-   re-extraction. Re-link or retire the stale assertions for the 2 affected records.
-1. **Interim display fix (AD2).** Classify existing `kb.metrics` rows by the DR3 table
-   (deterministically from `value_class` / `value_range_type` / tags) and label them correctly on
-   customer pages. No pipeline change.
-2. **Prompts.** New `enrich-metrics` and `extract-metric-candidates` versions without the
-   qualitative-requirement instructions. A new `extract-provisions` version, if needed, so that
-   qualitative and delegated clauses are captured with structured references.
-3. **Run both processors and link.** Enable `extract_provisions` wherever `extract_metrics` runs.
-   Add the deterministic linking step that writes `constrains` relations. Use a cutover gate per
-   document: every qualitative requirement in the old metric output must be found in provisions.
-4. **Ontology.** Stop creating metric classes from provision-only rows. Move formulas and
-   interpretation bands into class contracts. Retire empty provisional classes that came from
-   requirement rows.
-5. **UI.** Separate Requirements and Metrics views as in DR5, in both languages.
-6. **Benchmark.** Release rules 3.0.0 (DR6). Re-run records 416 and 753.
+1. **Now — foundation.**
+   - Add `kb.metrics.provision_id` (migration above).
+   - Make `assertion_evidence` → `kb.metrics` links use a key that is not reused across
+     re-extraction.
+   - Add a display classifier that maps each metric row to its DR3 kind from `value_class`,
+     `value_range_type` and tags. Customer pages use it to show requirement rows as requirements.
+     It is computed at read time; no data is rewritten.
+2. **With the `extract_provisions` change (deferred).**
+   - Provisions run wherever metrics run.
+   - New `enrich-metrics` and `extract-metric-candidates` prompt versions drop the
+     qualitative-requirement instructions.
+   - The linker fills `provision_id` and derives `constrains` relations.
+   - A per-document gate checks that every qualitative requirement in the old metric output is
+     found in provisions before the old prompts are retired.
+3. **Ontology.** Stop creating metric classes from provision-only rows. Move formulas and
+   interpretation bands into class contracts.
+4. **UI.** Separate Requirements and Metrics views as in DR5, in both languages. Before Phase 2,
+   the Requirements view is fed by the Phase 1 classifier.
+5. **Benchmark.** Release rules 3.0.0 (DR6). Re-run records 416 and 753.
 
 ### Code Changes
 
@@ -292,7 +332,10 @@ and `.agents/skills/extract-metrics-benchmark/rules/3.0.0.md`.
 **Negative / costs**
 
 - Two processors per document instead of one: more LLM cost and a linking step to maintain.
-- A re-extraction and migration window during which old and new representations coexist.
+- Until the `extract_provisions` change lands, requirements still live in `kb.metrics`. The
+  separation is a display classification (Phase 1), not yet a storage one.
+- Existing records are not migrated. Documents extracted before and after this change differ
+  until they are re-extracted.
 - `extract_provisions` has been run on only 2 documents. Its quality is unmeasured until it has a
   benchmark (DR6).
 - Scorers and dashboards built on `kb.metrics` counts will see counts drop (record 416: 69 → about
@@ -302,10 +345,11 @@ and `.agents/skills/extract-metrics-benchmark/rules/3.0.0.md`.
 
 ## Tests
 
-- Unit: DR3 classification of existing rows; the linker on table-driven fixtures (one provision →
-  many metric values; one metric value ← several provisions; no match).
+- Unit: the Phase 1 DR3 display classifier on table-driven rows; the migration (column, foreign
+  key, `ON DELETE SET NULL` on provision re-extraction); the Phase 2 linker on fixtures (one
+  provision → many metric rows; no match leaves `provision_id` null).
 - Cross-family lossless check per document (DR4): every qualitative requirement in the old metric
-  output appears in provisions.
+  output appears in provisions (Phase 2).
 - Benchmark: scores on records 416 and 753 under rules 3.0.0 for metrics, requirements and links.
 - UI: Requirements and Metrics lists in English and Chinese. Text remains selectable.
 
