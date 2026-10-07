@@ -39,6 +39,11 @@ Validate with Python tests, affected Go package tests and frontend/i18n checks.
 ## Reference and coordinate contract
 
 Pages are one-based. Boxes use displayed CropBox coordinates normalized to 0–1000.
+New line files and both geometry companions serialize coordinates as integers, rounded
+to the nearest integer (half values round up in the normalized 0–1000 space). Calculations keep their
+precision until output. Existing files and valid cached companions are left untouched;
+readers continue accepting their decimal coordinates. This compatible output change
+does not change algorithm identifiers or invalidate existing companions.
 Each box carries intrinsic PDF rotation; the viewer converts boxes back when
 `respectPageRotation=false`. A rowspan cell keeps its whole physical cell box;
 a row highlight uses only that row's band. Colspan aliases resolve to the same
