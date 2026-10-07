@@ -1,0 +1,269 @@
+[
+  {
+    "candidate_id": "c18",
+    "action": "remove",
+    "reason": "Redundant aggregated/contradictory entry; specific resolved candidate retained."
+  },
+  {
+    "candidate_id": "c78",
+    "action": "remove",
+    "reason": "Redundant aggregated/contradictory entry; specific resolved candidate retained."
+  },
+  {
+    "candidate_id": "c16",
+    "action": "update",
+    "fields": {
+      "reason": "Table 1 r2 solar greenhouse shall be sealed: observable physical feature, nothing to measure."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c16b",
+      "source_line_spans": [
+        "121"
+      ],
+      "rule_id": "X15",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Table 1 r2 solar greenhouse shall have thermal insulation: observable physical feature, no thermal performance quantity or value is stated."
+    }
+  },
+  {
+    "candidate_id": "c21",
+    "action": "update",
+    "fields": {
+      "reason": "Table 1 r3 volume below 50 m³ defines the scope of the household biogas digester delegation to NY/T 90, not a required design-volume bound. Source 以下 retained as scope without asserting a numerical acceptance comparator."
+    }
+  },
+  {
+    "candidate_id": "c32",
+    "action": "update",
+    "fields": {
+      "reason": "Treatment station shall provide odour treatment, wastewater collection and treatment facilities; facility provisioning with no measured criterion."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c32b",
+      "source_line_spans": [
+        "125"
+      ],
+      "rule_id": "X10",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Biodegradable-waste treatment equipment shall have a product conformity certificate; documentation check, not a measurable property."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c45b",
+      "source_line_spans": [
+        "128"
+      ],
+      "rule_id": "D1",
+      "decision": "duplicate",
+      "metric_ids": [
+        "416_gold_10",
+        "416_gold_11",
+        "416_gold_12",
+        "416_gold_13",
+        "416_gold_14"
+      ],
+      "reason": "Machine-composting fertilizer heavy-metal indicators point to Table 3; the pointer duplicates the retained Table 3 values."
+    }
+  },
+  {
+    "candidate_id": "c64",
+    "action": "update",
+    "fields": {
+      "reason": "B.1.1 500 ml sealed polyethylene bottle, vertical fixation, filtration apparatus and shaking before analysis are apparatus/procedure settings, not independent metric assertions."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c64b",
+      "source_line_spans": [
+        "159"
+      ],
+      "rule_id": "X12",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "B.1.2 one sheet of filter paper, even seed distribution and covering the dish are apparatus/procedure instructions, not quantitative result-affecting test settings."
+    }
+  },
+  {
+    "candidate_id": "c76",
+    "action": "update",
+    "fields": {
+      "rule_id": "X8",
+      "reason": "Facilities may also be configured through government purchase of services (也可); permissive arrangement rather than a mandatory metric."
+    }
+  },
+  {
+    "candidate_id": "c83",
+    "action": "update",
+    "fields": {
+      "reason": "Bulky furniture/electronic waste shall be scheduled for collection by a resource-recovery service or delivered to a designated drop-off point; disposal instructions."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c83b",
+      "source_line_spans": [
+        "92"
+      ],
+      "rule_id": "X8",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Recyclables should be kept clean as far as possible (应尽量保持清洁), emptied and protected from contamination; weakened modality, no quantitative criterion."
+    }
+  },
+  {
+    "candidate_id": "c101",
+    "action": "update",
+    "fields": {
+      "rule_id": "X7",
+      "reason": "Biodegradable waste is routed to mechanical composting, solar-assisted composting or anaerobic fermentation according to local circumstances; treatment route with no measured criterion."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c101b",
+      "source_line_spans": [
+        "113"
+      ],
+      "rule_id": "X10",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Kitchen waste from centralized catering units shall be treated by a qualified enterprise; qualification check with no metric."
+    }
+  },
+  {
+    "candidate_id": "c102",
+    "action": "update",
+    "fields": {
+      "rule_id": "X8",
+      "reason": "Recyclables may be purchased regularly by scrap companies under agreements (可); permissive disposal arrangement, no numeric frequency."
+    }
+  },
+  {
+    "candidate_id": "c106",
+    "action": "update",
+    "fields": {
+      "rule_id": "X12",
+      "reason": "Germination testing points to Appendix B; method/procedure pointer, with quantitative settings separately represented at lines 158–159."
+    }
+  },
+  {
+    "action": "add",
+    "candidate": {
+      "candidate_id": "c112b",
+      "source_line_spans": [
+        "143"
+      ],
+      "rule_id": "X2",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Village committee shall regularly publicize waste sorting through notices, brochures, visits and activities; organizational outreach duty with no stated frequency value."
+    }
+  },
+  {
+    "metric_id": "416_gold_6",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "机器成肥、太阳能辅助堆肥产出的成品肥料植物种子发芽指数应≥60%"
+    }
+  },
+  {
+    "metric_id": "416_gold_18",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "往复式水平震荡机的频率不小于100次/分钟"
+    }
+  },
+  {
+    "metric_id": "416_gold_19",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "往复式水平震荡机的振幅不小于40 mm"
+    }
+  },
+  {
+    "metric_id": "416_gold_20",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "植物种子发芽试验试样在室温下震荡浸提1 h"
+    }
+  },
+  {
+    "metric_id": "416_gold_21",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "植物种子发芽试验试样震荡浸提后静置0.5 h，再过滤"
+    }
+  },
+  {
+    "metric_id": "416_gold_25",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "每个生物培养皿内均匀放入10 粒水堇或萝卜种子"
+    }
+  },
+  {
+    "metric_id": "416_gold_26",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "每个植物种子发芽试验培养皿加入浸出液5 ml"
+    }
+  },
+  {
+    "metric_id": "416_gold_27",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "植物种子发芽试验在25℃黑暗的培养箱中培养"
+    }
+  },
+  {
+    "metric_id": "416_gold_28",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "植物种子发芽试验在25℃黑暗的培养箱中培养48 h"
+    }
+  },
+  {
+    "metric_id": "416_gold_29",
+    "action": "update",
+    "fields": {
+      "threshold_or_target": "植物种子发芽试验每个样品做3个重复"
+    }
+  },
+  {
+    "metric_id": "416_gold_8",
+    "action": "update",
+    "fields": {
+      "metric_desc_en": "Moisture mass fraction (fresh sample) of finished fertilizer produced by mechanical composting shall be ≤30%",
+      "metric_context_en": "Table 2 Fertilizer technical indicators; applies to finished fertilizer produced by mechanical composting (9.3.6)"
+    }
+  },
+  {
+    "metric_id": "416_gold_9",
+    "action": "update",
+    "fields": {
+      "metric_desc_en": "Finished fertilizer produced by mechanical composting shall have pH in the range 5.5~8.5",
+      "metric_context_en": "Table 2 Fertilizer technical indicators; applies to finished fertilizer produced by mechanical composting (9.3.6)"
+    }
+  },
+  {
+    "metric_id": "416_gold_24",
+    "action": "update",
+    "fields": {
+      "metric_desc_en": "If the germination-test leachate cannot be analyzed immediately, storage time shall not exceed 48 h"
+    }
+  }
+]

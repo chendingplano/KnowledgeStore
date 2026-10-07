@@ -1,0 +1,3449 @@
+{
+  "record_id": 416,
+  "benchmark_run_id": "20261007_122930",
+  "skill_name": "extract-metrics-benchmark",
+  "skill_version": "4.0.0",
+  "rules_sha256": "82e5b8a2aa032e0650b9738c0f60d7bc2f234c7646d9dff0e7be2d179773ee34",
+  "model_name": "deepseek-flash",
+  "source_filename": "/Users/cding/Apps/SemOS/Artifacts/0/416/std_1503937_mineru.txt",
+  "source_sha256": "5acb3df6b320fdd4d3e293cc8170e4b68511ee274b2ee3f930268b1a4a590fcd",
+  "language": "zh",
+  "completeness_review": "Corrections applied after audit. All 169 canonical source lines re-read in bounded windows. Line 158 now yields 10 A6 test-parameter rows (sample count 3, sample dry mass ≥20.0 g, solid:liquid ratio 1：10, shaker frequency, amplitude, extraction time, settling time, distilled-water blank count 3, storage temperature 0～4℃, storage time ≤48 h); line 159 yields 5 A6 rows (seeds 10, extract 5 ml, temperature 25℃, time 48 h, replicates 3). Apparatus capacities (500 ml bottle, filter paper) remain X12. Line 121 r1 比能耗 and 发酵周期 are now two accepted A4 rows (limit_absent, requirement_value_open); 主体工艺 is X13 and 菌种来源 X10. Line 163 is now two definition rows, GI<100 (upper_bound, strict) and GI>100 (lower_bound, strict), each with numeric value 100 and its own exact excerpt. Line 161 stays one A5 qualitative formula row with empty value/unit/type. Table 2 metrics carry lines 128+129+131 spans and apply only to mechanical composting; Table 3 metrics carry lines 128+132+134 spans and apply to both machine and solar composting. Table pointers in line 128 are D1 candidates linked to their retained rows. Exclusion ledger now enumerates and splits facility provisioning vs sealed vehicles (line 50), lid vs printed mark (line 89), intact vs tidy vs maintenance (line 97), sealed management vs non-compaction sealed transport (line 105), five vehicle features (line 109), r1 vs r2 CJJ 52 delegations, r2 sealing vs insulation, r3 NY/T 90 and NY/T 2371 delegations with the 50 m³ scope as X5, r4 landfill technology vs pollution control, r5 CJJ 90 vs GB 18485 with unnamed tailgas X9 and fly-ash/slag route X7, three line 125 discharge delegations, three line 126 no-odour/no-wastewater/no-ground-rubbish X15 plus equipment/site X11, line 127 safe/effective X13, provenance X10, NY 1109 X16, and line 128 coliform and egg-mortality as two NY 884 X16. Clauses 91-96, 100-116, 123-127 and 137-146 each received their administrative/action candidates. Opaque contradictory fragments (old c43 vs c43b, and the bogus c8 GI link) were removed rather than left as wrong entries. Numeric metrics reconcile to 32 after this build. This review covers the supplied canonical 169-line source; original PDF/page-image scope (sign graphics, table images) was not audited and is noted as review scope, not canonical-source damage. Independent Codex source review reconciled all 32 accepted assertions, corrected residual excluded-candidate splitting (solar greenhouse sealing/insulation), removed aggregate duplicates, added the mechanical Table 3 pointer and product-certificate/qualification/outreach exclusions. Coverage is complete within the canonical line file, with original PDF imagery outside the review scope.",
+  "correctness_review": "Every accepted field verified against its cited lines; two prior errors corrected. The A4 rows now have empty metric_value/metric_unit/value_data_type, value_range_type=limit_absent, value_class=requirement and kind:requirement_value_open; the contradictory exclusions were removed. Table 2 subjects are now '机械成肥产出的成品肥料' (per line 128), Table 3 subjects '机器成肥和太阳能辅助堆肥产出的成品肥料', and each table-metric source_line_spans includes line 128. Ranges now carry numeric source text in metric_value (pH '5.5~8.5' with 5.5/8.5; storage temp '0～4' with 0/4, unit ℃). The formula row keeps metric_value/metric_unit/value_data_type empty. The two interpretation rows each carry numeric value 100, correct opposite comparators with strict_bound, and their own exact excerpts; element operand rows were not split off the formula. Measurement-basis qualifiers remain in name/desc/threshold, not condition; only source-stated applicability (如浸出液不能马上分析, 室温, 黑暗, 25℃) is in condition. Every threshold_or_target is self-contained with subject, property, operator, value and unit. Consistency: equivalent clauses receive equivalent rules — 8.1.2 and 8.1.5 both A1 frequencies; Table 1 r1/r2 CJJ 52 delegations both X16; vehicle features uniformly X15; 日均 collection objects are explicit. No accepted row is an inspection or delegated requirement, none uses value_class=reference or external_reference/cited_doc tags, and every accepted qualitative row is an A5 definition. All logical row IDs use the supplied grids (r1-r5 for lines 121 and 134, r1-r3 for 131). No blank fields contain stray values; no uncertain candidates remain. Consistency: Independent Codex review removed contradictory c18/c78 aggregates, separated X15 features and X10 documentation from X7 facility provisioning, corrected permissive clauses to X8, verified table row IDs and hashes using the project ParseTableGrid implementation, normalized adjacent metric spans, checked source-language and English companion fields, and made short thresholds self-contained. All accepted metric IDs remain the DeepSeek-authored 32 rows. No unresolved limitations remain within canonical-source scope.",
+  "limitations": [],
+  "coverage": [
+    {
+      "source_line_spans": [
+        "1:9"
+      ],
+      "reason": "Cover/title page: ICS 13.030.10, Z 71, standard number DB33/T 2030—2018, publication/implementation dates and publisher — document metadata, no metrics (X14)."
+    },
+    {
+      "source_line_spans": [
+        "10:15"
+      ],
+      "reason": "Foreword: GB/T 1.1 drafting rule and party lists — no measurable properties; GB/T 1.1 entry is X14."
+    },
+    {
+      "source_line_spans": [
+        "16:19"
+      ],
+      "reason": "Title and Scope clause: subject matter description and applicability (X5), no numeric values."
+    },
+    {
+      "source_line_spans": [
+        "20:35"
+      ],
+      "reason": "Normative references list: GB/T 19095, CJJ 27, CJJ 52, CJJ 90, CJJ 184, NY/T 90, NY 884, NY 1109 etc. — reference entries only (X14)."
+    },
+    {
+      "source_line_spans": [
+        "36:43"
+      ],
+      "reason": "Terms and definitions 3.1 (农村生活垃圾) and 3.2 (四分四定): term definitions (X3), no computed quantity."
+    },
+    {
+      "source_line_spans": [
+        "44:47"
+      ],
+      "reason": "Basic requirements 4.1-4.3: principles/slogans 减量化资源化无害化, 四分四定, 应收尽收/应分尽分/日产日清, long-term management — X3."
+    },
+    {
+      "source_line_spans": [
+        "48:52"
+      ],
+      "reason": "Facility provisioning 5.1-5.4: planning duty (X2), provisioning (X7), sealed vehicles (X15), delegations to CJJ 27 and GB 16889 (X16)."
+    },
+    {
+      "source_line_spans": [
+        "53:86"
+      ],
+      "reason": "Classification 6.1-6.5: four categories (X4) and example lists; category and example enumerations (X3)."
+    },
+    {
+      "source_line_spans": [
+        "87:97"
+      ],
+      "reason": "Section 7 drop-off: container lid/marking features (X15), count of containers (A1), drop-off actions (X1), blanket agreement (X2), management duties and posting requirement (X2), container state (X15/X11)."
+    },
+    {
+      "source_line_spans": [
+        "98:110"
+      ],
+      "reason": "Section 8 collection/transport: daily frequencies (A1), agreement duty (X2), CJJ 184 delegation (X16), enclosure features (X15), management duties (X2)."
+    },
+    {
+      "source_line_spans": [
+        "111:121"
+      ],
+      "reason": "Section 9 treatment requirements and Table 1 processing modes: A4 equipment parameters (r1), sizing duty (X17), delegations (X16), features (X15), route/provision (X7), unnamed discharge (X9), scope (X5)."
+    },
+    {
+      "source_line_spans": [
+        "122:128"
+      ],
+      "reason": "9.3 treatment management: facility duties (X7), delegated discharge limits (X16), observable states (X15/X11), strain identity (X10), GI≥60% (A1), table pointers (D1) and NY884 delegations (X16)."
+    },
+    {
+      "source_line_spans": [
+        "129:134"
+      ],
+      "reason": "Tables 2 and 3: fertilizer technical indicators and heavy-metal limits (A1), each property one metric row."
+    },
+    {
+      "source_line_spans": [
+        "135:146"
+      ],
+      "reason": "Section 10 long-term management: responsibility, inspection, publicity, education and media duties — all administrative (X2), encouragement (X8), direction-only aspiration (X6)."
+    },
+    {
+      "source_line_spans": [
+        "147:153"
+      ],
+      "reason": "Appendix A: classification mark table (signs), color may per GB/T 19095 (X8)."
+    },
+    {
+      "source_line_spans": [
+        "154:163"
+      ],
+      "reason": "Appendix B: seed germination test settings (A6, lines 158-159), GI formula (A5, line 161) and interpretation cut-offs (A1 definition, line 163)."
+    },
+    {
+      "source_line_spans": [
+        "164:169"
+      ],
+      "reason": "References list: document codes and citations only (X14)."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "c1",
+      "source_line_spans": [
+        "90"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_1"
+      ],
+      "rule_id": "A1",
+      "reason": "Each household shall be equipped with at least 2 sorted-waste containers (one set) for biodegradable and other waste; count of containers is the measured property, lower_bound."
+    },
+    {
+      "candidate_id": "c2",
+      "source_line_spans": [
+        "101"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_2"
+      ],
+      "rule_id": "A1",
+      "reason": "Biodegradable waste shall be collected daily on a schedule; frequency of an activity = 1 次/日, the object (biodegradable waste) is explicit."
+    },
+    {
+      "candidate_id": "c3",
+      "source_line_spans": [
+        "101"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Collection unit shall agree with centralized catering units on time and frequency of kitchen-waste collection — organizational duty with no value."
+    },
+    {
+      "candidate_id": "c4",
+      "source_line_spans": [
+        "101"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Kitchen-waste collection process shall comply with CJJ 184; criterion delegated to identified standard CJJ 184."
+    },
+    {
+      "candidate_id": "c5",
+      "source_line_spans": [
+        "101"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Clean waste water and residue produced during operation in a timely manner and keep transfer facility surroundings tidy — action duty."
+    },
+    {
+      "candidate_id": "c6",
+      "source_line_spans": [
+        "104"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_3"
+      ],
+      "rule_id": "A1",
+      "reason": "Other waste shall be collected daily on a schedule; frequency = 1 次/日, the object (other waste) is explicit."
+    },
+    {
+      "candidate_id": "c7",
+      "source_line_spans": [
+        "105"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Collection/transport process shall be managed in sealed mode — observable state with nothing to measure."
+    },
+    {
+      "candidate_id": "c8",
+      "source_line_spans": [
+        "105"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Non-compaction trucks shall be sealed during direct transport to prevent secondary pollution — observable state."
+    },
+    {
+      "candidate_id": "c9",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_4"
+      ],
+      "rule_id": "A4",
+      "reason": "Table 1 r1 mechanical composting equipment shall explicitly state its specific energy consumption (比能耗); a quantity of an object (equipment) whose value a supplier must declare; value open in this document."
+    },
+    {
+      "candidate_id": "c10",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_5"
+      ],
+      "rule_id": "A4",
+      "reason": "Table 1 r1 equipment shall explicitly state its fermentation cycle (发酵周期); a quantity of equipment whose value a supplier must declare; value open."
+    },
+    {
+      "candidate_id": "c11",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X13",
+      "reason": "Table 1 r1 equipment shall state main process (主体工艺); a process name is not a quantity."
+    },
+    {
+      "candidate_id": "c12",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X10",
+      "reason": "Table 1 r1 equipment shall state strain-source requirement; declared provenance/identity is documentation, not a measurable property."
+    },
+    {
+      "candidate_id": "c13",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r1 composting fermentation process shall comply with CJJ 52 harmlessness requirement; criterion delegated to CJJ 52."
+    },
+    {
+      "candidate_id": "c14",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r2 solar-assisted composting shall comply with CJJ 52; criterion delegated to CJJ 52 (distinct property/location from r1)."
+    },
+    {
+      "candidate_id": "c15",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X17",
+      "reason": "Table 1 r2 composting facility (solar greenhouse) shall reasonably set single-chamber volume according to daily waste throughput; sizing duty, no value, ratio or formula."
+    },
+    {
+      "candidate_id": "c16",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Table 1 r2 solar greenhouse shall be sealed: observable physical feature, nothing to measure."
+    },
+    {
+      "candidate_id": "c17",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Table 1 r2 shall be equipped with waste water collection or treatment systems and odour pollutant discharge system — provision of facilities."
+    },
+    {
+      "candidate_id": "c18b",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X9",
+      "reason": "Table 1 r3 facility siting shall comply with biogas safety protection requirements — delegation to an unnamed requirement (no identified document)."
+    },
+    {
+      "candidate_id": "c19",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r3 rural household biogas digester with volume below 50 m³ shall comply with NY/T 90; criterion delegated to NY/T 90."
+    },
+    {
+      "candidate_id": "c20",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r3 rural centralized biogas-supply project shall comply with NY/T 2371; delegated to NY/T 2371."
+    },
+    {
+      "candidate_id": "c21",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X5",
+      "reason": "Table 1 r3 volume below 50 m³ defines the scope of the household biogas digester delegation to NY/T 90, not a required design-volume bound. Source 以下 retained as scope without asserting a numerical acceptance comparator."
+    },
+    {
+      "candidate_id": "c22",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Table 1 r3 biogas residue and slurry shall have reasonable disposal routes — provision of a route, no property."
+    },
+    {
+      "candidate_id": "c23",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r4 landfill treatment technology shall comply with GB 50869; delegated criterion."
+    },
+    {
+      "candidate_id": "c24",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r4 pollution control shall comply with GB 16889; delegated criterion (distinct property)."
+    },
+    {
+      "candidate_id": "c25",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r5 incineration treatment technology shall comply with CJJ 90; delegated criterion."
+    },
+    {
+      "candidate_id": "c26",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X9",
+      "reason": "Table 1 r5 incineration flue gas shall meet discharge standards — delegation to unnamed requirement."
+    },
+    {
+      "candidate_id": "c27",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Table 1 r5 fly ash and slag effectively disposed of — disposal route, no observable criterion."
+    },
+    {
+      "candidate_id": "c28",
+      "source_line_spans": [
+        "121"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Table 1 r5 pollution control shall comply with GB 18485; delegated criterion (distinct property)."
+    },
+    {
+      "candidate_id": "c29",
+      "source_line_spans": [
+        "125"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Effluent included in sewer network shall be pretreated and meet GB/T 31962; delegated water-quality criterion."
+    },
+    {
+      "candidate_id": "c30",
+      "source_line_spans": [
+        "125"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Direct-discharge effluent shall stably meet GB 16889; delegated water-quality criterion."
+    },
+    {
+      "candidate_id": "c31",
+      "source_line_spans": [
+        "125"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Odour pollutant discharge shall comply with GB 14554; delegated criterion."
+    },
+    {
+      "candidate_id": "c32",
+      "source_line_spans": [
+        "125"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Treatment station shall provide odour treatment, wastewater collection and treatment facilities; facility provisioning with no measured criterion."
+    },
+    {
+      "candidate_id": "c33",
+      "source_line_spans": [
+        "126"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Operating space shall have no odour — observable state."
+    },
+    {
+      "candidate_id": "c34",
+      "source_line_spans": [
+        "126"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Operating space shall have no waste water on ground — observable state."
+    },
+    {
+      "candidate_id": "c35",
+      "source_line_spans": [
+        "126"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Operating space shall have no ground rubbish — observable state."
+    },
+    {
+      "candidate_id": "c36",
+      "source_line_spans": [
+        "126"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X11",
+      "reason": "Main and auxiliary equipment in good operating condition and site tidy — housekeeping/aesthetic state."
+    },
+    {
+      "candidate_id": "c37",
+      "source_line_spans": [
+        "124"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Operating unit shall establish management, safety-production and emergency plans and ledgers; staff shall follow safety procedures — administrative duty."
+    },
+    {
+      "candidate_id": "c38",
+      "source_line_spans": [
+        "127"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X13",
+      "reason": "Microbial strains shall be safe and effective — vague quality words without a concrete test."
+    },
+    {
+      "candidate_id": "c39",
+      "source_line_spans": [
+        "127"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X10",
+      "reason": "Microbial strains shall have clear provenance and species name — declared identity/documentation."
+    },
+    {
+      "candidate_id": "c40",
+      "source_line_spans": [
+        "127"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Microbial strain safety shall comply with NY 1109; delegated criterion."
+    },
+    {
+      "candidate_id": "c41",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_6"
+      ],
+      "rule_id": "A1",
+      "reason": "Plant seed germination index of finished fertilizer from mechanical/solar-assisted composting shall be ≥60%; numeric lower bound."
+    },
+    {
+      "candidate_id": "c42",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Fecal coliform count shall meet NY 884; delegated quantity (distinct property)."
+    },
+    {
+      "candidate_id": "c43",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Roundworm-egg mortality shall meet NY 884; delegated quantity (distinct property)."
+    },
+    {
+      "candidate_id": "c44",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "duplicate",
+      "metric_ids": [
+        "416_gold_7",
+        "416_gold_8",
+        "416_gold_9"
+      ],
+      "rule_id": "D1",
+      "reason": "Pointer 'machine-composting fertilizer other indicators shall meet Table 2' — Table 2 rows themselves are the metrics, so the pointer duplicates them."
+    },
+    {
+      "candidate_id": "c45",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "duplicate",
+      "metric_ids": [
+        "416_gold_10",
+        "416_gold_11",
+        "416_gold_12",
+        "416_gold_13",
+        "416_gold_14"
+      ],
+      "rule_id": "D1",
+      "reason": "Pointer 'solar-assisted composting fertilizer heavy-metal limits shall meet Table 3' — Table 3 rows are the metrics, so the pointer duplicates them."
+    },
+    {
+      "candidate_id": "c46",
+      "source_line_spans": [
+        "131"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_7"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 2 r1 machine-composting finished fertilizer organic matter mass fraction (dry basis) ≥30%."
+    },
+    {
+      "candidate_id": "c47",
+      "source_line_spans": [
+        "131"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_8"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 2 r2 machine-composting finished fertilizer moisture (fresh sample) mass fraction ≤30%."
+    },
+    {
+      "candidate_id": "c48",
+      "source_line_spans": [
+        "131"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_9"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 2 r3 machine-composting finished fertilizer pH range 5.5~8.5."
+    },
+    {
+      "candidate_id": "c49",
+      "source_line_spans": [
+        "134"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_10"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 3 r1 total As (dry basis) ≤15 mg/kg; applies to both machine and solar composting fertilizer."
+    },
+    {
+      "candidate_id": "c50",
+      "source_line_spans": [
+        "134"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_11"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 3 r2 total Hg ≤2 mg/kg."
+    },
+    {
+      "candidate_id": "c51",
+      "source_line_spans": [
+        "134"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_12"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 3 r3 total Pb ≤50 mg/kg."
+    },
+    {
+      "candidate_id": "c52",
+      "source_line_spans": [
+        "134"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_13"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 3 r4 total Cd ≤3 mg/kg."
+    },
+    {
+      "candidate_id": "c53",
+      "source_line_spans": [
+        "134"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_14"
+      ],
+      "rule_id": "A1",
+      "reason": "Table 3 r5 total Cr ≤150 mg/kg."
+    },
+    {
+      "candidate_id": "c54",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_15"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 sample count: weigh 3 fresh-material samples — test setting."
+    },
+    {
+      "candidate_id": "c55",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_16"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 each sample dry-basis mass not less than 20.0 g — test setting."
+    },
+    {
+      "candidate_id": "c56",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_17"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 solid:liquid ratio 1：10 (W/V, dry weight) — test setting."
+    },
+    {
+      "candidate_id": "c57",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_18"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 shaker frequency not less than 100 times/min — test setting."
+    },
+    {
+      "candidate_id": "c58",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_19"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 shaker amplitude not less than 40 mm — test setting."
+    },
+    {
+      "candidate_id": "c59",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_20"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 shaking extraction 1 h at room temperature — test setting."
+    },
+    {
+      "candidate_id": "c60",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_21"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 standing 0.5 h after shaking — test setting."
+    },
+    {
+      "candidate_id": "c61",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_22"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 distilled-water blank controls count 3 per determination — test setting."
+    },
+    {
+      "candidate_id": "c62",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_23"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 extracted liquid stored at 0℃~4℃ if not analyzed immediately — test setting."
+    },
+    {
+      "candidate_id": "c63",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_24"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.1 storage time shall not exceed 48 h under the same condition — test setting."
+    },
+    {
+      "candidate_id": "c64",
+      "source_line_spans": [
+        "158"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X12",
+      "reason": "B.1.1 500 ml sealed polyethylene bottle, vertical fixation, filtration apparatus and shaking before analysis are apparatus/procedure settings, not independent metric assertions."
+    },
+    {
+      "candidate_id": "c65",
+      "source_line_spans": [
+        "159"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_25"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.2 evenly place 10 watercress or radish seeds — test setting."
+    },
+    {
+      "candidate_id": "c66",
+      "source_line_spans": [
+        "159"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_26"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.2 add 5 ml extracted liquid — test setting."
+    },
+    {
+      "candidate_id": "c67",
+      "source_line_spans": [
+        "159"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_27"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.2 incubate at 25℃ — test setting."
+    },
+    {
+      "candidate_id": "c68",
+      "source_line_spans": [
+        "159"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_28"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.2 incubate for 48 h — test setting."
+    },
+    {
+      "candidate_id": "c69",
+      "source_line_spans": [
+        "159"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_29"
+      ],
+      "rule_id": "A6",
+      "reason": "B.1.2 each sample 3 replicates — test setting."
+    },
+    {
+      "candidate_id": "c70",
+      "source_line_spans": [
+        "161"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_30"
+      ],
+      "rule_id": "A5",
+      "reason": "Formula B.1 defines the seed germination index; a metric definition with the percentage scale; operands not split."
+    },
+    {
+      "candidate_id": "c71",
+      "source_line_spans": [
+        "163"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_31"
+      ],
+      "rule_id": "A1",
+      "reason": "GI <100% indicates the compost product is phytotoxic — interpretation cut-off, upper bound (strict)."
+    },
+    {
+      "candidate_id": "c72",
+      "source_line_spans": [
+        "163"
+      ],
+      "decision": "accepted",
+      "metric_ids": [
+        "416_gold_32"
+      ],
+      "rule_id": "A1",
+      "reason": "GI >100% indicates promotion of germination and root elongation — interpretation cut-off, lower bound (strict)."
+    },
+    {
+      "candidate_id": "c73",
+      "source_line_spans": [
+        "49"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Layout, scale and land-use indicators of sorting facilities shall be included in county-level plans — planning duty."
+    },
+    {
+      "candidate_id": "c74",
+      "source_line_spans": [
+        "50"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Townships shall configure transfer stations or terminal treatment facilities and villages shall configure bins/containers/vehicles — provisioning duty."
+    },
+    {
+      "candidate_id": "c75",
+      "source_line_spans": [
+        "50"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Sealed refuse transfer vehicles shall be equipped — observable feature of the vehicle."
+    },
+    {
+      "candidate_id": "c76",
+      "source_line_spans": [
+        "50"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X8",
+      "reason": "Facilities may also be configured through government purchase of services (也可); permissive arrangement rather than a mandatory metric."
+    },
+    {
+      "candidate_id": "c77",
+      "source_line_spans": [
+        "51"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Public sites shall configure sorted collection facilities per CJJ 27; delegated criterion."
+    },
+    {
+      "candidate_id": "c78a",
+      "source_line_spans": [
+        "52"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Project shall configure sorted drop-off facilities per CJJ 27 and GB 16889."
+    },
+    {
+      "candidate_id": "c78b",
+      "source_line_spans": [
+        "52"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Project shall configure sorted collection facilities per CJJ 27 and GB 16889."
+    },
+    {
+      "candidate_id": "c78c",
+      "source_line_spans": [
+        "52"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Project shall configure sorted transport facilities per CJJ 27 and GB 16889."
+    },
+    {
+      "candidate_id": "c78d",
+      "source_line_spans": [
+        "52"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X16",
+      "reason": "Project shall configure sorted treatment facilities per CJJ 27 and GB 16889."
+    },
+    {
+      "candidate_id": "c79",
+      "source_line_spans": [
+        "89"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Sorting collection containers shall have lids — observable feature."
+    },
+    {
+      "candidate_id": "c80",
+      "source_line_spans": [
+        "89"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Container shall print the sorting mark in a prominent position — observable feature."
+    },
+    {
+      "candidate_id": "c81",
+      "source_line_spans": [
+        "91"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Biodegradable waste shall be drained before drop-off and the bin covered — action instruction."
+    },
+    {
+      "candidate_id": "c82",
+      "source_line_spans": [
+        "91"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Kitchen waste from centralized catering units shall be dropped off separately — action instruction."
+    },
+    {
+      "candidate_id": "c83",
+      "source_line_spans": [
+        "92"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Bulky furniture/electronic waste shall be scheduled for collection by a resource-recovery service or delivered to a designated drop-off point; disposal instructions."
+    },
+    {
+      "candidate_id": "c84",
+      "source_line_spans": [
+        "93"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Harmful waste shall be dropped off at the dedicated container or independent storage point — action instruction."
+    },
+    {
+      "candidate_id": "c85",
+      "source_line_spans": [
+        "94"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Other waste shall be dropped off at household container or village drop-off point — action instruction."
+    },
+    {
+      "candidate_id": "c86",
+      "source_line_spans": [
+        "96"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Village shall establish management system and ledger, guide villagers, set drop-off points and publicize time, place and method — administrative duty."
+    },
+    {
+      "candidate_id": "c87",
+      "source_line_spans": [
+        "97"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Public collection containers shall be kept intact — observable state."
+    },
+    {
+      "candidate_id": "c88",
+      "source_line_spans": [
+        "97"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X11",
+      "reason": "Containers kept tidy and attractive — aesthetic state."
+    },
+    {
+      "candidate_id": "c89",
+      "source_line_spans": [
+        "97"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "When broken, soiled or insufficient, repair, replace, wash or supplement in time — action instruction."
+    },
+    {
+      "candidate_id": "c90",
+      "source_line_spans": [
+        "100"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "All kinds of waste after drop-off shall be collected and transported separately — action instruction."
+    },
+    {
+      "candidate_id": "c91",
+      "source_line_spans": [
+        "102"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Recyclables transported to resource-recovery unit — disposal route/action."
+    },
+    {
+      "candidate_id": "c92",
+      "source_line_spans": [
+        "103"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X10",
+      "reason": "Harmful waste transported by a unit holding a hazardous-waste business licence — licence/qualification check."
+    },
+    {
+      "candidate_id": "c93",
+      "source_line_spans": [
+        "107"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Sorted waste collected by village, transferred by township or via government service purchase — organizational arrangement."
+    },
+    {
+      "candidate_id": "c94",
+      "source_line_spans": [
+        "108"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Collection/transport unit shall equip workers and equipment according to category, quantity and working time — organizational duty with no value."
+    },
+    {
+      "candidate_id": "c95",
+      "source_line_spans": [
+        "109"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Vehicles shall have visible sorting marks — observable feature."
+    },
+    {
+      "candidate_id": "c96",
+      "source_line_spans": [
+        "109"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Vehicles shall be fully enclosed — observable feature."
+    },
+    {
+      "candidate_id": "c97",
+      "source_line_spans": [
+        "109"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Vehicles shall be anti-odour — observable feature."
+    },
+    {
+      "candidate_id": "c98",
+      "source_line_spans": [
+        "109"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Vehicles shall be anti-spill — observable feature."
+    },
+    {
+      "candidate_id": "c99",
+      "source_line_spans": [
+        "109"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X15",
+      "reason": "Vehicles shall prevent leachate running, emitting, dripping and leaking — observable feature."
+    },
+    {
+      "candidate_id": "c100",
+      "source_line_spans": [
+        "110"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Collection/transport unit shall establish a management ledger — administrative duty."
+    },
+    {
+      "candidate_id": "c101",
+      "source_line_spans": [
+        "113"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X7",
+      "reason": "Biodegradable waste is routed to mechanical composting, solar-assisted composting or anaerobic fermentation according to local circumstances; treatment route with no measured criterion."
+    },
+    {
+      "candidate_id": "c102",
+      "source_line_spans": [
+        "114"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X8",
+      "reason": "Recyclables may be purchased regularly by scrap companies under agreements (可); permissive disposal arrangement, no numeric frequency."
+    },
+    {
+      "candidate_id": "c103",
+      "source_line_spans": [
+        "115"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X10",
+      "reason": "Harmful waste shall be entrusted to a licensed hazardous-waste unit for harmless disposal — licence check."
+    },
+    {
+      "candidate_id": "c104",
+      "source_line_spans": [
+        "116"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X1",
+      "reason": "Other waste transferred to incineration plant or landfill for harmless treatment — disposal route/action."
+    },
+    {
+      "candidate_id": "c105",
+      "source_line_spans": [
+        "123"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Village (or joint villages) shall plan and build the biodegradable waste treatment station — planning duty."
+    },
+    {
+      "candidate_id": "c106",
+      "source_line_spans": [
+        "128"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X12",
+      "reason": "Germination testing points to Appendix B; method/procedure pointer, with quantitative settings separately represented at lines 158–159."
+    },
+    {
+      "candidate_id": "c107",
+      "source_line_spans": [
+        "137"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Establish responsibility system, multi-level implementation, inspection and assessment system, regular inspection — administrative duty."
+    },
+    {
+      "candidate_id": "c108",
+      "source_line_spans": [
+        "138"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Township responsible for long-term operation and maintenance; housekeeping staff post/position/duty responsibility system — administrative duty."
+    },
+    {
+      "candidate_id": "c109",
+      "source_line_spans": [
+        "139"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Village shall organize and guide villagers via village rules and reward/punishment measures — administrative duty."
+    },
+    {
+      "candidate_id": "c110",
+      "source_line_spans": [
+        "140"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Gradually establish third-party service operation mode; township guides and supervises — administrative duty."
+    },
+    {
+      "candidate_id": "c111",
+      "source_line_spans": [
+        "141"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X8",
+      "reason": "Encourage technological innovation using Internet/IoT to improve intelligent management — encouraged (鼓励)."
+    },
+    {
+      "candidate_id": "c112",
+      "source_line_spans": [
+        "143"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X6",
+      "reason": "Publicity to raise awareness and sorting accuracy — direction-only aspiration, no target level."
+    },
+    {
+      "candidate_id": "c113",
+      "source_line_spans": [
+        "144"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Competent department shall establish publicity and education base — administrative duty."
+    },
+    {
+      "candidate_id": "c114",
+      "source_line_spans": [
+        "145"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "Education department shall include knowledge in school education and social practice — administrative duty."
+    },
+    {
+      "candidate_id": "c115",
+      "source_line_spans": [
+        "146"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X2",
+      "reason": "All media shall carry out public-interest publicity — administrative duty."
+    },
+    {
+      "candidate_id": "c116",
+      "source_line_spans": [
+        "150"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X8",
+      "reason": "Color of the marks may follow GB/T 19095 — permissive 可."
+    },
+    {
+      "candidate_id": "c117",
+      "source_line_spans": [
+        "22:35"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X14",
+      "reason": "Normative-reference list entries (GB 14554 etc.) — document codes and reference entries only."
+    },
+    {
+      "candidate_id": "c118",
+      "source_line_spans": [
+        "11",
+        "165",
+        "166",
+        "167",
+        "168",
+        "169"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X14",
+      "reason": "GB/T 1.1 drafting rule and reference-list citations — edition numbers, document codes and citations."
+    },
+    {
+      "candidate_id": "c119",
+      "source_line_spans": [
+        "55"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X4",
+      "reason": "Rural domestic waste divided into four major categories — structure of classification scheme."
+    },
+    {
+      "candidate_id": "c120",
+      "source_line_spans": [
+        "42",
+        "43",
+        "45",
+        "46",
+        "47"
+      ],
+      "decision": "excluded",
+      "metric_ids": [],
+      "rule_id": "X3",
+      "reason": "四分四定 term definition and basic-requirement principles/aims — principles or slogans with no measurable property."
+    },
+    {
+      "candidate_id": "c16b",
+      "source_line_spans": [
+        "121"
+      ],
+      "rule_id": "X15",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Table 1 r2 solar greenhouse shall have thermal insulation: observable physical feature, no thermal performance quantity or value is stated."
+    },
+    {
+      "candidate_id": "c32b",
+      "source_line_spans": [
+        "125"
+      ],
+      "rule_id": "X10",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Biodegradable-waste treatment equipment shall have a product conformity certificate; documentation check, not a measurable property."
+    },
+    {
+      "candidate_id": "c45b",
+      "source_line_spans": [
+        "128"
+      ],
+      "rule_id": "D1",
+      "decision": "duplicate",
+      "metric_ids": [
+        "416_gold_10",
+        "416_gold_11",
+        "416_gold_12",
+        "416_gold_13",
+        "416_gold_14"
+      ],
+      "reason": "Machine-composting fertilizer heavy-metal indicators point to Table 3; the pointer duplicates the retained Table 3 values."
+    },
+    {
+      "candidate_id": "c64b",
+      "source_line_spans": [
+        "159"
+      ],
+      "rule_id": "X12",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "B.1.2 one sheet of filter paper, even seed distribution and covering the dish are apparatus/procedure instructions, not quantitative result-affecting test settings."
+    },
+    {
+      "candidate_id": "c83b",
+      "source_line_spans": [
+        "92"
+      ],
+      "rule_id": "X8",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Recyclables should be kept clean as far as possible (应尽量保持清洁), emptied and protected from contamination; weakened modality, no quantitative criterion."
+    },
+    {
+      "candidate_id": "c101b",
+      "source_line_spans": [
+        "113"
+      ],
+      "rule_id": "X10",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Kitchen waste from centralized catering units shall be treated by a qualified enterprise; qualification check with no metric."
+    },
+    {
+      "candidate_id": "c112b",
+      "source_line_spans": [
+        "143"
+      ],
+      "rule_id": "X2",
+      "decision": "excluded",
+      "metric_ids": [],
+      "reason": "Village committee shall regularly publicize waste sorting through notices, brochures, visits and activities; organizational outreach duty with no stated frequency value."
+    }
+  ],
+  "metrics": [
+    {
+      "metric_id": "416_gold_1",
+      "metric_name": "每户分类垃圾容器配备数量",
+      "metric_subject": "农户分类垃圾容器",
+      "metric_desc": "每户应至少配备易腐垃圾及其他垃圾分类垃圾容器2个（一组）",
+      "metric_context": "7.1.2 投放要求",
+      "metric_keywords": [
+        "分类垃圾容器",
+        "配备数量",
+        "户"
+      ],
+      "metric_name_en": "Number of sorted-waste containers per household",
+      "metric_subject_en": "Household sorted-waste containers",
+      "metric_desc_en": "Each household shall be equipped with at least 2 sorted-waste containers (one set) for biodegradable and other waste",
+      "metric_context_en": "7.1.2 Drop-off requirements",
+      "metric_keywords_en": [
+        "sorted container",
+        "count",
+        "household"
+      ],
+      "metric_unit": "个",
+      "metric_unit_en": "container",
+      "source_line_spans": [
+        "90"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "2",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "每户应至少配备易腐垃圾及其他垃圾 2 个(一组)分类垃圾容器",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "waste_containers"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "7.1 投放要求",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 90,
+          "quote": "7.1.2 每户应至少配备易腐垃圾及其他垃圾 2 个(一组)分类垃圾容器并分类投放。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Category waste_containers assigned locally because the source provides no category vocabulary; count of containers is the measurable property."
+    },
+    {
+      "metric_id": "416_gold_2",
+      "metric_name": "易腐垃圾收运频次",
+      "metric_subject": "易腐垃圾收运",
+      "metric_desc": "易腐垃圾应每日定时收运，收运对象为易腐垃圾",
+      "metric_context": "8.1.2 收运要求",
+      "metric_keywords": [
+        "易腐垃圾",
+        "收运频次",
+        "每日"
+      ],
+      "metric_name_en": "Biodegradable waste collection frequency",
+      "metric_subject_en": "Biodegradable waste collection",
+      "metric_desc_en": "Biodegradable waste shall be collected daily on a schedule",
+      "metric_context_en": "8.1.2 Collection and transport requirements",
+      "metric_keywords_en": [
+        "biodegradable waste",
+        "collection frequency",
+        "daily"
+      ],
+      "metric_unit": "次/日",
+      "metric_unit_en": "times/day",
+      "source_line_spans": [
+        "101"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "1",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "易腐垃圾应每日定时收运，频次为每日1次",
+      "measurement_frequency": "每日",
+      "metric_categories": [
+        "collection_frequency"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "8.1 收运要求",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 101,
+          "quote": "8.1.2 易腐垃圾应每日定时收运，由生活垃圾收运单位直接运输至易腐垃圾处理站。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. 每日 normalized to 1 次/日; the object ( biodegradable waste) is explicit in this source. Category collection_frequency locally assigned."
+    },
+    {
+      "metric_id": "416_gold_3",
+      "metric_name": "其他垃圾收运频次",
+      "metric_subject": "其他垃圾收运",
+      "metric_desc": "其他垃圾应每日定时收运，收运对象为其他垃圾",
+      "metric_context": "8.1.5 收运要求",
+      "metric_keywords": [
+        "其他垃圾",
+        "收运频次",
+        "每日"
+      ],
+      "metric_name_en": "Other waste collection frequency",
+      "metric_subject_en": "Other waste collection",
+      "metric_desc_en": "Other waste shall be collected daily on a schedule",
+      "metric_context_en": "8.1.5 Collection and transport requirements",
+      "metric_keywords_en": [
+        "other waste",
+        "collection frequency",
+        "daily"
+      ],
+      "metric_unit": "次/日",
+      "metric_unit_en": "times/day",
+      "source_line_spans": [
+        "104"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "1",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "其他垃圾应每日定时收运，频次为每日1次",
+      "measurement_frequency": "每日",
+      "metric_categories": [
+        "collection_frequency"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "8 分类收运",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 104,
+          "quote": "8.1.5 其他垃圾应每日定时收运，转运至所属区域的垃圾处理终端。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. 每日 normalized to 1 次/日; object explicit."
+    },
+    {
+      "metric_id": "416_gold_4",
+      "metric_name": "机械成肥设备比能耗",
+      "metric_subject": "机械成肥设备",
+      "metric_desc": "采用机械成肥设备处理易腐垃圾时，设备应明确比能耗这一运行技术参数",
+      "metric_context": "表1 易腐垃圾及其他垃圾主要处理模式 机器成肥",
+      "metric_keywords": [
+        "机器成肥",
+        "比能耗",
+        "设备"
+      ],
+      "metric_name_en": "Specific energy consumption of mechanical composting equipment",
+      "metric_subject_en": "Mechanical composting equipment",
+      "metric_desc_en": "Mechanical composting equipment shall state its specific energy consumption among operating technical parameters",
+      "metric_context_en": "Table 1 machinery composting mode",
+      "metric_keywords_en": [
+        "mechanical composting",
+        "specific energy consumption",
+        "equipment"
+      ],
+      "metric_unit": "",
+      "metric_unit_en": "",
+      "source_line_spans": [
+        "121"
+      ],
+      "source_table_rows": [
+        {
+          "line": 121,
+          "rows": [
+            "r1"
+          ],
+          "row_hash": {
+            "r1": "4d291aadb002"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "",
+      "value_data_type": "",
+      "value_range_type": "limit_absent",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机械成肥设备应明确比能耗这一运行技术参数",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "equipment_declaration"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": false,
+      "table_name_or_section": "表1 易腐垃圾及其他垃圾主要处理模式",
+      "reasoning_tags": [
+        "kind:requirement_value_open"
+      ],
+      "evidence": [
+        {
+          "line": 121,
+          "quote": "设备应明确主体工艺、比能耗、发酵周期等运行技术参数以及菌种来源要求"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A4 equipment parameter: equipment manufacturer must declare specific energy consumption; value open in this document. Category equipment_declaration locally assigned."
+    },
+    {
+      "metric_id": "416_gold_5",
+      "metric_name": "机械成肥设备发酵周期",
+      "metric_subject": "机械成肥设备",
+      "metric_desc": "采用机械成肥设备处理易腐垃圾时，设备应明确发酵周期这一运行技术参数",
+      "metric_context": "表1 易腐垃圾及其他垃圾主要处理模式 机器成肥",
+      "metric_keywords": [
+        "机器成肥",
+        "发酵周期",
+        "设备"
+      ],
+      "metric_name_en": "Fermentation cycle of mechanical composting equipment",
+      "metric_subject_en": "Mechanical composting equipment",
+      "metric_desc_en": "Mechanical composting equipment shall state its fermentation cycle among operating technical parameters",
+      "metric_context_en": "Table 1 machinery composting mode",
+      "metric_keywords_en": [
+        "mechanical composting",
+        "fermentation cycle",
+        "equipment"
+      ],
+      "metric_unit": "",
+      "metric_unit_en": "",
+      "source_line_spans": [
+        "121"
+      ],
+      "source_table_rows": [
+        {
+          "line": 121,
+          "rows": [
+            "r1"
+          ],
+          "row_hash": {
+            "r1": "4d291aadb002"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "",
+      "value_data_type": "",
+      "value_range_type": "limit_absent",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机械成肥设备应明确发酵周期这一运行技术参数",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "equipment_declaration"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": false,
+      "table_name_or_section": "表1 易腐垃圾及其他垃圾主要处理模式",
+      "reasoning_tags": [
+        "kind:requirement_value_open"
+      ],
+      "evidence": [
+        {
+          "line": 121,
+          "quote": "设备应明确主体工艺、比能耗、发酵周期等运行技术参数以及菌种来源要求"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A4 equipment parameter; value open. 主体工艺 X13 and 菌种来源 X10 excluded separately."
+    },
+    {
+      "metric_id": "416_gold_6",
+      "metric_name": "成品肥料植物种子发芽指数",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "机器成肥、太阳能辅助堆肥产出的成品肥料，植物种子发芽指数应≥60%",
+      "metric_context": "9.3.6 易腐垃圾处理管理要求",
+      "metric_keywords": [
+        "发芽指数",
+        "成品肥料",
+        "植物种子"
+      ],
+      "metric_name_en": "Germination index of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Finished fertilizer from mechanical or solar-assisted composting shall have a plant seed germination index ≥60%",
+      "metric_context_en": "9.3.6 Biodegradable waste treatment management",
+      "metric_keywords_en": [
+        "germination index",
+        "finished fertilizer",
+        "seed"
+      ],
+      "metric_unit": "%",
+      "metric_unit_en": "%",
+      "source_line_spans": [
+        "128"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "60",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机器成肥、太阳能辅助堆肥产出的成品肥料植物种子发芽指数应≥60%",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "compost_quality"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "9.3 易腐垃圾处理管理要求",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 128,
+          "quote": "机器成肥、太阳能辅助堆肥产出的成品肥料，植物种子发芽指数应≥60%，发芽实验方法见附录B"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. GI computed per Appendix B formula (separate A5 row); category compost_quality locally assigned. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_7",
+      "metric_name": "机械成肥成品肥料有机质质量分数",
+      "metric_subject": "机械成肥产出的成品肥料",
+      "metric_desc": "机械成肥产出的成品肥料有机质的质量分数（以烘干基计）应≥30%",
+      "metric_context": "表2 肥料技术指标；适用于机器成肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "有机质",
+        "质量分数",
+        "机器成肥"
+      ],
+      "metric_name_en": "Organic matter mass fraction of mechanical-composting fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical composting",
+      "metric_desc_en": "Organic matter mass fraction (dry basis) of mechanical-composting fertilizer ≥30%",
+      "metric_context_en": "Organic matter mass fraction (dry basis) of mechanical-composting fertilizer ≥30%; Table 2 technical indicators, mechanical composting only.",
+      "metric_keywords_en": [
+        "organic matter",
+        "mass fraction",
+        "mechanical composting"
+      ],
+      "metric_unit": "%",
+      "metric_unit_en": "%",
+      "source_line_spans": [
+        "128:129",
+        "131"
+      ],
+      "source_table_rows": [
+        {
+          "line": 131,
+          "rows": [
+            "r1"
+          ],
+          "row_hash": {
+            "r1": "71b129a86c2a"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "30",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机械成肥产出的成品肥料有机质的质量分数（以烘干基计）≥30%",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "compost_quality"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表2 肥料技术指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 128,
+          "quote": "机器成肥产出的肥料其他指标应达到表 2和表3的要求。"
+        },
+        {
+          "line": 131,
+          "quote": "<tr><td>有机质的质量分数（以烘干基计），%</td><td>≥30</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Table 2 applies only to mechanical composting per line 128; measurement basis (dry basis) kept in metric_desc/threshold, not condition."
+    },
+    {
+      "metric_id": "416_gold_8",
+      "metric_name": "机械成肥成品肥料水分质量分数",
+      "metric_subject": "机械成肥产出的成品肥料",
+      "metric_desc": "机械成肥产出的成品肥料水分（鲜样）的质量分数应≤30%",
+      "metric_context": "表2 肥料技术指标；适用于机器成肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "水分",
+        "质量分数",
+        "机器成肥"
+      ],
+      "metric_name_en": "Moisture mass fraction of mechanical-composting fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical composting",
+      "metric_desc_en": "Moisture mass fraction (fresh sample) of finished fertilizer produced by mechanical composting shall be ≤30%",
+      "metric_context_en": "Moisture mass fraction (fresh sample) of finished fertilizer produced by mechanical composting shall be ≤30%; Table 2 technical indicators, mechanical composting only.",
+      "metric_keywords_en": [
+        "moisture",
+        "mass fraction",
+        "fresh sample"
+      ],
+      "metric_unit": "%",
+      "metric_unit_en": "%",
+      "source_line_spans": [
+        "128:129",
+        "131"
+      ],
+      "source_table_rows": [
+        {
+          "line": 131,
+          "rows": [
+            "r2"
+          ],
+          "row_hash": {
+            "r2": "47af28a9216e"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "30",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机械成肥产出的成品肥料水分（鲜样）的质量分数≤30%",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "compost_quality"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表2 肥料技术指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 128,
+          "quote": "机器成肥产出的肥料其他指标应达到表 2和表3的要求。"
+        },
+        {
+          "line": 131,
+          "quote": "<tr><td>水分（鲜样）的质量分数，%</td><td>≤30</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Measurement basis fresh sample kept in desc/threshold. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_9",
+      "metric_name": "机械成肥成品肥料酸碱度（pH）",
+      "metric_subject": "机械成肥产出的成品肥料",
+      "metric_desc": "机械成肥产出的成品肥料酸碱度（pH）应在5.5~8.5之间",
+      "metric_context": "表2 肥料技术指标；适用于机器成肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "pH",
+        "酸碱度",
+        "机器成肥"
+      ],
+      "metric_name_en": "pH of mechanical-composting fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical composting",
+      "metric_desc_en": "Finished fertilizer produced by mechanical composting shall have pH in the range 5.5~8.5",
+      "metric_context_en": "Finished fertilizer produced by mechanical composting shall have pH in the range 5.5~8.5; Table 2 technical indicators, mechanical composting only.",
+      "metric_keywords_en": [
+        "pH",
+        "acidity"
+      ],
+      "metric_unit": "",
+      "metric_unit_en": "",
+      "source_line_spans": [
+        "128:129",
+        "131"
+      ],
+      "source_table_rows": [
+        {
+          "line": 131,
+          "rows": [
+            "r3"
+          ],
+          "row_hash": {
+            "r3": "04889b29f8b2"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "5.5~8.5",
+      "value_data_type": "number",
+      "value_range_type": "range",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": 5.5,
+      "value_max": 8.5,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "机械成肥产出的成品肥料酸碱度（pH）5.5~8.5",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "compost_quality"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表2 肥料技术指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 131,
+          "quote": "<tr><td>酸碱度（pH）</td><td>5.5~8.5</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. pH dimensionless; metric_value retains source range text, endpoints in value_min/value_max. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_10",
+      "metric_name": "成品肥料总砷（As）限量",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "成品肥料总砷（以烘干基计）限量应≤15 mg/kg",
+      "metric_context": "表3 肥料重金属限量指标；适用于机器成肥和太阳能辅助堆肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "总砷",
+        "As",
+        "重金属限量"
+      ],
+      "metric_name_en": "Total arsenic (As) limit of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Total As (dry basis) ≤15 mg/kg",
+      "metric_context_en": "Total As (dry basis) ≤15 mg/kg; Table 3 heavy-metal limits for finished fertilizer from mechanical or solar-assisted composting.",
+      "metric_keywords_en": [
+        "arsenic",
+        "As",
+        "heavy metal limit"
+      ],
+      "metric_unit": "mg/kg",
+      "metric_unit_en": "mg/kg",
+      "source_line_spans": [
+        "128",
+        "132",
+        "134"
+      ],
+      "source_table_rows": [
+        {
+          "line": 134,
+          "rows": [
+            "r1"
+          ],
+          "row_hash": {
+            "r1": "ef3a5818e753"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "15",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "成品肥料总砷（As）（以烘干基计）≤15 mg/kg",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "heavy_metal_limit"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表3 肥料重金属限量指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 128,
+          "quote": "机器成肥产出的肥料其他指标应达到表 2和表3的要求。太阳能辅助堆肥产出的成品肥料重金属限量应达到表 3的要求。"
+        },
+        {
+          "line": 134,
+          "quote": "<tr><td>总砷（As）（以烘干基计）</td><td>≤15</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Unit from table header mg/kg; dry basis kept in name/desc."
+    },
+    {
+      "metric_id": "416_gold_11",
+      "metric_name": "成品肥料总汞（Hg）限量",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "成品肥料总汞（以烘干基计）限量应≤2 mg/kg",
+      "metric_context": "表3 肥料重金属限量指标；适用于机器成肥和太阳能辅助堆肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "总汞",
+        "Hg",
+        "重金属限量"
+      ],
+      "metric_name_en": "Total mercury (Hg) limit of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Total Hg (dry basis) ≤2 mg/kg",
+      "metric_context_en": "Total Hg (dry basis) ≤2 mg/kg; Table 3 heavy-metal limits for finished fertilizer from mechanical or solar-assisted composting.",
+      "metric_keywords_en": [
+        "mercury",
+        "Hg",
+        "heavy metal limit"
+      ],
+      "metric_unit": "mg/kg",
+      "metric_unit_en": "mg/kg",
+      "source_line_spans": [
+        "128",
+        "132",
+        "134"
+      ],
+      "source_table_rows": [
+        {
+          "line": 134,
+          "rows": [
+            "r2"
+          ],
+          "row_hash": {
+            "r2": "7bc2cf6aa6dd"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "2",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "成品肥料总汞（Hg）（以烘干基计）≤2 mg/kg",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "heavy_metal_limit"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表3 肥料重金属限量指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 128,
+          "quote": "太阳能辅助堆肥产出的成品肥料重金属限量应达到表 3的要求。"
+        },
+        {
+          "line": 134,
+          "quote": "<tr><td>总汞（Hg）（以烘干基计）</td><td>≤2</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash."
+    },
+    {
+      "metric_id": "416_gold_12",
+      "metric_name": "成品肥料总铅（Pb）限量",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "成品肥料总铅（以烘干基计）限量应≤50 mg/kg",
+      "metric_context": "表3 肥料重金属限量指标；适用于机器成肥和太阳能辅助堆肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "总铅",
+        "Pb",
+        "重金属限量"
+      ],
+      "metric_name_en": "Total lead (Pb) limit of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Total Pb (dry basis) ≤50 mg/kg",
+      "metric_context_en": "Total Pb (dry basis) ≤50 mg/kg; Table 3 heavy-metal limits for finished fertilizer from mechanical or solar-assisted composting.",
+      "metric_keywords_en": [
+        "lead",
+        "Pb",
+        "heavy metal limit"
+      ],
+      "metric_unit": "mg/kg",
+      "metric_unit_en": "mg/kg",
+      "source_line_spans": [
+        "128",
+        "132",
+        "134"
+      ],
+      "source_table_rows": [
+        {
+          "line": 134,
+          "rows": [
+            "r3"
+          ],
+          "row_hash": {
+            "r3": "952b4cd44c22"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "50",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "成品肥料总铅（Pb）（以烘干基计）≤50 mg/kg",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "heavy_metal_limit"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表3 肥料重金属限量指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 134,
+          "quote": "<tr><td>总铅（Pb）（以烘干基计）</td><td>≤50</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash."
+    },
+    {
+      "metric_id": "416_gold_13",
+      "metric_name": "成品肥料总镉（Cd）限量",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "成品肥料总镉（以烘干基计）限量应≤3 mg/kg",
+      "metric_context": "表3 肥料重金属限量指标；适用于机器成肥和太阳能辅助堆肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "总镉",
+        "Cd",
+        "重金属限量"
+      ],
+      "metric_name_en": "Total cadmium (Cd) limit of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Total Cd (dry basis) ≤3 mg/kg",
+      "metric_context_en": "Total Cd (dry basis) ≤3 mg/kg; Table 3 heavy-metal limits for finished fertilizer from mechanical or solar-assisted composting.",
+      "metric_keywords_en": [
+        "cadmium",
+        "Cd",
+        "heavy metal limit"
+      ],
+      "metric_unit": "mg/kg",
+      "metric_unit_en": "mg/kg",
+      "source_line_spans": [
+        "128",
+        "132",
+        "134"
+      ],
+      "source_table_rows": [
+        {
+          "line": 134,
+          "rows": [
+            "r4"
+          ],
+          "row_hash": {
+            "r4": "895e4c2aef56"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "3",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "成品肥料总镉（Cd）（以烘干基计）≤3 mg/kg",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "heavy_metal_limit"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表3 肥料重金属限量指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 134,
+          "quote": "<tr><td>总镉（Cd）（以烘干基计）</td><td>≤3</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash."
+    },
+    {
+      "metric_id": "416_gold_14",
+      "metric_name": "成品肥料总铬（Cr）限量",
+      "metric_subject": "机器成肥和太阳能辅助堆肥产出的成品肥料",
+      "metric_desc": "成品肥料总铬（以烘干基计）限量应≤150 mg/kg",
+      "metric_context": "表3 肥料重金属限量指标；适用于机器成肥和太阳能辅助堆肥产出的成品肥料（9.3.6）",
+      "metric_keywords": [
+        "总铬",
+        "Cr",
+        "重金属限量"
+      ],
+      "metric_name_en": "Total chromium (Cr) limit of finished fertilizer",
+      "metric_subject_en": "Finished fertilizer from mechanical and solar-assisted composting",
+      "metric_desc_en": "Total Cr (dry basis) ≤150 mg/kg",
+      "metric_context_en": "Total Cr (dry basis) ≤150 mg/kg; Table 3 heavy-metal limits for finished fertilizer from mechanical or solar-assisted composting.",
+      "metric_keywords_en": [
+        "chromium",
+        "Cr",
+        "heavy metal limit"
+      ],
+      "metric_unit": "mg/kg",
+      "metric_unit_en": "mg/kg",
+      "source_line_spans": [
+        "128",
+        "132",
+        "134"
+      ],
+      "source_table_rows": [
+        {
+          "line": 134,
+          "rows": [
+            "r5"
+          ],
+          "row_hash": {
+            "r5": "82eb8ca50a7b"
+          }
+        }
+      ],
+      "location_type": "table_row",
+      "metric_value": "150",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "成品肥料总铬（Cr）（以烘干基计）≤150 mg/kg",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "heavy_metal_limit"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "表3 肥料重金属限量指标",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "kind:requirement_with_criterion"
+      ],
+      "evidence": [
+        {
+          "line": 134,
+          "quote": "<tr><td>总铬（Cr）（以烘干基计）</td><td>≤150</td></tr>"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash."
+    },
+    {
+      "metric_id": "416_gold_15",
+      "metric_name": "发芽试验试样数量",
+      "metric_subject": "植物种子发芽试验试样",
+      "metric_desc": "称取新鲜物料试样3个",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "试样数量",
+        "3个"
+      ],
+      "metric_name_en": "Number of test samples",
+      "metric_subject_en": "Seed germination test sample",
+      "metric_desc_en": "Weigh 3 fresh-material samples",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "sample count",
+        "3 samples"
+      ],
+      "metric_unit": "个",
+      "metric_unit_en": "samples",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "3",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "称取新鲜物料试样3 个",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "称取新鲜物料试样3 个（每个试样干基质量不小于20.0 g）"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test-method setting; category test_condition locally assigned."
+    },
+    {
+      "metric_id": "416_gold_16",
+      "metric_name": "试样干基质量",
+      "metric_subject": "植物种子发芽试验试样",
+      "metric_desc": "每个试样干基质量不小于20.0 g",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "试样",
+        "干基质量",
+        "20.0 g"
+      ],
+      "metric_name_en": "Sample dry-basis mass",
+      "metric_subject_en": "Seed germination test sample",
+      "metric_desc_en": "Each sample dry-basis mass not less than 20.0 g",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "sample",
+        "dry mass",
+        "20.0 g"
+      ],
+      "metric_unit": "g",
+      "metric_unit_en": "g",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "20.0",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "每个试样干基质量不小于20.0 g",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "每个试样干基质量不小于20.0 g"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test-method setting; distinct from sample count."
+    },
+    {
+      "metric_id": "416_gold_17",
+      "metric_name": "固液比",
+      "metric_subject": "植物种子发芽试验试样",
+      "metric_desc": "按固液比1：10（W/V，以干重计）加入去离子水或蒸馏水",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "固液比",
+        "1:10",
+        "W/V"
+      ],
+      "metric_name_en": "Solid:liquid ratio",
+      "metric_subject_en": "Seed germination test sample",
+      "metric_desc_en": "Solid:liquid ratio 1:10 (W/V, dry weight)",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "solid-liquid ratio",
+        "1:10",
+        "W/V"
+      ],
+      "metric_unit": "ratio",
+      "metric_unit_en": "ratio",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "1：10",
+      "value_data_type": "text",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "按固液比1：10（W/V，以干重计）加入一定量的去离子水或蒸馏水",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "按固液比1：10（W/V，以干重计）加入一定量的去离子水或蒸馏水"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Ratio retains 1：10 source fidelity with W/V, dry-weight qualifier."
+    },
+    {
+      "metric_id": "416_gold_18",
+      "metric_name": "振荡机频率",
+      "metric_subject": "往复式水平震荡机",
+      "metric_desc": "调节频率不小于100次/分钟",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "振荡频率",
+        "100次/分钟"
+      ],
+      "metric_name_en": "Shaker frequency",
+      "metric_subject_en": "Reciprocating horizontal shaker",
+      "metric_desc_en": "Frequency not less than 100 times/min",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "shaker frequency",
+        "100 times/min"
+      ],
+      "metric_unit": "次/分钟",
+      "metric_unit_en": "times/min",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "100",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "往复式水平震荡机的频率不小于100次/分钟",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "调节频率不小于100次/分钟、振幅不小于40 mm"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_19",
+      "metric_name": "振荡机振幅",
+      "metric_subject": "往复式水平震荡机",
+      "metric_desc": "振幅不小于40 mm",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "振幅",
+        "40 mm"
+      ],
+      "metric_name_en": "Shaker amplitude",
+      "metric_subject_en": "Reciprocating horizontal shaker",
+      "metric_desc_en": "Amplitude not less than 40 mm",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "amplitude",
+        "40 mm"
+      ],
+      "metric_unit": "mm",
+      "metric_unit_en": "mm",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "40",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "往复式水平震荡机的振幅不小于40 mm",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "调节频率不小于100次/分钟、振幅不小于40 mm"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_20",
+      "metric_name": "振荡浸提时间",
+      "metric_subject": "植物种子发芽试验试样",
+      "metric_desc": "在室温下震荡浸提1 h",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "浸提时间",
+        "1 h"
+      ],
+      "metric_name_en": "Shaking extraction time",
+      "metric_subject_en": "Seed germination test sample",
+      "metric_desc_en": "Shaking extraction for 1 h at room temperature",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "extraction time",
+        "1 h"
+      ],
+      "metric_unit": "h",
+      "metric_unit_en": "h",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "1",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "在室温下",
+      "formula_or_definition": "",
+      "threshold_or_target": "植物种子发芽试验试样在室温下震荡浸提1 h",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "在室温下震荡浸提1 h，取下静置0.5h后"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Qualitative room-temperature setting carried as condition. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_21",
+      "metric_name": "静置时间",
+      "metric_subject": "植物种子发芽试验试样",
+      "metric_desc": "取下静置0.5 h",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "静置时间",
+        "0.5 h"
+      ],
+      "metric_name_en": "Settling time",
+      "metric_subject_en": "Seed germination test sample",
+      "metric_desc_en": "Settle for 0.5 h",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "settling time",
+        "0.5 h"
+      ],
+      "metric_unit": "h",
+      "metric_unit_en": "h",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "0.5",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "植物种子发芽试验试样震荡浸提后静置0.5 h，再过滤",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "取下静置0.5h后，于预先安装好滤膜（或滤纸）的过滤装置上过滤。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_22",
+      "metric_name": "蒸馏水空白对照数量",
+      "metric_subject": "植物种子发芽试验蒸馏水空白",
+      "metric_desc": "每次测定做蒸馏水空白对照3个",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "空白对照",
+        "3个"
+      ],
+      "metric_name_en": "Number of distilled-water blank controls",
+      "metric_subject_en": "Distilled-water blank control",
+      "metric_desc_en": "3 distilled-water blank controls per determination",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "blank control",
+        "3 blanks"
+      ],
+      "metric_unit": "个",
+      "metric_unit_en": "controls",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "3",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "每次测定，做蒸馏水空白对照3个",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "每次测定，做蒸馏水空白对照3个。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting, distinct from sample count."
+    },
+    {
+      "metric_id": "416_gold_23",
+      "metric_name": "浸出液保存温度",
+      "metric_subject": "发芽试验浸出液",
+      "metric_desc": "如浸出液不能马上分析，应放在0℃~4℃冰箱保存",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "保存温度",
+        "0～4℃",
+        "冰箱"
+      ],
+      "metric_name_en": "Extract storage temperature",
+      "metric_subject_en": "Leachate of germination test",
+      "metric_desc_en": "If not analyzed immediately, store at 0℃~4℃ in refrigerator",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "storage temperature",
+        "0-4℃",
+        "refrigerator"
+      ],
+      "metric_unit": "℃",
+      "metric_unit_en": "℃",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "0～4",
+      "value_data_type": "number",
+      "value_range_type": "range",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": 0,
+      "value_max": 4,
+      "condition": "如浸出液不能马上分析",
+      "formula_or_definition": "",
+      "threshold_or_target": "如浸出液不能马上分析，应放在（0℃～4℃）冰箱保存",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "如浸出液不能马上分析，应放在（0℃～4℃）冰箱保存，但保存时间不应超过48 h。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Range retains source text 0～4 with endpoints 0/4; source-stated condition preserved."
+    },
+    {
+      "metric_id": "416_gold_24",
+      "metric_name": "浸出液保存时间",
+      "metric_subject": "发芽试验浸出液",
+      "metric_desc": "如浸出液不能马上分析，保存时间不应超过48 h",
+      "metric_context": "B.1.1 植物种子发芽试验方法",
+      "metric_keywords": [
+        "保存时间",
+        "48 h"
+      ],
+      "metric_name_en": "Extract storage time",
+      "metric_subject_en": "Leachate of germination test",
+      "metric_desc_en": "If the germination-test leachate cannot be analyzed immediately, storage time shall not exceed 48 h",
+      "metric_context_en": "B.1.1 Seed germination test method",
+      "metric_keywords_en": [
+        "storage time",
+        "48 h"
+      ],
+      "metric_unit": "h",
+      "metric_unit_en": "h",
+      "source_line_spans": [
+        "158"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "48",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "如浸出液不能马上分析",
+      "formula_or_definition": "",
+      "threshold_or_target": "如浸出液不能马上分析，保存时间不应超过48 h",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 158,
+          "quote": "但保存时间不应超过48 h。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Same source-stated storage condition carried. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_25",
+      "metric_name": "培养皿种子数量",
+      "metric_subject": "植物种子发芽试验培养皿",
+      "metric_desc": "均匀放入10粒水堇或萝卜种子",
+      "metric_context": "B.1.2 植物种子发芽试验方法",
+      "metric_keywords": [
+        "种子数量",
+        "10粒"
+      ],
+      "metric_name_en": "Seeds per dish",
+      "metric_subject_en": "Seed germination test dish",
+      "metric_desc_en": "Evenly place 10 watercress or radish seeds",
+      "metric_context_en": "B.1.2 Seed germination test method",
+      "metric_keywords_en": [
+        "seed count",
+        "10 seeds"
+      ],
+      "metric_unit": "粒",
+      "metric_unit_en": "seeds",
+      "source_line_spans": [
+        "159"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "10",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "每个生物培养皿内均匀放入10 粒水堇或萝卜种子",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 159,
+          "quote": "均匀放入10 粒水堇或萝卜种子"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_26",
+      "metric_name": "浸出液加入量",
+      "metric_subject": "植物种子发芽试验培养皿",
+      "metric_desc": "加入浸出液5 ml",
+      "metric_context": "B.1.2 植物种子发芽试验方法",
+      "metric_keywords": [
+        "浸出液",
+        "5 ml"
+      ],
+      "metric_name_en": "Extract volume added",
+      "metric_subject_en": "Seed germination test dish",
+      "metric_desc_en": "Add 5 ml leachate",
+      "metric_context_en": "B.1.2 Seed germination test method",
+      "metric_keywords_en": [
+        "leachate volume",
+        "5 ml"
+      ],
+      "metric_unit": "ml",
+      "metric_unit_en": "ml",
+      "source_line_spans": [
+        "159"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "5",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "每个植物种子发芽试验培养皿加入浸出液5 ml",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 159,
+          "quote": "加入浸出液5 ml,盖上盖子"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting; bottle capacity 500 ml stays X12. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_27",
+      "metric_name": "培养温度",
+      "metric_subject": "植物种子发芽试验",
+      "metric_desc": "在25℃黑暗的培养箱中培养",
+      "metric_context": "B.1.2 植物种子发芽试验方法",
+      "metric_keywords": [
+        "培养温度",
+        "25℃"
+      ],
+      "metric_name_en": "Incubation temperature",
+      "metric_subject_en": "Seed germination test",
+      "metric_desc_en": "Incubate at 25℃ in a dark incubator",
+      "metric_context_en": "B.1.2 Seed germination test method",
+      "metric_keywords_en": [
+        "incubation temperature",
+        "25℃"
+      ],
+      "metric_unit": "℃",
+      "metric_unit_en": "℃",
+      "source_line_spans": [
+        "159"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "25",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "黑暗",
+      "formula_or_definition": "",
+      "threshold_or_target": "植物种子发芽试验在25℃黑暗的培养箱中培养",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 159,
+          "quote": "在25℃黑暗的培养箱中培养48 h，测定发芽率和根长。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Source 'dark' setting carried as condition. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_28",
+      "metric_name": "培养时间",
+      "metric_subject": "植物种子发芽试验",
+      "metric_desc": "在25℃黑暗的培养箱中培养48 h",
+      "metric_context": "B.1.2 植物种子发芽试验方法",
+      "metric_keywords": [
+        "培养时间",
+        "48 h"
+      ],
+      "metric_name_en": "Incubation time",
+      "metric_subject_en": "Seed germination test",
+      "metric_desc_en": "Incubate for 48 h at 25℃ in dark",
+      "metric_context_en": "B.1.2 Seed germination test method",
+      "metric_keywords_en": [
+        "incubation time",
+        "48 h"
+      ],
+      "metric_unit": "h",
+      "metric_unit_en": "h",
+      "source_line_spans": [
+        "159"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "48",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "25℃、黑暗",
+      "formula_or_definition": "",
+      "threshold_or_target": "植物种子发芽试验在25℃黑暗的培养箱中培养48 h",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 159,
+          "quote": "在25℃黑暗的培养箱中培养48 h，测定发芽率和根长。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Carries source temperature/dark settings as condition. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_29",
+      "metric_name": "样品重复次数",
+      "metric_subject": "植物种子发芽试验",
+      "metric_desc": "每个样品做3个重复",
+      "metric_context": "B.1.2 植物种子发芽试验方法",
+      "metric_keywords": [
+        "重复次数",
+        "3个重复"
+      ],
+      "metric_name_en": "Number of replicates",
+      "metric_subject_en": "Seed germination test",
+      "metric_desc_en": "3 replicates per sample",
+      "metric_context_en": "B.1.2 Seed germination test method",
+      "metric_keywords_en": [
+        "replicates",
+        "3 replicates"
+      ],
+      "metric_unit": "个",
+      "metric_unit_en": "replicates",
+      "source_line_spans": [
+        "159"
+      ],
+      "source_table_rows": [],
+      "location_type": "bullet",
+      "metric_value": "3",
+      "value_data_type": "number",
+      "value_range_type": "exact",
+      "value_class": "requirement",
+      "value_class_en": "requirement",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "",
+      "threshold_or_target": "植物种子发芽试验每个样品做3个重复",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "test_condition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.1 植物种子发芽试验方法",
+      "reasoning_tags": [
+        "has_threshold",
+        "has_unit",
+        "test_condition",
+        "kind:test_parameter"
+      ],
+      "evidence": [
+        {
+          "line": 159,
+          "quote": "每个样品做3个重复，以去离子水或蒸馏水作同样的空白试验。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A6 test setting. Codex independent review made the requirement self-contained or completed its English translation without changing the source assertion."
+    },
+    {
+      "metric_id": "416_gold_30",
+      "metric_name": "种子发芽指数计算公式",
+      "metric_subject": "植物种子发芽试验",
+      "metric_desc": "堆肥产品种子发芽指数定义为：发芽指数(%)=（堆肥浸提液的种子发芽率(%)×处理的种子平均根长）/（蒸馏水的种子发芽率(%)×空白的种子平均根长）×100%",
+      "metric_context": "B.2 种子发芽指数计算方法",
+      "metric_keywords": [
+        "发芽指数",
+        "计算公式",
+        "B.1"
+      ],
+      "metric_name_en": "Germination index formula",
+      "metric_subject_en": "Seed germination test",
+      "metric_desc_en": "GI(%) = (germination rate of compost extract × mean root length of treatment) / (germination rate of distilled water × mean root length of blank) × 100%",
+      "metric_context_en": "B.2 Germination index calculation method",
+      "metric_keywords_en": [
+        "germination index",
+        "formula",
+        "B.1"
+      ],
+      "metric_unit": "",
+      "metric_unit_en": "",
+      "source_line_spans": [
+        "161"
+      ],
+      "source_table_rows": [],
+      "location_type": "sentence",
+      "metric_value": "",
+      "value_data_type": "",
+      "value_range_type": "qualitative",
+      "value_class": "definition",
+      "value_class_en": "definition",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "发芽指数(%)=（堆肥浸提液的种子发芽率(%)×处理的种子平均根长）/（蒸馏水的种子发芽率(%)×空白的种子平均根长）×100%",
+      "threshold_or_target": "发芽指数(%) = 堆肥浸提液的种子发芽率(%) × 处理的种子平均根长 ÷ (蒸馏水的种子发芽率(%) × 空白的种子平均根长) × 100%",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "metric_definition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": false,
+      "table_name_or_section": "B.2 种子发芽指数计算方法",
+      "reasoning_tags": [
+        "formula_definition",
+        "kind:metric_definition"
+      ],
+      "evidence": [
+        {
+          "line": 161,
+          "quote": "$$\\n\\text{发芽指数(}\\%) = \\frac{\\text{堆肥浸提液的种子发芽率(}\\%) \\times\\text{处理的种子平均根长}}{\\text{蒸馏水的种子发芽率(}\\%) \\times\\text{空白的种子平均根长}}\\times 100\\% \\dots \\dots \\dots \\tag{B.1}\\n$$"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. A5 formula definition; percentage scale stated in the formula/description; operands not split; unit intentionally empty for qualitative definition. Category metric_definition locally assigned."
+    },
+    {
+      "metric_id": "416_gold_31",
+      "metric_name": "发芽指数小于100%判读（植物毒性）",
+      "metric_subject": "堆肥产品",
+      "metric_desc": "种子发芽指数小于100%时，表示该堆肥产品具有植物毒性，该值越小毒性越强",
+      "metric_context": "B.2 种子发芽指数计算方法 判读",
+      "metric_keywords": [
+        "发芽指数",
+        "植物毒性",
+        "判读"
+      ],
+      "metric_name_en": "Germination index below 100% (phytotoxicity)",
+      "metric_subject_en": "Compost product",
+      "metric_desc_en": "A seed germination index below 100% indicates the compost product is phytotoxic; the lower the value, the stronger the toxicity",
+      "metric_context_en": "B.2 Germination index calculation method, interpretation",
+      "metric_keywords_en": [
+        "germination index",
+        "phytotoxicity",
+        "interpretation"
+      ],
+      "metric_unit": "%",
+      "metric_unit_en": "%",
+      "source_line_spans": [
+        "163"
+      ],
+      "source_table_rows": [],
+      "location_type": "sentence",
+      "metric_value": "100",
+      "value_data_type": "number",
+      "value_range_type": "upper_bound",
+      "value_class": "definition",
+      "value_class_en": "definition",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "该指数若小于100%，则表示该堆肥产品具有植物毒性，该值越小毒性越强",
+      "threshold_or_target": "种子发芽指数小于100%表示堆肥产品具有植物毒性",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "metric_definition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.2 种子发芽指数计算方法",
+      "reasoning_tags": [
+        "interpretation_bound",
+        "strict_bound",
+        "kind:metric_definition"
+      ],
+      "evidence": [
+        {
+          "line": 163,
+          "quote": "该指数若小于100%，则表示该堆肥产品具有植物毒性，该值越小毒性越强"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Interpretation cut-off, strict upper bound <100%, subject is the compost product (source object)."
+    },
+    {
+      "metric_id": "416_gold_32",
+      "metric_name": "发芽指数大于100%判读（促进作用）",
+      "metric_subject": "堆肥产品",
+      "metric_desc": "种子发芽指数大于100%时，表示该堆肥产品对种子的发芽和根伸长有促进作用",
+      "metric_context": "B.2 种子发芽指数计算方法 判读",
+      "metric_keywords": [
+        "发芽指数",
+        "促进作用",
+        "判读"
+      ],
+      "metric_name_en": "Germination index above 100% (promotion)",
+      "metric_subject_en": "Compost product",
+      "metric_desc_en": "A seed germination index above 100% indicates the compost product promotes seed germination and root elongation",
+      "metric_context_en": "B.2 Germination index calculation method, interpretation",
+      "metric_keywords_en": [
+        "germination index",
+        "promotion",
+        "interpretation"
+      ],
+      "metric_unit": "%",
+      "metric_unit_en": "%",
+      "source_line_spans": [
+        "163"
+      ],
+      "source_table_rows": [],
+      "location_type": "sentence",
+      "metric_value": "100",
+      "value_data_type": "number",
+      "value_range_type": "lower_bound",
+      "value_class": "definition",
+      "value_class_en": "definition",
+      "value_min": null,
+      "value_max": null,
+      "condition": "",
+      "formula_or_definition": "若该系数大于100%，则表示该堆肥产品对种子的发芽和根伸长有促进作用",
+      "threshold_or_target": "种子发芽指数大于100%表示对种子的发芽和根伸长有促进作用",
+      "measurement_frequency": "",
+      "metric_categories": [
+        "metric_definition"
+      ],
+      "confidence": 1.0,
+      "is_explicit_metric": true,
+      "table_name_or_section": "B.2 种子发芽指数计算方法",
+      "reasoning_tags": [
+        "interpretation_bound",
+        "strict_bound",
+        "kind:metric_definition"
+      ],
+      "evidence": [
+        {
+          "line": 163,
+          "quote": "若该系数大于100%，则表示该堆肥产品对种子的发芽和根伸长有促进作用。"
+        }
+      ],
+      "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash. Interpretation cut-off, strict lower bound >100%, subject is the compost product (source object)."
+    }
+  ],
+  "annotation_notes": "Configured profile deepseek-flash-processor, API identity deepseek-flash; recorded as model_name. Rules version 4.0.0 applied. Independent second completeness pass and a correctness/consistency audit were performed against the source records; no production predictions were used."
+}

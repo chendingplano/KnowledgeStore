@@ -1,0 +1,63 @@
+{
+  "requested_profile": "deepseek-flash-processor",
+  "configured_api_model": "deepseek-flash",
+  "actual_annotation_model": "deepseek-flash",
+  "reviewer": "Codex",
+  "skill_version": "4.0.0",
+  "responses": [
+    {
+      "artifact_name": "draft-response.json",
+      "response_model": "deepseek-flash",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 18858,
+        "completion_tokens": 25000,
+        "total_tokens": 43858,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 25000
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 18858
+      },
+      "raw_response_sha256": "d981a22de1f4dfa9ca67688ce0cbebcaa32fdec761538a59f142265cdbcadf57"
+    },
+    {
+      "artifact_name": "draft-response-2.json",
+      "response_model": "deepseek-flash",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 18833,
+        "completion_tokens": 14932,
+        "total_tokens": 33765,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 18833
+      },
+      "raw_response_sha256": "e83779b76a78dafe716a6d27c0986be37e532fa1c9bdac6eb70e8daa681840c4"
+    },
+    {
+      "artifact_name": "revision-response.json",
+      "response_model": "deepseek-flash",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 38364,
+        "completion_tokens": 24999,
+        "total_tokens": 63363,
+        "prompt_tokens_details": {
+          "cached_tokens": 18816
+        },
+        "prompt_cache_hit_tokens": 18816,
+        "prompt_cache_miss_tokens": 19548
+      },
+      "raw_response_sha256": "54deda2fe2ef097c4b636268267eea0706f6194bb4103b87cfd29bdca03727bf"
+    }
+  ],
+  "recovery": "Final response completed all required envelope fields, 32 metrics, 125 draft candidate decisions, coverage and reviews; output cap truncated only an optional extra top-level annotation_notes string after limitations=[]. Removed that incomplete extra field and closed the envelope, then validated all required content. Model-authored rows retained; subsequent independent reviewer corrections are recorded separately.",
+  "production_predictions_read": false,
+  "production_processor_called": false
+}

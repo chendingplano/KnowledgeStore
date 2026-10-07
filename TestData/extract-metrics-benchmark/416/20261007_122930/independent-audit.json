@@ -1,0 +1,78 @@
+{
+  "reviewer": "Codex",
+  "rules_version": "4.0.0",
+  "source_records_read": 169,
+  "source_id_gaps": [],
+  "expected_assertions": {
+    "90": [
+      "household container count ≥2"
+    ],
+    "101": [
+      "perishable waste collection 1 time/day"
+    ],
+    "104": [
+      "other waste collection 1 time/day"
+    ],
+    "121:r1": [
+      "declared specific energy consumption",
+      "declared fermentation duration"
+    ],
+    "128": [
+      "finished fertilizer GI ≥60%"
+    ],
+    "131": [
+      "dry basis organic matter ≥30%",
+      "fresh sample moisture ≤30%",
+      "pH 5.5~8.5"
+    ],
+    "134": [
+      "dry basis As ≤15 mg/kg",
+      "Hg ≤2",
+      "Pb ≤50",
+      "Cd ≤3",
+      "Cr ≤150"
+    ],
+    "158": [
+      "3 fresh material samples",
+      "each dry sample mass ≥20.0 g",
+      "solid:liquid 1:10 W/V",
+      "shaker frequency ≥100/min",
+      "shaker amplitude ≥40 mm",
+      "room temperature extraction 1 h",
+      "settling 0.5h",
+      "3 distilled-water blank controls",
+      "storage 0~4°C",
+      "storage ≤48h"
+    ],
+    "159": [
+      "10 seeds per dish",
+      "5ml leachate",
+      "incubation 25°C in dark",
+      "incubation 48h",
+      "3 replicates per sample"
+    ],
+    "161": [
+      "GI calculation formula"
+    ],
+    "163": [
+      "GI <100% phytotoxicity interpretation",
+      "GI >100% seed/root promotion interpretation"
+    ]
+  },
+  "semantic_checks": [
+    "line 101 agreed activity time/frequency is X2",
+    "line121:r2 chamber volume sized for throughput is X17",
+    "line121:r3 50m³ is scope X5, not tank volume criterion",
+    "split each mandatory inspection feature X15",
+    "split each delegated object/property X16 with code/number spacing",
+    "line128 table pointers D1 of retained table metrics",
+    "room temperature/dark are test conditions, not standalone qualitative metrics",
+    "500ml bottle and one sheet filter paper are apparatus X12",
+    "measurement basis dry/fresh belongs to name/description, never condition",
+    "table134 subject applies to both machine composting and solar assisted composting per128",
+    "line163 thresholds definition/interpretation_bound/strict_bound, not requirements",
+    "no scalar formula operands as separate metrics"
+  ],
+  "expected_count": 32,
+  "coverage_scope": "Complete canonical line file; original PDF not separately audited."
+}
