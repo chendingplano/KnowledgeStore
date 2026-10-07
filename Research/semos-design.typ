@@ -1502,12 +1502,13 @@ yield larger gains than adding additional LLM-based memory generation stages. ([
 
 = Semantic Object Store (SemOS)
 
-*Build one context system with different memory classes, not separate knowledge base system and memory,
-enhanced with explorability*.
+*Build one context system with different memory classes, not separate 
+knowledge base system and memory, enhanced with explorability*.
 
-Current memory systems are converging on a similar shape: a small always-in-context layer for durable
-user/agent facts, plus a much larger on-demand archival layer for facts, documents, and other retrievable
-knowledge. The system explicitly separates core memory from archival memory, where core memory is always
+Current memory systems are converging on a similar shape: a small always-in-context 
+layer for durable user/agent facts, plus a much larger on-demand archival layer 
+for facts, documents, and other retrievable knowledge. The system explicitly 
+separates core memory from archival memory, where core memory is always
 visible in-context and achival memory is queried on demand or `explored` by LLMs.
 
 *Model*

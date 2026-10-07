@@ -1,7 +1,8 @@
 # Extract Metrics Implementation
 
 Date: 2026-05-21 (updated 2026-06-05: Phase C indexing — connected_artifacts,
-category_instance, category-path metrics.txt, hybrid_search links)
+category_instance, category-path metrics.txt, hybrid_search links; updated 2026-10-07: chunk
+input, chunk-batch path, grouped enrichment, pure-requirement filter, prompt defaults v11/v8)
 
 ## Scope
 
@@ -13,6 +14,11 @@ Primary implementation files:
 
 - `ChenWeb/server/api/doc-processing/extract-metrics.go`
 - `ChenWeb/server/api/doc-processing/extract-metrics_test.go`
+- `ChenWeb/server/api/doc-processing/metric_statement_kind.go` (statement-kind classifier used by
+  the pure-requirement filter) and `metric_statement_kind_test.go`
+- `ChenWeb/server/api/doc-processing/extract_metrics_pure_requirements_test.go`
+- `ChenWeb/server/api/doc-processing/chunk_batch.go`, `chunk_batch_coordinator.go`
+  (`ChunkBatchProcessor` path)
 - `ChenWeb/server/api/doc-processing/metric_indexing.go` (Phase C indexing: connected_artifacts, category_instance, metrics.txt, hybrid links)
 - `ChenWeb/server/api/doc-processing/metric_indexing_test.go`
 - `ChenWeb/server/api/doc-processing/connections_store.go` (`ReplaceConnectionsBySource` for cross-document semantic edges)
@@ -27,14 +33,15 @@ Primary implementation files:
 
 The processor:
 
-1. builds or reuses `BlockBuffer` blocks
-2. runs a metric-candidate extraction pass for each block
-3. deterministically merges and deduplicates candidates across overlapping blocks
-4. enriches each merged candidate into final metric rows
+1. loads the record's chunks from its persisted `.chunks` artifact
+2. runs a metric-candidate extraction pass for each chunk
+3. converts candidate mentions to candidates (the cross-chunk merge is disabled)
+4. enriches candidates into final metric rows, in batches grouped by source chunk
 5. deduplicates final metric rows
-6. persists rows to `kb.metrics`
-7. writes `.metrics` artifact output
-8. updates `kb.inputs.status`
+6. drops pure requirements (inspection and delegated) and logs them
+7. persists rows to `kb.metrics`
+8. writes `.metrics` artifact output
+9. updates `kb.inputs.status`
 
 ## Processor
 
@@ -44,32 +51,37 @@ Key public construction and interfaces:
 
 - `NewMetricsProcessor(inputStore, store, extractor, logger)`
 - `MetricsProcessor.Name()` returns `"extract_metrics"`
-- `MetricsProcessor.HandleEvent(ctx, payload)`
+- `MetricsProcessor.HandleEvent(ctx, payload)` (sequential path)
+- `InitChunkBatch` / `ProcessChunk` / `FinalizeChunkBatch` (`ChunkBatchProcessor`, used when
+  `RUN_DOC_PROCESSOR_CONCURRENT=true`; the coordinator runs Pass 1 chunk by chunk alongside other
+  chunk-based processors so they share the provider's prompt cache)
 - `MetricsStore`
 - `MetricsSQLStore`
 
 ## Event Workflow
 
-`HandleEvent` performs the following steps:
+`HandleEvent` (sequential path) performs the following steps:
 
-1. Parse the event payload with `ParseLineFileGeneratedEvent`.
-2. Skip non-target events with `ShouldSkipLineFileGeneratedEvent`.
-3. Load metric candidate and metric enrichment prompts.
-4. Load `kb.inputs` by `record_id`.
-5. Load model configs for:
-   - candidate extraction
-   - candidate fallback
-   - metric enrichment
-6. Force thinking off for all metrics passes.
-7. Resolve the canonical line file path.
-8. If `force=true`, delete existing metrics for the record.
-9. If `force=false`, skip when metrics already exist.
-10. Reuse `BlockBuffer` from context when available; otherwise read the line file and call `buildBlocks(...)`.
-11. Run `extractMetricsFromBlocksWithLLM(...)`.
-12. Assign `metric_id = <record_id>_<seqno>`.
-13. Save rows with `SaveMetrics(...)`.
-14. Write `.metrics` artifact output.
-15. Persist success or failure status into `kb.inputs.status`.
+1. Force thinking off for all metrics passes.
+2. Parse the event payload with `ParseLineFileGeneratedEvent`.
+3. Skip non-target events with `ShouldSkipLineFileGeneratedEvent`.
+4. Fail if either prompt (candidates, enrichment) did not load.
+5. Load `kb.inputs` by `record_id` and resolve the canonical line file path.
+6. If `force=true`, delete existing metrics for the record (`DeleteMetricsByInputRecordID`,
+   which first retires the record's metric evidence).
+7. If `force=false`, skip when metrics already exist.
+8. Parse the line file and load chunks from the `.chunks` artifact (chunking must have run).
+9. Run `extractMetricsFromChunksWithLLM(...)`: Pass 1, candidates, Pass 2 via
+   `enrichMetricCandidates` (which also dedups and applies the pure-requirement filter).
+10. Assign `metric_id = <record_id>_mtc_<seqno>`, canonicalize `value_range_type`, apply table
+    metric contexts.
+11. Save rows with `SaveMetrics(...)`, log `extract_metrics_final`, persist metric objects.
+12. Write `.metrics` artifact output and harvest metric-definition candidates.
+13. Persist success or failure status into `kb.inputs.status`.
+
+`FinalizeChunkBatch` (chunk-batch path) calls the same `enrichMetricCandidates`, then either
+deletes and saves (`force_clear=true`) or merges into the existing rows and upserts the changed
+ones (`force_clear=false`, see the incremental-processing ADR 2026071002).
 
 `HandleEvent` no longer performs any indexing. All artifact indexing is deferred to
 Phase C (post-process); see [Indexing (Phase C)](#indexing-phase-c).
@@ -78,16 +90,16 @@ Phase C (post-process); see [Indexing (Phase C)](#indexing-phase-c).
 
 ### Pass 1: Candidate Extraction
 
-Per block, the processor:
+Per chunk, the processor:
 
-- serializes block lines in canonical block format
+- serializes the chunk's lines in canonical form
 - builds a compact candidate prompt
 - calls the mention model
 - normalizes `candidates`
 
 Prompt/model:
 
-- prompt: `prompt-extract-metric-candidates-v1.md`
+- prompt: `prompt-extract-metric-candidates-v11.md` (default)
 - env: `EXTRACT_METRIC_CANDIDATES_PROMPT`
 - model env: `EXTRACT_METRIC_CANDIDATES_MODEL_NAME`
 
@@ -95,32 +107,30 @@ Fallback:
 
 - env: `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK`
 - if primary returns truncated or empty JSON, candidate extraction retries with fallback
-- if fallback also returns the empty-JSON failure shape, the processor treats that block as empty candidates
+- if fallback also returns the empty-JSON failure shape, the processor treats that chunk as empty candidates
 
-### Deterministic Merge
+### Candidates
 
-After pass 1:
-
-- `mergeMetricMentionCandidates(...)` groups candidates by normalized metric identity
-- overlap-only candidates are dropped unless normal-line evidence also exists
-- supporting lines and evidence spans are merged
-- normal lines win over overlap lines when provenance overlaps
-
-Logging:
-
-- `Merged metric candidates`
+After pass 1, `mentionsAsCandidates(...)` turns each mention into one candidate (log:
+`Metric candidates (merge disabled)`). The cross-chunk merge `mergeMetricMentionCandidates(...)`
+still exists but has no caller; duplicates are removed after enrichment instead (Final Dedup).
 
 ### Pass 2: Enrichment
 
-For each merged candidate, the processor:
+`enrichMetricCandidates(...)` groups candidates by source chunk (`groupCandidatesByChunk`, at
+most `METRIC_ENRICH_GROUP_SIZE` per batch, default 5) and runs the batches concurrently (up to
+`EXTRACT_METRICS_MAX_TASKS`, default 1). For each batch it:
 
-- builds a candidate-specific enrichment prompt
-- sends the supporting lines and mentions
-- normalizes returned `metrics` and `uncertain_metrics`
+- sends the chunk text (`canonicalChunkInputText`, the same bytes Pass 1 sent, so the call reuses
+  the provider's prompt cache) plus the enrichment prompt and the batch's candidates
+- normalizes returned `metrics` and `uncertain_metrics` (`uncertain_metrics` are not saved)
+- backfills `candidate_id` on the returned rows
+
+A failed batch does not discard the others: successful batches are returned with the error.
 
 Prompt/model:
 
-- prompt: `prompt-enrich-metrics-v1.md`
+- prompt: `prompt-enrich-metrics-v8.md` (default)
 - env: `ENRICH_METRICS_PROMPT`
 - fallback compatibility env: `EXTRACT_METRICS_PROMPT`
 - model env: `ENRICH_METRICS_MODEL_NAME`
@@ -128,8 +138,8 @@ Prompt/model:
 
 Logging:
 
-- `Start enriching metric candidate`
-- `LLM responded with enriched metrics`
+- `enrich metric start` / `enrich metric end` per batch
+- one `enrich_metrics` `kb.doc_proc_logs` row per batch
 
 ### Final Dedup
 
@@ -138,9 +148,27 @@ After enrichment:
 - `dedupeFinalMetricRows(...)` merges accidental duplicates
 - dedup key uses metric name, subject, unit, value, and normalized source spans
 
-Logging:
+### Pure-Requirement Filter
 
-- `Deduped final metric rows`
+Still inside `enrichMetricCandidates`, after dedup (spec section 3.4.2; openspec change
+`exclude-pure-requirements-from-metrics`):
+
+1. `canonicalizeMetricValueRangeTypes(metrics)`
+2. `excludePureRequirements(metrics)` classifies each row with `metricStatementKind` and splits
+   off rows of kind `inspection_requirement` or `delegated_requirement`
+3. `logExcludedPureRequirements(...)` writes one `extract_metrics` `kb.doc_proc_logs` row
+   (`activity_name = 'exclude_pure_requirements'`, `extra_info` `num_excluded` + `by_kind`,
+   artifact `excluded[]` with kind, metric_name, subject, threshold_or_target, context,
+   source_line_spans) and an info log `excluded pure requirements from metrics`, only when at
+   least one row was dropped
+
+Because both save paths call `enrichMetricCandidates`, the filter applies to the sequential and
+chunk-batch paths and to `force_clear` true and false. It runs before `metric_id` assignment.
+It never deletes stored rows.
+
+`metricStatementKind` mirrors `web/src/lib/metric-statement-kind.ts` and the benchmark helper
+`benchmark_io.py`; `metric_statement_kind_test.go` reuses the TS test's scenarios and the 69
+record-416 gold rows (32 pure requirements).
 
 ## Indexing (Phase C)
 
@@ -230,7 +258,7 @@ This is important for debugging providers that return:
 Candidate prompt loading:
 
 - env: `EXTRACT_METRIC_CANDIDATES_PROMPT`
-- default: `prompt-extract-metric-candidates-v1.md`
+- default: `prompt-extract-metric-candidates-v11.md`
 
 Enrichment prompt loading:
 
@@ -238,9 +266,14 @@ Enrichment prompt loading:
   - `ENRICH_METRICS_PROMPT`
   - `EXTRACT_METRICS_PROMPT`
   - `PROMPT_FILE_NAME`
-- default: `prompt-enrich-metrics-v1.md`
+- default: `prompt-enrich-metrics-v8.md`
 
-Prompt search is delegated to the shared `loadProductPromptFromEnvKeys(...)` helper.
+Prompt search is delegated to the shared `loadProductPromptFromEnvKeys(...)` helper. Prompt
+paths resolve relative to the process's working directory.
+
+v11/v8 (2026-10-07) stop asking for pure requirements; v10/v7 asked for delegated requirements
+as `value_class = reference` rows. Deployments that pin the prompts by env must move the pins
+themselves.
 
 ## Model Loading
 
@@ -266,15 +299,10 @@ All metrics model configs are loaded from:
 
 ## Input Handling
 
-The processor does not read `.chunks` or `.topics` artifacts anymore.
-
-Instead:
-
-1. reuse `BlockBuffer` from context when available
-2. otherwise read the canonical line file
-3. rebuild blocks with `buildBlocks(...)`
-
-This keeps metrics aligned with the same blocking logic used elsewhere in doc processing.
+The processor reads the record's chunks from the persisted `.chunks` artifact
+(`loadChunksFromArtifactFile`), so chunking must have run first. Chunks are converted to the
+internal block shape with `chunksToBlocks(...)` (1:1), which keeps chunk-based processors aligned
+on the same text.
 
 ## Normalized Internal Shapes
 
@@ -291,6 +319,7 @@ This keeps metrics aligned with the same blocking logic used elsewhere in doc pr
 - confidence
 - supporting block lines
 - `HasNormalEvidence`
+- chunk index (used to group Pass 2 batches)
 
 ### Final metric row
 

@@ -108,8 +108,13 @@ interface. Phase 1 is the part that could be done without changing how documents
 - **Test settings from production extraction show as requirements.** Only the benchmark tags test
   settings today, so values such as "25 ℃ incubation" from live extraction show as
   *Requirement: with a measurable criterion* rather than *Test parameter*.
-- **Requirements still live in the metrics table.** Phase 1 changes what people see, not where
-  things are stored. `provision_id` stays empty until Phase 2.
+- **Some requirements still live in the metrics table.** Phase 1 changes what people see, not
+  where things are stored. Since 2026-10-07 (openspec change
+  `exclude-pure-requirements-from-metrics`), new extractions no longer store *inspection* or
+  *delegated* requirements as metrics. Those rows are dropped and logged to `kb.doc_proc_logs`
+  (activity `exclude_pure_requirements`). Requirements with a measurable criterion or an open
+  value are still stored and labelled here. Records extracted earlier keep their old rows until
+  they are re-extracted with force-clear. `provision_id` stays empty until Phase 2.
 - **No server-side filtering or counting by kind.** The classification runs in the browser. Admin
   views other than the metric detail panel are unchanged.
 - **Evidence clean-up is forward-only.** It runs when metrics are deleted for re-extraction. It

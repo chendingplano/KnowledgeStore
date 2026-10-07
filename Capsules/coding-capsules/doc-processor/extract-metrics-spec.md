@@ -1,5 +1,11 @@
 A metric is a quantitative, measurable item used to evaluate, compare, monitor, verify, or assess something. Metrics are often defined in standards, specifications, requirements, policies, test plans, scorecards, or compliance documents.
 
+A requirement with nothing to measure is not a metric (ADR 2026100603 DR1). "The bin shall have a
+lid" (an inspection requirement) and "shall comply with CJJ 52" (a requirement delegated to
+another document) are requirements; `extract_metrics` does not store them (see 3.3.1 and 3.4.2).
+A requirement that names a measurable property is still extracted: with its criterion ("总砷 ≤
+15 mg/kg") or with its value left open ("设备应标明比能耗").
+
 This processor uses a multi-pass extraction strategy.
 
 ## 1. Input
@@ -91,36 +97,40 @@ Pass 1 rules:
 - do not generate category paths
 - do not translate
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
-- extract a clause that sets a requirement on an object but leaves its measurable criteria
-  to a cited document (e.g. "应按照 CJJ 27 的要求配置…") as a candidate, even though it has no
-  number (see 3.3.1)
+- do not extract a requirement with nothing to measure: an inspection requirement, or a clause
+  whose criteria live only in a cited document (e.g. "应按照 CJJ 27 的要求配置…") (see 3.3.1)
 
-#### 3.3.1 Requirements Delegated To A Cited Document
+#### 3.3.1 Requirements With Nothing To Measure
 
-A clause such as "应按照 CJJ 27 和 GB 16889 的要求配置…设施" requires something of a specific
-object, but the numbers live in the cited document, not this one. Such clauses are kept as
-metric rows that record the pointer; the cited document's metrics are not copied in.
+Since candidates prompt v11 / enrich prompt v8 (2026-10-07, openspec change
+`exclude-pure-requirements-from-metrics`), neither pass asks for a *pure requirement*: a
+requirement with no measurable property. Two shapes are excluded:
 
-Since candidates prompt v10 / enrich prompt v7, these rows are carried through the existing
-fields (no schema change):
+| Statement kind | Example |
+|---|---|
+| `inspection_requirement` | "垃圾桶应加盖", "shall be clearly legible" |
+| `delegated_requirement` | "应按照 CJJ 27 和 GB 16889 的要求配置…设施", "shall comply with CJJ 52" |
 
-| Stage | Field | Value |
-|-------|-------|-------|
-| Pass 1 | `value_hint` | `ref:` + cited identifiers as written, joined by `; ` (e.g. `ref:CJJ 27; GB 16889`) |
-| Pass 1 | `confidence_reason` | starts with `external_reference:` |
-| Pass 2 | `value_range_type` | `qualitative` (not `limit_absent` — the source does not say there is no limit) |
-| Pass 2 | `value_class` | `reference` (normalizes to assertion kind `reference`) |
-| Pass 2 | `is_explicit_metric` | `false`; `metric_value`, `unit`, `formula_or_definition` empty |
-| Pass 2 | `threshold_or_target` | the clause wording, including the cited identifiers |
-| Pass 2 | `reasoning_tags` | `external_reference` plus one `cited_doc:<identifier>` per cited document |
-| Pass 2 | `keywords` | include each cited identifier |
+These belong to `kb.provisions` (ADR 2026100603 DR2/DR3). Until `extract_provisions` runs
+reliably on every document, an excluded requirement is recorded only in the
+`exclude_pure_requirements` log (3.7).
 
-Not covered: entries in a normative-references list, terms-and-definitions boilerplate, and
-clauses that state their own number and cite a document only for the test method (those
-stay ordinary metrics).
+Still extracted:
 
-Resolving `cited_doc:` identifiers to records in `kb.inputs` and linking to the cited
-document's metrics is not implemented yet.
+- a requirement with a numeric criterion (`lower_bound`, `upper_bound`, `exact`, `range`)
+- a requirement that names a measurable quantity but leaves its value open or to be declared
+  (`limit_absent`)
+- a clause that states its own number and cites a document only for the test method
+- a numeric value quoted from a cited document (`value_class = reference`)
+
+The prompts are not trusted alone: the deterministic filter in 3.4.2 drops any pure requirement
+the model still returns.
+
+**Earlier rows.** Candidates prompt v10 / enrich prompt v7 deliberately kept delegated
+requirements as metric rows (`value_hint` `ref:…`, `confidence_reason` `external_reference:…`,
+`value_class = reference`, `value_range_type = qualitative`, tags `external_reference` and
+`cited_doc:<identifier>`), and earlier enrich prompts kept qualitative requirements. Records
+extracted before 2026-10-07 keep those rows until they are re-extracted with `force_clear`.
 
 Pass 2 batching:
 
@@ -226,6 +236,35 @@ Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` i
 - `candidate_id` identifies the Pass 1 candidate within a chunk
 - `metric_id` identifies the persisted row in `kb.metrics`
 - `candidate_id` links the pre-persistence candidate logs to the persisted/final metric logs
+
+#### 3.4.2 Pure-Requirement Filter
+
+After dedup, still inside `enrichMetricCandidates` (shared by the sequential and chunk-batch save
+paths, for `force_clear` true and false), the processor:
+
+1. canonicalizes `value_range_type` (`canonicalizeMetricValueRangeTypes`)
+2. classifies each row with `metricStatementKind`
+   (`server/api/doc-processing/metric_statement_kind.go`)
+3. drops rows of kind `inspection_requirement` or `delegated_requirement`
+4. if any row was dropped, writes one `exclude_pure_requirements` log entry (3.7)
+
+The classification rules are those of spec `metric-statement-kind`, applied in this order after
+trimming and lower-casing (numeric = `lower_bound`, `upper_bound`, `exact`, `range`):
+
+1. tag `test_condition` → `test_parameter`
+2. `value_class = definition` → `metric_definition` with a non-empty `formula_or_definition`, else `definition`
+3. `value_class = reference`, or a `cited_doc:` / `external_reference` tag → `metric_value` if numeric, else **`delegated_requirement`**
+4. `value_class` `requirement` / `target` → `requirement_with_criterion` if numeric, `requirement_value_open` if `limit_absent`, else **`inspection_requirement`**
+5. `value_class` `observation` / `design_capability` → `metric_value` if numeric, else `observation`
+6. otherwise → `unclassified`
+
+The same rules exist in `web/src/lib/metric-statement-kind.ts` (display labels) and the
+`extract-metrics-benchmark` helper `benchmark_io.py` (gold `kind:` tags). Change all three
+together.
+
+The filter runs before `metric_id`s are assigned, so the saved rows are numbered without gaps.
+It does not delete rows already stored: a merge-mode run (`force_clear=false`) leaves earlier
+pure-requirement rows in place.
 
 ### 3.5 Indexing
 
@@ -476,6 +515,12 @@ The processor should log:
 - enrichment-pass start
 - enrichment results
 - final dedup results
+- pure requirements dropped by the filter (3.4.2): one `kb.doc_proc_logs` row per run that drops
+  at least one row, with `doc_proc_name = 'extract_metrics'` and
+  `activity = 'exclude_pure_requirements'`. `extra_info` holds `num_excluded` and `by_kind` (count
+  per kind). The artifact's `excluded` array lists each dropped row's `kind`, `metric_name`,
+  `subject`, `threshold_or_target`, `context` and `source_line_spans`. No row is written when
+  nothing is dropped
 - metrics indexing start/result, including connected artifact counts and category-path counts
 - metrics indexing errors, including empty `metric_categories`, empty `chunks`, empty `semantic_projects`, or no matching category paths
 - when `force_clear=false` (merge mode, see [10] DR2/DR4): for each pending Metric Group sent to the Merge Resolution LLM call, one `kb.doc_proc_logs` row (`activity = 'merge_resolve_metrics'`) containing the exact candidates payload sent to the LLM and the `winning_metrics` (or error) it returned — fires whether the call succeeds or fails, so a merge run always has a traceable record of what was sent and decided
@@ -507,6 +552,7 @@ openspec change `requirements-metrics-phase1`).
 - Merge and deduplicate candidates deterministically.
 - Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
+- Drop pure requirements (inspection and delegated) and log them (3.4.2).
 - Save final metrics to `kb.metrics`.
 - After each successful save/upsert step, write one `kb.doc_proc_logs` row with `activity = 'extract_metrics_final'`.
 - The `extract_metrics_final` artifact must contain the exact metric rows being saved in that write operation, and every row in that artifact must include `candidate_id`.
@@ -615,6 +661,8 @@ it yet. It stays `NULL` until the deferred `extract_provisions` linking work lan
 Customer-facing views label each row's statement kind (requirement, metric, test parameter,
 definition) at read time from `value_class`, `value_range_type`, `formula_or_definition` and
 `reasoning_tags` (`web/src/lib/metric-statement-kind.ts`). Nothing about the kind is stored.
+New extractions contain no `inspection_requirement` or `delegated_requirement` rows (3.4.2).
+Older records may, until they are re-extracted.
 
 ### 5.1.1 Read Payload and Metric Detail UI
 
@@ -872,4 +920,7 @@ Refer to [3], [4], [5] and [6].
 [7] KnowledgeStore/Capsules/coding-capsules/llm-wiki/hybrid-search.md \
 [8] KnowledgeStore/Capsules/coding-capsules/llm-wiki/artifact-connections.md \
 [9] KnowledgeStore/Capsules/coding-capsules/categories/category-mgmt-spec.md \
-[10] KnowledgeStore/doc-repo/adrs/202607/2026071002-adr-doc-processor-incremental.md
+[10] KnowledgeStore/doc-repo/adrs/202607/2026071002-adr-doc-processor-incremental.md \
+[11] KnowledgeStore/doc-repo/adrs/202610/2026100603-adr-separate-requirements-from-metrics.md \
+[12] ChenWeb/openspec/changes/exclude-pure-requirements-from-metrics/ (spec
+`metric-pure-requirement-exclusion`)

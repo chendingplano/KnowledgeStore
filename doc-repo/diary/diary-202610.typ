@@ -113,8 +113,8 @@ they are useful.
   and secretly affecting the way your agent works? which supersedes others?
 
 Here is my take:
-- There should always be a topic or multiple topics for the current session.
-  WHen a turn finishes, it uses a decision model to determine whether 
+- There should always be topics for the current session.
+  When a turn finishes, it uses a decision model to determine whether 
   the turn is related to the current topic(s) or new topics.
 - There is a knowledge store for memory only. 
 - Snippets are indexed by topics, sorted by time
@@ -647,7 +647,11 @@ link: https://blog.google/innovation-and-ai/technology/developers-tools/embeddin
 We may want to try it.
 
 == Today Work
+- Bug (fixed by Codex): metric PDF display higlight rows incorrectly
 - Improvement (done by Codex): add MODEL_DEFAULT_REASONING_POLICY, create wiki page
   use this env var for thinking control
-- Improvement (by Claude Code): requirements are no longer treated as metrics
-- Improvement (by Claude Code): extract_metrics with new rules
+- Improvement (done by Claude Code): requirements are no longer treated as metrics
+- Improvement (done by Claude Code): extract_metrics with new rules
+- Improvement (done by Codex): highlight rows in PDF viewer
+- Improvement (done by Codex): extract geometry and save it in a companion file
+- Improvement (by Codex): coordinates using integers only in line files

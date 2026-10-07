@@ -25,6 +25,14 @@ report `20261006-1311` (record 416, rules 2.0.0) \
   Ontology Explorer search and metric detail groups. The benchmark delete sites were left
   unchanged: they cannot reuse `metric_id`, because the benchmark's own input is deleted with
   its metrics. The search and wiki responses now also carry the fields the classifier needs.
+* 2026/10/07, Decision (user): pure requirements leave `kb.metrics` now, without waiting for
+  `extract_provisions`; the provisions benchmark is deferred. Implemented by openspec change
+  `exclude-pure-requirements-from-metrics`: prompts `extract-metric-candidates-v11` and
+  `enrich-metrics-v8` stop asking for them, and a server-side filter
+  (`server/api/doc-processing/metric_statement_kind.go`, same rules as the Phase 1 classifier)
+  drops any `inspection_requirement` or `delegated_requirement` row before saving, logging each one
+  to `kb.doc_proc_logs` (activity `exclude_pure_requirements`). Numeric criteria and value-open
+  requirements stay. Updated DR4.
 
 ## Context
 
@@ -198,10 +206,18 @@ more than one provision, for example the same limit repeated in another clause, 
 - Linking (DR2) is a deterministic step after both processors have run. It fills
   `kb.metrics.provision_id`, matching on source line span, subject and evidence. An LLM is used
   only for ambiguous cases (ADR `2026081701` DR12).
-- **Gate: this DR waits for the `extract_provisions` change.** Until provisions run reliably on
-  the same documents, `extract_metrics` keeps emitting qualitative and delegated requirements, so
-  that nothing is lost. During that period customer pages classify those rows as requirements by
-  the DR3 table (Phase 1), and `provision_id` stays null.
+- **Amended 2026-10-07 for pure requirements.** Inspection and delegated requirements (the DR3
+  rows that are "provision only") are no longer emitted or stored by `extract_metrics`, starting
+  now. Each excluded row is logged (`kb.doc_proc_logs`, activity `exclude_pure_requirements`). The
+  lossless-across-families invariant is knowingly suspended for these rows until
+  `extract_provisions` runs reliably: until then they have no customer-visible home. The gate
+  below still applies to everything else.
+- **Gate: the rest of this DR waits for the `extract_provisions` change.** Running provisions on
+  every document, linking (`provision_id`, `constrains`) and the per-document lossless check stay
+  deferred. Until then, the requirement rows still stored in `kb.metrics` (numeric criteria and
+  value-open requirements) are classified for display by the DR3 table (Phase 1), and
+  `provision_id` stays null. (Before the 2026-10-07 amendment this gate also kept qualitative and
+  delegated requirements in `extract_metrics`, so that nothing was lost.)
 
 ### DR5 — Customer-facing pages use the two words correctly
 
@@ -297,7 +313,8 @@ ADR `2026081801` and quote booleans in `mise.toml`.
 2. **With the `extract_provisions` change (deferred).**
    - Provisions run wherever metrics run.
    - New `enrich-metrics` and `extract-metric-candidates` prompt versions drop the
-     qualitative-requirement instructions.
+     qualitative-requirement instructions. *Done early (2026-10-07) for pure requirements: v8 / v11 plus the
+     server-side filter; see the change log.*
    - The linker fills `provision_id` and derives `constrains` relations.
    - A per-document gate checks that every qualitative requirement in the old metric output is
      found in provisions before the old prompts are retired.
