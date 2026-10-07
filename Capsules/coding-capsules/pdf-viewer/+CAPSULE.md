@@ -45,6 +45,7 @@ All files are under `web/src/lib/components/home3/`.
 | `numPages` | `number` | `0` | Bindable; total pages |
 | `highlightVersion` | `number \| string` | `0` | Changing this value triggers a highlight re-render pass |
 | `renderHighlights` | `function` | — | Optional per-page highlight renderer callback |
+| `tableReferences` | `TableReference[]` | `[]` | Canonical row/cell references; the viewer retrieves companion geometry, highlights and navigates |
 | `loadingLabel` | `string` | `'Rendering page…'` | Loading overlay text |
 | `respectPageRotation` | `boolean` | `true` | Honour PDF page rotation metadata |
 | `sidebarMinWidth` | `number` | `140` | px — minimum drag width |
@@ -1064,3 +1065,11 @@ When no lines are selected (`addMetricDialogLines.length === 0`), the dialog bod
 [3] Extract Provisions Implementation, 'extract-provisions-impl.md'
 
 [4] Extract Metric Spec, 'extract-metrics-spec.md'
+
+## Canonical table row/cell highlighting
+
+Both reusable viewers accept `tableReferences`. Geometry is stored separately from
+canonical line files, preserving line numbers across continuation pages. See
+[Table geometry design and caller examples](table-geometry-design.md) for the
+reference schema, extraction/backfill, caching and limitations. The metric-specific
+PDF text matching callback has been replaced by this shared implementation.
