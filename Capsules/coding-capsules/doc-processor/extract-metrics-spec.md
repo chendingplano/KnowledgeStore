@@ -272,6 +272,15 @@ should have dropped and tags it with the drop reason instead. Rows whose `reason
 `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or
 `qualitative_requirement` are removed and each is logged at Info level.
 
+The same step removes an untagged **agreed activity schedule** (`isAgreedActivitySchedule`, gold
+rule X2): a `requirement`/`target` row with no numeric range type, no value and no unit, whose
+name is a time or frequency (时间, 频次, 频率, 次数, 时段, time, frequency, schedule) and whose
+`threshold_or_target` or `desc` says the value is agreed or announced (约定, 商定, 协商, 协定,
+公告, 公示, agree, negotiate, announce). Record 416 stored "收运单位应与集中供餐单位约定餐厨垃圾收运的
+时间和频次" as `416_mtc_3` (requirement + `limit_absent`, no tag) although both prompts name it as
+an exclusion. A property agreed for an object ("抗压强度由供需双方商定", A4) is kept, because its name
+is not a time or frequency.
+
 **After dedup:**
 
 After dedup, still inside `enrichMetricCandidates` (shared by the sequential and chunk-batch save
@@ -558,6 +567,7 @@ The processor should log:
   nothing is dropped
 - per enrich batch (Info/Warn logger, not `kb.doc_proc_logs`): candidates that are neither
   enriched nor listed in `dropped_candidates`, and rows removed for carrying a drop-reason tag
+  or for being an agreed activity schedule
   (3.4.2). The `dropped_candidates` reasons themselves are in each `enrich_metrics` log's artifact
 - metrics indexing start/result, including connected artifact counts and category-path counts
 - metrics indexing errors, including empty `metric_categories`, empty `chunks`, empty `semantic_projects`, or no matching category paths
