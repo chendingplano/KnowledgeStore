@@ -139,31 +139,97 @@ Two different things share the word "session":
 
 How one turn uses the conversation (`RunHandler.Start` in `run_handler.go`):
 
-1. Load the conversation and its messages (`LoadResumeState`). Check that the user still has access to the guide (`ResolveVersion`) and that the pinned model still matches (`409` otherwise).
-2. Load stored tool calls (`LoadToolResults`) and apply the **snapshot rule** (`FilterResumeState`, below). Answers are never hidden.
-3. Create a response attempt. A database guard allows only one running attempt per conversation. Then save the new user message and an empty assistant message (`status = streaming`).
-4. On the first turn, set the conversation's title from the question (`titleFromMessage`): first line, whitespace collapsed, cut at 60 characters. An existing title is never overwritten.
+1. Chenweb load the conversation and its messages (`LoadResumeState`). Check that the 
+   user still has access to the guide (`ResolveVersion`) and that the pinned model 
+   still matches (`409` otherwise).
+2. ChenWeb load stored tool calls (`LoadToolResults`) and apply the **snapshot 
+   rule** (`FilterResumeState`, below). Answers are never hidden.
+3. Create a response attempt. A database guard allows only one running attempt 
+   per conversation. Then save the new user message and an empty assistant 
+   message (`status = streaming`).
+4. On the first turn, set the conversation's title from the question (`titleFromMessage`): 
+   first line, whitespace collapsed, cut at 60 characters. An existing title 
+   is never overwritten.
 5. Build the history from the turns that came **before** this one (`history.go`):
-   - **Whole turns only.** A turn is a user message and a `complete` assistant message with the same `attempt_id`. A question whose answer failed, stopped, or was interrupted is left out, so the model never sees two user messages in a row.
-   - **Tool calls included.** Each turn carries the tool calls of its attempt that survived the snapshot rule, in call order, with their arguments and results. A result over `PI_<GUIDE>_MAX_HISTORY_TOOL_RESULT_BYTES` (default 4,096) is replaced in the history by a truncated JSON object giving its full size, its tool-call ID and `retrieve_with: get_saved_tool_result`. The stored copy stays complete.
-   - **Shortened, not skipped.** Each message is cut to 15,000 UTF-16 units (ending in `…[truncated]`) so it stays under the gateway's per-message limit.
-   - **Sources carried forward.** Each earlier answer ends with `[Sources cited in this answer]` and up to 8 of its cited sources (title, page, lines), so the model knows what was cited and can re-read it.
-   - **Budgeted.** Turns are taken newest first until they fill the history budget (below), at most 50 turns, then sent oldest first. As a final guard the encoded request is kept under 480 KiB.
-   - **Summary.** If the conversation has a rolling summary, only turns after it are candidates, and the summary goes with the run as `historySummary`. The summary is always kept as saved.
-6. Send `{history, historySummary, message, profile, capability, knowledge}` to the gateway. `seedHistory` writes the history into a new in-memory Pi session, replaying each turn as the question, an assistant message with its tool calls, one tool-result message per call, and the answer. A call to a tool this run doesn't offer (for example, after the user lost every grant) is folded into the answer text as `[Earlier tool call …]`. The gateway appends the summary to the system prompt under "Summary of earlier turns in this conversation", and `session.prompt(message)` runs the loop.
-7. Stream the answer back, check citations, and save the answer, sources, tool-call records and attempt outcome. The Pi session is then thrown away. Tool calls were already stored while the turn ran: the gateway sends each call's ID in `X-ChenWeb-Tool-Call-ID`, and ChenWeb's internal tool route stores the arguments, the exact response body (including error responses), and the documents it references.
-8. If the turn completed, fold history in the background (`foldHistory`). If the unsummarized turns now exceed the budget, the oldest are sent with the previous summary to the gateway's `POST /v1/summaries`. The gateway summarizes them with the conversation's own provider and model, without tools, using `prompts/prompt-agent-history-summary-v1.md`. Folding continues until the remaining turns fit in half the budget. The new summary is stored on the conversation with a compare-and-set, so a stale concurrent fold is discarded. A failure is logged and changes nothing; the next turn simply drops the oldest turns.
+   - **Whole turns only.** A turn is a user message and a `complete` assistant 
+     message with the same `attempt_id`. A question whose answer failed, stopped, 
+     or was interrupted is left out, so the model never sees two user messages in a row.
+   - **Tool calls included.** Each turn carries the tool calls of its attempt 
+     that survived the snapshot rule, in call order, with their arguments and 
+     results. A result over `PI_<GUIDE>_MAX_HISTORY_TOOL_RESULT_BYTES` 
+     (default 4,096) is replaced in the history by a truncated JSON object 
+     giving its full size, its tool-call ID and 
+     `retrieve_with: get_saved_tool_result`. The stored copy stays complete.
+   - **Shortened, not skipped.** Each message is cut to 15,000 UTF-16 units 
+     (ending in `…[truncated]`) so it stays under the gateway's per-message limit.
+   - **Sources carried forward.** Each earlier answer ends with 
+     `[Sources cited in this answer]` and up to 8 of its cited sources 
+     (title, page, lines), so the model knows what was cited and can re-read it.
+   - **Budgeted.** Turns are taken newest first until they fill the history 
+     budget (below), at most 50 turns, then sent oldest first. As a final 
+     guard the encoded request is kept under 480 KiB.
+   - **Summary.** If the conversation has a rolling summary, only turns after 
+     it are candidates, and the summary goes with the run as `historySummary`. 
+     The summary is always kept as saved.
+6. Send `{history, historySummary, message, profile, capability, knowledge}` 
+   to the gateway. `seedHistory` writes the history into a new in-memory Pi 
+   session, replaying each turn as the question, an assistant message with 
+   its tool calls, one tool-result message per call, and the answer. A call 
+   to a tool this run doesn't offer (for example, after the user lost every 
+   grant) is folded into the answer text as `[Earlier tool call …]`. The 
+   gateway appends the summary to the system prompt under "Summary of earlier 
+   turns in this conversation", and `session.prompt(message)` runs the loop.
+7. Stream the answer back, check citations, and save the answer, sources, 
+   tool-call records and attempt outcome. The Pi session is then thrown away. 
+   Tool calls were already stored while the turn ran: the gateway sends each 
+   call's ID in `X-ChenWeb-Tool-Call-ID`, and ChenWeb's internal tool route 
+   stores the arguments, the exact response body (including error responses), 
+   and the documents it references.
+8. If the turn completed, fold history in the background (`foldHistory`). If 
+   the unsummarized turns now exceed the budget, the oldest are sent with the 
+   previous summary to the gateway's `POST /v1/summaries`. The gateway 
+   summarizes them with the conversation's own provider and model, without 
+   tools, using `prompts/prompt-agent-history-summary-v1.md`. Folding continues 
+   until the remaining turns fit in half the budget. The new summary is stored 
+   on the conversation with a compare-and-set, so a stale concurrent fold is 
+   discarded. A failure is logged and changes nothing; the next turn simply 
+   drops the oldest turns.
 
-The **history budget** (estimated tokens: four ASCII characters or one non-ASCII character per token) is `max(2000, min(cap, contextWindow / 4))`. `contextWindow` is the pinned model's context window, from the gateway's `GET /v1/models/:provider/:model` and cached for 10 minutes. `cap` is `PI_<GUIDE>_MAX_HISTORY_TOKENS`, which defaults to 32,000. The cap matters because Pi's catalog lists some models, `claude-sonnet-4-5` among them, with a 1,000,000-token window. If the gateway can't report the window, the budget is `min(cap, 16000)`.
+The **history budget** (estimated tokens: four ASCII characters or one 
+non-ASCII character per token) is `max(2000, min(cap, contextWindow / 4))`. 
+`contextWindow` is the pinned model's context window, from the gateway's 
+`GET /v1/models/:provider/:model` and cached for 10 minutes. `cap` is 
+`PI_<GUIDE>_MAX_HISTORY_TOKENS`, which defaults to 32,000. The cap matters 
+because Pi's catalog lists some models, `claude-sonnet-4-5` among them, 
+with a 1,000,000-token window. If the gateway can't report the window, 
+the budget is `min(cap, 16000)`.
 
-**The snapshot rule** (requirements §11). History is a snapshot of the knowledge base at the time of each turn. `PI_HISTORY_SNAPSHOT_DUR` (hours, default 48) sets the snapshot period, measured per record: a source by its message's `created_at`, a tool result by its own `created_at`.
+**The snapshot rule** (requirements §11). History is a snapshot of the 
+knowledge base at the time of each turn. `PI_HISTORY_SNAPSHOT_DUR` (hours, 
+default 48) sets the snapshot period, measured per record: a source by 
+its message's `created_at`, a tool result by its own `created_at`.
 
-- Records younger than the period are shown and resent exactly as saved, even if the user has since lost access or the content changed.
-- In older records, ChenWeb checks access only (`CheckDocumentAccess`, no fingerprint or version check). A source whose document is no longer accessible is removed, and so is a tool result that references any such document.
-- Answer text and summaries are never removed. Removing content derived from a revoked resource is an open question (requirements §18), deliberately out of scope.
-- The conversation response reports `snapshot_hours`, `removed_sources` and `removed_tool_results`. The page always shows a snapshot notice on a saved conversation, plus an access-changed notice when anything was removed.
+- Records younger than the period are shown and resent exactly as saved, 
+  even if the user has since lost access or the content changed.
+- In older records, ChenWeb checks access only (`CheckDocumentAccess`, 
+  no fingerprint or version check). A source whose document is no longer 
+  accessible is removed, and so is a tool result that references any 
+  such document.
+- Answer text and summaries are never removed. Removing content derived 
+  from a revoked resource is an open question (requirements §18), 
+  deliberately out of scope.
+- The conversation response reports `snapshot_hours`, `removed_sources` 
+  and `removed_tool_results`. The page always shows a snapshot notice 
+  on a saved conversation, plus an access-changed notice when anything 
+  was removed.
 
-**Retrieving a full result.** Whenever a run has knowledge tools it also gets `get_saved_tool_result` (`{tool_call_id}`). ChenWeb finds the stored call in the same conversation and user, applies the snapshot rule, and returns the stored body verbatim, or `404`. It produces no citations; citations come only from live tool calls, which settlement still checks against current content.
+**Retrieving a full result.** 
+
+Whenever a run has knowledge tools it also gets `get_saved_tool_result` 
+(`{tool_call_id}`). ChenWeb finds the stored call in the same conversation 
+and user, applies the snapshot rule, and returns the stored body verbatim, 
+or `404`. It produces no citations; citations come only from live tool 
+calls, which settlement still checks against current content.
 
 What the model sees of earlier turns:
 
@@ -175,12 +241,22 @@ What the model sees of earlier turns:
 
 Consequences of this design:
 
-- **Pi holds no state, so the gateway can restart or scale at any time.** No session is lost because ChenWeb holds the whole conversation.
-- **Per-turn cost is bounded.** History, including tool results, never exceeds the budget. Older turns survive only in summary form; the summary sees question and answer text, not tool calls.
-- **Users may see content they can no longer access**, inside the snapshot period. This is intended; the page says the history is a snapshot.
-- **Summaries cost one extra model call.** Each fold is a call to the guide's provider. It runs after the answer has been delivered, and its usage is recorded as `pi_gateway_summary`.
-- **The token count is an estimate.** No tokenizer is used. The 25 % share of the context window leaves a wide margin.
-- **Model pinning ends a conversation.** After the guide's model changes, older conversations return `409` and can't continue.
+- **Pi holds no state, so the gateway can restart or scale at any 
+  time.** No session is lost because ChenWeb holds the whole 
+  conversation.
+- **Per-turn cost is bounded.** History, including tool results, 
+  never exceeds the budget. Older turns survive only in summary 
+  form; the summary sees question and answer text, not tool calls.
+- **Users may see content they can no longer access**, inside the 
+  snapshot period. This is intended; the page says the history 
+  is a snapshot.
+- **Summaries cost one extra model call.** Each fold is a call to 
+  the guide's provider. It runs after the answer has been delivered, 
+  and its usage is recorded as `pi_gateway_summary`.
+- **The token count is an estimate.** No tokenizer is used. The 
+  25 % share of the context window leaves a wide margin.
+- **Model pinning ends a conversation.** After the guide's model 
+  changes, older conversations return `409` and can't continue.
 
 ### 2.4 Gateway HTTP API (loopback only, all routes need `Authorization: Bearer PI_GATEWAY_SECRET`)
 
@@ -193,7 +269,10 @@ Consequences of this design:
 | `POST /v1/runs/:runId/cancel` | Abort the run and release pending permission requests |
 | `POST /v1/runs/:runId/permissions/:requestId` | `{allowed: boolean}` answers an ask-mode tool approval |
 
-Events emitted by `normalizePiEvent` are `answer_delta`, `activity` (tool `started`/`completed`/`retrying`), `usage`, `sources`, `permission_request`, `error`, and `completion`. **Thinking or reasoning deltas are not forwarded.**
+Events emitted by `normalizePiEvent` are `answer_delta`, `activity` 
+(tool `started`/`completed`/`retrying`), `usage`, `sources`, 
+`permission_request`, `error`, and `completion`. **Thinking or 
+reasoning deltas are not forwarded.**
 
 ### 2.5 ChenWeb API (under `/api/v1/agent-services`, `authmiddleware.AuthMiddleware`)
 

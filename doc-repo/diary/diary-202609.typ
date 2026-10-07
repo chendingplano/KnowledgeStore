@@ -165,7 +165,7 @@ Anthropic score is 58, much higher.
 
 GPT-6 Luna is about the same as DeepSeek 4.1 Flash (37 vs 39).
 
-== Anthropic releases its Opus 5.5<openai-pricing>
+== Anthropic releases its Opus 5.5
 
 Significant improvements on performance. The price is even lower.
 
@@ -344,7 +344,7 @@ Using OpenAI GPT-6 Luna, got 0.2 FPS.
 
 == GPT-6 Luna
 
-GPT-6 Luna is very cheap (refer to @openai-pricing). We can use either DeepSeek 4.1 Flash
+GPT-6 Luna is very cheap (refer to @ref_gpt_release). We can use either DeepSeek 4.1 Flash
 or GPT-6 Luna for repeative work in the future.
 
 == SIMA in Go

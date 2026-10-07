@@ -38,6 +38,7 @@ Code that asks Jev questions can switch between real Jev and the emulated versio
 | `concurrency` | `4` | Max questions in flight at once. |
 | `temperature` | `0` | Sent as-is; `omit` leaves the field out for models that reject it. |
 | `reasoning_effort` | unset | Sent as-is when set (e.g. `none` for llama.cpp thinking models). |
+| `thinking` | unset | `enabled` or `disabled`, sent as `{"thinking":{"type":…}}`. DeepSeek V4 needs `disabled`. |
 
 ### Request
 
@@ -145,8 +146,9 @@ Verified live on 2026-10-05 with `qwen-plus` and `qwen-turbo` on Jev's quickstar
 
 - **Probabilities are not calibrated.** Jev is trained so its probabilities mean what they say; a chat model's token probabilities are often near 0 or 1 (Qwen gave 0.9999… where Jev reports e.g. 0.85). Thresholds on `noul` or `confidence` must be tuned per model and do not carry over from Jev.
 - **The model must return logprobs.** Reasoning models (e.g. `deepseek-reasoner`, OpenAI o-series) don't, and fail with "response has no logprobs".
+- **DeepSeek V4 (`deepseek-v4-flash`, `deepseek-v4-pro`) needs two settings.** It thinks by default, which uses up the single output token and fails with "response has no logprobs", so set `thinking = disabled`. Its logprobs are also reported after temperature: at `temperature = 0` the chosen letter gets 0 and every other option −9999, which fails the missing-option guard. Use `temperature = 1` to get the model's real distribution; the sampled token itself is never used. The ChenWeb Decision Model Playground applies both for any `deepseek` base URL. Verified live on 2026-10-05.
 - **Few options.** At most 26 per question, and in practice no more than `top_logprobs` unless the unlisted options are negligible. Jev allows 255 choice options. On DashScope (cap 5), questions with more than 5 options usually fail the missing-option guard.
 - **One call per question.** Cost and latency grow with the number of questions, unlike Jev's single call. Prefix caching only reduces the cost of the repeated state.
 - **Letter position bias.** Choice options are lettered in alphabetical key order, and a model may slightly favour early letters.
 - **Narrower question format than Jev.** No `noul` criteria, and no object/array `instructions` or `criteria`; this matches the shared `JevQuestion` type.
-- **Not selectable from ChenWeb config.** ChenWeb's `.models.toml` importer maps `decision-model` profiles only to `jev_compatible`; `jev_emulated` clients must be constructed in code.
+- **Not selectable from ChenWeb config.** ChenWeb's `.models.toml` importer maps `decision-model` profiles only to `jev_compatible`; `jev_emulated` clients must be constructed in code. Exception: the Decision Model Playground (System Admin → LLM → Decision Models → Playground, requirement `2026100502-rqmt`) runs any `model_type = 'llm'` entry through `jev_emulated`, with `top_logprobs = 5` for DashScope base URLs and `temperature = omit` when `omit_temperature` is set (`ChenWeb/server/api/llmadminhandler/decision_playground_handler.go`).

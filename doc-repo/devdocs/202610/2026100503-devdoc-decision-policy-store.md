@@ -28,7 +28,7 @@ How a policy is worded strongly affects how accurate the answers are, so policie
 - **Code:** `shared/go/api/decisionpolicy/`. `store.go` holds the operations, `types.go` the data types and errors. Tests are in `store_test.go` (no database needed) and `integration_test.go` (real Postgres; runs only when `DECISIONPOLICY_TEST_DSN` is set).
 - **Database:** two tables in the Postgres `shared` schema. `shared.decision_policies` holds one row per policy: name, description, current version and status. `shared.decision_policy_versions` holds one row per version, with the policy text.
 - **Migration:** `ChenWeb/shared_migrations/20261005000001_create_shared_decision_policies.sql`. ChenWeb applies it automatically at server start. Any other app that wants the store must copy this file into its own `shared_migrations/` directory.
-- **No user interface or HTTP endpoints yet.** Apps call the Go API directly. An app that exposes editing to users must add its own handlers and decide who is allowed to edit.
+- **Only one editing interface so far.** Apps call the Go API directly; an app that exposes editing must add its own handlers and decide who is allowed to edit. ChenWeb's Decision Model Playground (System Admin → LLM → Decision Models → Playground) lists policies, loads a current version, and creates policies and versions (`POST /api/v1/llm/decision-playground/policies` and `/policies/:id/versions`). It checks only that the user is logged in. Rename, delete and rollback are not exposed anywhere.
 
 ### Typical use in a decision request
 

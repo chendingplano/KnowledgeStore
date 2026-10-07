@@ -430,7 +430,17 @@ for changing prompts/model parameters interactively; *datasets* for storing
 test cases and benchmarks; and an *evaluation system* supporting LLM-as-a-judge, 
 deterministic/code-based evaluators, manual labeling, user feedback, and 
 custom evaluation pipelines. This makes it possible to build a loop such 
-as `production trace → identify failure → add case to dataset → modify prompt/retrieval → run evaluation → compare results → deploy`. 
+as:
+```text
+  production trace 
+  → identify failure 
+  → add case to dataset 
+  → modify prompt/retrieval 
+  → run evaluation 
+  → compare results 
+  → deploy`. 
+```
+
 It exposes APIs plus Python and JS/TypeScript SDKs, and integrates with 
 OpenAI, LangChain, LlamaIndex, Haystack, LiteLLM, Vercel AI SDK, Ollama, 
 CrewAI and many other frameworks.
@@ -614,3 +624,30 @@ requests. [Langfuse](https://langfuse.com/integrations/frameworks/litellm-sdk?ut
 
 [Langfuse's LiteLLM Proxy integration](https://langfuse.com/integrations/gateways/litellm?utm_source=chatgpt.com)
 
+= 2026/10/07
+
+== Strands
+
+link: https://strandsagents.com/blog/introducing-strands-decider/
+
+This is an open-source decision model built on Qwen 3.5 2B, 
+small enough to run on most consumer hardware.
+
+In the benchmark, it ranked pretty good, but not the best.
+
+== Embeddinggemma-2 - Google Embedding Model
+link: https://blog.google/innovation-and-ai/technology/developers-tools/embeddinggemma-2/
+
+- Under 1B
+- Multimodal
+- Can dynamically truncate vectors from 768 dimensions to 512, 256, 128
+- 8K context window
+
+=== Conclusion
+We may want to try it.
+
+== Today Work
+- Improvement (done by Codex): add MODEL_DEFAULT_REASONING_POLICY, create wiki page
+  use this env var for thinking control
+- Improvement (by Claude Code): requirements are no longer treated as metrics
+- Improvement (by Claude Code): extract_metrics with new rules

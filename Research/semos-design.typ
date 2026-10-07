@@ -19,6 +19,7 @@
   align: left,
   [Date], [Remarks],
   [2026/05/18], [file name: CodingAssistants.typ],
+  [2026/10/05], [file name: semos-design.typ],
 )
 
 #pagebreak()
@@ -36,7 +37,7 @@
   numbering: "1 of 1",
   footer: context {
     line(length: 100%)
-    "Ontology"
+    "SemOS"
     h(1fr)
     counter(page).display("1/1", both: true)
   },
@@ -60,7 +61,7 @@
 
 #let frontmatter = (
   created: "2026/05/18",
-  logical_name: "Coding Assistant",
+  logical_name: "semos-design",
   file_id: "2026051802",
   file_type: "Typst",
   content_type: "Research",
