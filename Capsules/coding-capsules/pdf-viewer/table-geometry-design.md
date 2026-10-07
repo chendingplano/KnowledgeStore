@@ -24,7 +24,14 @@ omitted, never replaced with the first table box.
 Parser geometry extraction failure is logged and does not fail successful text
 parsing. Existing documents can extract the physical companion with the Python
 module's CLI; the API can construct/refresh the canonical companion from it.
-The converter builds the canonical companion before emitting its line-file event.
+The converter extracts missing, malformed, or stale physical geometry before building
+the canonical companion and emitting its line-file event, including manual convert-only
+runs. It reuses current physical companions. Extractor discovery checks ancestors of
+the working/executable directories; PDF_TABLE_GEOMETRY_SCRIPT and
+PDF_TABLE_GEOMETRY_PYTHON override deployment paths. Extraction uses the parser
+virtual environment, is cancellable, and has a five-minute timeout. Failures are
+logged without discarding successful line conversion. An empty detected-table result
+still creates a canonical companion.
 Record 416 will be backfilled and verified against its original PDF.
 
 Metrics management passes source_table_rows into the viewer and retains its plain
