@@ -99,6 +99,9 @@ Pass 1 rules:
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
 - do not extract a requirement with nothing to measure: an inspection requirement, or a clause
   whose criteria live only in a cited document (e.g. "应按照 CJJ 27 的要求配置…") (see 3.3.1)
+- emit one candidate per stated quantity, including plain counts in dense test-method clauses
+  (samples, replicates, blank controls), and check every normal line of the chunk, not only
+  its tables (since candidates prompt v12)
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -123,6 +126,25 @@ Still extracted:
 - a clause that states its own number and cites a document only for the test method
 - a numeric value quoted from a cited document (`value_class = reference`)
 
+**Value left open** (`limit_absent`, since candidates v12 / enrich v9, 2026-10-07). A quantity
+with a unit or scale whose value the document leaves open is a metric with no value, not a
+pure requirement: a value to be declared ("设备应明确比能耗、发酵周期"), to be sized by another
+factor or by design ("应根据垃圾日处理量合理设置单室体积"), or agreed between parties for a
+property of the object or process. Enrich v8 dropped these as obligations; record 416 lost
+比能耗, 发酵周期 and 单室体积 that way (score run 1). This matches gold rules ≥ 5.0.0, rule A4.
+
+Also not extracted (since v12 / v9), matching gold rules X2, X5, X13 and D1: a named property
+whose value comes only from a cited document ("粪大肠菌群数应达到 NY 884"); a pointer to a
+table of the same document ("其他指标应达到表2和表3"); a number that only scopes which objects a
+clause applies to ("容积在50立方米以下的户用沼气池应符合 NY/T 90"); an agreed time or frequency
+of an activity; the operands of a formula the document gives; and a practice, method, record
+or feature, which is never `limit_absent`.
+
+**Row conventions** (enrich v9): every test, sampling or analysis setting carries the
+`test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
+clause gives different meanings to ranges of one value ("发芽指数小于100%…大于100%…"), each
+range is its own `definition` row tagged `interpretation_bound` (+ `strict_bound`).
+
 The prompts are not trusted alone: the deterministic filter in 3.4.2 drops any pure requirement
 the model still returns.
 
@@ -138,6 +160,10 @@ Pass 2 batching:
 - Batch size is controlled by `METRIC_ENRICH_GROUP_SIZE` env var (default: 5)
 - The batch prompt sends all candidates and source lines once, reducing repeated input tokens
 - Each batch returns a `metrics` array covering all candidates in that batch
+- Since enrich prompt v9, every row carries its `candidate_id`, and each candidate that yields
+  no row is listed in `dropped_candidates` (`{"candidate_id", "reason"}`, reasons such as
+  `delegated_requirement`, `own_table_pointer`, `applicability_scope`, `activity_schedule`,
+  `formula_operand`). A candidate that is neither is logged as a warning (3.7)
 
 Pass 2 uses:
 
@@ -189,7 +215,8 @@ Pass 2 output:
       "reasoning_tags": ["string"]
     }
   ],
-  "uncertain_metrics": []
+  "uncertain_metrics": [],
+  "dropped_candidates": [{"candidate_id": "48_2", "reason": "applicability_scope"}]
 }
 ```
 
@@ -238,6 +265,14 @@ Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` i
 - `candidate_id` links the pre-persistence candidate logs to the persisted/final metric logs
 
 #### 3.4.2 Pure-Requirement Filter
+
+**Per batch, before dedup** (`dropRowsTaggedWithDropReason`): the LLM sometimes emits a row it
+should have dropped and tags it with the drop reason instead. Rows whose `reasoning_tags` hold
+`applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`,
+`obligation_no_property`, `inspection_requirement`, `delegated_requirement` or
+`qualitative_requirement` are removed and each is logged at Info level.
+
+**After dedup:**
 
 After dedup, still inside `enrichMetricCandidates` (shared by the sequential and chunk-batch save
 paths, for `force_clear` true and false), the processor:
@@ -521,6 +556,9 @@ The processor should log:
   per kind). The artifact's `excluded` array lists each dropped row's `kind`, `metric_name`,
   `subject`, `threshold_or_target`, `context` and `source_line_spans`. No row is written when
   nothing is dropped
+- per enrich batch (Info/Warn logger, not `kb.doc_proc_logs`): candidates that are neither
+  enriched nor listed in `dropped_candidates`, and rows removed for carrying a drop-reason tag
+  (3.4.2). The `dropped_candidates` reasons themselves are in each `enrich_metrics` log's artifact
 - metrics indexing start/result, including connected artifact counts and category-path counts
 - metrics indexing errors, including empty `metric_categories`, empty `chunks`, empty `semantic_projects`, or no matching category paths
 - when `force_clear=false` (merge mode, see [10] DR2/DR4): for each pending Metric Group sent to the Merge Resolution LLM call, one `kb.doc_proc_logs` row (`activity = 'merge_resolve_metrics'`) containing the exact candidates payload sent to the LLM and the `winning_metrics` (or error) it returned — fires whether the call succeeds or fails, so a merge run always has a traceable record of what was sent and decided
