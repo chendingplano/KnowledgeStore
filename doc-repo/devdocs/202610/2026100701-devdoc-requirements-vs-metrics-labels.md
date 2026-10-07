@@ -10,17 +10,18 @@ wrong metric after re-extraction. Open this to understand the labels or before b
 **Traceability:**
 - ADR `doc-repo/adrs/202610/2026100603-adr-separate-requirements-from-metrics.md`: the
   decision this implements (Phase 1 of 5), with the review decisions in its change log.
-- OpenSpec change `requirements-metrics-phase1` (not yet archived; after `/opsx:archive` these
-  move under `ChenWeb/openspec/changes/archive/` and the specs merge into `openspec/specs/`):
-  - `ChenWeb/openspec/changes/requirements-metrics-phase1/proposal.md`: why this exists
-  - `ChenWeb/openspec/changes/requirements-metrics-phase1/design.md`: how it was built, the
-    alternatives considered, and the additions made during implementation
-  - `ChenWeb/openspec/changes/requirements-metrics-phase1/tasks.md`: implementation log,
-    including what was verified in the browser and what was not
-  - Specs (the contract): `metric-statement-kind`, `metric-provision-link`, and an added
-    requirement in `metric-supporting-evidence-cardinality`. **If behavior changes, update the
-    spec, not only this doc.** This doc explains the feature for people. The spec is the
-    contract for agents.
+- OpenSpec change `requirements-metrics-phase1`, archived 2026-10-07:
+  - `ChenWeb/openspec/changes/archive/2026-10-07-requirements-metrics-phase1/proposal.md`: why
+    this exists
+  - `ChenWeb/openspec/changes/archive/2026-10-07-requirements-metrics-phase1/design.md`: how it
+    was built, the alternatives considered, and the additions made during implementation
+  - `ChenWeb/openspec/changes/archive/2026-10-07-requirements-metrics-phase1/tasks.md`:
+    implementation log, including what was verified in the browser and what was not
+  - Specs (the contract): `ChenWeb/openspec/specs/metric-statement-kind/spec.md`,
+    `ChenWeb/openspec/specs/metric-provision-link/spec.md`, and the evidence-retirement
+    requirement in `ChenWeb/openspec/specs/metric-supporting-evidence-cardinality/spec.md`.
+    **If behavior changes, update the spec, not only this doc.** This doc explains the feature
+    for people. The spec is the contract for agents.
 - Background: devdoc `2026100601-devdoc-gold-metrics-416-review.md` and benchmark report
   `.agents/skills/extract-metrics-benchmark/analysis-reports/20261006-1311-metric-extraction-analysis-report.md`.
 
