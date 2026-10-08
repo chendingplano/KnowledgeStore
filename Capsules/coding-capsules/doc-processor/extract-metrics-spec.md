@@ -275,7 +275,7 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 |---|---|---|---|
 | `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
-| `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9) | `activity_schedule` |
+| `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule` or `no_named_quantity` |
 
 The `llm_tag` rows are deduplicated with `dedupeFinalMetricRows` (overlapping chunks), like live
 rows. Steps after dedup, inside `enrichMetricCandidates` (shared by the sequential and
@@ -302,20 +302,34 @@ does not exempt a row (收运频次 can carry 次/日).
   `server/api/decisionmodel` (shared with the Decision Model Playground). Must return logprobs:
   no reasoning models.
 - Policy: current version of decision policy `metric_open_value_kind` (`shared.decision_policies`),
-  seeded from `prompts/prompt-metric-open-value-policy-v1.md` when missing. Revise it as a new
-  version in the Playground, not in code.
+  seeded from `prompts/prompt-metric-open-value-policy-v2.md` when missing (v2 is current since
+  2026-10-08; v1 listed clause 8.2.2 of record 416 as an `object_quantity` example, wrongly).
+  Revise it as a new version in the Playground, not in code.
 - Request: one per row, state `{"policy", "row": {metric_name, subject, threshold_or_target,
-  desc, context}}`, one `choice` question with `object_quantity`, `activity_schedule`,
-  `not_a_quantity`. Usage events: `PromptName = metric_open_value_kind`, `CallReason =
-  extract_metrics`.
-- Only `activity_schedule` at p ≥ the threshold drops. `not_a_quantity` is recorded, never
-  dropped: on 2026-10-08 it wrongly took real quantities (GHG emission reductions, 零位误差).
-- Every judged row records `{model, profile, policy_id, policy_version, choice, choice_meaning,
-  probabilities, examined, outcome, reason, reason_text, threshold, statement_kind, judged_at}`
+  desc, context}}`, three questions: `kind` (`choice`: `object_quantity`, `activity_schedule`,
+  `not_a_quantity`), `named` (`noul`: does the source clause itself name the row's quantity?) and
+  `provision_only` (`noul`: does the clause only require providing something, naming no quantity
+  of it?). The `named` and `provision_only` wording is in
+  `prompts/prompt-metric-open-value-q-named-v1.md` and `...-q-provision-v1.md`; moving it into the
+  policy made the answers worse. Usage events: `PromptName = metric_open_value_kind`,
+  `CallReason = extract_metrics`.
+- Drops: `activity_schedule` with p ≥ the threshold; or `no_named_quantity`: P(named) ≤
+  1 − threshold and P(provision_only) ≥ `METRIC_DECISION_PROVISION_MIN_P` (default 0.1). The
+  second catches X7 rows such as 416's "配备数量" (应根据…要求，配备相应的设备和作业人员: the clause
+  names no number of equipment or staff). Neither question alone is safe: `named` is low for real
+  quantities whose `context` is only a table heading (641/642 design dimensions), and
+  `provision_only` misses some provision clauses; the veto keeps the first kind
+  (`reason = no_named_quantity_vetoed`). Margins on the 2026-10-08 evaluation (55 rows): real
+  metrics P(provision_only) ≤ 0.06, provision rows ≥ 0.14. `not_a_quantity` is recorded, never
+  dropped: it wrongly took real quantities (GHG emission reductions, 零位误差).
+- Every judged row records `{model, profile, policy_id, policy_version, questions, choice,
+  choice_meaning, probabilities, named, provision_only, examined, outcome, reason, reason_text,
+  threshold, provision_min_p, statement_kind, judged_at}`
   (plus `error`): in `kb.metrics_dropped.decision`, or in `kb.metrics.ext_info.open_value_decision`
   for kept rows. A row with `ext_info.open_value_decision` was examined; `outcome` is `kept` or
-  `dropped` and `reason` says why: `activity_schedule_confident` (dropped), `object_quantity`,
-  `not_a_quantity_not_droppable`, `activity_schedule_below_threshold`, `decision_error`, or
+  `dropped` and `reason` says why: `activity_schedule_confident` or `no_named_quantity_confident`
+  (dropped), `object_quantity`, `no_named_quantity_vetoed`, `not_a_quantity_not_droppable`,
+  `activity_schedule_below_threshold`, `decision_error`, or
   `decision_model_not_configured` (`examined = false`). Rows saved before this field set
   (2026-10-08 09:00 run) carry only model, policy, choice and probabilities.
 - A failure never drops a row and never fails the run: unset model, missing policy or a failed
