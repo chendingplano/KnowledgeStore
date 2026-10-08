@@ -3,8 +3,14 @@ A metric is a quantitative, measurable item used to evaluate, compare, monitor, 
 A requirement with nothing to measure is not a metric (ADR 2026100603 DR1). "The bin shall have a
 lid" (an inspection requirement) and "shall comply with CJJ 52" (a requirement delegated to
 another document) are requirements; `extract_metrics` does not store them (see 3.3.1 and 3.4.2).
-A requirement that names a measurable property is still extracted: with its criterion ("总砷 ≤
-15 mg/kg") or with its value left open ("设备应标明比能耗").
+A requirement that names a measurable property is extracted with its criterion ("总砷 ≤
+15 mg/kg").
+
+**A metric has at least a value** (user decision, 2026-10-09). A row that states no value is not
+stored as a metric, whatever it names: a quantity whose value is left open ("设备应标明比能耗"), a
+definition, a formula ("标准排热量 = (主测法 + 校核方法) / 2") or a quantity listed to be recorded. It
+is set aside to `kb.metrics_dropped` with reason `no_value` (3.4.2). This replaces the earlier
+treatment of value-open quantities as metrics (gold rule A4), which the gold rules still have.
 
 This processor uses a multi-pass extraction strategy.
 
@@ -103,6 +109,9 @@ Pass 1 rules:
   (samples, replicates, blank controls), and check every normal line of the chunk, not only
   its tables (since candidates prompt v12); since v13 (2026-10-08) a count is evidence of a
   metric only through what it counts (3.3.1)
+- do not extract a definition: a statement that only says what a term, quantity or symbol means,
+  wherever it appears (a definitions clause, a symbol list, a "式中" explanation, a note or running
+  text), unless it comes with its own criterion (since candidates v14, 3.3.1)
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -123,7 +132,7 @@ Still extracted:
 
 - a requirement with a numeric criterion (`lower_bound`, `upper_bound`, `exact`, `range`)
 - a requirement that names a measurable quantity but leaves its value open or to be declared
-  (`limit_absent`)
+  (`limit_absent`): still extracted by the prompts, but set aside as `no_value` (3.4.2)
 - a clause that states its own number and cites a document only for the test method
 - a numeric value quoted from a cited document (`value_class = reference`)
 
@@ -133,6 +142,8 @@ pure requirement: a value to be declared ("设备应明确比能耗、发酵周�
 factor or by design ("应根据垃圾日处理量合理设置单室体积"), or agreed between parties for a
 property of the object or process. Enrich v8 dropped these as obligations; record 416 lost
 比能耗, 发酵周期 and 单室体积 that way (score run 1). This matches gold rules ≥ 5.0.0, rule A4.
+**Superseded 2026-10-09:** such rows have no value, so the deterministic `no_value` stage (3.4.2)
+sets them aside; the prompts still produce them so the full row reaches `kb.metrics_dropped`.
 
 Also not extracted (since v12 / v9), matching gold rules X2, X5, X13 and D1: a named property
 whose value comes only from a cited document ("粪大肠菌群数应达到 NY 884"); a pointer to a
@@ -151,6 +162,18 @@ be named by the clause itself: "应根据…配备相应的设备和作业人员
 配备数量 rows); Pass 2 reason `no_named_quantity`. Both reasons are drop-reason tags (3.4.2). On
 2026-10-08 Pass 1 v13 still emitted the 753 method count in 5/5 isolated runs; the drop is made
 by Pass 2.
+
+**Definitions** (candidates v14 / enrich v11, 2026-10-09). A statement that only says what a term,
+quantity or symbol means is not a metric, wherever it appears: a definitions clause ("3.7 量热计压力：
+量热容器的二次流体侧压力", record 753 stored nine such rows), a symbol or abbreviation list, a "式中"
+explanation under a formula, a note or running text. It states no value, limit or criterion, even
+when the term is a measurable quantity with a unit; the quantity is a candidate where the document
+sets or asks for its value. A definition with its own criterion ("含水率是指…，应不大于 30%") is
+still a candidate for that criterion, and a number inside a definition (高滑移: 冷凝温度为 40 °C 时滑移温度
+超过 3 K) is kept (experts disagree; the user chose to keep such rows). Pass 2 reason
+`term_definition`. The Pass 1 rule "general concepts without measurable form" did not cover these:
+a defined pressure has a measurable form. The rule was first written for the terms-and-definitions
+clause only; it describes the statement, not its location, because definitions appear anywhere.
 
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
@@ -282,12 +305,13 @@ Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` i
 Since 2026-10-08 (openspec change `metric-row-soft-drop-decision-model`, specs
 `metric-row-soft-drop` and `metric-open-value-decision`) no row is discarded. A row the pipeline
 sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every reader of
-`kb.metrics` sees live rows only. Three stages set rows aside, in this order:
+`kb.metrics` sees live rows only. Four stages set rows aside, in this order:
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
-| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
+| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
+| `no_value` | after that, `excludeRowsWithoutValue` (`metric_soft_drop.go`) | `metric_value` empty or a placeholder (`-`, `—`, `/`, `N/A`, `无`), whatever the row's class, tags or formula | `no_value` |
 | `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` or `not_a_quantity` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule`, `not_a_quantity` or `no_named_quantity` |
 
 The `llm_tag` rows are deduplicated with `dedupeFinalMetricRows` (overlapping chunks), like live
@@ -297,9 +321,12 @@ chunk-batch save paths, for `force_clear` true and false):
 1. canonicalize `value_range_type` (`canonicalizeMetricValueRangeTypes`)
 2. classify each row with `metricStatementKind`
    (`server/api/doc-processing/metric_statement_kind.go`) and set aside pure requirements
-3. judge the remaining `requirement_value_open` rows (below) and set aside confident activity
-   schedules
-4. at save time, live rows get `metric_id`s and set-aside rows get `drop_id`s; one
+3. set aside every row without a value (`no_value`). A formula without a value is a definition,
+   not a metric (753_mtc_6), so formulas are not exempt
+4. judge the remaining `requirement_value_open` rows (below). Since step 3 these rows have no
+   value and are already set aside, so the decision model receives no rows; it is kept,
+   configured, for a later decision
+5. at save time, live rows get `metric_id`s and set-aside rows get `drop_id`s; one
    `drop_metric_rows` log entry lists the set-aside rows (3.7)
 
 **Open-value decision** (`server/api/doc-processing/metric_open_value_decision.go`). A requirement
@@ -673,8 +700,11 @@ openspec change `requirements-metrics-phase1`).
 - Merge and deduplicate candidates deterministically.
 - Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
-- Set aside pure requirements (inspection and delegated), then judge open-value requirements with
-  the decision model and set aside confident activity schedules (3.4.2).
+- Set aside pure requirements (inspection and delegated), then every row without a value
+  (`no_value`), then judge any remaining open-value requirement with the decision model (3.4.2).
+  The value check runs after Pass 2, not on Pass 1's `value_hint`: on 416 and 753 an empty hint
+  never got a value in Pass 2 (0 of 140), so a pre-filter would save about 40% of enrich calls,
+  but the rows set aside would be incomplete. Kept as is (user decision, 2026-10-09).
 - Save final metrics to `kb.metrics` and set-aside rows to `kb.metrics_dropped`; log the
   set-aside rows (`drop_metric_rows`).
 - After each successful save/upsert step, write one `kb.doc_proc_logs` row with `activity = 'extract_metrics_final'`.
