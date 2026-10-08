@@ -101,7 +101,8 @@ Pass 1 rules:
   whose criteria live only in a cited document (e.g. "应按照 CJJ 27 的要求配置…") (see 3.3.1)
 - emit one candidate per stated quantity, including plain counts in dense test-method clauses
   (samples, replicates, blank controls), and check every normal line of the chunk, not only
-  its tables (since candidates prompt v12)
+  its tables (since candidates prompt v12); since v13 (2026-10-08) a count is evidence of a
+  metric only through what it counts (3.3.1)
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -140,6 +141,17 @@ clause applies to ("容积在50立方米以下的户用沼气池应符合 NY/T 9
 of an activity; the operands of a formula the document gives; and a practice, method, record
 or feature, which is never `limit_absent`.
 
+**Counts and named quantities** (candidates v13 / enrich v10, 2026-10-08). A count is a metric
+only when it counts what the test is performed on or observes, or the parts the object consists
+of (samples, specimens, replicates, measuring points, sensors, sets of readings, components). A
+count of the document's own parts (methods, procedures, steps, modes, definitions, terms,
+concepts, categories, clauses) is not: record 753 stored 753_mtc_4 "试验方法数量 = 2 种" from
+"应使用两种试验方法测量排热量". Pass 2 drops it with reason `procedure_count`. An open value must also
+be named by the clause itself: "应根据…配备相应的设备和作业人员" names no quantity (gold X7, 416's
+配备数量 rows); Pass 2 reason `no_named_quantity`. Both reasons are drop-reason tags (3.4.2). On
+2026-10-08 Pass 1 v13 still emitted the 753 method count in 5/5 isolated runs; the drop is made
+by Pass 2.
+
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
 clause gives different meanings to ranges of one value ("发芽指数小于100%…大于100%…"), each
@@ -163,7 +175,8 @@ Pass 2 batching:
 - Since enrich prompt v9, every row carries its `candidate_id`, and each candidate that yields
   no row is listed in `dropped_candidates` (`{"candidate_id", "reason"}`, reasons such as
   `delegated_requirement`, `own_table_pointer`, `applicability_scope`, `activity_schedule`,
-  `formula_operand`). A candidate that is neither is logged as a warning (3.7)
+  `formula_operand`, and since enrich v10 `procedure_count` and `no_named_quantity`). A candidate
+  that is neither is logged as a warning (3.7)
 
 Pass 2 uses:
 
@@ -273,7 +286,7 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
-| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
+| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
 | `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` or `not_a_quantity` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule`, `not_a_quantity` or `no_named_quantity` |
 

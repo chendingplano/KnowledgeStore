@@ -108,7 +108,7 @@ Per chunk, the processor:
 
 Prompt/model:
 
-- prompt: `prompt-extract-metric-candidates-v12.md` (default)
+- prompt: `prompt-extract-metric-candidates-v13.md` (default)
 - env: `EXTRACT_METRIC_CANDIDATES_PROMPT`
 - model env: `EXTRACT_METRIC_CANDIDATES_MODEL_NAME`
 
@@ -139,7 +139,7 @@ A failed batch does not discard the others: successful batches are returned with
 
 Prompt/model:
 
-- prompt: `prompt-enrich-metrics-v9.md` (default)
+- prompt: `prompt-enrich-metrics-v10.md` (default)
 - env: `ENRICH_METRICS_PROMPT`
 - fallback compatibility env: `EXTRACT_METRICS_PROMPT`
 - model env: `ENRICH_METRICS_MODEL_NAME`
@@ -285,7 +285,7 @@ This is important for debugging providers that return:
 Candidate prompt loading:
 
 - env: `EXTRACT_METRIC_CANDIDATES_PROMPT`
-- default: `prompt-extract-metric-candidates-v12.md`
+- default: `prompt-extract-metric-candidates-v13.md`
 
 Enrichment prompt loading:
 
@@ -293,7 +293,7 @@ Enrichment prompt loading:
   - `ENRICH_METRICS_PROMPT`
   - `EXTRACT_METRICS_PROMPT`
   - `PROMPT_FILE_NAME`
-- default: `prompt-enrich-metrics-v9.md`
+- default: `prompt-enrich-metrics-v10.md`
 
 Prompt search is delegated to the shared `loadProductPromptFromEnvKeys(...)` helper. Prompt
 paths resolve relative to the process's working directory.
