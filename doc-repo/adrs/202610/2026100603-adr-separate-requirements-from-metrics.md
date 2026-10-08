@@ -33,6 +33,14 @@ report `20261006-1311` (record 416, rules 2.0.0) \
   drops any `inspection_requirement` or `delegated_requirement` row before saving, logging each one
   to `kb.doc_proc_logs` (activity `exclude_pure_requirements`). Numeric criteria and value-open
   requirements stay. Updated DR4.
+* 2026/10/08, Dropped rows are kept, not discarded (openspec change
+  `metric-row-soft-drop-decision-model`, user decision): every row `extract_metrics` sets aside,
+  including the pure requirements of DR4, is saved to the new table `kb.metrics_dropped`
+  (`drop_stage`, `drop_reason`, full row as JSONB) and logged as one `drop_metric_rows` entry,
+  which replaces `exclude_pure_requirements`. `kb.metrics` still holds only live rows. Two pages
+  show dropped rows: Knowledge System → Metrics and the metrics Benchmark. The same change adds a
+  decision-model check (`jev_emulated`, policy `metric_open_value_kind`) that sets aside
+  value-open requirements which are only an activity's agreed time or frequency (gold rule X2).
 
 ## Context
 

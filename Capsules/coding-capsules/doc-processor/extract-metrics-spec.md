@@ -115,8 +115,8 @@ requirement with no measurable property. Two shapes are excluded:
 | `delegated_requirement` | "应按照 CJJ 27 和 GB 16889 的要求配置…设施", "shall comply with CJJ 52" |
 
 These belong to `kb.provisions` (ADR 2026100603 DR2/DR3). Until `extract_provisions` runs
-reliably on every document, an excluded requirement is recorded only in the
-`exclude_pure_requirements` log (3.7).
+reliably on every document, an excluded requirement is kept only in `kb.metrics_dropped`
+(`drop_stage = statement_kind`) and the `drop_metric_rows` log (3.4.2, 3.7).
 
 Still extracted:
 
@@ -264,33 +264,60 @@ Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` i
 - `metric_id` identifies the persisted row in `kb.metrics`
 - `candidate_id` links the pre-persistence candidate logs to the persisted/final metric logs
 
-#### 3.4.2 Pure-Requirement Filter
+#### 3.4.2 Dropped Rows (Soft Drop) and the Open-Value Decision
 
-**Per batch, before dedup** (`dropRowsTaggedWithDropReason`): the LLM sometimes emits a row it
-should have dropped and tags it with the drop reason instead. Rows whose `reasoning_tags` hold
-`applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`,
-`obligation_no_property`, `inspection_requirement`, `delegated_requirement` or
-`qualitative_requirement` are removed and each is logged at Info level.
+Since 2026-10-08 (openspec change `metric-row-soft-drop-decision-model`, specs
+`metric-row-soft-drop` and `metric-open-value-decision`) no row is discarded. A row the pipeline
+sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every reader of
+`kb.metrics` sees live rows only. Three stages set rows aside, in this order:
 
-The same step removes an untagged **agreed activity schedule** (`isAgreedActivitySchedule`, gold
-rule X2): a `requirement`/`target` row with no numeric range type, no value and no unit, whose
-name is a time or frequency (时间, 频次, 频率, 次数, 时段, time, frequency, schedule) and whose
-`threshold_or_target` or `desc` says the value is agreed or announced (约定, 商定, 协商, 协定,
-公告, 公示, agree, negotiate, announce). Record 416 stored "收运单位应与集中供餐单位约定餐厨垃圾收运的
-时间和频次" as `416_mtc_3` (requirement + `limit_absent`, no tag) although both prompts name it as
-an exclusion. A property agreed for an object ("抗压强度由供需双方商定", A4) is kept, because its name
-is not a time or frequency.
+| Stage (`drop_stage`) | Where | Rows | `drop_reason` |
+|---|---|---|---|
+| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
+| `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
+| `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9) | `activity_schedule` |
 
-**After dedup:**
+The `llm_tag` rows are deduplicated with `dedupeFinalMetricRows` (overlapping chunks), like live
+rows. Steps after dedup, inside `enrichMetricCandidates` (shared by the sequential and
+chunk-batch save paths, for `force_clear` true and false):
 
-After dedup, still inside `enrichMetricCandidates` (shared by the sequential and chunk-batch save
-paths, for `force_clear` true and false), the processor:
+1. canonicalize `value_range_type` (`canonicalizeMetricValueRangeTypes`)
+2. classify each row with `metricStatementKind`
+   (`server/api/doc-processing/metric_statement_kind.go`) and set aside pure requirements
+3. judge the remaining `requirement_value_open` rows (below) and set aside confident activity
+   schedules
+4. at save time, live rows get `metric_id`s and set-aside rows get `drop_id`s; one
+   `drop_metric_rows` log entry lists the set-aside rows (3.7)
 
-1. canonicalizes `value_range_type` (`canonicalizeMetricValueRangeTypes`)
-2. classifies each row with `metricStatementKind`
-   (`server/api/doc-processing/metric_statement_kind.go`)
-3. drops rows of kind `inspection_requirement` or `delegated_requirement`
-4. if any row was dropped, writes one `exclude_pure_requirements` log entry (3.7)
+**Open-value decision** (`server/api/doc-processing/metric_open_value_decision.go`). A requirement
+whose value is left open is either a quantity of an object (gold rule A4, e.g. 比能耗 由设备明确,
+抗压强度由供需双方商定: a metric) or the time, frequency or method of an activity that parties must
+agree or announce (X2, e.g. 收运单位应与集中供餐单位约定餐厨垃圾收运的时间和频次: not a metric). No
+word list can tell them apart across domains, so a decision model judges it. Only rows of kind
+`requirement_value_open` are judged; every other kind is decided deterministically, and a unit
+does not exempt a row (收运频次 can carry 次/日).
+
+- Model: the `.models.toml` profile named by `METRIC_DECISION_MODEL`, run through
+  `jev_emulated` (an `llm` profile) or `jev_compatible` (a `decision-model` profile) by
+  `server/api/decisionmodel` (shared with the Decision Model Playground). Must return logprobs:
+  no reasoning models.
+- Policy: current version of decision policy `metric_open_value_kind` (`shared.decision_policies`),
+  seeded from `prompts/prompt-metric-open-value-policy-v1.md` when missing. Revise it as a new
+  version in the Playground, not in code.
+- Request: one per row, state `{"policy", "row": {metric_name, subject, threshold_or_target,
+  desc, context}}`, one `choice` question with `object_quantity`, `activity_schedule`,
+  `not_a_quantity`. Usage events: `PromptName = metric_open_value_kind`, `CallReason =
+  extract_metrics`.
+- Only `activity_schedule` at p ≥ the threshold drops. `not_a_quantity` is recorded, never
+  dropped: on 2026-10-08 it wrongly took real quantities (GHG emission reductions, 零位误差).
+- Every judged row records `{model, profile, policy_id, policy_version, choice, probabilities}`
+  (or `error`): in `kb.metrics_dropped.decision`, or in `kb.metrics.ext_info.open_value_decision`
+  for kept rows.
+- A failure never drops a row and never fails the run: unset model, missing policy or a failed
+  call keeps the row, records the error and logs a warning.
+
+The word-list check `isAgreedActivitySchedule` (commit `pxwp`, 2026-10-08) was removed by this
+change.
 
 The classification rules are those of spec `metric-statement-kind`, applied in this order after
 trimming and lower-casing (numeric = `lower_bound`, `upper_bound`, `exact`, `range`):
@@ -306,9 +333,19 @@ The same rules exist in `web/src/lib/metric-statement-kind.ts` (display labels) 
 `extract-metrics-benchmark` helper `benchmark_io.py` (gold `kind:` tags). Change all three
 together.
 
-The filter runs before `metric_id`s are assigned, so the saved rows are numbered without gaps.
-It does not delete rows already stored: a merge-mode run (`force_clear=false`) leaves earlier
-pure-requirement rows in place.
+Set-aside rows get no `metric_id`, so live rows are numbered without gaps. They are numbered
+`<record_id>_drp_<seqno>`, continuing after the record's highest drop id (merge mode appends);
+`DeleteMetricsByInputRecordID` (force_clear) deletes the record's `kb.metrics_dropped` rows too,
+so drop ids restart at 1. A merge-mode run leaves earlier live and dropped rows in place, and
+records extracted before 2026-10-07 keep their pure-requirement rows until re-extracted.
+
+`kb.metrics_dropped` columns: `id`, `input_record_id`, `drop_id`, `candidate_id`, `drop_stage`,
+`drop_reason`, `decision` (JSONB), `row_data` (JSONB, the full enriched row; JSONB so the table
+does not drift when `kb.metrics` gains columns), `event_id`, `created_at`. Only two pages read it:
+Knowledge System → Metrics (`GET /kb/metrics?include_dropped=true`, rows marked `dropped`, with
+`metric_id = drop_id` and a negative `id`) and System Admin → LLM → Metrics → Benchmark (through
+the `score-extract-metrics` evidence: `extraction.dropped_rows` and the report's "Dropped rows"
+section, which flags a drop on the lines of a missed gold row). Dropped rows are never scored.
 
 ### 3.5 Indexing
 
@@ -559,15 +596,17 @@ The processor should log:
 - enrichment-pass start
 - enrichment results
 - final dedup results
-- pure requirements dropped by the filter (3.4.2): one `kb.doc_proc_logs` row per run that drops
-  at least one row, with `doc_proc_name = 'extract_metrics'` and
-  `activity = 'exclude_pure_requirements'`. `extra_info` holds `num_excluded` and `by_kind` (count
-  per kind). The artifact's `excluded` array lists each dropped row's `kind`, `metric_name`,
-  `subject`, `threshold_or_target`, `context` and `source_line_spans`. No row is written when
-  nothing is dropped
+- rows set aside (3.4.2): one `kb.doc_proc_logs` row per run that sets aside at least one row,
+  with `doc_proc_name = 'extract_metrics'` and `activity = 'drop_metric_rows'`. `extra_info`
+  holds `num_dropped`, `by_stage` and `by_reason`. The artifact's `dropped` array lists each row's
+  `drop_id`, `candidate_id`, `drop_stage`, `drop_reason`, `kind`, `metric_name`, `subject`,
+  `threshold_or_target`, `context`, `source_line_spans` and `decision`. No row is written when
+  nothing is set aside. Runs before 2026-10-08 wrote `exclude_pure_requirements` instead
+  (`excluded` array, pure requirements only)
+- open-value decision failures (Warn, with record and candidate ids); an unconfigured decision
+  model is warned once per run
 - per enrich batch (Info/Warn logger, not `kb.doc_proc_logs`): candidates that are neither
-  enriched nor listed in `dropped_candidates`, and rows removed for carrying a drop-reason tag
-  or for being an agreed activity schedule
+  enriched nor listed in `dropped_candidates`, and rows set aside for carrying a drop-reason tag
   (3.4.2). The `dropped_candidates` reasons themselves are in each `enrich_metrics` log's artifact
 - metrics indexing start/result, including connected artifact counts and category-path counts
 - metrics indexing errors, including empty `metric_categories`, empty `chunks`, empty `semantic_projects`, or no matching category paths
@@ -600,8 +639,10 @@ openspec change `requirements-metrics-phase1`).
 - Merge and deduplicate candidates deterministically.
 - Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
 - Deduplicate final metric rows.
-- Drop pure requirements (inspection and delegated) and log them (3.4.2).
-- Save final metrics to `kb.metrics`.
+- Set aside pure requirements (inspection and delegated), then judge open-value requirements with
+  the decision model and set aside confident activity schedules (3.4.2).
+- Save final metrics to `kb.metrics` and set-aside rows to `kb.metrics_dropped`; log the
+  set-aside rows (`drop_metric_rows`).
 - After each successful save/upsert step, write one `kb.doc_proc_logs` row with `activity = 'extract_metrics_final'`.
 - The `extract_metrics_final` artifact must contain the exact metric rows being saved in that write operation, and every row in that artifact must include `candidate_id`.
 - Write `.metrics` artifact output.
@@ -709,7 +750,7 @@ it yet. It stays `NULL` until the deferred `extract_provisions` linking work lan
 Customer-facing views label each row's statement kind (requirement, metric, test parameter,
 definition) at read time from `value_class`, `value_range_type`, `formula_or_definition` and
 `reasoning_tags` (`web/src/lib/metric-statement-kind.ts`). Nothing about the kind is stored.
-New extractions contain no `inspection_requirement` or `delegated_requirement` rows (3.4.2).
+New extractions contain no `inspection_requirement` or `delegated_requirement` rows in `kb.metrics`; they are in `kb.metrics_dropped` (3.4.2).
 Older records may, until they are re-extracted.
 
 ### 5.1.1 Read Payload and Metric Detail UI

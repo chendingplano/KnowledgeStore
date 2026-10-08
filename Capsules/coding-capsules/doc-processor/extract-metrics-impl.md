@@ -2,7 +2,8 @@
 
 Date: 2026-05-21 (updated 2026-06-05: Phase C indexing — connected_artifacts,
 category_instance, category-path metrics.txt, hybrid_search links; updated 2026-10-07: chunk
-input, chunk-batch path, grouped enrichment, pure-requirement filter, prompt defaults v11/v8)
+input, chunk-batch path, grouped enrichment, pure-requirement filter, prompt defaults v11/v8;
+updated 2026-10-08: soft drop to kb.metrics_dropped, open-value decision model)
 
 ## Scope
 
@@ -17,6 +18,14 @@ Primary implementation files:
 - `ChenWeb/server/api/doc-processing/metric_statement_kind.go` (statement-kind classifier used by
   the pure-requirement filter) and `metric_statement_kind_test.go`
 - `ChenWeb/server/api/doc-processing/extract_metrics_pure_requirements_test.go`
+- `ChenWeb/server/api/doc-processing/metric_soft_drop.go` (`droppedMetricRow`,
+  `DroppedMetricsStore`, `drop_metric_rows` log) and `metric_soft_drop_test.go`
+- `ChenWeb/server/api/doc-processing/metric_open_value_decision.go` (`openValueJudge`,
+  `judgeOpenValueRows`, `decisionModelJudge`) and `metric_open_value_decision_test.go`
+- `ChenWeb/server/api/decisionmodel/provider.go` (`.models.toml` profile → decision client config,
+  shared with the Decision Model Playground)
+- `ChenWeb/server/api/kbhandler/metrics_dropped.go` (`include_dropped` on `GET /kb/metrics`)
+- `ChenWeb/project_migrations/20261008000001_create_kb_metrics_dropped.sql`
 - `ChenWeb/server/api/doc-processing/chunk_batch.go`, `chunk_batch_coordinator.go`
   (`ChunkBatchProcessor` path)
 - `ChenWeb/server/api/doc-processing/metric_indexing.go` (Phase C indexing: connected_artifacts, category_instance, metrics.txt, hybrid links)
@@ -148,23 +157,41 @@ After enrichment:
 - `dedupeFinalMetricRows(...)` merges accidental duplicates
 - dedup key uses metric name, subject, unit, value, and normalized source spans
 
-### Pure-Requirement Filter
+### Set-Aside Rows (Soft Drop)
 
-Still inside `enrichMetricCandidates`, after dedup (spec section 3.4.2; openspec change
-`exclude-pure-requirements-from-metrics`):
+Spec section 3.4.2; openspec change `metric-row-soft-drop-decision-model` (it replaced the
+discard of `exclude-pure-requirements-from-metrics`). `enrichMetricCandidates` returns
+`(metrics, uncertain, dropped []droppedMetricRow, err)`:
 
-1. `canonicalizeMetricValueRangeTypes(metrics)`
-2. `excludePureRequirements(metrics)` classifies each row with `metricStatementKind` and splits
-   off rows of kind `inspection_requirement` or `delegated_requirement`
-3. `logExcludedPureRequirements(...)` writes one `extract_metrics` `kb.doc_proc_logs` row
-   (`activity_name = 'exclude_pure_requirements'`, `extra_info` `num_excluded` + `by_kind`,
-   artifact `excluded[]` with kind, metric_name, subject, threshold_or_target, context,
-   source_line_spans) and an info log `excluded pure requirements from metrics`, only when at
-   least one row was dropped
+1. per batch, `dropRowsTaggedWithDropReason` splits off rows with a drop-reason tag
+   (`metricDropReasonTag`); after all batches they are deduplicated and become `llm_tag` rows
+2. `canonicalizeMetricValueRangeTypes(metrics)`
+3. `excludePureRequirements(metrics)` splits off kinds `inspection_requirement` /
+   `delegated_requirement` as `statement_kind` rows
+4. `p.judgeOpenValueRows(...)` sends `requirement_value_open` rows to `p.OpenValueJudge` and
+   splits off `activity_schedule` at p ≥ `p.OpenValueDropMinP` as `decision_model` rows; every
+   judged kept row gets `ext_info.open_value_decision` (which `SaveMetrics` now keeps)
 
-Because both save paths call `enrichMetricCandidates`, the filter applies to the sequential and
-chunk-batch paths and to `force_clear` true and false. It runs before `metric_id` assignment.
-It never deletes stored rows.
+`metricExtractionResult.Dropped` carries them to `HandleEvent`; `FinalizeChunkBatch` gets them
+directly. Both call `p.saveDroppedMetricRows` after the live save (force_clear and merge paths):
+it calls `DroppedMetricsStore.SaveDroppedMetrics` when the store implements it
+(`MetricsSQLStore`, via `ResolvingMetricsStore`), which numbers rows after the record's highest
+`drop_id` in one transaction, then writes the `drop_metric_rows` log. A failed save is logged,
+not returned. `MetricsSQLStore.DeleteMetricsByInputRecordID` also deletes the record's
+`kb.metrics_dropped` rows.
+
+### Open-Value Decision
+
+`NewMetricsProcessor` builds `p.OpenValueJudge` with `newOpenValueJudgeFromEnv`:
+`METRIC_DECISION_MODEL` names a profile in the models file (`MODEL_DEF_FILE` / `MODELS_FILE` /
+nearest `.models.toml`); `decisionmodel.ProviderConfig` maps it (DeepSeek: `thinking=disabled`,
+`temperature=1`; DashScope: `top_logprobs=5`); the policy store is
+`decisionpolicy.NewStore(ApiTypes.SharedDBHandle, …)`. Unset model → `OpenValueJudge` is nil and
+open-value rows are kept with `open_value_decision.error`. `METRIC_DECISION_DROP_MIN_P` sets the
+threshold (default 0.9). The policy seed prompt is `prompts/prompt-metric-open-value-policy-v1.md`
+(override with `METRIC_OPEN_VALUE_POLICY_PROMPT`); it is used only when policy
+`metric_open_value_kind` does not exist. `decisionModelJudge` loads the current policy once per
+record and sends up to 8 rows in parallel.
 
 `metricStatementKind` mirrors `web/src/lib/metric-statement-kind.ts` and the benchmark helper
 `benchmark_io.py`; `metric_statement_kind_test.go` reuses the TS test's scenarios and the 69

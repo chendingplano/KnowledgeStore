@@ -111,9 +111,12 @@ interface. Phase 1 is the part that could be done without changing how documents
 - **Some requirements still live in the metrics table.** Phase 1 changes what people see, not
   where things are stored. Since 2026-10-07 (openspec change
   `exclude-pure-requirements-from-metrics`), new extractions no longer store *inspection* or
-  *delegated* requirements as metrics. Those rows are dropped and logged to `kb.doc_proc_logs`
-  (activity `exclude_pure_requirements`). Requirements with a measurable criterion or an open
-  value are still stored and labelled here. Records extracted earlier keep their old rows until
+  *delegated* requirements as metrics. Since 2026-10-08 (openspec change
+  `metric-row-soft-drop-decision-model`) those rows are kept in `kb.metrics_dropped` and logged
+  to `kb.doc_proc_logs` (activity `drop_metric_rows`; earlier runs logged
+  `exclude_pure_requirements`). Knowledge System → Metrics can show them on request. Requirements
+  with a measurable criterion or an open value are still stored and labelled here, except an open
+  value that the decision model judges to be only an activity's agreed time or frequency. Records extracted earlier keep their old rows until
   they are re-extracted with force-clear. `provision_id` stays empty until Phase 2.
 - **No server-side filtering or counting by kind.** The classification runs in the browser. Admin
   views other than the metric detail panel are unchanged.
