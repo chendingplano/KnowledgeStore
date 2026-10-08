@@ -275,7 +275,7 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 |---|---|---|---|
 | `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
-| `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule` or `no_named_quantity` |
+| `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` or `not_a_quantity` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule`, `not_a_quantity` or `no_named_quantity` |
 
 The `llm_tag` rows are deduplicated with `dedupeFinalMetricRows` (overlapping chunks), like live
 rows. Steps after dedup, inside `enrichMetricCandidates` (shared by the sequential and
@@ -313,23 +313,25 @@ does not exempt a row (收运频次 can carry 次/日).
   `prompts/prompt-metric-open-value-q-named-v1.md` and `...-q-provision-v1.md`; moving it into the
   policy made the answers worse. Usage events: `PromptName = metric_open_value_kind`,
   `CallReason = extract_metrics`.
-- Drops: `activity_schedule` with p ≥ the threshold; or `no_named_quantity`: P(named) ≤
+- Drops: `activity_schedule` or `not_a_quantity` with p ≥ the threshold (`not_a_quantity`, e.g.
+  主体工艺 among 运行技术参数, gold X13); or `no_named_quantity`: P(named) ≤
   1 − threshold and P(provision_only) ≥ `METRIC_DECISION_PROVISION_MIN_P` (default 0.1). The
   second catches X7 rows such as 416's "配备数量" (应根据…要求，配备相应的设备和作业人员: the clause
   names no number of equipment or staff). Neither question alone is safe: `named` is low for real
   quantities whose `context` is only a table heading (641/642 design dimensions), and
   `provision_only` misses some provision clauses; the veto keeps the first kind
   (`reason = no_named_quantity_vetoed`). Margins on the 2026-10-08 evaluation (55 rows): real
-  metrics P(provision_only) ≤ 0.06, provision rows ≥ 0.14. `not_a_quantity` is recorded, never
-  dropped: it wrongly took real quantities (GHG emission reductions, 零位误差).
+  metrics P(provision_only) ≤ 0.06, provision rows ≥ 0.14. `not_a_quantity` was record-only until
+  2026-10-08: its misfires on real quantities (GHG emission reductions, 零位误差) were all on
+  qualitative rows, which are never judged; on judged open-value rows it never took a real metric.
 - Every judged row records `{model, profile, policy_id, policy_version, questions, choice,
   choice_meaning, probabilities, named, provision_only, examined, outcome, reason, reason_text,
   threshold, provision_min_p, statement_kind, judged_at}`
   (plus `error`): in `kb.metrics_dropped.decision`, or in `kb.metrics.ext_info.open_value_decision`
   for kept rows. A row with `ext_info.open_value_decision` was examined; `outcome` is `kept` or
-  `dropped` and `reason` says why: `activity_schedule_confident` or `no_named_quantity_confident`
-  (dropped), `object_quantity`, `no_named_quantity_vetoed`, `not_a_quantity_not_droppable`,
-  `activity_schedule_below_threshold`, `decision_error`, or
+  `dropped` and `reason` says why: `activity_schedule_confident`, `not_a_quantity_confident` or
+  `no_named_quantity_confident` (dropped), `object_quantity`, `no_named_quantity_vetoed`,
+  `activity_schedule_below_threshold`, `not_a_quantity_below_threshold`, `decision_error`, or
   `decision_model_not_configured` (`examined = false`). Rows saved before this field set
   (2026-10-08 09:00 run) carry only model, policy, choice and probabilities.
 - A failure never drops a row and never fails the run: unset model, missing policy or a failed
