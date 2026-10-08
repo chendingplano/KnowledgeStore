@@ -310,9 +310,14 @@ does not exempt a row (收运频次 can carry 次/日).
   extract_metrics`.
 - Only `activity_schedule` at p ≥ the threshold drops. `not_a_quantity` is recorded, never
   dropped: on 2026-10-08 it wrongly took real quantities (GHG emission reductions, 零位误差).
-- Every judged row records `{model, profile, policy_id, policy_version, choice, probabilities}`
-  (or `error`): in `kb.metrics_dropped.decision`, or in `kb.metrics.ext_info.open_value_decision`
-  for kept rows.
+- Every judged row records `{model, profile, policy_id, policy_version, choice, choice_meaning,
+  probabilities, examined, outcome, reason, reason_text, threshold, statement_kind, judged_at}`
+  (plus `error`): in `kb.metrics_dropped.decision`, or in `kb.metrics.ext_info.open_value_decision`
+  for kept rows. A row with `ext_info.open_value_decision` was examined; `outcome` is `kept` or
+  `dropped` and `reason` says why: `activity_schedule_confident` (dropped), `object_quantity`,
+  `not_a_quantity_not_droppable`, `activity_schedule_below_threshold`, `decision_error`, or
+  `decision_model_not_configured` (`examined = false`). Rows saved before this field set
+  (2026-10-08 09:00 run) carry only model, policy, choice and probabilities.
 - A failure never drops a row and never fails the run: unset model, missing policy or a failed
   call keeps the row, records the error and logs a warning.
 
