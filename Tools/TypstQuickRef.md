@@ -97,7 +97,7 @@ Refer to @fig:square.
 Inserts the entire contents of 'section2.typ' at that location. Equivalent to copy-paste at compile time
 You can use '#include' to split a large document into multiple files.
 
-## References
+## Bibliography 
 - Make sure the refereces are in 'KnowledgeStore/references/references.bib'
 - At the end of the file that needs the bib, add a line: `#bibliography("../references/references.bib").
   Note that the relative path is file location dependent. Make sure it is correct

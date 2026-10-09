@@ -19,6 +19,7 @@
   align: left,
   [Date], [Remarks],
   [2026/04/23], [Ontology, file name: Ontology.typ],
+  [2026/10/10], [Ontology, file name: semos-ontology.typ],
 )
 
 #pagebreak()
@@ -31,6 +32,17 @@
   }
   it.body
 }
+
+#let callout(title, body) = block(
+  fill: rgb("#f3f6fa"),                       // light blue-grey background
+  stroke: (left: 3pt + rgb("#4b6b88")),       // accent bar on the left
+  inset: (left: 12pt, right: 10pt, top: 8pt, bottom: 8pt),
+  radius: 3pt,
+)[
+  *#title*
+
+  #body
+]
 
 #set page(
   numbering: "1 of 1",
@@ -110,23 +122,8 @@ instances of Relation Class.
 
 === Rule-004 Relation Hierarchy
 
-= Reviews
-
-== Open-Source: OntoFlow
-
-#a_001 \
-Date: 2026/04/27
-
-== OLOGS: A Categorical Framework for Knowledge Representation
-#let a_002 = link(
-  "https://arxiv.org/pdf/1102.1889"
-)[#text(fill:blue)[URL]]
-
-#a_002 \
-Source: WeChat
-
-=== Concepts
-==== Category
+== Concepts
+=== Category
 
 A category is a mathematical structure that appears much like a directed
 graph: it consists of objects (nodes) and arrows (edges) between them (a graph).
@@ -180,7 +177,7 @@ a food f and a child c such that c ate all of f
 a triple (p, a, j) where p is a paper, a is an author of p, and j is a journal in which p was published
 ```
 
-==== Aspects
+=== Aspects
 An aspect of a thing x is a way of viewing it. Below is a view:
 ```text
 'a woman --is--> 'a person'
@@ -209,18 +206,20 @@ When we say "chunk has metric", it connects a chunk to a metric. From `aspect` p
 this is an invalid aspect because not all chunks have metrics. I am not sure whether `aspect`
 is truly useful.
 
-==== Facts
+=== Facts
 A `Fact` is a derived relation. This is quite counterintuitive. We can declare "Person A is a woman"
 as a fact. But in Olog, we need to list "Person A has-as-parents a pair (w, m) where w is a woman
 and m is a man", then we can declare "Person A has-as-mother is a woman".
 
-== Four Layers of Knowledge Engineering
+== Knowledge Engineering
+=== Four Layers of Knowledge Engineering
 Four layers:
 - Tags: flat, no hierarchy
 - Categories: hierarchical, more organized
 - Ontology: define the semantics
 - Knowledge Graphs: instantiation of ontology, Knowledge Graph = Ontology + Real Instance Data + Semantic Connections
 
+== Reviews
 === Palantir Foundry
 
 Palantir Foundry is an enterprise data operating system designed to integrate disparate data 
@@ -404,6 +403,111 @@ Palantir Foundry Ontology 的核心竞争力不是"大数据平台"，而是在�
 - Link Type: 定义实体间关系（如"订单 — 包含→ 产品"）本体中的"关系"
 - Action Type: 定义可执行的操作（如"审核订单"）从"知道"到"行动"的闭环
 - Functions: 计算和推理引擎（如自动计算交付优先级）本体推理的实现层
+
+=== Open-Source: OntoFlow
+
+#a_001 \
+Date: 2026/04/27
+
+=== OLOGS: A Categorical Framework for Knowledge Representation
+#let a_002 = link(
+  "https://arxiv.org/pdf/1102.1889"
+)[#text(fill:blue)[URL]]
+
+#a_002 \
+Source: WeChat
+
+=== Semantica and OntoFlow
+Link: https://mp.weixin.qq.com/s/xrD3N1rpD4-2YQw3Q4XPxg
+
+*Summary*
+
+Semantica 与 OntoFlow 都在解决“让 AI 不再只面对非结构化文本和向量，而能够
+理解结构化语义、实体关系和业务知识”的问题，但两者的技术重心并不相同。从公
+开源码和架构来看，Semantica 更接近一套开发者优先的知识工程与语义基础设施：
+它围绕数据摄取、文档解析、文本切分、实体和关系抽取、Knowledge Graph、Ontology、
+Reasoning、Provenance、Decision Intelligence 等能力构建完整链路，并通过 
+Graph Store、Vector Store、RDF Triple Store 等适配层连接已有技术体系。
+其官方架构明确采用 Ingest → Parse → Normalize → Split → Extract → 
+Knowledge Graph → Ontology / Reasoning / Provenance / Decisions → Storage 的路线。(GitHub)
+
+OntoFlow 的路线则更接近本体原生的企业应用平台。它并不把本体作为 Knowledge Graph 
+上的一个语义模块，而是把本体进一步扩展为企业对象、状态、计算、派生和行动的统一模型，
+并以 OntoGraph 作为核心数据与计算底座，再通过 OntoOS 和 OntoX 进入运行、推演和应用层。
+因此，两者最核心的差异可以概括为：
+
+#callout(
+  "Semantica",
+  [
+    Semantica 的重点是把企业数据组织成可查询、可推理、
+可追溯的知识。
+])
+
+#callout(
+  "OntoFlow",
+  [
+    OntoFlow 的重点是把企业知识组织成可以持续计算、变化、推演和行动的本体对象。
+])
+
+如果进一步借鉴 Palantir 的路线，这个区别会更加清晰。Palantir 明确将 Ontology 定义为组
+织的 operational layer，在对象、属性、链接之外还包含 actions 和 functions，并直接服务
+于 Object Views、Object Explorer、Quiver、Workshop 等对象原生应用。(Palantir)从这个标
+准来看，OntoFlow 的产品架构实际上与 Palantir 所代表的“Operational Ontology”方向更加接
+近，只是采用了不同的技术实现和产品组织方式。
+
+=== Semantica
+Semantica：以知识图谱为中心组织语义能力Semantica 的架构链路非常完整：
+```text
+
+  Source
+    → Ingest
+    → Parse
+    → Normalize
+    → Split
+    → Semantic Extract
+    → Conflict Detection / Deduplication
+    → Knowledge Graph
+    → Ontology / Reasoning / Provenance / Decisions
+    → Graph Store / Vector Store / RDF Store
+```
+
+官方文档直接把 Knowledge Graph 放在整条流水线的中间，而 Ontology、Reasoning、
+Provenance、Decision Intelligence 则围绕 KG 继续增强。(GitHub) 
+这种架构的最大优点是开放和模块化。例如语义抽取可以直接使用 NERExtractor、
+RelationExtractor、TripletExtractor，支持 pattern、ML、LLM 等不同方式；
+Knowledge Graph 由 GraphBuilder 构建；Ontology 又由 OntologyGenerator 从 KG 
+数据生成，并进一步导出 OWL、Turtle、JSON-LD，SHACL 用于验证。(GitHub)
+对于知识工程团队而言，这个设计非常合理。
+
+=== OntoFlow
+OntoFlow以 Ontology Object 为中心组织整个产品.
+
+OntoFlow 的核心思路不是：
+#callout(
+  "Graph Centric",
+  [
+数据 → KG → Ontology → 再寻找应用
+])
+
+而是：
+#callout(
+  "Ontology Object Centric",
+  [数据 → Ontology → Ontology Object → Runtime → Application. Everything
+  builds around ontology objects. Ontology objects are business objects,
+  directly connect to applications.
+])
+
+这意味着 OntoGraph 不只是“存图”。它承担的是本体世界的底座：
+- 对象、关系、属性、 状态、派生、计算、时序以及更多语义能力，
+  都可以围绕同一套本体对象组织。
+- 本体建模、数据接入、非结构化处理、知识抽取、加工、子图形成和
+  本体应用构建。
+- OntoOS: 对象运行、状态变化、约束、事件、推演、决策和行动。
+- OntoX：把这些对象和运行能力直接变成业务可用的界面。
+
+因此，它不是在已有知识图谱上加一层 Ontology，而是在反过来：让数据库、计算、
+运行时和应用围绕 Ontology 组织。这也是 OntoFlow 所强调的“本体原生”真正有
+意义的地方。
 
 = References
 [1] #a_001

@@ -654,4 +654,83 @@ We may want to try it.
 - Improvement (done by Claude Code): extract_metrics with new rules
 - Improvement (done by Codex): highlight rows in PDF viewer
 - Improvement (done by Codex): extract geometry and save it in a companion file
-- Improvement (by Codex): coordinates using integers only in line files
+- Improvement (done by Codex): coordinates using integers only in line files
+- Improvement (by Claude Code): improve 'extract_metrics' for missing metrics
+- New (done by Claude Code): create 'score-extract-metrics' skill
+- New (done by Codex): the 'System Admin => LLM => Metrics => Benchmark' page
+
+= 2026/10/08
+== Anthropic releases Haiku 5.5
+link: https://www.anthropic.com/claude-haiku-5-5
+
+#figure(
+  image("../../Images/image_2026100801.png"),
+  caption: [Haiku 5.5 performance]
+)
+
+#figure(
+  image("../../Images/image_2026100802.png"),
+  caption: [Haiku pricing]
+)
+
+== Today Work
+- Improvement (done by Codex): Metric benchmark, highlight the selected doc
+- Improvement (done by Codex): show expected and actual in Metric benchmark
+- Improvement (done by Codex): show the production metric when selected
+- Improvement (by Claude Code): Use decision model to judge true metrics
+- Bugs (fixed by Codex): coordinates for list entries in line files.
+- Improvement (by
+
+= 2026/10/09
+
+== Menus 2.0
+Link: https://manus.im/blog/introducing-manus-2-0
+
+Menus just raised over \$500 millions (https://techcrunch.com/2026/10/08/chinas-manus-raises-over-500m-in-first-funding-round-since-split-with-meta/). 
+
+Pricing
+#figure(
+  image("../../Images/image_2026100901.png"),
+  caption:[Manus pricing]
+)
+
+== Today Work
+- Installed skill 'seecode'
+- Continue working on improving extract metrics
+- Improvement (done by Codex): PDF viewer, the metric info box on the right and moveable
+- Improvement (by Codex): Show dropped metrics in Gold metrics
+
+= 2026/10/10
+
+== Skill - lanshu-create-ai-presenter-video
+
+Link: https://github.com/cclank/lanshu-create-ai-presenter-video
+
+This is a skill that can turn a description of what you want to
+present and an authorized human picture into a video, synched
+with the content.
+
+Explore this skill when I have time.
+
+Link: https://www.toutiao.com/video/7689359444544127503/?app=news_article&category_new=tt_video_immerse&module_name=iOS_tt_others&req_id_new=202609272233506FD118BF5C491DE6A277&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=aba0050d-ba83-11f1-8db8-829b3af924d9&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1790521010&tt_from=weixin&upstream_biz=iOS_wechat&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect
+
+This is another skill. It uses Codex to generate synchronized video.
+
+== Semantica and OntoFlow
+Link: https://mp.weixin.qq.com/s/xrD3N1rpD4-2YQw3Q4XPxg
+
+This Wechat article compares Semantica and OntoFlow.
+Both are open-source ontology projects.
+
+== Thoughts
+Recent important topics:
+- Hister: inputs => knowledge base
+- RSIAgent: self-improvement agents. Its idea is very close
+  to testbots. Self improvement is the future.
+- Decision model: already available in SemOS
+- Benchmark: just a start. It can be related to RSIAgent.
+- Integrating SemOS with Pi.
+- Semantics: what exactly is semantics?
+
+=== Semantics
+

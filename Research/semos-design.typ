@@ -2042,9 +2042,27 @@ That package should include some mix of:
 - related graph facts
 - citations / provenance
 
-== Memory Classes
+= Memory
 
-=== Core memory
+Architecture from @ref-enterprise-memory:
+#figure(
+  image("../Images/image_2026100902.png"),
+  caption:[Memory architecture]
+)
+
+== Memory Identification
+Long-running agent workflows often use a thead identifier.
+That identifier must not become the only access control.
+A hybrid search is important to memory, but uniquely identify
+memory capsules is equally important.
+
+Thread ids (not the computing thread ids) should be stored
+in memory, including its paths:
+```text
+  /principal/{principal_id}/thread/{thread_id}
+```
+
+== The Core memory
 
 This is for the real memory subsystem. It should hold:
 
@@ -2059,7 +2077,7 @@ This is for the real memory subsystem. It should hold:
 
 Keep it small. Think *0.5–3 KB per user/project*, not a dump.
 
-Letta’s “memory blocks” are a useful reference point here: always-visible, persistent, small, and structured. ([Letta Docs][1])
+Letta’s @memory-blocks-core-memory are a useful reference point here: always-visible, persistent, small, and structured.
 
 Example:
 
@@ -2091,7 +2109,7 @@ Core memory should be:
 
 Do not let the system stuff noisy retrieved facts into core memory automatically.
 
-=== Episodic Memory
+== Episodic Memory
 
 This is what happened. It stores:
 
@@ -2103,6 +2121,15 @@ This is what happened. It stores:
 - mistakes corrected
 - user feedback
 
+Its structure:
+```text
+messages = [
+  system_message,
+  recent_user_message,
+  relevant_tool_result
+]
+```
+
 Example:
 
 ```text
@@ -2111,7 +2138,7 @@ Example:
 
 This is not always in context, but searchable and summarizable.
 
-=== Semantic Memory
+== Semantic Memory
 
 This is extracted knowledge and stable facts. It stores:
 
@@ -2131,7 +2158,7 @@ Scope: project/SemOS
 
 This is where memory starts to overlap strongly with KB/RAG.
 
-=== Artifact Memory
+== Artifact Memory
 
 This is the “real KB” side:
 
@@ -2155,7 +2182,7 @@ Artifacts should preserve:
 
 It stores not just memory but content or artifacts. In practice, modern memory systems already blur this line: Letta’s archival memory is explicitly for facts, knowledge, and external information at scale, not only personal memory. ([Letta Docs][3])
 
-=== Procedural Memory
+== Procedural Memory
 
 Often forgotten, but very important. It store:
 
@@ -2173,7 +2200,108 @@ When explaining infrastructure systems, prefer layered architecture and contrast
 
 This is closer to “skills” than “knowledge,” but it belongs in a unified memory layer.
 
-== Chunking
+== Durable Run State
+
+A multi-step agent has execution state separate from conversation
+history. Consider:
+```text
+state = {
+  "task":"analyze deployment failure",
+  "current_step": "awaiting_approval",
+  "candidate_fix": {...},
+  "attempts": 2
+}
+```
+
+Task history may be stored in a separate capsule:
+```text
+task_history = {
+  "task_name":"task name",
+  "start_time": "2026/10/01 14:00:00",
+  "history":[
+    {...},
+    {...},
+    ...
+  ]
+```
+
+== Checkpoints
+A checkpointer stores graph state after meaningful transitions.
+checkpoints can be created manually by users or automatically
+by agents.
+
+*Separate Long-Term Memory from Snapshots*
+
+Snapshots are in princple short lived. When a new snapshot
+is generated, it may delete the old one.
+
+When a task finishes, we may delete all of its snapshots.
+
+== Redact Before Persistence
+*Sensitive Information*
+
+It is up to the company's policy to determine whether sensitive
+information should be stored in history or not. By default,
+it should not. 
+
+How to identify sensitive information is an issue. 
+- For every user message, the agent checks whether
+  it contains sensitive information, ensure sensitive
+  information is spotted in the first place.
+- When an agent generates a message that contains
+  sensitive information, it should extract it and structure
+  the message so that sensitive information is separated
+  and referenced.
+- When persisting a message, check and extract sensitive
+  information. Replacing sensitive information by names.
+- Sensitive information is stored separately
+- Need to define the scope of sensitive information
+
+== Persist Prompts
+- All prompts should be stored separately
+- Instead of storing prompts directly in messages, 
+  store prompts separately (deduped) and reference them
+  in messages.
+
+== Memory Retention
+Retention is a part of the Memory Model. Not all memory capsules
+have retention policy. Memory capsule retention is determined
+by the type of capsules. User profiles, for instance, normally
+stay forever, until they are explicitly deleted.
+
+Topics may or may not have retention. Sparadic topics
+may be retended much shorter than task capsules.
+
+Memory can be modified. When modifying a memory capsule,
+the old version is not modified. Instead, a new version
+is created and the old version is archived and chained
+so that in case we/agents need them, they can still be
+retrieved.
+
+== Resumption
+When a task is resumed, make sure its side effects
+are idempotent. Normally, resume a history should generate
+no side effects. But there are exceptions. 
+
+If agents decide not to cache web search results,
+this tool call may be called again when the history
+is resumed. 
+
+In principle, memories should be snapshots of what
+just happened. If a tool call is involved, it will record
+the tool call and the results. 
+
+== Memory Audit
+Memory reads should be observable. For sensitive workflows,
+the system should record:
+- Actor
+- Thread
+- Operation
+- Timestamp
+- Purpose
+- Policy decision
+
+= Chunking
 
 The system does chunking. But *not one chunking strategy*. It uses *multi-resolution chunking*.
 
@@ -2186,7 +2314,7 @@ For artifacts, keep at least three levels:
 This avoids a major mistake: treating the chunk as the primary object.
 The chunk is an indexable slice, not the user-facing truth.
 
-=== Chunking Policy by Content Type
+== Chunking Policy by Content Type
 
 - Markdown/specs: header-aware
 - PDFs: layout-aware if possible
@@ -2194,7 +2322,7 @@ The chunk is an indexable slice, not the user-facing truth.
 - tables: row-group or logical block-aware
 - chat: turn-group or topic-shift-aware
 
-=== Chunk Size
+== Chunk Size
 
 A practical starting point:
 
@@ -2202,7 +2330,7 @@ A practical starting point:
 - overlap 50–120 tokens
 - but prefer structural boundaries over exact token budgets
 
-=== Chunk Metadata
+== Chunk Metadata
 
 Every chunk should carry:
 
@@ -2219,29 +2347,29 @@ Every chunk should carry:
 
 This makes retrieval and reconstruction much better.
 
-== Doc Processors
-=== Summaries
+= Doc Processors
+== Summaries
 (TBD)
 
-=== Semantic Projections
+== Semantic Projections
 (TBD)
 
-=== Topics
+== Topics
 (TBD)
 
-=== Metrics
+== Metrics
 (TBD)
 
-=== Compliance Provisions
+== Compliance Provisions
 (TBD)
 
-=== Entities and Relations
+== Entities and Relations
 (TBD)
 
-=== Inventory Items
+== Inventory Items
 (TBD)
 
-=== Facts
+== Facts
 The workflow is:
 - Extract facts
 - Reconcile
@@ -2266,7 +2394,7 @@ thus facts `<->` objects.
 Extracted relations are normalized and reconciled to Relation Nodes
 (similar to Object Nodes). This means facts `<->` objects `<->` relations
 
-== Implementation Plan
+= Implementation Plan
 
 *V1*
 
@@ -2307,7 +2435,7 @@ Extracted relations are normalized and reconciled to Relation Nodes
 
 `Knowledge Base` refers to the storage in which all semantic objects are stored.
 
-==== CLI, Tools, File-Tree
+== CLI, Tools, File-Tree
 
 The system should support all: CLI, tools, and file-tree, with the correct order:
 
@@ -2402,6 +2530,7 @@ That is what makes a system LLM-friendly.
 
 Those all either become brittle or too low-level.
 
+== V1 
 === V1 Goal
 
 A local or single-tenant system that can:
@@ -2417,7 +2546,7 @@ A local or single-tenant system that can:
 
 That is enough to validate the model.
 
-==== V1 Storage
+=== V1 Storage
 
 - Postgres
 - local filesystem or S3-compatible bucket
@@ -2456,7 +2585,7 @@ semos new note
 semos publish
 ```
 
-==== V1 LLM Tools
+=== V1 LLM Tools
 
 Must-have:
 
@@ -2468,7 +2597,7 @@ Must-have:
 
 That is enough to support real assistant workflows.
 
-==== V1 Relational Schema Sketch
+=== V1 Relational Schema Sketch
 
 A compact Postgres schema could start like this.
 
@@ -2555,7 +2684,7 @@ A compact Postgres schema could start like this.
 
 We can add entities/relations in V2 if V1 is doc-centric.
 
-==== What to postpone until V2
+=== What to postpone until V2
 
 Do not do these in V1 unless truly necessary:
 
@@ -2576,7 +2705,7 @@ V1 should prove:
 - retrieval works
 - LLM tools feel natural
 
-==== Recommended Implementation Order
+=== Recommended Implementation Order
 
 *Step 1*
 
@@ -2612,7 +2741,7 @@ Derived notes with provenance
 
 That order will get us to usefulness quickly.
 
-==== Semantic layer
+=== Semantic layer
 
 These are the derived structures for retrieval and reasoning.
 
@@ -2626,7 +2755,7 @@ Examples:
 - embeddings
 - canonical aliases
 
-==== Retrieval layer
+=== Retrieval layer
 
 This layer solves how knowledge is found. It supports:
 
@@ -2638,7 +2767,7 @@ This layer solves how knowledge is found. It supports:
 - reranking
 - passage citation
 
-==== Control layer
+=== Control layer
 
 This layer is responsible for making it safe and debuggable. It supports:
 
@@ -2650,7 +2779,7 @@ This layer is responsible for making it safe and debuggable. It supports:
 - ingestion jobs
 - retries
 
-==== Storage layer
+=== Storage layer
 
 This is the real substrate. We will consider:
 
@@ -2664,7 +2793,7 @@ This is the real substrate. We will consider:
 
 The data model should be small and durable.
 
-==== Semantic Objects (SemObjs)
+=== Semantic Objects (SemObjs)
 
 This is the main object. Possible fields:
 
@@ -2717,7 +2846,7 @@ Most SemObjs are immutable content snapshot. Fields include:
 
 This is critical. Version is the immutable state.
 
-==== Chunk
+=== Chunk
 
 Chunks are the retrieval unit. Chunks include the fields:
 
@@ -2736,7 +2865,7 @@ Chunks are the retrieval unit. Chunks include the fields:
 
 Chunks are derived, not canonical.
 
-==== Source
+=== Source
 
 It answers Where something came from. Fields include:
 
@@ -2747,7 +2876,7 @@ It answers Where something came from. Fields include:
 - `captured_at`
 - `source_metadata` JSONB
 
-==== Entity
+=== Entity
 
 Entity is the canonical named thing extracted or curated. Fields include:
 
@@ -2761,7 +2890,7 @@ Entity is the canonical named thing extracted or curated. Fields include:
 - `created_at`
 - `updated_at`
 
-==== Relation
+=== Relation
 
 Relation is the typed edge between entities and/or artifacts. Fields include:
 
@@ -2787,7 +2916,7 @@ Example predicates:
 - `related_to`
 - `owned_by`
 
-==== Collection
+=== Collection
 
 Collection is the logical grouping. Fields include:
 
@@ -2800,7 +2929,7 @@ Collection is the logical grouping. Fields include:
 
 Collections give the folder/project feel without using literal folders as the only organizational model.
 
-==== Citation
+=== Citation
 
 This is the reusable grounding object. Fields include:
 
@@ -2814,7 +2943,7 @@ This is the reusable grounding object. Fields include:
 - `quoted_text` optional cached excerpt
 - `locator_text` like “page 4, paragraph 2”
 
-==== Access Policy
+=== Access Policy
 
 Access Policy controls who can access which and when. Do not bolt this on later. Fields include:
 
@@ -2826,8 +2955,7 @@ Access Policy controls who can access which and when. Do not bolt this on later.
 - `permission` (`read`, `write`, `admin`, `discover`)
 - `effect` (`allow`, `deny`)
 
-
-==== Internal Storage Choices
+=== Internal Storage Choices
 
 A strong practical split:
 
@@ -2848,9 +2976,9 @@ For V1, we can focus on the following:
 
 This will get surprisingly far while keeping things simple.
 
-== Backend Features
+= Backend Features
 
-=== Grounding
+== Grounding
 
 The system can show exactly what a result came from. Without this, LLMs becomes decorative
 and untrustworthy. We want LLMs:
@@ -2861,7 +2989,7 @@ and untrustworthy. We want LLMs:
 - version IDs
 - provenance chains
 
-=== Constraint
+== Constraint
 
 The backend narrows ambiguity.
 
@@ -2875,7 +3003,7 @@ For example:
 
 This reduces hallucination.
 
-=== Recovery
+== Recovery
 
 The system survives imperfect LLM behavior.
 
@@ -2888,7 +3016,7 @@ We want:
 - idempotent operations
 - draft vs commit modes
 
-=== Observability
+== Observability
 
 When problems happen, we need to be able to debug what happened.
 
@@ -2901,14 +3029,14 @@ You want:
 - permission-denied reasons
 - version diffs
 
-=== Evolution
+== Evolution
 
 We can add new data types and workflows later. This is where a file-like artifact model beats
 a rigid row-first model.
 
-== API Design
+= API Design
 
-=== Ingestion APIs
+== Ingestion APIs
 
 *`POST /artifacts`*
 
@@ -2946,7 +3074,7 @@ It imports from file/blob/external URL.
 
 It creates a new version.
 
-=== Read APIs
+== Read APIs
 
 *`GET /artifacts/{id}`*
 
@@ -2973,7 +3101,7 @@ Example:
 `GET /artifacts/by-path?path=/projects/semos/notes/vision.md`
 ```
 
-=== Search APIs
+== Search APIs
 
 *`POST /search`*
 
@@ -3020,7 +3148,7 @@ Response:
 
 Given an artifact or entity, expand neighbors.
 
-=== Entity and relation APIs
+== Entity and relation APIs
 
 *`GET /entities/{id}`*
 
@@ -3032,7 +3160,7 @@ Input a name, get canonical entity.
 
 *`POST /relations`*
 
-=== Citation APIs
+== Citation APIs
 
 *`POST /citations/render`*
 
@@ -3063,7 +3191,7 @@ Response:
 }
 ```
 
-=== Derived artifact APIs
+== Derived artifact APIs
 
 `POST /artifacts/{id}/derive-summary`
 
@@ -3080,7 +3208,7 @@ Every derived artifact should carry:
 - citation set
 - derivation job ID
 
-=== LLM Tool Surface
+== LLM Tool Surface
 
 The LLM should not call every API directly. Give it a smaller tool layer.
 
@@ -3136,7 +3264,7 @@ Very useful for reasoning over evolving knowledge.
 
 That set is enough for many agent workflows.
 
-== CLI design
+= CLI design
 
 The CLI should mirror the mental model and map to the APIs.
 
@@ -3209,7 +3337,7 @@ semos reindex /projects/semos/architecture.md
 semos doctor
 ```
 
-== Draft/Publish Workflow
+= Draft/Publish Workflow
 
 This matters a lot for LLM safety. Do not let agents silently overwrite canonical knowledge.
 
@@ -3228,7 +3356,7 @@ So:
 
 This single decision will save many problems later.
 
-=== Provenance model
+= Provenance model
 
 This is one of the most important parts of SemOS. Every semantic object should be traceable. 
 For a synthesized note, store:
@@ -3266,7 +3394,7 @@ That lets the assistant say:
 
 Without provenance, memory becomes spooky and brittle.
 
-==== The Essence of the Design
+== The Essence of the Design
 
 The key SemOS idea is:
 
@@ -3287,7 +3415,7 @@ That combination is what makes a backend both LLM-friendly and strong.
 
 If you want, I can turn this into a one-page RFC next, or sketch the exact Postgres tables and REST endpoints in more implementation detail.
 
-=== Examples
+== Examples
 
 These examples assume:
 1. What user wants
@@ -3308,7 +3436,7 @@ The systems provide the following LLM-facing tools:
 - `create_note(parent_path, title, content, citations?)`
 - `render_citations(references)`
 
-==== Example 1
+== Example 1
 
 Find the current answer in messy project docs
 
@@ -3495,7 +3623,7 @@ A good answer might be:
 
 That answer is useful because the LLM explored rather than guessed.
 
-==== Example 2
+== Example 2
 
 Answer a cross-document question the system was not explicitly designed for
 
@@ -3648,7 +3776,7 @@ That is important because the system may not have a single canonical “because�
 
 That is a real cross-document synthesis answer.
 
-==== Example 3
+== Example 3
 
 Create a new derived note after exploring the KB
 
@@ -3872,7 +4000,7 @@ So the backend must be strong in exactly the places the LLM is weak:
 - exposing safe write paths
 - supporting verification
 
-=== Navigation
+== Navigation
 
 One issue in the above examples is that the system (SemOS) did not give LLMs a 'file-based' interface at all. 
 In these examples, LLMs must 'guess' correctly that my knowledge base has a collection '/projects/semos'. 
@@ -3916,7 +4044,7 @@ It should also present a *navigable, file-like world*.
 
 So the LLM-facing surface should have two complementary modes:
 
-==== Navigation Tools
+=== Navigation Tools
 
 The most commonly used tools for nagivating the knowledge base is:
 
@@ -3935,7 +4063,7 @@ Once LLMs located the `targets`, look-up type of tools may be used, like:
 - `find_related`
 - `render_citations`
 
-=== Explorability <explorability>
+= Explorability <explorability>
 
 To improve SemOS explorability, make the knowledge base look less like a hidden search service
 and more like a *navigable knowledge filesystem*: paths, listings, previews, relative traversal,
@@ -3943,7 +4071,7 @@ grep/find-like tools, and neighbor hints should become first-class.
 
 For an LLM, explorability comes from six properties.
 
-==== Visible structure
+== Visible structure
 
 The agent can see what exists nearby.
 
@@ -3956,7 +4084,7 @@ Example:
 
 Without this, it must guess hidden namespaces.
 
-==== 2. Meaningful Names
+== Meaningful Names
 
 Paths and names carry semantics.
 
@@ -3968,7 +4096,7 @@ Examples:
 
 These names are clues.
 
-==== 3. Cheap Incremental Inspection
+== Cheap Incremental Inspection
 
 The agent can inspect without paying the cost of full retrieval.
 
@@ -3980,7 +4108,7 @@ Examples:
 - preview first lines
 - preview child counts
 
-==== Locality
+== Locality
 
 Once the agent finds one useful thing, nearby things are likely useful too.
 
@@ -3988,7 +4116,7 @@ Example:
 
 If it finds `/projects/semos/rfcs/rfc-003-versioning.md`, then `/projects/semos/rfcs/` is probably worth listing.
 
-==== Hypothesis-driven Traversal
+== Hypothesis-driven Traversal
 
 The system should support “maybe it’s here” exploration.
 
@@ -3998,7 +4126,7 @@ Example:
 - “decision might be in `rfcs`”
 - “implementation details might be in `architecture`”
 
-==== Safe Failure
+== Safe Failure
 
 Bad guesses should be cheap and informative, not catastrophic.
 
@@ -4008,7 +4136,7 @@ Example:
 - “Directory exists but contains no readable files”
 - “Access denied to 2 items, 8 items visible”
 
-=== The design change SemOS needs
+== The design change SemOS needs
 
 Add a *path-native exploration API* as a first-class interface. Not just collections and IDs.
 The primary world the LLM sees should look like a knowledge filesystem.
@@ -4151,7 +4279,7 @@ Given a useful artifact, suggest likely next places to inspect:
 
 This is a guided “what next?” explorer.
 
-==== Exploration Loop
+== Exploration Loop
 
 With those tools, the LLM can behave much more naturally.
 
@@ -4179,7 +4307,7 @@ A natural agent flow becomes:
 
 That is much closer to how a coding agent works in a repository.
 
-==== Collections and File-Trees
+== Collections and File-Trees
 
 Do not remove collections internally. They are still useful in the backend. But externally, 
 prefer *paths* as the primary abstraction.
@@ -4193,7 +4321,7 @@ Internally, collections remain organizational metadata. Externally, expose them 
 
 But the LLM does not need to know that.
 
-==== Path model for SemOS
+== Path model for SemOS
 
 You should introduce a real logical path layer.
 
@@ -4277,7 +4405,7 @@ Example:
 
 That makes exploration much more effective.
 
-==== Natural Affordance
+== Natural Affordance
 
 Add “natural affordances” borrowed from shell/repo workflows. If we want SemOS to feel natural to
 coding agents, borrow familiar operations.
@@ -4319,7 +4447,7 @@ Show richer file metadata.
 
 These are all psychologically natural for agents trained heavily on code and shell contexts.
 
-==== Session-Local Working Context
+== Session-Local Working Context
 
 This is another important improvement. The system should let the LLM maintain a working directory
 or working set.
@@ -4346,7 +4474,7 @@ So tools could support:
 
 That makes the interaction much more natural.
 
-==== Search should become path-aware, not path-free
+== Search should become path-aware, not path-free
 
 Your concern is exactly right: a pure semantic search interface throws away the natural structure.
 So search results should always include:
@@ -4368,7 +4496,7 @@ Even better, let search optionally return a *path trail*:
 
 This helps the LLM re-anchor itself in the KB structure.
 
-==== Improved SemOS Tool Set
+== Improved SemOS Tool Set
 
 *Exploration tools*
 
@@ -4397,7 +4525,7 @@ This helps the LLM re-anchor itself in the KB structure.
 
 That is much more “natural” than starting from abstract collection filters.
 
-==== Case Studies
+== Case Studies
 
 Old flow:
 
@@ -4416,7 +4544,7 @@ New flow:
 The new flow is slower in the best case, but much more robust in unfamiliar territory. 
 That tradeoff is worth it for exploration-heavy tasks.
 
-==== Hybrid Strategy
+== Hybrid Strategy
 
 *When to navigate vs when to search*
 
@@ -4438,27 +4566,27 @@ So SemOS should support this policy:
 - the agent already has a good path anchor
 - exact file location is not important
 
-=== Index for Explorability
+== Index for Explorability
 
 To make this work well, the backend needs a few extra indexes.
 
-==== Path index
+=== Path index
 
 Fast lookup by exact path, prefix, glob, and fuzzy path name.
 
-==== Directory materialization
+=== Directory materialization
 
 Fast children listing, child counts, summaries.
 
-==== Preview cache
+=== Preview cache
 
 Headings, first paragraphs, metadata previews.
 
-==== Neighborhood graph
+=== Neighborhood graph
 
 Sibling, parent, topic-linked, recent-nearby suggestions.
 
-==== Path aliases
+=== Path aliases
 
 Multiple natural entry points.
 
@@ -4470,7 +4598,7 @@ Example:
 
 This reduces brittle path guessing.
 
-== Retrieval System
+= Retrieval System
 
 This is a Hybrid Retrieval System, combining file-based, vector, keyword, graph, and 
 memory-aware, all under one broker.
@@ -4500,7 +4628,7 @@ Example:
 }
 ```
 
-=== BM25 / keyword / full-text
+== BM25 / keyword / full-text
 
 Full-text search is useful for:
 
@@ -4511,7 +4639,7 @@ Full-text search is useful for:
 - rare terms
 - quoted strings
 
-=== Vector Search
+== Vector Search
 
 Vector search (semantic search) can be useful for:
 
@@ -4522,7 +4650,7 @@ Vector search (semantic search) can be useful for:
 
 It is important that do not use semantic search alone. Use it with full-text search.
 
-=== Graph Retrieval
+== Graph Retrieval
 
 Graph retrieval is useful for:
 - related concepts
@@ -4538,7 +4666,7 @@ It can be useful to answer questions, such as:
 - “what supports this claim?”
 - “which projects relate to this preference?”
 
-=== Memory-aware retrieval
+== Memory-aware retrieval
 
 This is the differentiator. SemOS should rank by more than relevance. It uses a scoring function like:
 
@@ -4563,7 +4691,7 @@ Where:
 
 This is what turns retrieval into memory.
 
-=== Context Assembly Policy
+== Context Assembly Policy
 
 The system should build context in layers.
 
@@ -4600,7 +4728,7 @@ Do not dump raw retrieval results into the prompt. Normalize them into:
 - summarized evidence blocks
 - provenance-preserving snippets
 
-=== Real Memory System
+== Real Memory System
 
 A real memory subsystem needs *write policies*, not just read policies.
 
@@ -4627,7 +4755,7 @@ What stays out of core memory:
 
 Those go to episodic or semantic memory instead.
 
-==== Memory Write Pipeline
+=== Memory Write Pipeline
 
 When a conversation ends or crosses a milestone:
 
@@ -4641,7 +4769,7 @@ When a conversation ends or crosses a milestone:
 
 This is where consolidation happens. Mem0 explicitly frames memory as extraction, consolidation, retrieval, and forgetting rather than a naive transcript replay. ([Mem0][4])
 
-==== Updating, Contradiction, and Forgetting
+=== Updating, Contradiction, and Forgetting
 
 A real memory layer must not only remember. It must also:
 
@@ -4675,7 +4803,7 @@ Memory M2: user prefers detailed architecture explanations for systems topics
 status: active
 ```
 
-==== Types of Forgetting
+=== Types of Forgetting
 
 Use at least three:
 
@@ -4729,25 +4857,18 @@ Mixed question: “How does my SemOS idea compare to Supermemory?”
 - episodic summary after turn/session
 - core memory only if durable
 
-
-
-= References
-
 #bibliography("/references/references.bib")
 
-== Memory blocks (core memory) \
-https://docs.letta.com/guides/core-concepts/memory/memory-blocks/?utm_source=chatgpt.com
-
-== How Graph Memory Works \
+How Graph Memory Works \
 https://supermemory.ai/docs/concepts/graph-memory?utm_source=chatgpt.com
 
-== Archival memory \
+Archival memory \
 https://docs.letta.com/guides/core-concepts/memory/archival-memory/?utm_source=chatgpt.com
 
-== AI Memory Research: 26% Accuracy Boost for LLMs \
+AI Memory Research: 26% Accuracy Boost for LLMs \
 https://mem0.ai/research?utm_source=chatgpt.com
 
-== Memory as Model <memory-as-model>
+Memory as Model <memory-as-model>
 #let r_001 = link(
   "https://www.toutiao.com/article/7652950313275605567/?app=news_article&category_new=__all__&module_name=iOS_tt_others&req_id_new=20260706060343ACF4A6D25ADEFB3E20AF&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=ba0d9deb-78bd-11f1-b4ed-00163e5a2eb2&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1783289169&tt_from=weixin&upstream_biz=iOS_wechat&use_new_style=1&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
 )[#text(fill: blue)[Memory as Model]]
@@ -4757,7 +4878,6 @@ https://mem0.ai/research?utm_source=chatgpt.com
 [1]: https://arxiv.org/abs/2607.29377?utm_source=chatgpt.com "Zero-Mem: Zero-Token Memory Operations for LLM Agents"
 
 
-= References
 [1]  I Improved 15 LLMs at Coding in One Afternoon. Only the Harness Changed
 https://blog.can.ac/2026/02/12/the-harness-problem/
 
