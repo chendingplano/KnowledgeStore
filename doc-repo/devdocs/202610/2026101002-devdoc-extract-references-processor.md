@@ -33,6 +33,24 @@ the best candidates and marks the citation for a person to decide.
 The same lookup also runs backwards. When a document is processed, the processor finds the
 earlier documents that cite it and resolves their waiting citations.
 
+## The plan, as given (2026-10-10)
+
+The rest of this doc refers to these steps by number.
+
+1. Keep `extract_metrics` as it is: clauses that take their value from another document stay set
+   aside (dropped), as today.
+2. Create a new doc processor, `extract_references`, that retrieves a document's references to
+   other documents, following the doc-processor capsule
+   (`KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`).
+3. Create the tables needed to store the references.
+4. Determine the reference types.
+5. **Outgoing resolution.** When the processor handles a document, for each reference that points
+   to metrics in another document: check the cited document. If `extract_metrics` has processed it,
+   resolve the reference to the matching metrics there (the matching logic of devdoc 2026101001).
+   Add the resolved metrics to `kb.metrics`, carrying the ids of the metrics they reference.
+6. **Incoming resolution.** When the processor handles a document, find the documents that cite
+   it. Resolve their metric references against this document and update `kb.metrics` as needed.
+
 ## Review of the plan
 
 The six steps are accepted. Separating references from `extract_metrics` is the better design: it
