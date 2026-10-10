@@ -200,6 +200,52 @@ How the two sources combine:
 `value_table` is kept apart from `value` because it fans out to many metrics and needs the cited
 table or class (`cited_locator`) to be identified first.
 
+### Deciding that a citation references metrics
+
+Only `value` and `value_table` citations reference metrics. The decision is made in three stages.
+Each stage can confirm or weaken the one before it.
+
+**1. The citing clause, read by the LLM at extraction (Phase B).** A citation is `value` only when
+the clause passes both tests:
+
+- **It names a measurable quantity of an object.** This is the same test `extract_metrics` uses for
+  "a measurable property": something with a value on a unit or scale (粪大肠菌群数, 含水率, 噪声).
+  A process, activity or product as a whole is not one ("收运过程应符合 CJJ 184" is `compliance`).
+- **It borrows the criterion for that quantity** (the limit, grade or required value), not the way
+  it is measured. Wording such as 应符合 / 应达到 / 应满足 / 不应超过 … 的要求 / 规定 / 限值 borrows a
+  criterion. Wording such as 按 / 依据 / 按照 … 测定 / 检验 / 试验 / 计算 / 确定 borrows a method,
+  so the citation is `method`, even when a quantity is named. 753_drp_49 ("风扇电机的额定功率（按照
+  GB/T755确定）") names a quantity and is still `method`.
+
+It is `value_table` when the clause names a set of limits instead of one quantity: a placeholder
+for quantities (其他指标, 各项指标, 限值) or a locator in the cited document (表 1, II 级, 第 4.2 条).
+A clause that borrows "the requirements" of a whole document, with no quantity and no locator,
+stays `compliance` and never adds metrics, even if the cited document is mostly limits. Copying
+every metric of a document because a clause says "应符合 GB 7959" would assert far more than the
+clause does.
+
+The LLM returns the type, the named quantity (`metric_name`, `metric_subject`, `condition`), the
+`cited_locator`, and `type_confidence`. The prompt carries the two tests and the examples above, not
+a word list. The trigger words are hints only, as in the decision policy (devdoc 2026100801).
+
+**2. Agreement with `extract_metrics` (resolution, Phase C).** `extract_metrics` makes its own
+call on the same clause. A row set aside as `delegated_requirement` (with a `cited_doc:` tag) in
+`kb.metrics_dropped`, at overlapping `source_line_spans`, means it also saw a named quantity whose
+value lives in a cited document. If the two agree, the decision stands. If they disagree (one says
+`value`, the other a method citation, an inspection requirement, or no row at all), the citation
+goes to `needs_review` instead of being resolved automatically. The comparison is logged in
+both directions, which also measures how well each processor does.
+
+**3. The cited document, once it is processed.** A `value` citation expects the cited document to
+hold a metric for the named quantity. If candidate search finds none, and the cited document has no
+metrics of that kind at all, the type itself is doubtful. GB/T 755, a rating and method standard, is
+an example. Then the citation becomes `no_match` with the note `type_doubtful` and goes to review. It
+is never quietly retyped. The cited document's governed `document.doc_kind` (test method versus
+product or limit standard) is an extra signal for the reviewer, not a rule.
+
+Until stage 3 can run (cited document missing or not processed), the type rests on stages 1–2 and
+is shown as such.
+
 ## Tables (proposed, goose migrations, created at start-up)
 
 ### `kb.doc_references`: one row per citation occurrence, rebuilt on each run of the citing document
