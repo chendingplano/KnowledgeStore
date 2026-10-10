@@ -1,9 +1,11 @@
 # Cross-document metric references — keeping references and resolving them to metrics
 
 **Date:** 2026-10-10 \
-**Status:** Design, **not built**. It records the agreed direction and the review of the original
-proposal. Build it through an openspec change in `ChenWeb/openspec/changes/`, which will carry the
-formal contract. Update this doc when the change ships.
+**Status:** **Superseded 2026-10-10 by devdoc 2026101002 (`extract_references` processor).**
+The user decided to keep `extract_metrics` unchanged (references stay dropped) and to handle
+references in a separate processor. The review points below (R1 reference kinds, R4 document
+identity, R5 definition targets, R6 stable keys, R7 review state, R8 policy) still apply and are
+cited from 2026101002. The "keep reference rows in `extract_metrics`" design is not pursued.
 **Scope:** How `extract_metrics` should treat a metric whose value, method or meaning lives in
 another document, how such references are stored, and how they are linked to the actual metrics
 of the cited document. Open this before touching cited-document handling, `kb.metrics_dropped`
