@@ -22,7 +22,10 @@ document itself states, and it sets these clauses aside.
 
 A new processor, `extract_references`, reads the same document separately and lists every place
 where it cites another document: the normative-reference list, "comply with" clauses, test-method
-citations, and clauses that take a limit from the cited document. It sorts each citation by type.
+citations, and clauses that take a limit from the cited document. It sorts each citation by type
+and marks it as **normative** (binding for applying the document) or **informative** (background
+only), so people can search for a document's normative references or for every document that
+normatively cites a given standard.
 
 For citations that take a **metric's value** from another document, it looks up that document. If
 the cited document has already been processed by `extract_metrics`, it finds the matching metrics
@@ -149,24 +152,50 @@ versioned policy in `shared.decision_policies`, calibrated on real citations.
 
 ## Reference types (step 4)
 
-Each citation gets one **level** (where it sits) and one **type** (what it borrows):
+Each citation gets three independent labels: a **normativity** (is it binding), a **level** (where
+it sits) and a **type** (what it borrows).
+
+### Normativity
+
+Whether a reference is normative is separate from what it borrows. A method citation or a value
+citation can each be normative or informative. So normativity is its own label, stored on every
+citation, and searchable on its own (see "Searching references").
+
+| Normativity | Meaning | How it is recognised (GB/T 1.1, ISO/IEC Directives Part 2) |
+|---|---|---|
+| `normative` | the cited document, or the cited part of it, is required for applying this document | listed in the normative-reference clause (§2 规范性引用文件 / "Normative references"), **or** cited in a normative element of the body with requirement wording (应, 必须, 按…进行, "shall") |
+| `informative` | cited only for background | listed in the bibliography (参考文献 / "Bibliography"), or cited only in a note (注), example (示例), footnote, informative annex (资料性附录) or with 参见 / 参考 / "see also" |
+| `unknown` | cannot be told from the document | e.g. a non-standard document with no §2 list and no requirement wording |
+
+How the two sources combine:
+
+- A body citation of a document that is listed in §2 is `normative`. It is linked to its §2 entry
+  (`list_entry_id`), so "all normative references of this document" is the §2 list together with
+  where each entry is used.
+- `normativity_basis` records why: `list` (the §2 or bibliography entry), `context` (the wording
+  in the body), or `both`.
+- **Mismatches are flagged, not corrected.** A document cited with requirement wording but missing
+  from §2, or a §2 entry that the body never cites, is a drafting defect in the source document.
+  Both are recorded (`list_mismatch`) and are useful to document review.
+
+### Level and type
 
 | Level | Meaning |
 |---|---|
-| `document` | the normative-reference list (§2 规范性引用文件) or a whole-document statement |
+| `document` | an entry in the normative-reference list (§2 规范性引用文件) or the bibliography (参考文献), or a whole-document statement |
 | `section` | a heading-level statement ("第 5 章的试验按 GB/T 1236 进行") |
 | `clause` | one clause or list item |
 | `table_item` | one row or cell of a table |
 
 | Type | Borrows from the cited document | Example | Resolves to |
 |---|---|---|---|
-| `normative_list` | — (listing only) | §2 entry "GB/T 755 旋转电机 定额和性能" | document |
+| `listing` | — (a list entry only; normativity tells §2 from bibliography) | §2 entry "GB/T 755 旋转电机 定额和性能" | document |
 | `value` | a limit of a **named quantity** | 粪大肠菌群数应达到 GB 7959 的要求 | **metrics** (steps 5–6) |
 | `value_table` | all limits in a named table or class | 其他指标应符合 GB 7959 表 1 中 II 级的规定 | **metrics** of that table/class |
 | `method` | how a quantity is measured or determined | 额定功率按照 GB/T 755 确定 | document (later: test method) |
 | `definition` | meaning of terms | 术语和定义见 GB/T 2900.1 | document (later: term) |
 | `compliance` | a whole set of requirements, no named quantity | 收运过程应符合 CJJ 184 | document or section |
-| `informative` | background only (参考文献, notes, "参见") | 参见 ISO 14253-1 | document |
+| `background` | nothing specific, only "see also" | 注：参见 ISO 14253-1 | document |
 
 `value_table` is kept apart from `value` because it fans out to many metrics and needs the cited
 table or class (`cited_locator`) to be identified first.
@@ -178,6 +207,9 @@ table or class (`cited_locator`) to be identified first.
 | Column | Meaning |
 |---|---|
 | `id`, `input_record_id`, `event_id`, `run_id`, `ref_id` (`<rec>_ref_<n>`) | identity, provenance |
+| `normativity`, `normativity_basis` | `normative` · `informative` · `unknown`; `list` · `context` · `both` |
+| `list_entry_id` | for a body citation, the §2 / bibliography entry of the same document (null if none) |
+| `list_mismatch` | `not_listed` (cited with requirement wording, missing from §2) · `never_cited` (§2 entry unused in the body) · null |
 | `ref_level`, `ref_type`, `type_confidence` | see above |
 | `section`, `source_line_spans`, `quote` | where and what was said |
 | `cited_raw`, `cited_doc_key`, `cited_edition`, `cited_locator` | as written; normalized id; year or null; table/clause/class in the cited document |
@@ -208,6 +240,24 @@ table or class (`cited_locator`) to be identified first.
 
 `kb.reference_metric_links` is the relation table. The `ref_*` columns repeat the link on the row so
 list pages and filters need no join.
+
+## Searching references
+
+People will want to ask "which normative references does this standard have?" and "which
+documents normatively cite GB/T 755?", with or without the informative ones. To support this:
+
+- **Indexed columns** on `kb.doc_references`: (`input_record_id`, `normativity`) for one
+  document's references, and (`cited_doc_key`, `normativity`) for "who cites X".
+- **Full-text search**: a `kb.search_artifacts` partition `doc_reference` (capsule §12.3, BM25 +
+  embeddings), one row per citation. Title is the cited identifier and its title, context is the
+  quote and section. `normativity`, `ref_type` and `ref_level` are filterable fields, and the
+  default filter shows all citations.
+- **API and page**: one read endpoint filtered by citing document, cited document, `normativity`,
+  `ref_type` and `resolution_state`. The pages show a "Normative / Informative" badge on every
+  citation, with a normative-only toggle (EN/ZH, selectable text).
+
+Normativity is shown and filtered as stored. A citation marked `unknown` appears only when the
+filter includes it, never silently counted as normative.
 
 ## Matching (same logic as devdoc 2026101001 R8)
 
