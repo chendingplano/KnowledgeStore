@@ -45,3 +45,15 @@ Migrations: `ChenWeb/project_migrations/20261011000001_create_kb_reference_table
 - `go test ./api/... ./cmd/...` green.
 - Live runs on records 753, 373 and 362, with a synthetic step 5/6 check (362 → 373). See the
   openspec `tasks.md` for what was and was not verified, including the missing non-Chinese live run.
+
+## References workspace
+
+`references-mgmt-view.svelte` uses `KbInputRecordBrowser` with `fitPanel` so its document list
+fills the host grid panel. This mode hides the browser's independent width controls.
+The selected mention's `source_table_rows` is passed to `PdfViewWindow.tableReferences`, which
+uses the shared table geometry endpoint to highlight the cited rows and navigate to their page.
+The prose overlay skips lines with row provenance, avoiding a whole-table rectangle over the
+row highlights. Selecting a prose reference clears table highlights and retains line highlights.
+
+Verified with a headless browser and synthetic API/PDF fixtures: panel fit at 1800px and 1400px,
+two cited row highlights without a whole-table overlay, and switching to prose and back.
