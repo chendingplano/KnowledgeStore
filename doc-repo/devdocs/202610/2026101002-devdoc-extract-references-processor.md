@@ -16,12 +16,13 @@ counts.
 registered in `ChenWeb/server/cmd/doc-processor/main.go`. Pipeline rules:
 `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`.
 
-## Summary
+## 1. Summary
 
-**Who it is for.** Anyone, in China or anywhere else, who holds a body of documents and wants to
+**Who it is for.** Anyone who holds a body of documents and wants to
 know how those documents are connected. Standards are one case. The same need exists for
-regulations, contracts, specifications, research papers, technical reports, manuals, internal
-policies, software documentation and product data sheets, in any language and any domain.
+regulations, contracts, specifications, research papers, technical reports and documents, 
+manuals, internal policies, software documentation and product data sheets, in any 
+language and any domain.
 
 **What it does.** Documents point at other things all the time: a standard requires compliance
 with another standard, a permit takes emission limits from an annex of a directive, a paper builds
@@ -49,7 +50,15 @@ they do not hold yet, and, for limits and other values, the actual metric behind
 
 `extract_metrics` is unchanged. It records only what a document itself states.
 
-## The plan, as given (2026-10-10)
+**Independent of the other doc processors.** `extract_references` reads the document itself and
+uses no output of `extract_metrics`, `extract_provisions`, `extract_entity_relation` or any other
+processor. Two processors may find the same thing: a person cited as an author is a reference
+here and an entity in `extract_entity_relation`; a clause that takes a limit from another document
+is a reference here and a set-aside row in `extract_metrics`. Reconciling those overlaps is a
+separate piece of work and is not part of this design. The one place this design still touches
+`extract_metrics` is metric resolution (steps 5–6), and that boundary is to be revisited (§5).
+
+## 2. The plan, as given (2026-10-10)
 
 The rest of this doc refers to these steps by number.
 
@@ -70,10 +79,10 @@ The diary section of 2026-10-11 widened step 4 from "reference types" to a full 
 and added two principles: detecting a mention is separate from resolving it, and a resource's
 identity is separate from where it is found.
 
-## Reference model (step 4)
+## 3. Reference model
 
 A **reference** is one place where a source document points at something. The model has four
-independent dimensions (from the diary) plus three labels that standards and requirement documents
+independent dimensions plus three labels that standards and requirement documents
 need.
 
 | Dimension | Question | Stored as |
@@ -86,11 +95,13 @@ need.
 | Form and normativity | Is it a list entry, and is it a formal normative reference? | `ref_form`, `normativity` |
 | In a requirement | Is it cited inside a requirement of the source? | `in_requirement` |
 
-### Target type: twelve categories, extensible subtypes
+### 3.1 Target type: twelve categories, extensible subtypes
 
 Extraction uses the twelve top-level categories. It does not use a separate schema per type.
-Subtypes are free to extend: the diary's lists are the starting vocabulary, and new subtypes are
-added without schema changes.
+**Subtypes are a governed vocabulary** per target type, seeded from the lists below. Every target
+type also has the subtype `others`. A reference whose subtype is not in the vocabulary gets
+`others`, and the label the extractor proposed is kept in `target_subtype_label`. Curators can then
+add frequent labels to the vocabulary. New subtypes need no schema change.
 
 | `target_type` | Examples of subtypes |
 |---|---|
@@ -104,15 +115,12 @@ added without schema changes.
 | `data` | dataset, database, database record, statistical series, spreadsheet, data repository, knowledge-graph entity, ontology concept |
 | `media` | image, diagram, chart, audio, video, presentation or slide, transcript, map, geospatial layer |
 | `communication` | email or thread, chat message, meeting record, decision record (ADR), memo, workspace page |
-| `business_record` | product specification or data sheet, patent, contract, procurement document, certification, audit report, safety data sheet, test report |
-| `other` | concept or term, definition, procedure, experiment, clinical trial record, formula, physical sample |
+| `business_record` | organization, product, product model, product specification or data sheet, patent, trademark, contract, procurement document, certification, audit report, safety data sheet, test report |
+| `other` | person, event, location, concept or term, definition, measurement or metric, formula, procedure, experiment, physical sample, clinical trial record |
 
-**v1 boundary with `extract_entity_relation`.** Persons, organizations, locations, events and
-products are entities. They become references here only when they are cited **as a source of
-content** (a product data sheet, an organization's published policy) or by a record identifier
-(Wikidata `Q42`, `CVE-2025-1234`). Bare mentions of entities stay with `extract_entity_relation`.
+Each type has `others` in addition to the subtypes listed.
 
-### Mechanism: how the reference is written
+### 3.2 Mechanism: how the reference is written
 
 The mechanism is never the target type. A URL, a DOI or a file path is an identifier or a locator
 of a target, not a kind of target.
@@ -140,7 +148,7 @@ resolved from context and always produces candidates, never a silent match.
 `internal = true`. They link sections and tables of one document, which helps when a clause says
 "other parameters shall meet Table 2". Inter-document views exclude them by default.
 
-### Relationship: one or more per reference
+### 3.3 Relationship: one or more per reference
 
 Relationships are not mutually exclusive: a paper can both cite and contradict another paper. Some
 relationships are **asserted** by the source text and found at extraction. Others are **derived**
@@ -164,14 +172,19 @@ by the system after resolution and are never taken from one document's wording a
 | `depends_on` | dependency | a package depends on a library | asserted |
 | `derived_from` | produced from the target | a chart derived from a dataset | asserted |
 | `see_also` | related resource | "NOTE See also ISO 14253-1" | asserted |
-| `contradicts` | conflicts with the target | two documents give different limits for the same metric | **derived** (from resolved metrics, later) |
+| `contradicts` | conflicts with the target | two documents give different limits for the same metric | **derived**, flagged for an admin |
 | `same_as`, `version_of`, `part_of` | identity, version and containment | DOI and URL of one paper; a draft of a specification; a clause of a standard | **derived** (from the resource catalog) |
+
+**Contradictions are flagged, never settled automatically.** When the system derives `contradicts`
+(for example, two documents give different limits for the same quantity), it records a flag with
+both sides and their evidence. An admin page lists every flag so an admin can resolve it. That
+page and its storage are specified separately.
 
 `based_on` with national adoptions of international standards also records the degree of
 correspondence when the document states it (`IDT` identical, `MOD` modified, `NEQ` not equivalent,
 ISO/IEC Guide 21-1), e.g. "GB/T 755-2019 / IEC 60034-1:2017, MOD".
 
-### Scope and target content: how precisely, and what is used
+### 3.4 Scope and target content: how precisely, and what is used
 
 | `target_scope` | Example |
 |---|---|
@@ -203,7 +216,7 @@ now a combination: `value` = `requires` + `data_element` + `criterion`; `value_s
 `requirements` = `requires` or `complies_with` + `requirements`; `source` = `cites` or `quotes` +
 `data`; `background` = `see_also` + `general`.
 
-### Form, normativity and requirements
+### 3.5 Form, normativity and requirements
 
 Two conventions of standards are named directly because standards bodies share them (ISO/IEC
 Directives Part 2, CEN/CENELEC, ASTM, IEEE, and national rules such as GB/T 1.1). Both are
@@ -234,9 +247,9 @@ Labels:
   cited inside a requirement but missing from the list. `never_cited` means a list entry the text
   never uses. Both are drafting defects of the source and are recorded, not corrected.
 
-## Detection and resolution
+## 4. Detection and resolution
 
-Detecting a mention and resolving it are separate operations (diary, 2026-10-11). Resolution runs
+Detecting a mention and resolving it are separate operations. Resolution runs
 in levels, and each level can stop with candidates for a person to choose from.
 
 | Level | Maps… | to… | Possible outcomes |
@@ -247,7 +260,7 @@ in levels, and each level can stop with candidates for a person to choose from.
 | **R3. Location** | a `target_locator` | a section, table or element of the held document | `located` · `candidates` · `not_found` |
 | **R4. Metric** | a `criterion` / `criteria_set` reference | metrics of the held document | steps 5–6, see "Metric references" |
 
-### Identity is separate from location
+### 4.1 Identity is separate from location
 
 The same paper can appear as an arXiv URL, a DOI, a publisher page and a local PDF. The same
 standard is cited as `GB/T 755`, `GB/T755-2019` or by its title. They resolve to **one resource**,
@@ -273,31 +286,38 @@ The citing document needs a reliable identity too. `kb.inputs.doc_no` is often e
 document to its resource and version, taking the identifier from metadata, the first page or the
 filename.
 
-### Access: resolution never crosses what a user may see
+### 4.2 Access: resolution never crosses what a user may see
 
 Customers keep private documents. Resolution must not leak them:
 
-- The **catalog** of resources and versions holds only what the citing text itself says (an
-  identifier, a title). A resource known only from a private source (an internal file path, a
-  company policy) is scoped to that knowledge store.
+- **The catalog is shared across all customers** for resources known by public identifiers (a
+  standard number, a DOI, a legal citation, a public URL). Each resolution then helps the next
+  customer. A shared entry holds only public facts: identifiers, title, issuer, editions and their
+  status. It never records which customer cites or holds the resource. A resource known only from a
+  private source (an internal file path, a company policy) is scoped to that knowledge store.
 - **R2 (holding)** links a reference to a `kb.inputs` record only if the citing document's owner
   can access that record (same user or knowledge store, or an active grant).
 - **Incoming resolution** (step 6) and "who cites this document" views follow the same rule. A
   user never learns that someone else's private document cites theirs.
 
-## Metric references (steps 5–6)
+## 5. Metric references (steps 5–6)
 
-### Deciding that a reference points at metrics
+**Boundary with `extract_metrics`: to be revisited.** Detection and R1–R3 use no output of any
+other processor. R4 does: it reads the target's metrics, and steps 5–6 write resolved rows into
+`kb.metrics`, the table `extract_metrics` owns. The user will revisit this boundary (2026-10-11).
+Until then, this section describes R4 as planned in steps 5–6.
+
+### 5.1 Deciding that a reference points at metrics
 
 Only references with `target_content` = `criterion` or `criteria_set` can resolve to metrics. The
-decision is made in three stages, and each stage can confirm or weaken the one before it.
+decision is made in two stages, and the second can confirm or weaken the first.
 
 **1. The source text, read by the LLM at detection.** A reference has `criterion` only when it
 passes three tests:
 
 - **It names a measurable quantity of an object**: something with a value on a unit or scale
-  (faecal coliform count, moisture content, NOx emission, sound power). This is the same test
-  `extract_metrics` uses. A process, activity, product or management system as a whole is not one.
+  (faecal coliform count, moisture content, NOx emission, sound power). A process, activity,
+  product or management system as a whole is not one.
 - **It takes the criterion for that quantity**, meaning the limit, grade or required value, and not
   the way it is measured. "Shall comply with / meet / not exceed the requirements or limits of X"
   takes a criterion. "Measured / determined / tested / calculated in accordance with X" takes a
@@ -313,18 +333,12 @@ document because a clause says "comply with X" would claim far more than the cla
 The prompt carries these tests with examples from several domains and languages, not a word list.
 The phrases quoted above are hints, as in the decision policy (devdoc 2026100801).
 
-**2. Agreement with `extract_metrics`.** At resolution, a row that `extract_metrics` set aside as
-`delegated_requirement` (with a `cited_doc:` tag) at overlapping lines means it also saw a named
-quantity whose value lives elsewhere. If the two processors agree, the decision stands. If they
-disagree, the reference goes to review. Both outcomes are logged, which also measures each
-processor.
-
-**3. The target document, once held and processed.** A `criterion` reference expects the target
+**2. The target document, once held and processed.** A `criterion` reference expects the target
 to hold a metric for the named quantity. If none is found, and the target has no metrics of that
 kind at all (GB/T 755, a rating and method standard, is an example), the reference is marked
 `no_match` with `type_doubtful` and goes to review. It is never quietly retyped.
 
-### Matching
+### 5.2 Matching
 
 For a metric reference whose target is `held_processed`:
 
@@ -334,14 +348,16 @@ For a metric reference whose target is `held_processed`:
    name, alias and subject match in the source and target languages, bge-m3 similarity of
    `search_document`, and an LLM judge for the top few.
 3. One or more candidates at or above the policy threshold → `resolved`, and resolved rows are
-   written. Otherwise → `needs_review` with the top candidates kept. No candidates → `no_match`.
+   written. This also holds for a `criteria_set` that resolves to many metrics: there is no extra
+   confirmation step. Otherwise → `needs_review` with the top candidates kept. No candidates →
+   `no_match`.
 4. A person confirming or rejecting a candidate sets `confirmed` / `rejected`. Confirmed links
    write rows like resolved ones.
 
 Thresholds are a versioned policy in `shared.decision_policies`, calibrated on real references
 from more than one domain and language before they are trusted.
 
-### Resolved metrics in `kb.metrics` (step 5)
+### 5.3 Resolved metrics in `kb.metrics` (step 5)
 
 1. **Owned by the resolver.** `extract_metrics`' delete
    (`DELETE FROM kb.metrics WHERE input_record_id = $1`) becomes `… AND ref_mention_id IS NULL`,
@@ -363,7 +379,7 @@ needs an explicit default:
 
 | Reader | Default for resolved rows |
 |---|---|
-| Benchmark scoring | excluded (gold 6.0.0 X16 forbids importing values) |
+| Benchmark scoring | **never scored** (decided 2026-10-11) |
 | Phase D `normalize_assertions` | excluded until provenance can say "value asserted by B, applied by A" |
 | Class contracts, conformance, comparisons | excluded, or counted once at the target |
 | Search index, hybrid links | indexed, labelled as a reference, linked to the original |
@@ -371,28 +387,29 @@ needs an explicit default:
 
 The openspec change lists every reader.
 
-## Pipeline placement
+## 6. Pipeline placement
 
 | Part | Tier | Depends on | Does |
 |---|---|---|---|
 | `extract_references` | Phase B (configurable) | `chunking` | detection (D) and R1 against the catalog; writes mentions, resources, identifiers |
-| `resolve_references` | Phase C post-process (`PostProcessIndexer`) | this record's `extract_references` and `extract_metrics` | R2–R4, outgoing and incoming; writes metric links and resolved `kb.metrics` rows |
+| `resolve_references` | Phase C post-process (`PostProcessIndexer`) | this record's `extract_references`; R4 also this record's `extract_metrics` (§5 boundary note) | R2–R4, outgoing and incoming; writes metric links and resolved `kb.metrics` rows |
 
 - Detection uses `canonicalChunkInputText`, so it shares the DeepSeek cached prefix with the other
   chunk processors (capsule §6.2). Reference lists and identifiers that a pattern can read exactly
   (DOI, URL, standard number) are parsed in code, and the LLM handles the rest.
-- **Resolution cannot run in Phase B.** Phase B processors run at the same time, and
-  `extract_metrics` deletes all of a record's `kb.metrics` rows on each run.
-- **Incoming resolution also runs after `extract_metrics` alone.** A target often gets its
+- `extract_references` depends on nothing but `chunking`, in line with its independence (§1).
+- **R4 cannot run in Phase B.** Phase B processors run at the same time, and `extract_metrics`
+  deletes all of a record's `kb.metrics` rows on each run.
+- **Incoming R4 also runs after `extract_metrics` alone.** A target often gets its
   metrics, or new ones, through a Dev Mode re-run of `extract_metrics`. Otherwise waiting
   references would never resolve, and resolved rows would point at deleted metrics. The step is
   cheap when nothing waits.
 - Not being sure is a review state, not a failure. The run succeeds, WARN lines are logged, and the
   run log reports counts per state.
 
-## Tables (proposed, goose migrations, created at start-up)
+## 7. Tables (proposed, goose migrations, created at start-up)
 
-### `kb.ref_mentions`: one row per reference occurrence; rebuilt on each run of the source
+### 7.1 `kb.ref_mentions`: one row per reference occurrence; rebuilt on each run of the source
 
 | Column | Meaning |
 |---|---|
@@ -401,7 +418,8 @@ The openspec change lists every reader.
 | `ref_form`, `list_kind`, `list_entry_id` | `listed` · `in_text`; `normative` · `informative`; link to the list entry |
 | `normativity`, `in_requirement`, `list_mismatch` | see "Form, normativity and requirements" |
 | `mechanism`, `cited_raw`, `identifiers` (jsonb `[{kind, value}]`) | how it is written; as written; parsed identifiers |
-| `target_type`, `target_subtype`, `target_title`, `target_version` | what is referenced, as stated |
+| `target_type`, `target_subtype`, `target_subtype_label` | governed type and subtype (`others` if not in the vocabulary); the extractor's own label |
+| `target_title`, `target_version` | what is referenced, as stated |
 | `relationships` (text[]) | asserted relationships |
 | `target_scope`, `target_locator`, `target_content` | how precisely, where, what is used |
 | `metric_name`, `metric_subject`, `condition` (+ `_en`) | the named quantity, for `criterion` |
@@ -412,7 +430,7 @@ The openspec change lists every reader.
 | `metric_state` | `not_applicable` · `pending_target` · `resolved` · `needs_review` · `no_match` · `confirmed` |
 | `mention_key` | stable fingerprint, so human decisions survive re-runs |
 
-### `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`: the catalog
+### 7.2 `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`: the catalog
 
 | Table | Holds |
 |---|---|
@@ -423,7 +441,7 @@ The openspec change lists every reader.
 A `kb_input` identifier is how a user's own copy is attached to a resource version. That attachment
 is never `public`.
 
-### `kb.reference_metric_links`: mention → candidate or resolved target metric
+### 7.3 `kb.reference_metric_links`: mention → candidate or resolved target metric
 
 | Column | Meaning |
 |---|---|
@@ -434,7 +452,7 @@ is never `public`.
 | `policy_id`, `policy_version`, `decided_by`, `decided_at` | decision provenance |
 | `resolved_metric_id` | the `<rec>_rfm_<n>` row in `kb.metrics`, if any |
 
-### `kb.metrics`: new columns, null on every `extract_metrics` row
+### 7.4 `kb.metrics`: new columns, null on every `extract_metrics` row
 
 `ref_mention_id` (non-null marks a resolved reference row), `ref_input_record_id`,
 `ref_metric_id`, `ref_metric_key`.
@@ -442,7 +460,7 @@ is never `public`.
 Candidates for R1 and R3 are stored the same way as metric candidates (rank, score, status), in
 `kb.ref_resolution_candidates` keyed by mention and level.
 
-## What people can ask
+## 8. What people can ask
 
 The point of the processor is to answer questions about how a body of documents is connected. With
 the tables above, each of these is one query or one page:
@@ -469,7 +487,7 @@ Search support:
 - a document graph page (EN/ZH via Paraglide, selectable text) with Normative / Informative /
   Unlisted badges.
 
-## Processor contract (capsule §12 checklist)
+## 9. Processor contract (capsule §12 checklist)
 
 - `extract_references` is configurable and depends on `chunking`. Its status entry
   (`operation: "extract_references"`) carries counts per target type, relationship and resolution
@@ -482,18 +500,23 @@ Search support:
 - Dashboard: add both parts to `ALL_PROCESSOR_IDS`, `PIPELINE_FINAL_OPS` and the stage map.
 - A review page for every `candidates` / `needs_review` state.
 
-## Open decisions
+## 10. Decisions (2026-10-11)
 
-- **Shared catalog.** Should `public` resources be shared across all customers? It improves R1, but
-  every catalog entry must come only from public identifiers.
-- **Confirmation for large sets.** Should a `criteria_set` that fans out to many metrics need
-  confirmation before rows are written?
-- **Benchmark.** Should resolved metric rows ever be scored, in a later gold version?
-- **Derived relationships.** When to build `contradicts` (from resolved metrics that disagree)
-  and `same_as` / `version_of` views.
-- **Subtype vocabulary.** Whether subtypes become a governed vocabulary or stay free text.
+| Question | Decision |
+|---|---|
+| Share `public` catalog entries across all customers? | **Yes**, public facts only (§4.2) |
+| Confirm a `criteria_set` that fans out to many metrics before writing rows? | **No**, resolved rows are written like any other (§5.2) |
+| Score resolved metric rows in the benchmark? | **No**, never (§5.3) |
+| `contradicts` | **Flagged**, and an admin page lists all flags for an admin to resolve; specified separately (§3.3) |
+| Subtypes | **Governed vocabulary** per target type, with an `others` subtype (§3.1) |
 
-## Known limitations (by design)
+Still open, to be addressed separately:
+- the boundary between metric resolution (R4) and `extract_metrics` (§5);
+- reconciling references with what other processors extract, e.g. persons and organizations found
+  as entities by `extract_entity_relation` (§1);
+- the contradictions page and its storage (§3.3).
+
+## 11. Known limitations (by design)
 
 - Only documents in `kb.inputs` that the citing user can access are resolved to. Other resources
   stay in the catalog as `not_held`.
