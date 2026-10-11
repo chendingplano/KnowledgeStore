@@ -1,43 +1,53 @@
-# extract_references — a doc processor that records cross-document references and resolves metric references
+# extract_references — how documents are inter-connected, resolved down to sections and metrics
 
-**Date:** 2026-10-10 \
+**Date:** 2026-10-10, revised 2026-10-11 \
 **Status:** Design, **not built**. Supersedes the "keep reference rows inside `extract_metrics`"
-approach of devdoc 2026101001. Its review findings on reference kinds, document identity, stable
-keys and confidence policy still apply and are reused here. Build it through an openspec change in
-`ChenWeb/openspec/changes/`. Then, per the doc-processor capsule §12.1, write
-`extract-references-spec.md` / `-impl.md` and update this doc.
-**Scope:** What the new `extract_references` processor does, the tables it owns, the reference
-types, how metric references are resolved in both directions, and how resolved metrics enter
-`kb.metrics`. Open this before building the processor or before changing anything that reads
-`kb.metrics` row counts.
+approach of devdoc 2026101001. Its findings on stable keys and confidence policy are reused here.
+The reference model follows the user's diary, `KnowledgeStore/doc-repo/diary/diary-202610.typ`,
+§2026/10/11 "References". Build it through an openspec change in `ChenWeb/openspec/changes/`. Then,
+per the doc-processor capsule §12.1, write `extract-references-spec.md` / `-impl.md` and update this
+doc.
+**Scope:** What the `extract_references` processor is for, the reference model (target type,
+mechanism, relationship, scope), how a reference is resolved from a mention to a resource, a held
+document, a location and a metric, the tables it owns, and how resolved metrics enter `kb.metrics`.
+Open this before building the processor or before changing anything that reads `kb.metrics` row
+counts.
 **Code root (to be):** `ChenWeb/server/api/doc-processing/extract-references.go` (+ resolver),
 registered in `ChenWeb/server/cmd/doc-processor/main.go`. Pipeline rules:
 `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`.
 
 ## Summary
 
-Documents lean on other documents all the time. A standard takes a limit from another standard
-("faecal coliform count shall meet the requirements of GB 7959"). A permit takes emission limits
-from an annex of a directive. A test report follows a method published elsewhere. A paper takes a
-figure from an earlier study. `extract_metrics` keeps working as it does today. It records only
-what the document itself states, and it sets clauses that take their value from elsewhere aside.
+**Who it is for.** Anyone, in China or anywhere else, who holds a body of documents and wants to
+know how those documents are connected. Standards are one case. The same need exists for
+regulations, contracts, specifications, research papers, technical reports, manuals, internal
+policies, software documentation and product data sheets, in any language and any domain.
 
-A new processor, `extract_references`, reads the same document separately and lists every place
-where it cites another document: entries of its reference lists, "comply with" clauses, method
-citations, definitions taken from elsewhere, and clauses that take a limit from the cited
-document. It records what each citation takes from the cited document (one of seven types). It also
-records whether the cited document is one of this document's **normative references**, meaning it is
-formally listed as such. People can then search for a document's normative references, or for every
-document that lists a given document as a normative reference.
+**What it does.** Documents point at other things all the time: a standard requires compliance
+with another standard, a permit takes emission limits from an annex of a directive, a paper builds
+on earlier papers and uses a public dataset, a design document links to a repository, a policy
+quotes a regulation. `extract_references` reads each document and records every such reference.
+It records **what** is referenced (a publication, a standard, a law, a web page, a dataset, a piece
+of software, a section or a single value), **how** it is written (a DOI, a standard number, `[12]`,
+"Smith et al., 2024", a URL, "see Section 4.2"), **what the relationship is** (cites, requires,
+complies with, defines, uses, supersedes, and so on), and **how precisely** it points (a whole
+document, a clause, one value).
 
-For citations that take a **metric's value** from another document, it looks up that document. If
-the cited document has already been processed by `extract_metrics`, it finds the matching metrics
-there and adds them to the citing document's metrics. Each added metric is marked as coming from a
-reference and carries the id of the original. If it cannot find a match it is sure of, it stores
-the best candidates and marks the citation for a person to decide.
+**Finding a reference is separate from resolving it.** First the processor finds the mention
+("ISO 13485:2016, Clause 7.5"). Then, step by step, it works out what the mention points to:
+- **the resource**: the one standard or paper, however it was written;
+- **the user's own copy**, if one exists in the knowledge store;
+- **the exact place** in that document;
+- **the matching metric**, when the reference borrows a value.
 
-The same lookup also runs backwards. When a document is processed, the processor finds the
-earlier documents that cite it and resolves their waiting citations.
+When the system is not sure, it keeps the candidates and asks a person. It does not guess.
+
+**What people get.** A map of their documents: what each document depends on, who relies on a
+given document, which references point at editions that have been replaced, which cited documents
+they do not hold yet, and, for limits and other values, the actual metric behind a clause like
+"shall meet the requirements of GB 7959".
+
+`extract_metrics` is unchanged. It records only what a document itself states.
 
 ## The plan, as given (2026-10-10)
 
@@ -45,378 +55,451 @@ The rest of this doc refers to these steps by number.
 
 1. Keep `extract_metrics` as it is: clauses that take their value from another document stay set
    aside (dropped), as today.
-2. Create a new doc processor, `extract_references`, that retrieves a document's references to
-   other documents, following the doc-processor capsule
-   (`KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`).
+2. Create a new doc processor, `extract_references`, that retrieves a document's references,
+   following the doc-processor capsule.
 3. Create the tables needed to store the references.
 4. Determine the reference types.
-5. **Outgoing resolution.** When the processor handles a document, for each reference that points
-   to metrics in another document: check the cited document. If `extract_metrics` has processed it,
-   resolve the reference to the matching metrics there (the matching logic of devdoc 2026101001).
-   Add the resolved metrics to `kb.metrics`, carrying the ids of the metrics they reference.
-6. **Incoming resolution.** When the processor handles a document, find the documents that cite
-   it. Resolve their metric references against this document and update `kb.metrics` as needed.
+5. **Outgoing resolution.** For each reference that points to metrics in another document, check
+   the cited document. If `extract_metrics` has processed it, resolve the reference to the
+   matching metrics there. Add the resolved metrics to `kb.metrics`, carrying the ids of the
+   metrics they reference.
+6. **Incoming resolution.** When a document is processed, find the documents that reference it,
+   resolve their metric references against it, and update `kb.metrics` as needed.
 
-## Review of the plan
-
-The six steps are accepted. Separating references from `extract_metrics` is the better design: it
-keeps "metrics this document states" clean and gives references a home of their own, including the
-many that are not about metrics. Seven points need care.
-
-### P1. Where it runs in the pipeline: extraction in Phase B, resolution after `extract_metrics`
-
-Phase B processors run at the same time with no ordering (capsule §7.3). Resolution cannot run
-there, because:
-
-- `extract_metrics` **deletes every `kb.metrics` row of the record** on each run
-  (`DELETE FROM kb.metrics WHERE input_record_id = $1`, `extract-metrics.go`). Metrics added to
-  document A by resolution would be wiped by A's own `extract_metrics` if that ran later.
-- Incoming resolution (step 6) needs this document's own metrics, which exist only after
-  `extract_metrics` finishes.
-
-So the processor has two parts:
-
-| Part | Tier | Depends on | Does |
-|---|---|---|---|
-| `extract_references` | Phase B (configurable) | `chunking` | LLM extraction + typing of citations, document identity, writes `kb.doc_references` |
-| resolution | Phase C post-process (`PostProcessIndexer`, `PostProcessDependsOn` the metrics indexer) | `extract_references` and this record's `extract_metrics` | outgoing + incoming resolution, writes `kb.reference_metric_links` and resolved rows into `kb.metrics` |
-
-Extraction uses `canonicalChunkInputText` so it shares the DeepSeek cached prefix with
-`extract_metrics` (capsule §6.2).
-
-### P2. Incoming resolution must also be triggered by `extract_metrics`, not only by `extract_references`
-
-Step 6 ties "who cites me" to running `extract_references` on the cited document. But a cited
-document often gets its metrics later or again, through a Dev Mode re-run of `extract_metrics`
-alone. Then the waiting citations would never resolve, and earlier resolved rows would point at
-deleted metrics. The resolution step must therefore run after a successful `extract_metrics`
-**or** `extract_references` of a record. It is cheap when there is nothing to do.
-
-### P3. Copying resolved metrics into `kb.metrics`: the rows must be clearly owned and survive re-runs
-
-Step 5 adds the cited document's metrics to the citing document's `kb.metrics`. This works if
-these rules hold:
-
-1. **Owned by the resolver, not by `extract_metrics`.** `extract_metrics`' delete becomes
-   `… AND ref_doc_reference_id IS NULL`, so a re-run of the citing document keeps resolved rows.
-   The resolver deletes and re-inserts only its own rows, per citation.
-2. **Own id namespace.** `extract_metrics` numbers rows by position (`<rec>_mtc_<n>`). Resolved
-   rows use `<rec>_rfm_<n>` so the two never collide.
-3. **The citing document's context, the cited document's value.** A resolved row is not a raw
-   copy. Subject, context, section and `source_line_spans` come from the **citing clause** ("堆肥产品
-   的粪大肠菌群数…"). Value, unit, range type, condition and value class come from the **cited
-   metric**. The cited document is evidence, never the source text of this row.
-4. **Re-run of the cited document.** Its `kb.metrics` rows are deleted and renumbered, so the
-   stored target ids go stale. Incoming resolution (P2) then re-resolves and rewrites every
-   resolved row derived from it. Human decisions survive through stable metric keys: a fingerprint
-   of record, section, normalized name, subject and condition (devdoc 2026101001 R6). A confirmed
-   link whose key no longer exists becomes `stale` and is flagged.
-5. **Idempotent under concurrency.** Two records that cite each other can be processed at the same
-   time. Inserts are keyed on (citation, target metric key) with upsert semantics, so outgoing and
-   incoming passes never duplicate rows.
-
-### P4. Every reader of `kb.metrics` sees the new rows, so the default must be explicit
-
-About 50 Go files read `kb.metrics`. Resolved rows are the citing document's requirements, but
-their value was not written in this document. Each reader must decide:
-
-| Reader | Default for resolved rows |
-|---|---|
-| Benchmark scoring (`score_io`, doc-benchmark adapter) | **excluded.** Gold 6.0.0 X16 excludes delegations and forbids importing values; a later gold version may score them separately |
-| Phase D `normalize_assertions` (semantic assertions) | **excluded** until provenance can say "value asserted by B, applied by A". Otherwise B's value is recorded as A's claim |
-| Class contracts, per-instance conformance, comparisons | excluded, or counted once at the cited document |
-| Search index / hybrid links | indexed, labelled as a reference, linked to the original |
-| Metric list and explorer pages | shown, with a "from GB 7959" badge and a link to the original |
-
-The openspec change must list every reader, not only these.
-
-### P5. Which citations resolve to metrics
-
-Resolution (steps 5–6) applies only to `value` and `value_set` citations, the ones whose cited
-content is a metric's criterion (see "Reference model"). Method citations ("determined in
-accordance with GB/T 755") point at a method, not a metric. They
-are recorded and may later link to `extract_test_methods` output, but they add no row to
-`kb.metrics`. 753_drp_49 is this case.
-
-### P6. Document identity comes before any metric matching
-
-Cited documents are identified in different ways across domains. Each citation records the kind
-of identifier (`cited_id_kind`) and is normalized by the rules for that kind:
-
-| `cited_id_kind` | Examples | Normalization and edition |
-|---|---|---|
-| `standard` | ISO 3744:2010, GB/T 755, EN 1838, ASTM D638-14 | publisher prefix + number + part, edition kept apart (`GB/T755` → `GB/T 755`; in `ISO 14253-1`, `-1` is a part, while a 4-digit year after a dash or colon is the edition). Standards convention (ISO/IEC Directives Part 2, GB/T 1.1): an **undated** citation means the latest edition |
-| `legal_act` | Regulation (EU) 2016/679, 40 CFR Part 60, 中华人民共和国固体废物污染环境防治法 | jurisdiction + act type + number or official title; amendments recorded as cited |
-| `persistent_id` | DOI, ISBN, arXiv id | the identifier itself, case-normalized |
-| `bibliographic` | Smith et al. (2019), numbered [14] resolved through the reference list | author + year + title from the list entry |
-| `url` | a web page or dataset link | the URL as given |
-
-A dated citation of a different edition than the one in `kb.inputs` is flagged `edition_mismatch`
-and never resolved silently. Where a domain has no edition convention, a citation without a
-version or date that matches several editions is flagged `edition_ambiguous`.
-
-The citing document needs a reliable identifier too. `kb.inputs.doc_no` is often empty: 753
-(GB/T 46121-2025) has none even after `extract_metadata`. So the processor writes its own document's
-normalized identifier to a column it can rely on. If `extract_metadata` left `doc_no` empty, it
-takes the identifier from the first page or the filename.
-
-### P7. "Not confident" is a review state, not a failure
-
-The run succeeds. The citation is marked `needs_review`, its ranked candidates are stored, a WARN
-log line is written, and the run log reports counts per state. The thresholds belong to a
-versioned policy in `shared.decision_policies`, calibrated on real citations.
+The diary section of 2026-10-11 widened step 4 from "reference types" to a full reference model,
+and added two principles: detecting a mention is separate from resolving it, and a resource's
+identity is separate from where it is found.
 
 ## Reference model (step 4)
 
-`extract_references` must work on any document in any language and domain: standards,
-regulations, contracts, specifications, scientific papers, technical reports, manuals. The model
-below therefore describes what a citation **does**, not the words one language uses for it. Two
-conventions are named directly because standards bodies share them (ISO/IEC Directives Part 2,
-CEN/CENELEC, ASTM, IEEE, and national rules such as GB/T 1.1): a **normative references** list and
-a **terms and definitions** section. Both are recognised by their purpose, never by a fixed heading
-string.
+A **reference** is one place where a source document points at something. The model has four
+independent dimensions (from the diary) plus three labels that standards and requirement documents
+need.
 
-A **citation** is one place where the document points to another document. Pointers inside the
-same document (a table, annex or clause of this document) are not citations. Every citation gets
-these labels:
-
-| Label | Question it answers | Values |
+| Dimension | Question | Stored as |
 |---|---|---|
-| `ref_form` | How does the citation appear? | `listed` · `in_text` |
-| `normativity` | Is the cited document formally a normative reference of this document? | `normative` · `informative` · `unlisted` |
-| `in_requirement` | (in-text only) Is it cited inside a requirement of this document? | true · false |
-| `ref_level` | (in-text only) Which part of this document does it apply to? | `document` · `section` · `clause` · `table_item` |
-| `ref_type` | (in-text only) What does this document take from the cited document? | the seven types below |
+| **Target type** | What kind of thing is referenced? | `target_type` + `target_subtype` |
+| **Mechanism** | How is the reference written in the text? | `mechanism` |
+| **Relationship** | How does the source relate to the target? | `relationships` (one or more) |
+| **Scope** | How precisely does it point inside the target? | `target_scope` + `target_locator` |
+| Target content | Which kind of content of the target is used? | `target_content` |
+| Form and normativity | Is it a list entry, and is it a formal normative reference? | `ref_form`, `normativity` |
+| In a requirement | Is it cited inside a requirement of the source? | `in_requirement` |
 
-### Form
+### Target type: twelve categories, extensible subtypes
 
-- **`listed`**: an entry in a reference list, i.e. a section whose only content is a formal list of
-  cited documents. This covers the normative references list as well as a bibliography, reference
-  list or further-reading list.
-- **`in_text`**: a citation anywhere else: body text, tables, notes, examples, footnotes, annexes,
-  or the terms and definitions section.
+Extraction uses the twelve top-level categories. It does not use a separate schema per type.
+Subtypes are free to extend: the diary's lists are the starting vocabulary, and new subtypes are
+added without schema changes.
 
-A document cited both ways gives one `listed` row and one `in_text` row per occurrence. Each
-`in_text` row points to its list entry (`list_entry_id`). A list entry never cited in the text has
-only its form and normativity.
-
-### Normativity
-
-A **normative reference** is a document that this document **lists explicitly and formally** as
-normative, i.e. an entry in a section dedicated to normative references. In standards this is the
-"Normative references" clause (ISO/IEC Directives Part 2, clause 2), also called "Referenced
-documents" (ASTM), "Applicable documents" (some specifications) or 规范性引用文件 (GB/T 1.1). The
-section is recognised by its purpose: a list of documents that, by its heading and introductory
-statement, are indispensable for applying this document.
-
-| Normativity | Meaning |
+| `target_type` | Examples of subtypes |
 |---|---|
-| `normative` | an entry in the normative references list, or an in-text citation of a document in that list |
-| `informative` | an entry only in an informative list (bibliography, references, further reading), or an in-text citation of such a document |
-| `unlisted` | an in-text citation of a document that is in no list of this document |
+| `document` | report, specification, manual, file, internal document, document collection |
+| `web_resource` | website, web page, blog post, online article, wiki page, forum post, online documentation, web archive |
+| `publication` | journal article, conference paper, preprint, thesis, book chapter, review article, dataset paper, research protocol |
+| `standard` | international, national, industry standard; technical specification; internet standard (RFC); draft; amendment; corrigendum; conformance profile |
+| `legal` | law, regulation, directive, administrative rule, legal code provision, court decision, regulatory guidance, treaty, bill |
+| `general_publication` | book, encyclopedia or dictionary entry, handbook, magazine or newspaper article, white paper, press release, catalog |
+| `software` | repository, source file or element, commit, release, package, API, API endpoint, configuration, container image |
+| `data` | dataset, database, database record, statistical series, spreadsheet, data repository, knowledge-graph entity, ontology concept |
+| `media` | image, diagram, chart, audio, video, presentation or slide, transcript, map, geospatial layer |
+| `communication` | email or thread, chat message, meeting record, decision record (ADR), memo, workspace page |
+| `business_record` | product specification or data sheet, patent, contract, procurement document, certification, audit report, safety data sheet, test report |
+| `other` | concept or term, definition, procedure, experiment, clinical trial record, formula, physical sample |
 
-**Normativity comes only from the lists, never from wording.** Wording that makes a citation
-binding ("shall comply with", "must be measured according to", 应符合) is recorded separately as
-`in_requirement`. Binding citations are common in documents that have no normative references list
-at all, such as a regulation citing another regulation or a contract citing a specification. They
-are `unlisted` with `in_requirement = true`. They are not normative references in the formal sense.
+**v1 boundary with `extract_entity_relation`.** Persons, organizations, locations, events and
+products are entities. They become references here only when they are cited **as a source of
+content** (a product data sheet, an organization's published policy) or by a record identifier
+(Wikidata `Q42`, `CVE-2025-1234`). Bare mentions of entities stay with `extract_entity_relation`.
 
-When the document **has** a normative references list, two mismatches are flagged (`list_mismatch`)
-and never corrected, because they are drafting defects in the source document:
+### Mechanism: how the reference is written
 
-- `not_listed`: cited inside a requirement, but missing from the normative references list.
-- `never_cited`: a normative references entry that the text never cites.
+The mechanism is never the target type. A URL, a DOI or a file path is an identifier or a locator
+of a target, not a kind of target.
 
-### Level (in-text only)
-
-| Level | The citation applies to |
+| `mechanism` | Example |
 |---|---|
-| `document` | the whole document ("This document is used together with ISO X") |
-| `section` | one chapter or section ("The tests in Clause 5 are carried out according to ISO Y") |
-| `clause` | one clause, paragraph, sentence or list item |
-| `table_item` | one row or cell of a table |
+| `url`, `hyperlink` | `https://example.com/report.pdf`, `[documentation](url)` |
+| `doi`, `isbn`, `issn`, `arxiv_id`, `pmid` | `10.1145/1234567`, `arXiv:2609.15364`, `PMID: 12345678` |
+| `standard_number`, `rfc_number` | `ISO 13485:2016`, `GB/T 755`, `RFC 9110` |
+| `legal_citation` | `21 CFR § 820.10`, `Regulation (EU) 2016/679` |
+| `patent_number` | `US12345678B2` |
+| `repository_path`, `file_path`, `relative_path`, `anchor` | `github.com/org/repo`, `docs/architecture.md`, `../specs/design.pdf`, `#section-3` |
+| `numbered_citation`, `author_year`, `citation_key`, `footnote` | `[12–15]`, `(Smith et al., 2024)`, `[@smith2024]`, superscript `¹` |
+| `named_reference` | "as defined in ISO 9001", "the Personal Information Protection Law" |
+| `structural_reference` | "see Section 4.2", "Table 2" (inside the same document) |
+| `indirect_reference` | "according to the previous report" |
+| `identifier` | `Q42`, `CVE-2025-1234` |
+| `cross_reference_field` | a Word or PDF cross-reference field |
 
-### Type (in-text only): the seven types
+A `numbered_citation`, `author_year`, `citation_key` or `footnote` is first resolved to the source
+document's own reference list entry, which carries the real identifier. An `indirect_reference` is
+resolved from context and always produces candidates, never a silent match.
 
-These seven types are the complete list. Each in-text citation has **exactly one** type. A sentence
-that takes two things from the same document, for example a method and a limit, gives two
-citations.
+**Internal references** (`structural_reference` to the same document) are recorded with
+`internal = true`. They link sections and tables of one document, which helps when a clause says
+"other parameters shall meet Table 2". Inter-document views exclude them by default.
 
-| Type | What this document takes from the cited document | Examples | Resolves to |
+### Relationship: one or more per reference
+
+Relationships are not mutually exclusive: a paper can both cite and contradict another paper. Some
+relationships are **asserted** by the source text and found at extraction. Others are **derived**
+by the system after resolution and are never taken from one document's wording alone.
+
+| `relationship` | Meaning | Example | How it is found |
 |---|---|---|---|
-| `value` | the criterion (limit, required value, grade) for **one named measurable quantity**, which this document does not state itself | "Faecal coliform count shall meet the requirements of GB 7959" · "NOx emissions shall not exceed the limit values in Annex II of Directive 2010/75/EU" | **metrics** (steps 5–6) |
-| `value_set` | the criteria for a **set** of quantities, identified by a locator in the cited document (a table, class, grade or clause) or a placeholder ("other parameters", "all limits") | "Other parameters shall meet Class II of Table 1 of GB 7959" · "shall meet the Class B limits of CISPR 32" | **metrics** of that table / class |
-| `method` | how a quantity is measured, tested, sampled, calculated or determined | "rated power determined in accordance with GB/T 755" · "sound power measured according to ISO 3744" · "samples analysed as described in [12]" | document (later: test method) |
-| `definition` | the meaning of terms | "For the purposes of this document, the terms and definitions given in ISO 9000 apply" · "'consumer' as defined in Directive 2011/83/EU" | document (later: term) |
-| `requirements` | a body of requirements taken as a whole, with no named quantity and no locator | "Collection shall comply with CJJ 184" · "The supplier shall be certified to ISO 9001" · "Processing shall comply with Regulation (EU) 2016/679" | document or section |
-| `source` | nothing: this document **states the content itself** (a value, data, finding, claim) and credits the cited document as its origin | "an emission factor of 2.31 kg CO2 per litre (IPCC 2006)" · "prevalence was 12 % [14]" | document. The value is an ordinary `extract_metrics` row |
-| `background` | nothing specific: further reading, related work, "see also" | "NOTE See also ISO 14253-1" · "for a review, see [3]" | document |
+| `cites` | source cites target | a paper cites another paper | asserted |
+| `references` | general mention, nothing more specific | a document mentions another document | asserted (default) |
+| `quotes` | reproduces target content | a report quotes a regulation | asserted |
+| `defines_in` | a definition originates in the target | "the terms of ISO 9000 apply" | asserted |
+| `based_on` | derived from the target | a procedure based on a guideline; a national adoption of an ISO standard | asserted |
+| `implements` | implements a target specification | software implements RFC 9110 | asserted |
+| `complies_with` | claims compliance with the target | "this product complies with IEC 60335-1" | asserted |
+| `requires` | depends on a requirement in the target | "emissions shall not exceed the limits of Annex II" | asserted |
+| `supersedes` | replaces an earlier target | "this edition replaces GB/T 755-2008" | asserted |
+| `amends` | modifies the target | an amendment to a regulation | asserted |
+| `supports`, `refutes` | evidence for or against a claim | a study supports / refutes a prior conclusion | asserted |
+| `extends` | builds on the target | research extends previous work | asserted |
+| `uses` | uses a resource: dataset, software, method | a paper uses a dataset; "measured according to ISO 3744" | asserted |
+| `depends_on` | dependency | a package depends on a library | asserted |
+| `derived_from` | produced from the target | a chart derived from a dataset | asserted |
+| `see_also` | related resource | "NOTE See also ISO 14253-1" | asserted |
+| `contradicts` | conflicts with the target | two documents give different limits for the same metric | **derived** (from resolved metrics, later) |
+| `same_as`, `version_of`, `part_of` | identity, version and containment | DOI and URL of one paper; a draft of a specification; a clause of a standard | **derived** (from the resource catalog) |
 
-Notes on the types:
+`based_on` with national adoptions of international standards also records the degree of
+correspondence when the document states it (`IDT` identical, `MOD` modified, `NEQ` not equivalent,
+ISO/IEC Guide 21-1), e.g. "GB/T 755-2019 / IEC 60034-1:2017, MOD".
 
-- **`value` versus `source`**: the test is whether the value is written in this document. If it is,
-  the citation is `source` and `extract_metrics` already keeps the metric. If it is not, the
-  citation is `value`. Standards mostly produce `value`; papers and reports mostly produce
-  `source`.
-- **`value_set`** is kept apart from `value` because it can fan out to many metrics, and the
-  locator (`cited_locator`) must be found in the cited document first.
-- **Terms and definitions section.** A section that exists only to define terms ("Terms and
-  definitions" in standards, ISO/IEC Directives Part 2 clause 3; a glossary; the "Definitions"
-  article of a regulation or contract). A citation in such a section, or a statement that the terms
-  of a cited document apply, is `definition`. Like the normative references list, it is recognised
-  by its purpose (it only defines terms), not by its heading.
+### Scope and target content: how precisely, and what is used
 
-### Deciding that a citation references metrics
+| `target_scope` | Example |
+|---|---|
+| `collection` | the ISO 9000 family, a GitHub organization |
+| `document` | ISO 13485:2016 |
+| `section` | ISO 13485:2016 Clause 7.5; Annex II; Table 1 |
+| `requirement` | one normative statement or paragraph |
+| `data_element` | one sentence, table cell, value or metric |
 
-Only `value` and `value_set` citations reference metrics. The decision is made in three stages.
-Each stage can confirm or weaken the one before it.
+`target_locator` holds the place within the target ("Clause 7.5", "Table 1, Class II", "Figure 5",
+"Equation 7", "§ 820.10").
 
-**1. The citing text, read by the LLM at extraction (Phase B).** A citation is `value` only when
-it passes all three tests:
+`target_content` says which kind of content of the target the source uses. It is what decides
+whether a reference touches metrics:
+
+| `target_content` | The source uses… | Example |
+|---|---|---|
+| `criterion` | the limit or required value of **one named measurable quantity**, which the source does not state itself | "Faecal coliform count shall meet the requirements of GB 7959" |
+| `criteria_set` | the limits of a **set** of quantities, found by a locator or a placeholder | "Other parameters shall meet Class II of Table 1 of GB 7959"; "shall meet the Class B limits of CISPR 32" |
+| `method` | how something is measured, tested, sampled or computed | "rated power determined in accordance with GB/T 755" |
+| `term` | the meaning of terms | "'consumer' as defined in Directive 2011/83/EU" |
+| `requirements` | a body of requirements as a whole, with no named quantity | "The supplier shall be certified to ISO 9001" |
+| `data` | data or findings, which the source states itself and credits to the target | "an emission factor of 2.31 kg CO2 per litre (IPCC 2006)" |
+| `general` | nothing specific | "for a review, see [3]" |
+
+These two labels replace the seven "reference types" of the previous revision. Each old type is
+now a combination: `value` = `requires` + `data_element` + `criterion`; `value_set` = `requires` +
+`section` + `criteria_set`; `method` = `uses` + `method`; `definition` = `defines_in` + `term`;
+`requirements` = `requires` or `complies_with` + `requirements`; `source` = `cites` or `quotes` +
+`data`; `background` = `see_also` + `general`.
+
+### Form, normativity and requirements
+
+Two conventions of standards are named directly because standards bodies share them (ISO/IEC
+Directives Part 2, CEN/CENELEC, ASTM, IEEE, and national rules such as GB/T 1.1). Both are
+recognised by their purpose, never by a fixed heading string.
+
+- **Normative references** are documents the source **lists explicitly and formally** as
+  normative, in a section dedicated to them. Examples are "Normative references" (ISO/IEC
+  Directives Part 2, clause 2), "Referenced documents" (ASTM), "Applicable documents" and
+  规范性引用文件. The section is a list of documents that, by its heading and introductory statement,
+  are indispensable for applying the source.
+- **Terms and definitions** is a section that exists only to define terms. Glossaries and the
+  "Definitions" article of a regulation or contract count too. A reference in such a section, or a
+  statement that the terms of a cited document apply, gets `defines_in` + `term`.
+
+Labels:
+
+- `ref_form`: `listed` (an entry of a reference list: normative references, bibliography,
+  reference list, further reading) or `in_text`. A target cited both ways gives one listed row and
+  one in-text row per occurrence. Each in-text row points to its list entry (`list_entry_id`).
+- `normativity`: `normative` (listed in the normative references list, or an in-text reference to
+  such a document), `informative` (listed only in an informative list), or `unlisted` (in no list).
+  **It comes from the lists only, never from wording.**
+- `in_requirement`: true when the reference sits inside a requirement of the source ("shall",
+  "must", 应). Binding references are common in documents that have no normative references list,
+  such as regulations, contracts and specifications. They are `unlisted` with
+  `in_requirement = true`, and they are not counted as normative references.
+- `list_mismatch`: only when the source has a normative references list. `not_listed` means
+  cited inside a requirement but missing from the list. `never_cited` means a list entry the text
+  never uses. Both are drafting defects of the source and are recorded, not corrected.
+
+## Detection and resolution
+
+Detecting a mention and resolving it are separate operations (diary, 2026-10-11). Resolution runs
+in levels, and each level can stop with candidates for a person to choose from.
+
+| Level | Maps… | to… | Possible outcomes |
+|---|---|---|---|
+| **D. Detection** | text | a mention with its labels and the identifiers it contains | (always) |
+| **R1. Resource** | a mention | one canonical resource in the catalog, plus a version if cited | `resolved` · `candidates` · `new_resource` |
+| **R2. Holding** | a resource version | a document in `kb.inputs` the citing user can access | `held_processed` · `held_not_processed` · `not_held` · `edition_mismatch` · `edition_ambiguous` |
+| **R3. Location** | a `target_locator` | a section, table or element of the held document | `located` · `candidates` · `not_found` |
+| **R4. Metric** | a `criterion` / `criteria_set` reference | metrics of the held document | steps 5–6, see "Metric references" |
+
+### Identity is separate from location
+
+The same paper can appear as an arXiv URL, a DOI, a publisher page and a local PDF. The same
+standard is cited as `GB/T 755`, `GB/T755-2019` or by its title. They resolve to **one resource**,
+and each identifier, edition and copy stays recorded:
+
+- a **resource** is the conceptual work (ISO 13485; the paper "…" by Smith et al.);
+- a **version** is an edition, revision, draft or amendment state (ISO 13485:2016; Revision 2;
+  draft v1.3). Versions carry `supersedes` / `version_of` links and a status (current, withdrawn,
+  draft) where known;
+- an **identifier** is any way to name or locate the resource or one version: standard number, DOI,
+  URL, arXiv id, ISBN, legal citation, repository path, file path, or a `kb.inputs` record id (the
+  user's own copy).
+
+Normalization depends on the identifier kind: standard numbers keep prefix, number and part apart
+from the edition (`GB/T755` → `GB/T 755`; in `ISO 14253-1`, `-1` is a part). DOIs are
+case-folded. Legal citations are normalized by jurisdiction, act type and number. URLs are kept as
+given. Standards have one edition convention: an **undated** citation means the latest edition
+(ISO/IEC Directives Part 2, GB/T 1.1). Elsewhere, a citation without version or date that matches
+several versions is `edition_ambiguous`.
+
+The citing document needs a reliable identity too. `kb.inputs.doc_no` is often empty: 753
+(GB/T 46121-2025) has none even after `extract_metadata`. The processor links each processed
+document to its resource and version, taking the identifier from metadata, the first page or the
+filename.
+
+### Access: resolution never crosses what a user may see
+
+Customers keep private documents. Resolution must not leak them:
+
+- The **catalog** of resources and versions holds only what the citing text itself says (an
+  identifier, a title). A resource known only from a private source (an internal file path, a
+  company policy) is scoped to that knowledge store.
+- **R2 (holding)** links a reference to a `kb.inputs` record only if the citing document's owner
+  can access that record (same user or knowledge store, or an active grant).
+- **Incoming resolution** (step 6) and "who cites this document" views follow the same rule. A
+  user never learns that someone else's private document cites theirs.
+
+## Metric references (steps 5–6)
+
+### Deciding that a reference points at metrics
+
+Only references with `target_content` = `criterion` or `criteria_set` can resolve to metrics. The
+decision is made in three stages, and each stage can confirm or weaken the one before it.
+
+**1. The source text, read by the LLM at detection.** A reference has `criterion` only when it
+passes three tests:
 
 - **It names a measurable quantity of an object**: something with a value on a unit or scale
   (faecal coliform count, moisture content, NOx emission, sound power). This is the same test
-  `extract_metrics` uses. A process, activity, product or management system as a whole is not one
-  ("Collection shall comply with CJJ 184" is `requirements`).
-- **It takes the criterion for that quantity**, meaning the limit, grade or required value, and
-  not the way it is measured. "Shall comply with / meet / not exceed the requirements or limits of
-  X" takes a criterion. "Measured / determined / tested / calculated in accordance with X" takes a
-  method, so the citation is `method` even when a quantity is named. 753_drp_49 ("rated power of
-  the fan motor, determined in accordance with GB/T 755") names a quantity and is still `method`.
-- **This document does not state the value itself.** If it does, the citation is `source`.
+  `extract_metrics` uses. A process, activity, product or management system as a whole is not one.
+- **It takes the criterion for that quantity**, meaning the limit, grade or required value, and not
+  the way it is measured. "Shall comply with / meet / not exceed the requirements or limits of X"
+  takes a criterion. "Measured / determined / tested / calculated in accordance with X" takes a
+  `method`, even when a quantity is named. 753_drp_49 ("rated power of the fan motor, determined in
+  accordance with GB/T 755") names a quantity and is still `method`.
+- **The source does not state the value itself.** If it does, the content is `data`.
 
-It is `value_set` when the text names a set of criteria instead of one quantity: a placeholder or
-a locator in the cited document. Text that takes "the requirements" of a whole document, with no
-quantity and no locator, is `requirements` and never adds metrics, even when the cited document is
-mostly limits. Copying every metric of a document because a clause says "comply with X" would
-assert far more than the clause does.
+It is `criteria_set` when the text names a set of criteria instead of one quantity (a placeholder,
+or a locator such as a table or class). Text that takes "the requirements" of a whole document, with
+no quantity and no locator, is `requirements` and never adds metrics. Copying every metric of a
+document because a clause says "comply with X" would claim far more than the clause does.
 
-The LLM returns the type, the named quantity (`metric_name`, `metric_subject`, `condition`), the
-`cited_locator`, and `type_confidence`. The prompt carries these tests with examples in several
-languages and domains, not a word list. Phrases like the ones quoted above are hints, not rules, as
-in the decision policy (devdoc 2026100801).
+The prompt carries these tests with examples from several domains and languages, not a word list.
+The phrases quoted above are hints, as in the decision policy (devdoc 2026100801).
 
-**2. Agreement with `extract_metrics` (resolution, Phase C).** `extract_metrics` makes its own
-call on the same text. A row set aside as `delegated_requirement` (with a `cited_doc:` tag) in
-`kb.metrics_dropped`, at overlapping `source_line_spans`, means it also saw a named quantity whose
-value lives in a cited document. If the two agree, the decision stands. If they disagree (one says
-`value`, the other a method citation, an inspection requirement, or no row at all), the citation
-goes to `needs_review` instead of being resolved automatically. The comparison is logged in both
-directions, which also measures how well each processor does.
+**2. Agreement with `extract_metrics`.** At resolution, a row that `extract_metrics` set aside as
+`delegated_requirement` (with a `cited_doc:` tag) at overlapping lines means it also saw a named
+quantity whose value lives elsewhere. If the two processors agree, the decision stands. If they
+disagree, the reference goes to review. Both outcomes are logged, which also measures each
+processor.
 
-**3. The cited document, once it is processed.** A `value` citation expects the cited document to
-hold a metric for the named quantity. If candidate search finds none, and the cited document has no
-metrics of that kind at all, the type itself is doubtful. GB/T 755, a rating and method standard, is
-an example. Then the citation becomes `no_match` with the note `type_doubtful` and goes to review. It
-is never quietly retyped. The cited document's governed `document.doc_kind` is an extra signal for
-the reviewer, not a rule.
+**3. The target document, once held and processed.** A `criterion` reference expects the target
+to hold a metric for the named quantity. If none is found, and the target has no metrics of that
+kind at all (GB/T 755, a rating and method standard, is an example), the reference is marked
+`no_match` with `type_doubtful` and goes to review. It is never quietly retyped.
 
-Until stage 3 can run (cited document missing or not processed), the type rests on stages 1–2 and
-is shown as such.
+### Matching
+
+For a metric reference whose target is `held_processed`:
+
+1. Candidates come from the target's `kb.metrics` (not its own resolved rows: no chains in v1) and
+   its `kb.metrics_dropped` definitions, narrowed by the R3 location when there is one.
+2. They are scored on the same governed term (`metric_definition_term_id` / `keyword_concept_id`),
+   name, alias and subject match in the source and target languages, bge-m3 similarity of
+   `search_document`, and an LLM judge for the top few.
+3. One or more candidates at or above the policy threshold → `resolved`, and resolved rows are
+   written. Otherwise → `needs_review` with the top candidates kept. No candidates → `no_match`.
+4. A person confirming or rejecting a candidate sets `confirmed` / `rejected`. Confirmed links
+   write rows like resolved ones.
+
+Thresholds are a versioned policy in `shared.decision_policies`, calibrated on real references
+from more than one domain and language before they are trusted.
+
+### Resolved metrics in `kb.metrics` (step 5)
+
+1. **Owned by the resolver.** `extract_metrics`' delete
+   (`DELETE FROM kb.metrics WHERE input_record_id = $1`) becomes `… AND ref_mention_id IS NULL`,
+   so a re-run of the source keeps resolved rows. The resolver replaces only its own rows, per
+   reference.
+2. **Own id namespace.** Resolved rows use `<rec>_rfm_<n>` and never collide with `<rec>_mtc_<n>`.
+3. **The source's context, the target's value.** Subject, context, section and
+   `source_line_spans` come from the referencing text. Value, unit, range type, condition and value
+   class come from the target metric.
+4. **Stable keys.** Target rows are renumbered when the target is re-processed, so every link also
+   stores a fingerprint of record, section, normalized name, subject and condition. Human
+   decisions survive re-runs through it. A confirmed link whose key disappears becomes `stale` and
+   is flagged.
+5. **Idempotent.** Two documents that reference each other can be processed at the same time.
+   Writes are upserts keyed on (mention, target metric key).
+
+**Every reader of `kb.metrics` sees these rows.** About 50 Go files read the table, so each one
+needs an explicit default:
+
+| Reader | Default for resolved rows |
+|---|---|
+| Benchmark scoring | excluded (gold 6.0.0 X16 forbids importing values) |
+| Phase D `normalize_assertions` | excluded until provenance can say "value asserted by B, applied by A" |
+| Class contracts, conformance, comparisons | excluded, or counted once at the target |
+| Search index, hybrid links | indexed, labelled as a reference, linked to the original |
+| Metric list and explorer pages | shown with a "from <target>" badge and a link |
+
+The openspec change lists every reader.
+
+## Pipeline placement
+
+| Part | Tier | Depends on | Does |
+|---|---|---|---|
+| `extract_references` | Phase B (configurable) | `chunking` | detection (D) and R1 against the catalog; writes mentions, resources, identifiers |
+| `resolve_references` | Phase C post-process (`PostProcessIndexer`) | this record's `extract_references` and `extract_metrics` | R2–R4, outgoing and incoming; writes metric links and resolved `kb.metrics` rows |
+
+- Detection uses `canonicalChunkInputText`, so it shares the DeepSeek cached prefix with the other
+  chunk processors (capsule §6.2). Reference lists and identifiers that a pattern can read exactly
+  (DOI, URL, standard number) are parsed in code, and the LLM handles the rest.
+- **Resolution cannot run in Phase B.** Phase B processors run at the same time, and
+  `extract_metrics` deletes all of a record's `kb.metrics` rows on each run.
+- **Incoming resolution also runs after `extract_metrics` alone.** A target often gets its
+  metrics, or new ones, through a Dev Mode re-run of `extract_metrics`. Otherwise waiting
+  references would never resolve, and resolved rows would point at deleted metrics. The step is
+  cheap when nothing waits.
+- Not being sure is a review state, not a failure. The run succeeds, WARN lines are logged, and the
+  run log reports counts per state.
 
 ## Tables (proposed, goose migrations, created at start-up)
 
-### `kb.doc_references`: one row per citation occurrence, rebuilt on each run of the citing document
+### `kb.ref_mentions`: one row per reference occurrence; rebuilt on each run of the source
 
 | Column | Meaning |
 |---|---|
 | `id`, `input_record_id`, `event_id`, `run_id`, `ref_id` (`<rec>_ref_<n>`) | identity, provenance |
-| `ref_form` | `listed` · `in_text` |
-| `list_kind` | for `listed`: `normative` (the normative references list) · `informative` (bibliography, references, further reading) |
-| `normativity` | `normative` · `informative` · `unlisted` (derived from the lists only) |
-| `in_requirement` | for `in_text`: cited inside a requirement of this document |
-| `list_entry_id` | for `in_text`: the list entry of the same cited document (null if none) |
-| `list_mismatch` | `not_listed` · `never_cited` · null (only when the document has a normative references list) |
-| `ref_level`, `ref_type`, `type_confidence` | for `in_text`, see "Reference model" |
-| `section`, `source_line_spans`, `quote` | where and what was said |
-| `cited_raw`, `cited_id_kind`, `cited_doc_key`, `cited_edition`, `cited_locator` | as written; kind of identifier (P6); normalized id; edition or null; table/clause/class in the cited document |
-| `metric_name`, `metric_subject`, `condition` | the named quantity, for `value` citations (Chinese + `_en`) |
-| `target_input_id`, `target_state` | resolved `kb.inputs.id`; `unknown_document` · `not_processed` · `no_metrics` · `processed` · `edition_mismatch` · `edition_ambiguous` |
-| `resolution_state` | `not_applicable` (non-metric types) · `pending_target` · `resolved` · `needs_review` · `no_match` · `confirmed` |
-| `citing_key` | stable fingerprint, so human decisions survive re-runs |
+| `section`, `source_line_spans`, `evidence` | where, and the exact text |
+| `ref_form`, `list_kind`, `list_entry_id` | `listed` · `in_text`; `normative` · `informative`; link to the list entry |
+| `normativity`, `in_requirement`, `list_mismatch` | see "Form, normativity and requirements" |
+| `mechanism`, `cited_raw`, `identifiers` (jsonb `[{kind, value}]`) | how it is written; as written; parsed identifiers |
+| `target_type`, `target_subtype`, `target_title`, `target_version` | what is referenced, as stated |
+| `relationships` (text[]) | asserted relationships |
+| `target_scope`, `target_locator`, `target_content` | how precisely, where, what is used |
+| `metric_name`, `metric_subject`, `condition` (+ `_en`) | the named quantity, for `criterion` |
+| `internal` | true for references inside the same document |
+| `confidence` | detection confidence |
+| `resource_id`, `version_id`, `r1_state` | R1 result |
+| `target_input_id`, `r2_state`, `target_section`, `r3_state` | R2 and R3 results |
+| `metric_state` | `not_applicable` · `pending_target` · `resolved` · `needs_review` · `no_match` · `confirmed` |
+| `mention_key` | stable fingerprint, so human decisions survive re-runs |
 
-`unknown_document` rows together form the list of documents worth acquiring.
+### `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`: the catalog
 
-### `kb.reference_metric_links`: citation → candidate or resolved target metric
+| Table | Holds |
+|---|---|
+| `kb.ref_resources` | one conceptual resource: `target_type`, `target_subtype`, canonical title (original + `_en`), issuer or authors, `visibility` (`public` or a knowledge store id) |
+| `kb.ref_resource_versions` | editions, revisions, drafts, amendments: label, date, status, `supersedes_version_id`, adoption degree |
+| `kb.ref_resource_identifiers` | every identifier of a resource or version: `kind` (standard number, DOI, URL, arXiv, ISBN, legal citation, repository, file path, `kb_input`) and normalized `value`; unique per (kind, value, visibility) |
+
+A `kb_input` identifier is how a user's own copy is attached to a resource version. That attachment
+is never `public`.
+
+### `kb.reference_metric_links`: mention → candidate or resolved target metric
 
 | Column | Meaning |
 |---|---|
-| `id`, `doc_reference_id` | link to the citation |
-| `target_input_id`, `target_metric_id`, `target_metric_key` | cited metric (positional id + stable key) |
+| `id`, `ref_mention_id` | the reference |
+| `target_input_id`, `target_metric_id`, `target_metric_key` | the target metric (positional id + stable key) |
 | `rank`, `score`, `match_method` | `term` · `name` · `embedding` · `llm_judge` · `human` |
 | `status` | `candidate` · `resolved` · `confirmed` · `rejected` · `stale` |
 | `policy_id`, `policy_version`, `decided_by`, `decided_at` | decision provenance |
-| `resolved_metric_id` | the `<rec>_rfm_<n>` row created in `kb.metrics`, if any |
+| `resolved_metric_id` | the `<rec>_rfm_<n>` row in `kb.metrics`, if any |
 
 ### `kb.metrics`: new columns, null on every `extract_metrics` row
 
-| Column | Meaning |
-|---|---|
-| `ref_doc_reference_id` | the citation this row came from; **non-null marks a resolved reference row** |
-| `ref_input_record_id`, `ref_metric_id`, `ref_metric_key` | the original metric in the cited document |
+`ref_mention_id` (non-null marks a resolved reference row), `ref_input_record_id`,
+`ref_metric_id`, `ref_metric_key`.
 
-`kb.reference_metric_links` is the relation table. The `ref_*` columns repeat the link on the row so
-list pages and filters need no join.
+Candidates for R1 and R3 are stored the same way as metric candidates (rank, score, status), in
+`kb.ref_resolution_candidates` keyed by mention and level.
 
-## Searching references
+## What people can ask
 
-People will want to ask "which normative references does this document have?" and "which
-documents list GB/T 755 as a normative reference?", with or without the informative and unlisted
-citations. To support this:
+The point of the processor is to answer questions about how a body of documents is connected. With
+the tables above, each of these is one query or one page:
 
-- **Indexed columns** on `kb.doc_references`: (`input_record_id`, `normativity`) for one
-  document's references, and (`cited_doc_key`, `normativity`) for "who cites X".
-- **Full-text search**: a `kb.search_artifacts` partition `doc_reference` (capsule §12.3, BM25 +
-  embeddings), one row per citation. Title is the cited identifier and its title, context is the
-  quote and section. `normativity`, `ref_type` and `ref_level` are filterable fields, and the
-  default filter shows all citations.
-- **API and page**: one read endpoint filtered by citing document, cited document, `normativity`,
-  `ref_type`, `in_requirement` and `resolution_state`. The pages show a Normative / Informative /
-  Unlisted badge on every citation, with a normative-only toggle (EN/ZH, selectable text).
+- **Dependencies.** What does this document depend on? Show its normative references, or
+  everything it requires, uses or complies with.
+- **Impact.** Who relies on this document, this clause, this dataset, this API? Filter by
+  relationship and normativity.
+- **Versions.** Which of my documents cite an edition that has been superseded or withdrawn?
+- **Gaps.** Which referenced resources do I not hold yet? These are `not_held` resources, ranked by
+  how many of my documents reference them.
+- **Traceability.** Which requirements in my documents trace to which clause of which regulation or
+  standard?
+- **Values.** What is the actual limit behind "shall meet the requirements of X"? The answer comes
+  from the resolved metric rows.
+- **Drafting checks.** Which documents cite in requirements without listing the document as a
+  normative reference, or list one they never use?
 
-Normativity is shown and filtered as stored. A binding but unlisted citation (`unlisted` with
-`in_requirement = true`) is never counted as a normative reference. A separate "cited in a
-requirement" filter finds those.
-
-## Matching (same logic as devdoc 2026101001 R8)
-
-For a `value` / `value_set` citation whose target is `processed`:
-
-1. Candidates come from the target's `kb.metrics` (excluding its own `ref_*` rows: no chains in
-   v1) and its `kb.metrics_dropped` definitions, narrowed to `cited_locator` when one is given.
-2. They are scored on: same governed term (`metric_definition_term_id` / `keyword_concept_id`),
-   name/alias/subject match in both languages, bge-m3 similarity of `search_document`, and an LLM
-   judge for the top few.
-3. One or more candidates at or above the policy threshold → `resolved`, and resolved rows are
-   written. Otherwise → `needs_review` with the top candidates stored as `candidate` links. No
-   candidates at all → `no_match`.
-4. A person confirming or rejecting a candidate sets `confirmed` / `rejected`. Confirmed links
-   write rows like resolved ones.
+Search support:
+- indexes on (`input_record_id`, `normativity`), (`resource_id`, `relationship`) and
+  (`target_type`);
+- a `kb.search_artifacts` partition `reference` (capsule §12.3: BM25 + embeddings), filterable by
+  target type, relationship, normativity, `in_requirement` and resolution states;
+- a document graph page (EN/ZH via Paraglide, selectable text) with Normative / Informative /
+  Unlisted badges.
 
 ## Processor contract (capsule §12 checklist)
 
-- Name `extract_references`, configurable, `DependsOn: chunking`; status entry
-  `operation: "extract_references"` with counts per `ref_type` and per `resolution_state`.
-- Calls `CheckAndHandleStop` at every LLM call boundary. Logs through `kb.doc_proc_logs`.
-- Deletion contract (ADR 2026072301): deleting a record deletes its `kb.doc_references`, their
-  links and resolved rows. It also marks links **into** it `stale` and moves those citations back
-  to `pending_target`.
-- Dashboard: add to `ALL_PROCESSOR_IDS`, `PIPELINE_FINAL_OPS`, stage map.
-- A review page for `needs_review` citations (EN/ZH via Paraglide), selectable text.
+- `extract_references` is configurable and depends on `chunking`. Its status entry
+  (`operation: "extract_references"`) carries counts per target type, relationship and resolution
+  state.
+- `CheckAndHandleStop` at every LLM call boundary. Logging through `kb.doc_proc_logs` with
+  `CreateDefaultLogger`.
+- Deletion contract (ADR 2026072301): deleting a record deletes its mentions, links and resolved
+  rows, and its `kb_input` identifiers. Links **into** it become `stale`, and those mentions go back
+  to `not_held`.
+- Dashboard: add both parts to `ALL_PROCESSOR_IDS`, `PIPELINE_FINAL_OPS` and the stage map.
+- A review page for every `candidates` / `needs_review` state.
 
 ## Open decisions
 
-- Whether `value_set` fan-out needs a confirmation step before rows are written. A table can
-  hold dozens of metrics.
-- Whether resolved rows should ever be scored by the benchmark (a later gold version) or stay
-  outside it.
-- Initial policy thresholds (calibrate on the first resolved set, e.g. records 416, 642, 753).
+- **Shared catalog.** Should `public` resources be shared across all customers? It improves R1, but
+  every catalog entry must come only from public identifiers.
+- **Confirmation for large sets.** Should a `criteria_set` that fans out to many metrics need
+  confirmation before rows are written?
+- **Benchmark.** Should resolved metric rows ever be scored, in a later gold version?
+- **Derived relationships.** When to build `contradicts` (from resolved metrics that disagree)
+  and `same_as` / `version_of` views.
+- **Subtype vocabulary.** Whether subtypes become a governed vocabulary or stay free text.
 
 ## Known limitations (by design)
 
-- Only documents in `kb.inputs` processed by `extract_metrics` can be resolved against. Citations
-  to anything else wait in `pending_target`.
-- No chains in v1. If B's metric is itself a reference to C, A's citation resolves to B's row only.
-- `method`, `definition`, `requirements`, `source` and `background` citations are recorded but add nothing to `kb.metrics`.
-- `extract_metrics` is unchanged. It still sets value delegations aside (`delegated_requirement`),
-  and they remain visible in `kb.metrics_dropped` next to the resolved rows.
+- Only documents in `kb.inputs` that the citing user can access are resolved to. Other resources
+  stay in the catalog as `not_held`.
+- No metric chains in v1. If B's metric itself references C, A resolves to B's row only.
+- Only `criterion` and `criteria_set` references add rows to `kb.metrics`. All other references
+  live in the reference tables.
+- The source's wording is the evidence. Nothing is fetched from the web to resolve a reference.
+- `extract_metrics` is unchanged. Value delegations stay in `kb.metrics_dropped`
+  (`delegated_requirement`), next to the resolved rows.
