@@ -51,7 +51,8 @@ Migrations: `ChenWeb/project_migrations/20261011000001_create_kb_reference_table
 `references-mgmt-view.svelte` uses `KbInputRecordBrowser` with `fitPanel` so its document list
 fills the host grid panel. This mode hides the browser's independent width controls. The host's
 divider between records and references redistributes their combined width, supports pointer and
-arrow-key adjustment, and persists both widths in localStorage.
+arrow-key adjustment, and persists both widths in localStorage. Retrieve fills the first action
+row; Reset and Settings share the second row so labels fit even at the 220px minimum panel width.
 The selected mention's `source_table_rows` is passed to `PdfViewWindow.tableReferences`, which
 uses the shared table geometry endpoint to highlight the cited rows and navigate to their page.
 The prose overlay skips lines with row provenance, avoiding a whole-table rectangle over the
