@@ -22,7 +22,7 @@ Design intent and the reference model: devdoc
 | Depends on | `chunking` only: it reads no output of any other extractor |
 | Input | the shared chunk set via `canonicalChunkInputText` (shares the DeepSeek cached prefix) |
 | Prompt | `prompts/prompt-extract-references-v1.md` (env `EXTRACT_REFERENCES_PROMPT`) |
-| Model | env `EXTRACT_REFERENCES_MODEL_NAME` (via `MODEL_DEF_FILE`) |
+| Model | env `EXTRACT_REFERENCES_MODEL_NAME` (via `MODEL_DEF_FILE`); `MODEL_DEFAULT_REASONING_POLICY=no-reasoning` forces thinking off |
 | Output | `kb.ref_mentions`, `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`; through resolvers `kb.reference_artifact_links` and resolved rows `<rec>_rfm_<n>` in `kb.metrics` |
 
 ## What one run does (`FinalizeChunkBatch`)
