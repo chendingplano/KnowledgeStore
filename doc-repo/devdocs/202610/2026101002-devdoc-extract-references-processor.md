@@ -27,6 +27,8 @@ registered in `ChenWeb/server/cmd/doc-processor/main.go`. Pipeline rules:
 - The metric family: step 5 in `extract_references`, step 6 in `extract_metrics`.
 - Resolved rows `<rec>_rfm_<n>` in `kb.metrics`, protected from `extract_metrics`.
 - Every `kb.metrics` reader updated, with a guard test.
+- Table row provenance and column-labelled evidence, using the same grid and row hashes as
+  `extract_metrics`; different occurrences on one table line have distinct mention keys.
 - Deletion contract.
 - Benchmark exclusion (`gold_run.go`, `score_io.py`).
 
@@ -292,6 +294,13 @@ Labels:
   cited inside a requirement but missing from the list. `never_cited` means a list entry the text
   never uses. Both are drafting defects of the source and are recorded, not corrected.
 
+Table references retain their source rows in `kb.ref_mentions.source_table_rows`, with the same
+`{line, rows, row_hash}` JSONB representation used by metrics. The prompt reports logical row
+citations (`116#r1`); code validates them and computes hashes from the source grid. Captions and
+selected rows become evidence. Explicit rows take precedence; absent valid row citations, the
+metrics evidence-matching and small-table fallback selects rows. Prose references have no table
+provenance. Re-run extraction to populate existing records. The references API exposes the rows.
+
 ## 4. Detection and resolution
 
 Detecting a mention and resolving it are separate operations. Resolution runs
@@ -493,7 +502,7 @@ from more than one domain and language before they are trusted.
    reference.
 2. **Own id namespace.** Resolved rows use `<rec>_rfm_<n>` and never collide with `<rec>_mtc_<n>`.
 3. **The source's context, the target's value.** Subject, context, section and
-   `source_line_spans` come from the referencing text. Value, unit, range type, condition and value
+   `source_line_spans` and `source_table_rows` come from the referencing text. Value, unit, range type, condition and value
    class come from the target metric.
 4. **Stable keys.** Target rows are renumbered when the target is re-processed, so every link also
    stores a fingerprint of record, section, normalized name, subject and condition. Human

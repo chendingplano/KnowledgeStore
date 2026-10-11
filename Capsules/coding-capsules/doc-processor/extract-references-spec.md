@@ -7,7 +7,7 @@ references that concern their own artifacts.
 
 **The contract is in OpenSpec**, not here:
 `ChenWeb/openspec/changes/extract-references-processor/specs/` (capabilities `document-references`,
-`reference-artifact-resolution`, `metric-reference-resolution`) and `design.md` (decisions D1–D14).
+`reference-artifact-resolution`, `metric-reference-resolution`) and `design.md` (decisions D1–D15).
 If behaviour changes, change those specs. This page only orients a reader inside the capsule.
 
 Design intent and the reference model: devdoc
@@ -28,8 +28,10 @@ Design intent and the reference model: devdoc
 ## What one run does (`FinalizeChunkBatch`)
 
 1. Assemble the chunks' references:
-   - de-duplicate overlapping chunks (one listed entry per list line; an in-text reference is
+   - de-duplicate overlapping chunks (one listed entry per list line or logical table row; an in-text reference is
      identified by what it cites);
+   - validate table row citations, compute grid hashes, and include captions and column-labelled
+     rows in evidence, using the table helpers shared with `extract_metrics`;
    - normalize labels to the governed vocabularies;
    - parse identifiers in code;
    - derive normativity from the formal lists.
@@ -43,6 +45,16 @@ Design intent and the reference model: devdoc
    family with artifacts here runs `ResolveIncoming`.
 
 Resolution failures are logged at WARN and never fail the run.
+
+## Table references
+
+`kb.ref_mentions.source_table_rows` stores the same JSONB shape as metrics:
+`[{"line":116,"rows":["r1"],"row_hash":{"r1":"<system hash>"}}]`.
+The prompt cites logical rows (`116#r1`); code validates IDs and computes hashes from the source
+grid. Evidence contains the selected rows and caption. Different rows on one line remain distinct
+mentions, while overlapping chunks of the same occurrence are deduplicated. Prose has no row refs.
+The references API returns the stored rows, and resolved metric rows retain the citing mention's
+provenance. Existing records acquire this provenance when `extract_references` is rerun.
 
 ## Artifact families
 
