@@ -49,11 +49,18 @@ Migrations: `ChenWeb/project_migrations/20261011000001_create_kb_reference_table
 ## References workspace
 
 `references-mgmt-view.svelte` uses `KbInputRecordBrowser` with `fitPanel` so its document list
-fills the host grid panel. This mode hides the browser's independent width controls.
+fills the host grid panel. This mode hides the browser's independent width controls. The host's
+divider between records and references redistributes their combined width, supports pointer and
+arrow-key adjustment, and persists both widths in localStorage.
 The selected mention's `source_table_rows` is passed to `PdfViewWindow.tableReferences`, which
 uses the shared table geometry endpoint to highlight the cited rows and navigate to their page.
 The prose overlay skips lines with row provenance, avoiding a whole-table rectangle over the
 row highlights. Selecting a prose reference clears table highlights and retains line highlights.
+The viewer's `floatingOverlay` snippet shows a dark Reference Info card next to the highlight,
+with the selected reference's title, ID, type/content, normativity, holding state and excerpt.
+It updates on every selection, fits inside the viewer, and allows selection/copying of its text.
+Dragging its heading uses the shared viewer's overlay positioning.
 
 Verified with a headless browser and synthetic API/PDF fixtures: panel fit at 1800px and 1400px,
-two cited row highlights without a whole-table overlay, and switching to prose and back.
+two cited row highlights without a whole-table overlay, switching to prose and back, divider
+drag/keyboard/reload persistence, and info card content, containment and text selection.
