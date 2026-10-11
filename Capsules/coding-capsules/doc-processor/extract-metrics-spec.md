@@ -1060,6 +1060,21 @@ closeness key are specified separately (deferred to the matrix session); this pr
 supplies candidate metrics `Y` tagged with their `input_record_id` so the matrix step can
 classify mentioned vs. missed and dedup within each entry.
 
+## 8.3 Resolved reference rows and step 6 (2026-10-11)
+
+`extract_references` (spec `extract-references-spec.md`) may add rows `<rec>_rfm_<n>` to a record's
+`kb.metrics`: metrics of another document that this document requires through a reference. They
+have `ref_mention_id` set. `extract_metrics`:
+
+- never deletes, merges or reads them as its own: `DeleteMetricsByInputRecordID`,
+  `GetMetricsByInputRecordID`, `MetricsExist` and the indexing load all filter
+  `ref_mention_id IS NULL`;
+- runs **step 6** after every successful save (force-clear, merge, and the no-candidates wipe):
+  `ResolveIncoming(ctx, db, "metric", recordID)` re-resolves other records' metric references to this
+  record against its new metrics. A failure is logged at WARN and never fails `extract_metrics`.
+
+Contract: `ChenWeb/openspec/changes/extract-references-processor/specs/metric-reference-resolution/spec.md`.
+
 ## 9. Implementations
 Refer to [3], [4], [5] and [6].
 

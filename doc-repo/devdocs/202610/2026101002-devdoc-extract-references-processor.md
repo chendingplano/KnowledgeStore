@@ -1,21 +1,54 @@
 # extract_references — how documents are inter-connected, resolved down to sections and metrics
 
 **Date:** 2026-10-10, revised 2026-10-11 \
-**Status:** Design, **not built**. Supersedes the "keep reference rows inside `extract_metrics`"
-approach of devdoc 2026101001. Its findings on stable keys and confidence policy are reused here.
-The reference model follows the user's diary, `KnowledgeStore/doc-repo/diary/diary-202610.typ`,
-§2026/10/11 "References". Build it through an openspec change in `ChenWeb/openspec/changes/`. Then,
-per the doc-processor capsule §12.1, write `extract-references-spec.md` / `-impl.md` and update this
-doc.
+**Status:** **Built (v1), 2026-10-11**, openspec change
+`ChenWeb/openspec/changes/extract-references-processor/` (not archived). **The specs there are the
+contract.** If behaviour changes, update them, not just this doc. Capsule pages:
+`Capsules/coding-capsules/doc-processor/extract-references-spec.md` / `-impl.md`. Supersedes the
+"keep reference rows inside `extract_metrics`" approach of devdoc 2026101001. The reference model
+follows the user's diary, `KnowledgeStore/doc-repo/diary/diary-202610.typ`, §2026/10/11
+"References". What v1 built and left out is listed in §0.
 **Scope:** What the `extract_references` processor is for, the reference model (target type,
 mechanism, relationship, scope), how a reference is resolved from a mention to a resource, a held
 document, a location and a metric, how it works as a lower layer under the artifact extractors
 (worked out for `extract_metrics`), the tables it owns, and how resolved metrics enter `kb.metrics`.
 Open this before building the processor or before changing anything that reads `kb.metrics` row
 counts.
-**Code root (to be):** `ChenWeb/server/api/doc-processing/extract-references.go` (+ the resolver interface; the metric resolver lives with `extract_metrics`),
+**Code root:** `ChenWeb/server/api/doc-processing/extract-references.go`, `reference_*.go` (the resolver interface is in `reference_resolver.go`; the metric family's resolver is in `reference_metric_resolver.go`),
 registered in `ChenWeb/server/cmd/doc-processor/main.go`. Pipeline rules:
 `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`.
+
+## 0. What v1 built (2026-10-11)
+
+**Built:**
+- The processor: detection and labels, identifier parsing, normativity, resource catalog (R1),
+  own-document attachment, holdings with access (R2).
+- The resolver contract with "whoever comes second resolves".
+- The metric family: step 5 in `extract_references`, step 6 in `extract_metrics`.
+- Resolved rows `<rec>_rfm_<n>` in `kb.metrics`, protected from `extract_metrics`.
+- Every `kb.metrics` reader updated, with a guard test.
+- Deletion contract.
+- Benchmark exclusion (`gold_run.go`, `score_io.py`).
+
+**Different from this design:**
+- **Matching (§6.2)** is a deterministic, versioned code policy (`metric_reference_match/v1`: name,
+  subject and locator similarity). There is no embedding or LLM judge yet, and no
+  `shared.decision_policies` entry. Uncertain matches go to `needs_review`.
+- **No `Withdraw` operation.** `Apply` replaces, and deleting a mention cascades. The interface has
+  `Pending` for targets that are not held or not processed yet.
+- **R3 (location)** is not built. The locator is stored, and the metric resolver uses it to narrow
+  candidates (`criteria_set` = the metrics of the located table or section).
+- **R1/R3 candidates** (`kb.ref_resolution_candidates`) are not built. Unresolvable identities are
+  marked `unnamed`.
+- **Dashboard:** no change needed. It lists every processor in `required_processors`.
+
+**Not built (follow-ups):** reference search partition and document-graph page, candidate review
+page, contradictions admin page, resolvers for provisions / entities / inventory items,
+reference/entity reconciliation, `extract_references` in `default_processors` (left to the user).
+
+**Verified:** unit tests, all server tests, and live runs on records 753, 373 and 362, with a
+synthetic step 5/6 check (362 → 373). Not verified: a non-Chinese document (none has its files on
+the development machine), and a full `extract_metrics` LLM re-run as step 6 trigger.
 
 ## 1. Summary
 

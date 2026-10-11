@@ -183,6 +183,7 @@ Currently, it has the following doc processors:
 |21 | facet_tier1 | routed (registry-only, non-wave-dispatched) | 1 | No | none | Tier-1 deterministic document-facet producer (`ComputeTier1Facets`, `facet_tier1.go`). Computes free, deterministic facets (page count, language mix, table-line ratio, numeric-with-unit density, modal-verb density, TOC presence, heading depth, doc-number pattern, file type, figure density) and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; invoked directly from `ControlService.handleEvent`, gated by `facetTier1GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier1"`). See ADR 2026072901 §3.5. |
 |22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | 1 | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
 |23 | extract_products | configurable | 2 | Yes | `chunking` | Extract Product Relations Processor: multi-pass mention/relation/translate/categorize extraction of product mentions and their structural relations. Saves to `kb.products`. Re-registered 2026-09-12 — was present in `config.toml`'s `required_processors` in earlier revisions of this doc but had been dropped from both `server/api/doc-processing/runtime.go`'s constructed processor list and `processor_plan.go`'s `ProcessorSpec` table, so it silently never ran regardless of config; both are now fixed. Switched from Blocks to Chunks the same day (`resolveProductChunkBlocks` loads the `.chunks` artifact and adapts it to `[]Block` via the same `chunksToBlocks` helper `extract_metrics` uses), so it now shares the one chunk set every other Phase B extractor reads instead of independently re-blocking the document. Refer to [21] for its spec. |
+|24 | extract_references | configurable | 2 | Yes | `chunking` | Lower reference layer: detects and labels every reference (reference model), catalogues resources (R1), resolves holdings with access (R2), and runs registered artifact-family resolvers (step 5). Uses no output of any other extractor; `extract_metrics` resolves incoming metric references after saving (step 6). Saves to `kb.ref_mentions`, `kb.ref_resources*`, `kb.reference_artifact_links`, and resolved rows `<rec>_rfm_<n>` in `kb.metrics`. Refer to [22] |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -224,7 +225,7 @@ About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `extract_references`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
 
 ```toml
 [doc-processing]
@@ -722,6 +723,17 @@ Unlike the legacy per-processor status writers (e.g. §9.4/§9.5), this entry is
 the shared `persistProcessorRuntimeStatus`/`upsertProcessorRuntimeStatus` coordinator path
 and does not currently include `error` or `ms_used`.
 
+### 9.12 Extract References
+Written by the chunk batch coordinator (like §9.11); see [22].
+
+```json
+{
+  "operation": "extract_references",
+  "proc_status": "success | failed | active | stopped",
+  "start_time": "yyyymmdd hh:mm:ss"
+}
+```
+
 ## 10 Handle Stop Request
 
 A user stop request is signalled by cancelling the pipeline's context with the cause `ErrPipelineStopped`. The pipeline controller (`ControlService`) triggers this via a 1-second polling goroutine that checks the `stop_requested` flag in `kb.inputs.status`.
@@ -873,6 +885,11 @@ Requires the `pg_search`, `vector` (pgvector), and Jieba tokenizer extensions in
 
 ### 12.4. Dashboard
 
+> **Note (2026-10-11):** the dashboard now derives its processor stages from
+> `[doc-processing].required_processors` (`buildStageDefs` in `doc-processor-dashboard-state.ts`);
+> `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_IDS` no longer exist. A new configurable processor needs
+> no dashboard change beyond being listed in `required_processors`. The checklist below is stale.
+
 Update `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte`:
 
 - **Node state mapping** — add the processor's `operation` name to the `operation → Stage` map used to render pipeline cards in the Active Pipelines section.
@@ -924,6 +941,9 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
   `KnowledgeStore/doc-repo/devdocs/202608/2026080103-devdoc-semos-p3-implementation-log.md`
 
 [20] Extract Metric Definitions Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metric-definitions-spec.md`
+
+[22] Extract References Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-references-spec.md`
+  (contract: `ChenWeb/openspec/changes/extract-references-processor/specs/`; devdoc 2026101002)
 
 [21] Extract Product Relations Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-spec.md`
   (implementation notes: `extract-products-impl.md` — that file still has the
