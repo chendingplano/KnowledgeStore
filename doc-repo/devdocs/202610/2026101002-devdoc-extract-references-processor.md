@@ -9,10 +9,11 @@ per the doc-processor capsule §12.1, write `extract-references-spec.md` / `-imp
 doc.
 **Scope:** What the `extract_references` processor is for, the reference model (target type,
 mechanism, relationship, scope), how a reference is resolved from a mention to a resource, a held
-document, a location and a metric, the tables it owns, and how resolved metrics enter `kb.metrics`.
+document, a location and a metric, how it works as a lower layer under the artifact extractors
+(worked out for `extract_metrics`), the tables it owns, and how resolved metrics enter `kb.metrics`.
 Open this before building the processor or before changing anything that reads `kb.metrics` row
 counts.
-**Code root (to be):** `ChenWeb/server/api/doc-processing/extract-references.go` (+ resolver),
+**Code root (to be):** `ChenWeb/server/api/doc-processing/extract-references.go` (+ the resolver interface; the metric resolver lives with `extract_metrics`),
 registered in `ChenWeb/server/cmd/doc-processor/main.go`. Pipeline rules:
 `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`.
 
@@ -55,8 +56,14 @@ uses no output of `extract_metrics`, `extract_provisions`, `extract_entity_relat
 processor. Two processors may find the same thing: a person cited as an author is a reference
 here and an entity in `extract_entity_relation`; a clause that takes a limit from another document
 is a reference here and a set-aside row in `extract_metrics`. Reconciling those overlaps is a
-separate piece of work and is not part of this design. The one place this design still touches
-`extract_metrics` is metric resolution (steps 5–6), and that boundary is to be revisited (§5).
+separate piece of work and is not part of this design.
+
+**A lower layer.** The artifact extractors build on `extract_references`, never the other way round.
+These are `extract_metrics`, `extract_provisions`, `extract_entity_relation`,
+`extract_inventory_items` and future ones. `extract_references` finds and resolves references down
+to the place in the target document. Each artifact extractor resolves the references that concern
+its own kind of artifact. §5 describes how the layers work together, and §6 works this out for
+`extract_metrics`.
 
 ## 2. The plan, as given (2026-10-10)
 
@@ -74,6 +81,11 @@ The rest of this doc refers to these steps by number.
    metrics they reference.
 6. **Incoming resolution.** When a document is processed, find the documents that reference it,
    resolve their metric references against it, and update `kb.metrics` as needed.
+
+**Clarified 2026-10-11:** step 5 is what the **reference extractor** does when it processes a
+document. Step 6 is what the **metric extractor** does when it processes a document. The same pair
+of steps applies to every artifact extractor, for example provision references with
+`extract_provisions` (§5).
 
 The diary section of 2026-10-11 widened step 4 from "reference types" to a full reference model,
 and added two principles: detecting a mention is separate from resolving it, and a resource's
@@ -300,14 +312,96 @@ Customers keep private documents. Resolution must not leak them:
 - **Incoming resolution** (step 6) and "who cites this document" views follow the same rule. A
   user never learns that someone else's private document cites theirs.
 
-## 5. Metric references (steps 5–6)
+## 5. Layering: the reference extractor and the artifact extractors
 
-**Boundary with `extract_metrics`: to be revisited.** Detection and R1–R3 use no output of any
-other processor. R4 does: it reads the target's metrics, and steps 5–6 write resolved rows into
-`kb.metrics`, the table `extract_metrics` owns. The user will revisit this boundary (2026-10-11).
-Until then, this section describes R4 as planned in steps 5–6.
+### 5.1 Two layers
 
-### 5.1 Deciding that a reference points at metrics
+`extract_references` is the **lower layer**. It knows that documents point at things. It knows
+which resource a reference means, whether the user holds a copy, and which place in that copy it
+points to (D and R1–R3 in §4). It knows nothing about metrics, provisions, entities or inventory
+items. It never reads their tables, and it never needs one of those extractors to have run.
+
+The **artifact extractors** sit above it. Each one knows its own kind of artifact, and so it is the
+only one that can tell which artifact in the target document a reference means (R4). Each artifact
+family takes the references whose content is its kind:
+
+| Artifact family | Extractor | Takes references with | Artifact table | Status |
+|---|---|---|---|---|
+| metrics | `extract_metrics` | `target_content` = `criterion` or `criteria_set` | `kb.metrics` | designed in §6 |
+| provisions | `extract_provisions` | `target_content` = `requirements`, scope `section` or `requirement` | `kb.provisions` | to be designed |
+| entities | `extract_entity_relation` | target types for persons, organizations, products, locations, events | `kb.entities` | to be designed; also where the reference/entity overlap is reconciled |
+| inventory items | `extract_inventory_items` | to be defined | `kb.inventory_items` | to be designed |
+| future extractors | … | their own `target_content` / `target_type` | their own | — |
+
+A reference that no family takes (a `method`, a `term`, `general`) is still fully recorded and
+resolved down to R3. It just has no artifact to point at yet.
+
+### 5.2 Steps 5 and 6 for any artifact family
+
+For an artifact family F, with A the referencing document and B the referenced one:
+
+- **Step 5, on the reference side.** When `extract_references` processes A, it looks at each of A's
+  references that F takes. If the target B is held and already has F artifacts, the reference is
+  resolved against them.
+- **Step 6, on the artifact side.** When F's extractor processes B, it first writes B's artifacts.
+  Then it looks up the references from other documents that point at B and that F takes, and
+  resolves them against the new artifacts.
+
+Both steps use **the same resolver**, the one family F provides. So the result does not depend on
+which document was processed first.
+
+### 5.3 The resolver contract
+
+The lower layer defines one interface, and each artifact family implements it and registers it.
+The dependency is inverted: the reference layer calls family code through the interface but never
+imports it.
+
+| Operation | Does |
+|---|---|
+| `Takes(mention)` | whether this family handles the reference (by `target_content`, `target_type`, scope) |
+| `Resolve(mention, target record)` | ranks candidate artifacts of the target with scores, by the family's own matching rules and decision policy |
+| `Apply(mention, outcome)` | writes the links (`kb.reference_artifact_links`) and anything the family adds to its own table for the referencing document. For metrics, that is the resolved rows of §6.3 |
+| `Withdraw(mention or target)` | removes what `Apply` wrote when the reference or the target is processed again |
+
+The reference layer calls every registered resolver in step 5. Each artifact extractor calls its own
+resolver in step 6. The reference layer never writes an artifact table, and an artifact extractor
+never parses references.
+
+### 5.4 Whoever comes second resolves
+
+Documents are processed in any order, and processors in Phase B run at the same time. Three events
+can make a reference resolvable. Each handler first commits its own writes, then looks for the
+other side:
+
+| Event | Handled by | Looks for |
+|---|---|---|
+| A's references are written | `extract_references` on A | A's references into held documents that already have artifacts → step 5 |
+| B is linked to its resource, so it becomes "held" | `extract_references` on B | other documents' references waiting on B's resource. For each one, if B already has artifacts of a family that takes it → step 5 on A's behalf |
+| B's artifacts of family F are written | F's extractor on B | references into B that F takes → step 6 |
+
+Because each side writes before it looks, when A and B are processed at the same time at least one
+of them sees the other. If both do, nothing is duplicated: writes are upserts keyed on (mention,
+target artifact key).
+
+As a result, there is no ordering between `extract_references` and any artifact extractor, and all
+of them stay in Phase B. If `extract_references` is not configured, step 6 finds nothing and the
+artifact extractor works exactly as it does today.
+
+### 5.5 Re-runs
+
+| What is re-run | What happens |
+|---|---|
+| `extract_references` on A | A's references are rebuilt. Resolvers `Withdraw` what they applied for A's old references, then step 5 runs again. Human decisions reattach by `mention_key` |
+| F's extractor on B (the target) | B's artifacts are renumbered. Step 6 re-resolves every reference into B that F takes, and rewrites links and rows. Confirmed links reattach by the target artifact's stable key, or become `stale` and are flagged |
+| F's extractor on A (the referencing document) | It must not delete what `Apply` wrote into A. For metrics, the delete skips resolved rows (§6.3) |
+
+## 6. Metric references: the metric family (steps 5–6)
+
+This section is the metric family's side of §5. It covers which references the metric resolver
+takes, how it matches them, and what it writes. `extract_references` runs it in step 5, and
+`extract_metrics` runs it in step 6, right after it has written a document's metrics.
+
+### 6.1 Deciding that a reference points at metrics
 
 Only references with `target_content` = `criterion` or `criteria_set` can resolve to metrics. The
 decision is made in two stages, and the second can confirm or weaken the first.
@@ -338,7 +432,7 @@ to hold a metric for the named quantity. If none is found, and the target has no
 kind at all (GB/T 755, a rating and method standard, is an example), the reference is marked
 `no_match` with `type_doubtful` and goes to review. It is never quietly retyped.
 
-### 5.2 Matching
+### 6.2 Matching
 
 For a metric reference whose target is `held_processed`:
 
@@ -357,11 +451,12 @@ For a metric reference whose target is `held_processed`:
 Thresholds are a versioned policy in `shared.decision_policies`, calibrated on real references
 from more than one domain and language before they are trusted.
 
-### 5.3 Resolved metrics in `kb.metrics` (step 5)
+### 6.3 Resolved metrics in `kb.metrics` (steps 5–6)
 
-1. **Owned by the resolver.** `extract_metrics`' delete
+1. **Owned by the metric resolver.** The rows are written through `Apply` from either step.
+   `extract_metrics`' delete
    (`DELETE FROM kb.metrics WHERE input_record_id = $1`) becomes `… AND ref_mention_id IS NULL`,
-   so a re-run of the source keeps resolved rows. The resolver replaces only its own rows, per
+   so a re-run of the referencing document keeps resolved rows. The resolver replaces only its own rows, per
    reference.
 2. **Own id namespace.** Resolved rows use `<rec>_rfm_<n>` and never collide with `<rec>_mtc_<n>`.
 3. **The source's context, the target's value.** Subject, context, section and
@@ -387,29 +482,29 @@ needs an explicit default:
 
 The openspec change lists every reader.
 
-## 6. Pipeline placement
+## 7. Pipeline placement
 
 | Part | Tier | Depends on | Does |
 |---|---|---|---|
-| `extract_references` | Phase B (configurable) | `chunking` | detection (D) and R1 against the catalog; writes mentions, resources, identifiers |
-| `resolve_references` | Phase C post-process (`PostProcessIndexer`) | this record's `extract_references`; R4 also this record's `extract_metrics` (§5 boundary note) | R2–R4, outgoing and incoming; writes metric links and resolved `kb.metrics` rows |
+| `extract_references` | Phase B (configurable) | `chunking` | D and R1–R3, outgoing and incoming (§5.4, first two events); step 5 through the registered resolvers |
+| `extract_metrics` (and every artifact extractor) | Phase B, as today | `chunking` | its own extraction, then step 6 through its own resolver (§5.4, third event) |
 
 - Detection uses `canonicalChunkInputText`, so it shares the DeepSeek cached prefix with the other
   chunk processors (capsule §6.2). Reference lists and identifiers that a pattern can read exactly
   (DOI, URL, standard number) are parsed in code, and the LLM handles the rest.
 - `extract_references` depends on nothing but `chunking`, in line with its independence (§1).
-- **R4 cannot run in Phase B.** Phase B processors run at the same time, and `extract_metrics`
-  deletes all of a record's `kb.metrics` rows on each run.
-- **Incoming R4 also runs after `extract_metrics` alone.** A target often gets its
-  metrics, or new ones, through a Dev Mode re-run of `extract_metrics`. Otherwise waiting
-  references would never resolve, and resolved rows would point at deleted metrics. The step is
-  cheap when nothing waits.
+- **No ordering is needed** (§5.4). Step 5 can write resolved rows into A's `kb.metrics` while
+  `extract_metrics` runs on A, because its delete skips resolved rows and the two use different id
+  namespaces (§6.3).
+- **A Dev Mode re-run of `extract_metrics` alone still resolves.** Step 6 is part of
+  `extract_metrics`, so waiting references into the document are resolved and stale rows are
+  rewritten. The step is cheap when nothing waits.
 - Not being sure is a review state, not a failure. The run succeeds, WARN lines are logged, and the
   run log reports counts per state.
 
-## 7. Tables (proposed, goose migrations, created at start-up)
+## 8. Tables (proposed, goose migrations, created at start-up)
 
-### 7.1 `kb.ref_mentions`: one row per reference occurrence; rebuilt on each run of the source
+### 8.1 `kb.ref_mentions`: one row per reference occurrence; rebuilt on each run of the source
 
 | Column | Meaning |
 |---|---|
@@ -430,7 +525,7 @@ The openspec change lists every reader.
 | `metric_state` | `not_applicable` · `pending_target` · `resolved` · `needs_review` · `no_match` · `confirmed` |
 | `mention_key` | stable fingerprint, so human decisions survive re-runs |
 
-### 7.2 `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`: the catalog
+### 8.2 `kb.ref_resources`, `kb.ref_resource_versions`, `kb.ref_resource_identifiers`: the catalog
 
 | Table | Holds |
 |---|---|
@@ -441,18 +536,19 @@ The openspec change lists every reader.
 A `kb_input` identifier is how a user's own copy is attached to a resource version. That attachment
 is never `public`.
 
-### 7.3 `kb.reference_metric_links`: mention → candidate or resolved target metric
+### 8.3 `kb.reference_artifact_links`: mention → candidate or resolved target artifact, for every family
 
 | Column | Meaning |
 |---|---|
 | `id`, `ref_mention_id` | the reference |
-| `target_input_id`, `target_metric_id`, `target_metric_key` | the target metric (positional id + stable key) |
+| `artifact_family` | `metric` · `provision` · `entity` · `inventory_item` · … (the resolver that wrote it) |
+| `target_input_id`, `target_artifact_id`, `target_artifact_key` | the target artifact (positional id + stable key) |
 | `rank`, `score`, `match_method` | `term` · `name` · `embedding` · `llm_judge` · `human` |
 | `status` | `candidate` · `resolved` · `confirmed` · `rejected` · `stale` |
 | `policy_id`, `policy_version`, `decided_by`, `decided_at` | decision provenance |
-| `resolved_metric_id` | the `<rec>_rfm_<n>` row in `kb.metrics`, if any |
+| `resolved_artifact_id` | the row the family added to the referencing document, if any (for metrics, `<rec>_rfm_<n>` in `kb.metrics`) |
 
-### 7.4 `kb.metrics`: new columns, null on every `extract_metrics` row
+### 8.4 `kb.metrics`: new columns, null on every `extract_metrics` row
 
 `ref_mention_id` (non-null marks a resolved reference row), `ref_input_record_id`,
 `ref_metric_id`, `ref_metric_key`.
@@ -460,7 +556,7 @@ is never `public`.
 Candidates for R1 and R3 are stored the same way as metric candidates (rank, score, status), in
 `kb.ref_resolution_candidates` keyed by mention and level.
 
-## 8. What people can ask
+## 9. What people can ask
 
 The point of the processor is to answer questions about how a body of documents is connected. With
 the tables above, each of these is one query or one page:
@@ -487,7 +583,7 @@ Search support:
 - a document graph page (EN/ZH via Paraglide, selectable text) with Normative / Informative /
   Unlisted badges.
 
-## 9. Processor contract (capsule §12 checklist)
+## 10. Processor contract (capsule §12 checklist)
 
 - `extract_references` is configurable and depends on `chunking`. Its status entry
   (`operation: "extract_references"`) carries counts per target type, relationship and resolution
@@ -497,26 +593,28 @@ Search support:
 - Deletion contract (ADR 2026072301): deleting a record deletes its mentions, links and resolved
   rows, and its `kb_input` identifiers. Links **into** it become `stale`, and those mentions go back
   to `not_held`.
-- Dashboard: add both parts to `ALL_PROCESSOR_IDS`, `PIPELINE_FINAL_OPS` and the stage map.
+- The resolver interface (§5.3) lives in the reference layer. `extract_metrics` implements the
+  metric resolver, registers it, and calls it as step 6 after writing a document's metrics.
+- Dashboard: add `extract_references` to `ALL_PROCESSOR_IDS`, `PIPELINE_FINAL_OPS` and the stage map.
 - A review page for every `candidates` / `needs_review` state.
 
-## 10. Decisions (2026-10-11)
+## 11. Decisions (2026-10-11)
 
 | Question | Decision |
 |---|---|
 | Share `public` catalog entries across all customers? | **Yes**, public facts only (§4.2) |
-| Confirm a `criteria_set` that fans out to many metrics before writing rows? | **No**, resolved rows are written like any other (§5.2) |
-| Score resolved metric rows in the benchmark? | **No**, never (§5.3) |
+| Confirm a `criteria_set` that fans out to many metrics before writing rows? | **No**, resolved rows are written like any other (§6.2) |
+| Score resolved metric rows in the benchmark? | **No**, never (§6.3) |
 | `contradicts` | **Flagged**, and an admin page lists all flags for an admin to resolve; specified separately (§3.3) |
 | Subtypes | **Governed vocabulary** per target type, with an `others` subtype (§3.1) |
 
 Still open, to be addressed separately:
-- the boundary between metric resolution (R4) and `extract_metrics` (§5);
+- the resolvers of the other artifact families: provisions, entities, inventory items (§5.1);
 - reconciling references with what other processors extract, e.g. persons and organizations found
   as entities by `extract_entity_relation` (§1);
 - the contradictions page and its storage (§3.3).
 
-## 11. Known limitations (by design)
+## 12. Known limitations (by design)
 
 - Only documents in `kb.inputs` that the citing user can access are resolved to. Other resources
   stay in the catalog as `not_held`.
