@@ -734,3 +734,341 @@ Recent important topics:
 
 === Semantics
 
+= 2026/10/11
+
+== References
+For a document-processing or knowledge-base system such as SemOS, references can point 
+to many kinds of resources: documents, publications, websites, datasets, software, 
+legal authorities, internal files, and even specific sections or statements.
+
+Reference types are determined by reference mechanisms (how the reference is expressed). 
+For example, a scientific paper might be referenced by its title, DOI, URL, citation 
+number `[12]`, or author-year citation `(Smith, 2024)`. These are different representations 
+of the same reference type.
+
+Below is a comprehensive taxonomy of common reference types, including those relevant 
+to technical documentation, scientific literature, standards, regulations, and general 
+knowledge bases.
+
+=== Reference types by target<reference-types>
+
+1. Documents and files, with the following subtypes:
+```text
+| Document                | Report, specification, proposal, manual |
+| File                    | PDF, DOCX, TXT, Markdown, HTML          |
+| Internal document       | Company policy, project documentation   |
+| Document section        | Chapter 3, Section 4.2, Appendix A      |
+| Document element        | Table 2, Figure 5, Equation 7           |
+| Document version        | Revision 2, draft v1.3                  |
+| Document collection     | Folder, archive, document repository    |
+```
+
+2. Websites and online resources, with the following subtypes:
+```text
+| Website                 | `example.org`                           |
+| Web page                | `example.org/about`                     |
+| Blog                    | Personal blog, technical blog           |
+| Blog post               | Individual article                      |
+| Online article          | News article, technical article         |
+| Wiki page               | Wikipedia, internal wiki                |
+| Online forum            | Stack Overflow, Reddit                  |
+| Forum post or comment   | Discussion thread, answer               |
+| Social media post       | LinkedIn post, X post                   |
+| Online documentation    | API documentation, developer guide      |
+| Web archive             | Archived web page, Wayback snapshot     |
+```
+
+3. Scientific and academic publications, with the following subtypes:
+```text
+| Journal article         | Peer-reviewed research paper            |
+| Conference paper        | ACM, IEEE conference paper              |
+| Preprint                | arXiv, bioRxiv                          |
+| Working paper           | Research working paper                  |
+| Technical report        | University or laboratory report         |
+| Thesis or dissertation  | Master's thesis, PhD dissertation       |
+| Book                    | Scientific textbook                     |
+| Book chapter            | Chapter within an edited volume         |
+| Review article          | Systematic review, literature review    |
+| Dataset paper           | Data descriptor, data publication       |
+| Poster or abstract      | Conference abstract                     |
+| Research protocol       | Experimental or study protocol          |
+```
+
+4. Standards and specifications, with the following subtypes:
+```text
+| International standard  | ISO, IEC, ITU                           |
+| National standard       | ANSI, GB, DIN, BS                       |
+| Industry standard       | ASTM, IEEE, SAE                         |
+| Technical specification | W3C specification                       |
+| Internet standard       | RFC 9110                                |
+| Draft standard          | Internet-Draft, committee draft         |
+| Standard amendment      | ISO amendment                           |
+| Standard corrigendum    | Technical correction                    |
+| Standard part           | ISO 9001, ISO 13485                     |
+| Standard clause         | ISO 13485:2016, Clause 7.5              |
+| Technical guideline     | Industry practice guideline             |
+| Conformance profile     | Implementation profile                  |
+```
+
+5. Laws and regulations, with the following subtypes:
+```text
+| Law or statute          | Federal law, national legislation       |
+| Regulation              | FDA regulation, EU regulation           |
+| Directive               | EU directive                            |
+| Administrative rule     | Agency rulemaking                       |
+| Legal code provision    | 21 CFR § 820.10                         |
+| Court decision          | Judicial opinion                        |
+| Legal case              | Case citation                           |
+| Regulatory guidance     | FDA guidance document                   |
+| Regulatory notice       | Federal Register notice                 |
+| Government policy       | Official policy statement               |
+| Treaty or agreement     | International treaty                    |
+| Legislative document    | Bill, committee report                  |
+```
+
+6. Books and general publications, with the following subtypes:
+```text
+| Book                    | Published monograph                     |
+| Encyclopedia entry      | Reference encyclopedia                  |
+| Dictionary entry        | Definition of a term                    |
+| Handbook                | Engineering handbook                    |
+| Magazine article        | Trade magazine                          |
+| Newspaper article       | News report                             |
+| White paper             | Industry white paper                    |
+| Newsletter              | Published newsletter                    |
+| Press release           | Corporate announcement                  |
+| Brochure or catalog     | Product brochure                        |
+```
+
+7. Software and technical artifacts, with the following subtypes:
+```text
+| Software project        | GitHub repository                       |
+| Source code file        | `src/parser.go`                         |
+| Source code element     | Function, class, method                 |
+| Commit                  | Git commit SHA                          |
+| Branch or tag           | `main`, `v2.1.0`                        |
+| Pull request            | GitHub PR #123                          |
+| Issue or ticket         | GitHub issue, Jira ticket               |
+| Software release        | Version 2.0                             |
+| Software package        | PyPI, npm package                       |
+| API                     | REST or GraphQL API                     |
+| API endpoint            | `GET /users/{id}`                       |
+| Software dependency     | Package or library dependency           |
+| Configuration           | YAML, JSON configuration file           |
+| Container image         | Docker image                            |
+| Build artifact          | Executable, binary, package             |
+```
+
+8. Data and databases, with the following subtypes:
+```text
+| Dataset                 | Research dataset                        |
+| Database                | PubMed, UMLS                            |
+| Database record         | PubMed record                           |
+| Database table          | SQL table                               |
+| Database row            | Record identified by primary key        |
+| Data field              | Column, attribute                       |
+| Statistical series      | Economic time series                    |
+| Spreadsheet             | Excel workbook                          |
+| Spreadsheet element     | Sheet, cell, range                      |
+| Data repository         | Zenodo, Figshare                        |
+| Knowledge graph entity  | Wikidata QID                            |
+| Ontology concept        | OWL class, SKOS concept                 |
+```
+
+9. Media and multimedia, with the following subtypes:
+```text
+| Image                   | Photograph, illustration                |
+| Diagram                 | Architecture diagram                    |
+| Chart                   | Statistical visualization               |
+| Audio recording         | Podcast, interview                      |
+| Video                   | YouTube video                           |
+| Presentation            | Slide deck                              |
+| Individual slide        | Slide 12                                |
+| Webinar                 | Recorded seminar                        |
+| Transcript              | Meeting or interview transcript         |
+| Map                     | Geographic map                          |
+| Geospatial layer        | GIS dataset                             |
+```
+
+10. Communication and collaboration, with the following subtypes:
+```text
+| Email                   | Email message                           |
+| Email thread            | Conversation chain                      |
+| Chat message            | Slack, Teams message                    |
+| Discussion thread       | Forum or chat thread                    |
+| Meeting record          | Minutes, meeting notes                  |
+| Decision record         | Architecture Decision Record (ADR)      |
+| Memo                    | Internal memorandum                     |
+| Announcement            | Organizational announcement             |
+| Shared workspace item   | Notion, Confluence page                 |
+```
+
+11. Business and organizational records, with the following subtypes:
+```text
+| Organization            | Company, government agency              |
+| Product                 | Commercial product                      |
+| Product model           | Device model or SKU                     |
+| Product specification   | Datasheet                               |
+| Patent                  | US patent, WIPO patent                  |
+| Trademark               | Registered trademark                    |
+| Contract                | Service agreement                       |
+| Procurement document    | RFP, purchase order                     |
+| Certification           | ISO certification                       |
+| Audit report            | Compliance audit                        |
+| Safety document         | Safety Data Sheet (SDS)                 |
+| Test report             | Laboratory test report                  |
+```
+
+12. Other structured resources, with the following subtypes:
+```text
+| Person                  | Author, researcher                      |
+| Event                   | Conference, workshop                    |
+| Location                | Physical address, geographic place      |
+| Concept or term         | Scientific concept                      |
+| Definition              | Terminology definition                  |
+| Measurement or metric   | Performance metric                      |
+| Mathematical formula    | Named theorem or equation               |
+| Procedure               | Testing or operating procedure          |
+| Experiment              | Trial or experiment record              |
+| Physical sample         | Specimen, material sample               |
+| Clinical trial          | ClinicalTrials.gov record               |
+```
+
+This taxonomy is intentionally broad. Not all entries are bibliographic references: 
+some are entity references, artifact references, or internal structural references.
+
+=== Reference mechanisms
+
+The second dimension is how a reference appears in source text.
+
+```text
+| Mechanism             | Example                            | Interpretation                    |
+| --------------------- | ---------------------------------- | --------------------------------- |
+| URL                   | `https://example.com/report.pdf`   | Direct web resource               |
+| DOI                   | `10.1145/1234567`                  | Persistent publication identifier |
+| ISBN                  | `978-0-...`                        | Book identifier                   |
+| ISSN                  | `1234-5678`                        | Serial publication identifier     |
+| arXiv ID              | `arXiv:2609.15364`                 | Research preprint                 |
+| PMID / PMCID          | `PMID: 12345678`                   | Biomedical publication            |
+| RFC number            | `RFC 9110`                         | Internet standard                 |
+| Standard number       | `ISO 13485:2016`                   | Standard document and edition     |
+| Legal citation        | `21 CFR § 820.10`                  | Regulatory provision              |
+| Patent number         | `US12345678B2`                     | Patent document                   |
+| Repository path       | `github.com/org/repo`              | Software repository               |
+| File path             | `docs/architecture.md`             | Local or repository file          |
+| Relative path         | `../specs/design.pdf`              | File relative to source           |
+| Anchor / fragment     | `#section-3`                       | Specific location in resource     |
+| Numbered citation     | `[1]`, `[12–15]`                   | Bibliography entry                |
+| Author-year citation  | `(Smith et al., 2024)`             | Bibliographic reference           |
+| Named reference       | `as defined in ISO 9001`           | Natural-language reference        |
+| Structural reference  | `see Section 4.2`                  | Internal document reference       |
+| Indirect reference    | `according to the previous report` | Context-dependent reference       |
+| Identifier            | `Q42`, `CVE-2025-1234`             | Entity or record identifier       |
+| Footnote / endnote    | Superscript `¹`                    | Note containing a reference       |
+| Hyperlink             | `[documentation](url)`             | Linked text                       |
+| Cross-reference field | Word/PDF cross-reference           | Structured document reference     |
+| Citation key          | `[@smith2024]`                     | Bibliography-manager reference    |
+```
+
+An important distinction is that a URL, DOI, or file path is not itself a target type. 
+It is an identifier or locator.
+
+=== Reference relationships
+
+Reference relationships are the semantic relationship between the source and the 
+referenced target.
+
+```text
+| Relationship    | Meaning                         | Example                                |
+| --------------- | ------------------------------- | -------------------------------------- |
+| `cites`         | Source cites target             | Paper cites another paper              |
+| `references`    | General reference               | Document mentions another document     |
+| `quotes`        | Reproduces target content       | Report quotes a regulation             |
+| `defines_in`    | Definition originates in target | Term defined in ISO standard           |
+| `based_on`      | Derived from target             | Procedure based on guideline           |
+| `implements`    | Implements target specification | Software implements RFC                |
+| `complies_with` | Claims compliance with target   | Product complies with ISO standard     |
+| `requires`      | Depends on target requirement   | Regulation requires testing            |
+| `supersedes`    | Replaces earlier target         | New standard replaces old edition      |
+| `amends`        | Modifies target                 | Amendment modifies regulation          |
+| `contradicts`   | Conflicts with target           | Two documents specify different limits |
+| `supports`      | Provides supporting evidence    | Study supports a claim                 |
+| `refutes`       | Challenges a claim              | Study refutes prior conclusion         |
+| `extends`       | Builds on target                | Research extends previous work         |
+| `uses`          | Uses referenced resource        | Paper uses dataset                     |
+| `depends_on`    | Dependency relationship         | Package depends on library             |
+| `derived_from`  | Produced from target            | Chart derived from dataset             |
+| `part_of`       | Structural containment          | Section belongs to document            |
+| `same_as`       | Identifies equivalent resource  | DOI and URL resolve to same paper      |
+| `version_of`    | Version relationship            | Draft is version of specification      |
+| `see_also`      | Related resource                | Documentation points to related guide  |
+```
+
+These relationships are not mutually exclusive. A document may both `cites` and 
+`contradicts` another document.
+
+=== Reference scope
+
+References can point to different levels of granularity.
+
+- Document (ISO 13485:2016)
+- Section / Clause (Clause 7.5 — Production and service provision)
+- Paragraph / Requirement (Individual normative statement)
+- Text span / Data element (Exact sentence, table cell, metric, or value)
+
+A reference may also target an entire collection rather than a single document, 
+such as an ISO standards series or a GitHub repository.
+
+=== Recommended data model for SemOS
+
+Avoid creating a separate extraction schema for every type in the first 
+table. Instead, use the top-level types (categories) listed in @reference-types, 
+with extensible subtypes.
+
+For example:
+
+```
+{
+  "reference_type": "standard",
+  "reference_subtype": "international_standard",
+  "target": {
+    "target_type":"standard",
+    "title": "ISO 13485",
+    "identifier": "ISO 13485:2016",
+    "version": "2016",
+    "section": "7.5"
+  },
+  "reference_mechanism": "named_reference",
+  "relationship": "complies_with",
+  "source": {
+    "document_id": "doc_123",
+    "lines": [120, 121]
+  },
+  "evidence": "in accordance with ISO 13485:2016, Clause 7.5",
+  "resolution_status": "unresolved"
+}
+```
+
+with additional attributes, such as identifier, locator, version, etc.
+
+This supports not only citation extraction, but also document dependency graphs, 
+regulatory traceability, provenance tracking, version analysis, and cross-document 
+reasoning.
+
+Two additional considerations matter for a robust implementation:
+
+First, distinguish mention detection from reference resolution. An extractor 
+can identify `ISO 13485:2016` without locating the actual standard. Resolution 
+is a separate operation that maps the extracted mention to a canonical resource, 
+possibly with several candidate matches.
+
+Second, distinguish reference identity from location. The same paper may have 
+an arXiv URL, a DOI, a publisher page, and a local PDF. They should resolve to 
+one conceptual publication where appropriate, while preserving different versions 
+and manifestations.
+
+= 2026/10/14
+
+== Work
+- Install Tencent WeVisDoc-4B in mlx-vlm (done by Codex)
+- New (done by Claude Code): References => Benchmark
