@@ -15,7 +15,14 @@ are normalized to 0–1000 in the rotated, displayed page coordinate space.
 
 The Go canonicalizer uses the existing ParseTableGrid to assign IDs and row hashes.
 It matches physical rows conservatively by normalized column text, ignores header
-repetition, and permits multiple physical fragments per logical row. It saves
+repetition, and permits multiple physical fragments per logical row. When a PDF font
+garbles digits and symbols in the text layer (identifiers read as `!+!++!+`), a row
+falls back to matching on its Chinese characters alone (at least four), and a
+private-use glyph in the PDF text (a rare character such as 啰 read as U+E3FE) stands
+for any one character. Rows that then tie (癌抗原125 and 癌抗原153 differ only in
+garbled digits) are decided by table order: a run of tied rows between two uniquely
+matched rows takes, in order, the candidates between those rows when there are exactly
+as many as the run is long; otherwise they stay unmapped. It saves
 `<line-stem>.table-geometry.json` beside the canonical line file. It never changes
 line numbers. PDF and line SHA-256 hashes invalidate stale companions. Row hashes
 allow the viewer to reject stale artifact citations. Missing/ambiguous matches are
@@ -72,7 +79,7 @@ significant during matching. No fuzzy numeric or OCR correction is attempted.
 
 Physical schema: version, extractor (`pymupdf-tables-v1`), pdf_sha256, and tables
 containing page, rotation, coords and rows (coords, cells with text and coords).
-Canonical schema: version 1, algorithm (`canonical-table-geometry-v2`),
+Canonical schema: version 1, algorithm (`canonical-table-geometry-v4`),
 coordinate_space (`page-normalized-1000`), line_sha256, pdf_sha256,
 physical_sha256, and tables containing line and rows (id, hash, boxes, cells).
 Each cell has id (`r3:c4`) and boxes; boxes contain page, coords and rotation.
