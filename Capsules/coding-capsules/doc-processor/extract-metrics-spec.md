@@ -112,6 +112,8 @@ Pass 1 rules:
 - do not extract a definition: a statement that only says what a term, quantity or symbol means,
   wherever it appears (a definitions clause, a symbol list, a "式中" explanation, a note or running
   text), unless it comes with its own criterion (since candidates v14, 3.3.1)
+- in a data dictionary, emit one candidate per data element for its data format and allowed
+  occurrences, never for the value the field will hold (since candidates v15, 3.3.1)
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -175,6 +177,24 @@ still a candidate for that criterion, and a number inside a definition (高滑�
 a defined pressure has a measurable form. The rule was first written for the terms-and-definitions
 clause only; it describes the statement, not its location, because definitions appear anywhere.
 
+**Data dictionaries** (candidates v15 / enrich v12, 2026-10-15). In a data dictionary,
+data-element catalogue, message or dataset specification the data element is the object, and its
+metrics are the constraints the document states on it: the data format when it contains a number
+("a..50", "n4..5,1") and the allowed occurrences ("1", "0..1", "1..n"). Pass 1 emits one candidate
+per element, with both constraints in `value_hint`; Pass 2 turns it into one row per constraint
+(tags `data_format`, unit 位, and `occurrence_count`, unit 次; `value_class = requirement`; the
+format kept whole, its comparator taken from the length part). Not rows: the element's own
+measured value (身高, cm: no value is stated), a format with no number (YYYYMMDD; the element still
+gets its occurrence row), the obligation M/O/C alone, code lists and their meanings
+(`term_definition`), the notation clause and its examples (`term_definition`), and the document's
+own identifiers and group ranges (`document_identifier`). Matches gold rules 6.3.0 §2.5. Before
+this, record 376 (GB/T 40423, a 322-element catalogue) read every element as a value-open
+quantity, so all of them were set aside as `no_value`; 41 of its 42 stored rows were notation
+examples, codes and identifier ranges. Score 1 (log run 204) → 99 (log run 208) against gold run
+6.3.0 `20261015_064942`; on 416 and 753 the new rules never fired. Still open on 376: a printed
+misprint is copied as written (`nl` for `n1`, `n3..4.1`), where gold stores the notation's reading;
+test settings inside a description or code meaning (连续测量 3 次, 餐后 2 小时) are mostly missed.
+
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
 clause gives different meanings to ranges of one value ("发芽指数小于100%…大于100%…"), each
@@ -198,7 +218,8 @@ Pass 2 batching:
 - Since enrich prompt v9, every row carries its `candidate_id`, and each candidate that yields
   no row is listed in `dropped_candidates` (`{"candidate_id", "reason"}`, reasons such as
   `delegated_requirement`, `own_table_pointer`, `applicability_scope`, `activity_schedule`,
-  `formula_operand`, and since enrich v10 `procedure_count` and `no_named_quantity`). A candidate
+  `formula_operand`, since enrich v10 `procedure_count` and `no_named_quantity`, and since enrich v12
+  `document_identifier`). A candidate
   that is neither is logged as a warning (3.7)
 
 Pass 2 uses:
@@ -309,7 +330,7 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
-| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
+| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `document_identifier`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
 | `no_value` | after that, `excludeRowsWithoutValue` (`metric_soft_drop.go`) | `metric_value` empty or a placeholder (`-`, `—`, `/`, `N/A`, `无`), whatever the row's class, tags or formula | `no_value` |
 | `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` or `not_a_quantity` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule`, `not_a_quantity` or `no_named_quantity` |
