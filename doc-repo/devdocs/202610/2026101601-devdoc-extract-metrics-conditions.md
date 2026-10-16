@@ -61,8 +61,8 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 
 ## Where things live
 
-- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v21.md` (finding candidates, with
-  a condition hint), `prompt-enrich-metrics-v19.md` (the "Conditions" and "One Value Per Row"
+- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v22.md` (finding candidates, with
+  a condition hint), `prompt-enrich-metrics-v20.md` (the "Conditions" and "One Value Per Row"
   sections) and `prompt-merge-resolve-metrics-v2.md` (a different condition is a different metric).
   They are the defaults in code and in `mise.local.toml`.
 - **Database:** `kb.metrics.condition`, `condition_en` (new, migration
@@ -74,6 +74,10 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
   when they retain the original numbers and supporting lines; failed retries preserve the
   original rows. Rows still holding several values are listed in `kb.doc_proc_logs` under
   the activity `multi_value_rows`.
+- **Clause-wide qualifiers:** `inheritClauseConditions` in `metric_value_notation.go` copies a
+  clause's `试验装置` / `试验方法` / `试验介质` qualifier to the rows of that clause that lack it. It
+  does so only when the clause's rows agree on one value and the clause's opening line names it.
+  Rows from table lines are left alone.
 - **Duplicate checks:** `dedupeFinalMetricRows` in `extract-metrics.go`, and `metricsIdentical` /
   `metricStaticMatch` in `metrics_merge.go`. All of them compare the condition. Reordering or
   repeating the same labelled qualifiers does not create another identity. Different labels or
@@ -120,8 +124,9 @@ chunk's overlap, which cannot rescue a miss on the normal source line.
 
 The current prompts audit dense clauses for embedded settings, keep each table population tied
 to its own row, name the parent property of generic resolution/error columns, and keep a
-clause's apparatus on every setting it governs. Qualitative apparatus capabilities stay in the
-condition; numeric dimensions and accuracy get separate rows. Product specifications and
+clause's apparatus on every setting it governs. Numeric dimensions and accuracy get separate rows.
+(Until enrich v19 the apparatus qualifier also kept its qualitative capabilities; see the next
+section.) Product specifications and
 acceptance criteria are distinguished from the setup used to test them. An instruction to
 adjust a knob after a reading exceeds a trigger does not create a second acceptance limit.
 
@@ -150,3 +155,39 @@ The ordinary processor/handler suites passed (1,729 checks, four skips), along w
 the doc-processor build and strict validation of the OpenSpec change. An initial run under the
 full mise environment exposed unrelated environment-dependent suite failures; the ordinary
 suite passes without those production overrides. No new full-document score is claimed.
+
+## Matching the gold's condition conventions (2026-10-17)
+
+Run 226 (candidates v21 / enrich v19) found 503 of the 512 rows of gold run `20261016_162743`
+(rules 6.6.0, gpt-6.1-sol) with no false positives, but only 53.7% of the pairs had the right
+condition. Most of the 234 failures were not model mistakes:
+
+- About 76 followed the prompt, which asked for a different form than the gold uses. The prompt
+  kept an apparatus's capabilities in its qualifier (`运动模拟装置（可触动运动起点…）`), named
+  resistor rows `RA阻值` with only `模型：模型 1`, and added `取值区段：量程中间区段`.
+- About 85 left out a qualifier that the clause states once for all its rows: the 6.5.7 gas-flow
+  standard and its air medium, the 5 等量块 named in 6.5.4.1 for the checks in 6.5.4.2, the
+  apparatus in 6.5.5.3 and 6.5.20.1, the method column of Table C.1, and the 耐久性 exemption.
+- About 25 were inconsistencies in the gold itself, mostly the parallel 5.4.3 loading clauses.
+
+The user decided to follow the gold. Candidates v22 and enrich v20 now ask for:
+
+- the apparatus by name only, keeping a grade or alternatives that are part of the name
+  (`5等量块`, `脉搏标准测试仪或等同准确度的脉冲信号发生器或频率计`). Accuracy and capabilities are left out;
+- a table cell's column label in the condition (`模型：模型 1；电阻位置：RA`, name `电阻阻值`);
+- the part a clause checks as `检验项目：计时装置`;
+- no `取值区段` qualifier;
+- `适用条件：…` for exemptions and stated exceptions.
+
+`inheritClauseConditions` then copies the clause-wide apparatus or method in code. Replayed on the
+run-226 rows, it changed 9 rows, all toward the gold. Copying from any row in the clause had also
+spread one list item's method across the other items of 5.4.3. That is why the value has to appear
+in the clause's opening line.
+
+The scorer now treats dash variants as equal in conditions (`GB/T 19851.21—2007` vs `-2007`).
+The scoring agent is reminded to override a condition that states the same qualifiers in other
+words.
+
+Not done yet: a full re-extraction of 371 with v22/v20 and a new score. The doc-processor must be
+restarted to load the new prompts. The 5.4.3 gold rows have not been corrected.
+
