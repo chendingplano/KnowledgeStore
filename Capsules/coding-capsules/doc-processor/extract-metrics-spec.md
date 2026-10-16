@@ -135,6 +135,10 @@ Pass 1 rules:
   different conditions gives one candidate per value; a limit written as a fraction or multiple of
   another limit is a value; a requirement value inside a narrative table cell is a candidate;
   cells of a data set (records, simulated subjects, example cases) are not candidates
+- since candidates v19 (2026-10-16, 3.3.1): a number that only qualifies another value of its
+  clause (a paired load, an apparatus grade, a restated setting) is that value's `condition_hint`,
+  not a candidate; a limit equal to another limit ("不应大于允许误差的绝对值") is a candidate with
+  `value_hint` 1 倍
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -251,6 +255,36 @@ its unit, several values or Table E.1 data. Remaining errors: the model sometime
 property as a qualifier (`测量部位：座板高度`) or carries one clause's apparatus into the parallel
 clause. Matches gold rules 6.4.0 §3 (Conditions).
 
+**Numbers that qualify another value; relative limits** (candidates v19 / enrich v16, 2026-10-16,
+user rulings from the record 371 review; ChenWeb jj `qpwu`). Earlier prompts asked for a candidate
+for every number, so record 371 stored three numbers that only qualify another value:
+- 371_mtc_21: B.1.4 静载荷力 300 N, stored next to the 8 mm deflection row that already carried it
+  as its condition
+- 371_mtc_76: 6.5.4.1 量块等级 5
+- 371_mtc_92: the second 倾斜 10° of 6.4.2.1
+
+Now:
+
+- a number that only says under which load, input, grade or arrangement ANOTHER stated value of the
+  same clause holds or is checked goes into that value's `condition`, not into a row of its own:
+  - a load paired with a criterion → the criterion's condition (`静载荷力：300 N`)
+  - an apparatus grade → the apparatus qualifier (`试验装置：5 等量块`)
+  - the same setting stated again in the same clause → one row
+
+  Pass 2 drops the extra candidate as `not_a_metric:condition_of:<candidate_id>` or
+  `duplicate_of:<candidate_id>`. A number the clause sets in its own right stays a row, even next
+  to other values: a loading width, an apparatus accuracy, a number of readings, the tilt of the
+  plane the product is placed on, or a load the product must withstand when the pass criterion
+  has no number.
+- a limit stated relative to another limit is a value: "多次测量结果之差不应大于该类测试器材所允许误差的绝对值"
+  (5.5.2 repeatability, 371_mtc_8) → 重复性, `metric_value` 1, unit 倍, `upper_bound`, condition empty
+  ("对于同一测量数据，多次测量" describes the property). It is a requirement of its own, never
+  `delegated_requirement` or `duplicate_of`, like the earlier "表 1 规定误差的 1/10" → 1/10 倍.
+
+These match gold rules 6.5.0 (§3 "Numbers that qualify another value", A1/D1). The 6.4.0 gold run
+`20261016_085615` predates them: it records 5.5.2 as D1, so 371_mtc_8 scores as a false positive
+there, and its gold_282 lacks the 5 等量块 qualifier. Not yet verified by a live re-extraction.
+
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
 clause gives different meanings to ranges of one value ("发芽指数小于100%…大于100%…"), each
@@ -269,13 +303,23 @@ Pass 2 batching:
 
 - Candidates that share the same source chunk are grouped into one LLM call
 - Batch size is controlled by `METRIC_ENRICH_GROUP_SIZE` env var (default: 5)
+- A batch is never cut between candidates that quote the same evidence (same first-mention
+  `source_line_spans` and normalized `evidence_quote`, typically the cells of one table row), so a
+  batch can exceed the size by the rest of that run (`groupCandidatesByChunk` /
+  `candidateEvidenceKey`, 2026-10-16). Reason: in record 371 (log run 221, group size 10) the Table 1
+  走平衡木 row's candidates 8_40 | 8_41, 8_42 fell into two batches; the call holding only 8_40
+  (计时 0~100 s) also emitted the row's 分度值 and 允许误差 as 计时分度值 / 计时允许误差, and the
+  other call emitted 分度值 / 允许误差. Final dedup (3.4) keys on the name, so both pairs were stored
+  (371_mtc_313/315, 314/316). Since enrich v16, a candidate whose `value_hint` names one cell
+  yields only that cell's row
 - The batch prompt sends all candidates and source lines once, reducing repeated input tokens
 - Each batch returns a `metrics` array covering all candidates in that batch
 - Since enrich prompt v9, every row carries its `candidate_id`, and each candidate that yields
   no row is listed in `dropped_candidates` (`{"candidate_id", "reason"}`, reasons such as
   `delegated_requirement`, `own_table_pointer`, `applicability_scope`, `activity_schedule`,
   `formula_operand`, since enrich v10 `procedure_count` and `no_named_quantity`, since enrich v12
-  `document_identifier`, and since enrich v13 `dataset_record`). A candidate
+  `document_identifier`, since enrich v13 `dataset_record`, and since enrich v16
+  `not_a_metric:condition_of:<candidate_id>`). A candidate
   that is neither is logged as a warning (3.7)
 
 Pass 2 uses:
@@ -806,7 +850,7 @@ openspec change `requirements-metrics-phase1`).
 - Retry candidate extraction with `EXTRACT_METRIC_CANDIDATES_MODEL_FALLBACK` when the primary candidate model fails.
 - If both primary and fallback candidate extraction return the empty/truncated JSON failure shape, treat the chunk as an empty candidate result.
 - Merge and deduplicate candidates deterministically.
-- Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5) to enrich each batch into final metrics.
+- Group candidates by source chunk; run Pass 2 in batches of up to `METRIC_ENRICH_GROUP_SIZE` (default 5), never cutting between candidates that quote the same evidence (3.3), to enrich each batch into final metrics.
 - Deduplicate final metric rows.
 - Set aside pure requirements (inspection and delegated), then every row without a value
   (`no_value`), then judge any remaining open-value requirement with the decision model (3.4.2).
