@@ -61,14 +61,19 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 
 ## Where things live
 
-- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v18.md` (finding candidates, with
-  a condition hint), `prompt-enrich-metrics-v15.md` (the "Conditions" and "One Value Per Row"
+- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v21.md` (finding candidates, with
+  a condition hint), `prompt-enrich-metrics-v19.md` (the "Conditions" and "One Value Per Row"
   sections) and `prompt-merge-resolve-metrics-v2.md` (a different condition is a different metric).
   They are the defaults in code and in `mise.local.toml`.
 - **Database:** `kb.metrics.condition`, `condition_en` (new, migration
   `20261016000001_add_kb_metrics_condition_en.sql`), `value_min`, `value_max`.
-- **Value clean-up:** `metric_value_notation.go` (`normalizeMetricValueNotation`). Rows that still
-  hold several values are listed in `kb.doc_proc_logs` under the activity `multi_value_rows`.
+- **Value clean-up:** `metric_value_notation.go` (`normalizeMetricValueNotation`).
+  `metric_multi_value_recovery.go` retries candidates whose values combine several numbers,
+  using the original evidence. For example, `20%、80%及中间区段任意2~3个` becomes two percentage
+  positions and a separate count of intermediate points. The code accepts replacements only
+  when they retain the original numbers and supporting lines; failed retries preserve the
+  original rows. Rows still holding several values are listed in `kb.doc_proc_logs` under
+  the activity `multi_value_rows`.
 - **Duplicate checks:** `dedupeFinalMetricRows` in `extract-metrics.go`, and `metricsIdentical` /
   `metricStaticMatch` in `metrics_merge.go`. All of them compare the condition. Reordering or
   repeating the same labelled qualifiers does not create another identity. Different labels or
@@ -91,8 +96,9 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
   property as a "location" (`测量部位：座板高度` on the seat-height resolution row), and it carried
   the first clause's apparatus into the parallel clause 6.5.14.2. The scorer counts these as
   condition errors.
-- Splitting a row that holds several values is left to the model. The code only reports such rows;
-  it never splits them itself.
+- Splitting combined values needs model judgement. The code retries once per affected candidate
+  evidence group and preserves originals if the retry fails validation. Its conservative checks
+  may reject equivalent numeric rewrites; unresolved rows remain available for review.
 - Fraction ranges such as `1/2~2/3` get no numeric end points.
 - The scorer compares only the source-language condition; `condition_en` is shown but not scored.
 - A metric wiki page generated before this change keeps its old infobox, with no condition, until
