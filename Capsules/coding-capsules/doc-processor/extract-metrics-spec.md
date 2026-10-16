@@ -12,6 +12,14 @@ definition, a formula ("标准排热量 = (主测法 + 校核方法) / 2") or a 
 is set aside to `kb.metrics_dropped` with reason `no_value` (3.4.2). This replaces the earlier
 treatment of value-open quantities as metrics (gold rule A4), which the gold rules still have.
 
+**A metric is identified by its subject (the object), its property and its condition** (user
+decision, 2026-10-16). The condition is everything the source states that limits when, where, for
+whom or how the value holds: applicability (population, category, size class, variant), environment
+and operating state, test method or apparatus, location or body site, load, input level or time
+point. The same property of the same object under two conditions is two metrics, even with the same
+value: GB/T 44700 clauses 6.5.14.1 (运动模拟装置) and 6.5.14.2 (模拟物) state the same test settings
+and give two rows each. Each row holds one value (3.3.1, "Conditions and one value per row").
+
 This processor uses a multi-pass extraction strategy.
 
 ## 1. Input
@@ -55,7 +63,13 @@ breaks the processing into multiple passes:
 4. Deterministic Step B: final metric dedup before persistence
 
 ### 3.2 Incremental Processing
-Incremental processing is documented in [10].
+Incremental processing is documented in [10]. Since 2026-10-16 the merge treats the condition as
+part of a metric's identity: `metricsIdentical` (including its resolved-concept shortcut, since a
+concept names the property, not the metric instance) and `metricStaticMatch` require equal
+normalized conditions (an empty and a non-empty condition differ), `metricMergeComparedFields`
+lists `condition`, the merge-resolve payload carries `condition`, and
+`prompt-merge-resolve-metrics-v2.md` (env `METRIC_MERGE_RESOLVE_PROMPT`) says a different
+condition is a different metric. Normalization as in 3.4.
 
 ### 3.3 Pass 1: Metric Candidates
 
@@ -82,6 +96,7 @@ Pass 1 output:
       "source_line_spans": ["12", "13:15"],
       "unit_hint": "string",
       "value_hint": "string",
+      "condition_hint": "string",
       "confidence": 0.0,
       "confidence_reason": "string"
     }
@@ -114,6 +129,12 @@ Pass 1 rules:
   text), unless it comes with its own criterion (since candidates v14, 3.3.1)
 - in a data dictionary, emit one candidate per data element for its data format and allowed
   occurrences, never for the value the field will hold (since candidates v15, 3.3.1)
+- since candidates v16 (2026-10-16, 3.3.1): put the object in `subject_hint` and its qualifiers
+  in `condition_hint`; in a table whose columns give different properties of one item (value,
+  resolution, permitted error) every filled cell is a candidate, and a cell holding values for
+  different conditions gives one candidate per value; a limit written as a fraction or multiple of
+  another limit is a value; a requirement value inside a narrative table cell is a candidate;
+  cells of a data set (records, simulated subjects, example cases) are not candidates
 
 #### 3.3.1 Requirements With Nothing To Measure
 
@@ -195,6 +216,41 @@ examples, codes and identifier ranges. Score 1 (log run 204) → 99 (log run 208
 misprint is copied as written (`nl` for `n1`, `n3..4.1`), where gold stores the notation's reading;
 test settings inside a description or code meaning (连续测量 3 次, 餐后 2 小时) are mostly missed.
 
+**Conditions and one value per row** (candidates v16 / enrich v13 / merge-resolve v2,
+2026-10-16, openspec change `extract-metrics-conditions` [13]). Before this change the
+doc-processor path never stored a condition: the Pass 2 schema the model was told to use, the
+parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifiers into the subject
+("身高测试仪(计)（幼儿）") or merged values ("男300 mm、女250 mm"). Now:
+
+- `condition` / `condition_en` hold the stated qualifiers (definition in the introduction), as
+  labelled parts `<kind>：<value>` joined by `；` (English `<kind>: <value>` joined by `; `), e.g.
+  `适用人群：幼儿；称量≤50 kg`. `subject` names only the object. A table column or sub-header that
+  qualifies a row (a population column, 四肢 / 躯干) is a stated condition of every value in that
+  row. Not a condition: the object, the comparator or value, a cited document, the measurement basis
+  (dry basis), or where a method is a good choice. Never inferred
+- `metric_value` holds one value: one number, interval `a~b`, tolerance `±x` or `a±b`. Values for
+  different conditions become one row each (男 300 / 女 250); a list of settings or check points
+  (10、30、50 mm) one row per value; a cell naming several properties (底座 300 mm×300 mm；高度
+  550 mm) one row per property; every filled property column of a table row (规格 | 分度值 |
+  允许误差) one row each
+- notation: a symmetric tolerance `±x` is `upper_bound` with the ± kept (gold rules ≥ 6.1.0);
+  `metric_value` never contains the unit or a comparator (`5~25` with unit s, not `5 s~25 s`)
+- **data sets**: a table of records, samples, simulated subjects, example cases or
+  input/expected-output pairs is data, not a requirement; its candidates are dropped with reason
+  `dataset_record`, and a column is never summarised into a min~max range. Record 371's informative
+  Table E.1 (体脂率模拟测试参数库) had produced 75 such rows
+- **pass criteria vs test settings**: a value that sets the pass criterion of a requirement on the
+  product (a load it must withstand, a tilt at which it must stay upright) is a `requirement` with
+  its bound and no `test_condition` tag ("倾斜 10° 时不应翻倒" → `lower_bound` 10); a value that only
+  says how a test is run keeps `test_condition`
+
+The deterministic step in 3.4.2 enforces the notation rules the model misses. On record 371
+(GB/T 44700—2024, re-extracted 2026-10-16, not yet scored against gold 6.4.0): 410 of 483 rows carry
+a condition, 102 of 103 ranges have endpoints, all 77 `±x` rows are `upper_bound`, and no row holds
+its unit, several values or Table E.1 data. Remaining errors: the model sometimes repeats the
+property as a qualifier (`测量部位：座板高度`) or carries one clause's apparatus into the parallel
+clause. Matches gold rules 6.4.0 §3 (Conditions).
+
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
 clause gives different meanings to ranges of one value ("发芽指数小于100%…大于100%…"), each
@@ -218,8 +274,8 @@ Pass 2 batching:
 - Since enrich prompt v9, every row carries its `candidate_id`, and each candidate that yields
   no row is listed in `dropped_candidates` (`{"candidate_id", "reason"}`, reasons such as
   `delegated_requirement`, `own_table_pointer`, `applicability_scope`, `activity_schedule`,
-  `formula_operand`, since enrich v10 `procedure_count` and `no_named_quantity`, and since enrich v12
-  `document_identifier`). A candidate
+  `formula_operand`, since enrich v10 `procedure_count` and `no_named_quantity`, since enrich v12
+  `document_identifier`, and since enrich v13 `dataset_record`). A candidate
   that is neither is logged as a warning (3.7)
 
 Pass 2 uses:
@@ -263,6 +319,10 @@ Pass 2 output:
       "value_class": "string",
       "value_class_en": "string",
       "formula_or_definition": "string",
+      "value_min": 0.0,
+      "value_max": 0.0,
+      "condition": "string",
+      "condition_en": "string",
       "threshold_or_target": "string",
       "measurement_frequency": "string",
       "metric_categories": ["string"],
@@ -279,7 +339,11 @@ Pass 2 output:
 
 Important notes:
 
-- one output row = one metric
+- one output row = one metric = one value under one condition
+- `value_min` / `value_max` are numbers for `range` rows only; `condition_en` is empty for English
+  documents. The batch prompt's "use exactly this schema" block (`buildMetricRelationBatchPrompt`)
+  must list every field the processor stores: before 2026-10-16 it omitted `condition`,
+  `value_min` and `value_max`, so the model never returned them
 - use only the merged candidate and its supporting evidence
 - each final metric row should carry the originating `candidate_id` when the processor can determine a unique source candidate
 - `uncertain_metrics` may be returned by the LLM but are not persisted to `kb.metrics`
@@ -290,13 +354,17 @@ Important notes:
 
 `dedupeFinalMetricRows` deduplicates the enriched metric rows before persistence.
 
-**Dedup key** — built by `normalizedMetricCandidateKey` over five fields (each lowercased, trimmed, and whitespace-collapsed, then joined with `|`):
+**Dedup key** — built by `normalizedMetricCandidateKey` over five fields (each lowercased, trimmed, and whitespace-collapsed, then joined with `|`), plus the condition:
 
 1. `metric_name`
 2. `subject`
 3. `unit`
 4. `metric_value`
 5. normalized `source_line_spans` joined with `,`
+6. `|condition=` + `metricConditionKey` (since 2026-10-16): the condition with full-width forms
+   folded, lower-cased, all whitespace removed and `;` written as `；`. Without it, rows that
+   differ only in condition (握力测试仪 分度值 1 N for 幼儿 and for 成年人, same table line) would
+   merge once the population moved out of the subject
 
 `source_line_spans` normalization (`normalizeSourceLineSpans`):
 - Accepts string spans (`"12"`, `"13:15"`), bare `float64` integers, or `{"line_number": N}` objects
@@ -330,7 +398,7 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
-| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `document_identifier`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
+| `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `document_identifier`, `dataset_record`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
 | `no_value` | after that, `excludeRowsWithoutValue` (`metric_soft_drop.go`) | `metric_value` empty or a placeholder (`-`, `—`, `/`, `N/A`, `无`), whatever the row's class, tags or formula | `no_value` |
 | `decision_model` | after that, `judgeOpenValueRows` | kind `requirement_value_open` answered `activity_schedule` or `not_a_quantity` with p ≥ `METRIC_DECISION_DROP_MIN_P` (default 0.9), or whose clause names no quantity of what it only requires providing (below) | `activity_schedule`, `not_a_quantity` or `no_named_quantity` |
@@ -339,7 +407,22 @@ The `llm_tag` rows are deduplicated with `dedupeFinalMetricRows` (overlapping ch
 rows. Steps after dedup, inside `enrichMetricCandidates` (shared by the sequential and
 chunk-batch save paths, for `force_clear` true and false):
 
-1. canonicalize `value_range_type` (`canonicalizeMetricValueRangeTypes`)
+1. canonicalize `value_range_type` (`canonicalizeMetricValueRangeTypes`), then normalize value
+   notation (`normalizeMetricValueNotation`, `metric_value_notation.go`, since 2026-10-16) on live
+   and tagged rows (it also runs on the sequential save path and in `FinalizeChunkBatch`):
+   - remove copies of the row's own unit written next to a number (`5 s~25 s` → `5~25`), only
+     when the unit is not followed by a letter or `/` (次 in 次/min stays) and the result is a plain
+     value
+   - remove one leading comparator from a single number (`≥500` → `500`); an `exact` or empty
+     range type takes the comparator's bound, and a strict one (>, <, 大于, 小于) adds
+     `strict_bound`
+   - `±x` with `exact` or `range` → `upper_bound` (`a±b` and asymmetric tolerances unchanged)
+   - a `range` row without both endpoints gets them from `a~b` / `a-b` / `a±b`
+   - a value still holding several numbers joined by `、 ； ; ，` or 男…女 is left unchanged and
+     listed in the run's `multi_value_rows` log (3.7); `/` is not a separator because it is part of
+     units
+
+   Notation only: splitting a multi-value row needs the model
 2. classify each row with `metricStatementKind`
    (`server/api/doc-processing/metric_statement_kind.go`) and set aside pure requirements
 3. set aside every row without a value (`no_value`). A formula without a value is a definition,
@@ -685,6 +768,10 @@ The processor should log:
   `threshold_or_target`, `context`, `source_line_spans` and `decision`. No row is written when
   nothing is set aside. Runs before 2026-10-08 wrote `exclude_pure_requirements` instead
   (`excluded` array, pure requirements only)
+- rows that still hold several values (3.4.2 step 1): one `kb.doc_proc_logs` row per run that has
+  any, `activity = 'multi_value_rows'`, `extra_info.num_rows`, artifact `multi_value_rows` listing
+  each row's `candidate_id`, `metric_name`, `metric_value` and `source_line_spans` (since
+  2026-10-16). It measures the one-value-per-row prompt rule; no row is changed
 - open-value decision failures (Warn, with record and candidate ids); an unconfigured decision
   model is warned once per run
 - per enrich batch (Info/Warn logger, not `kb.doc_proc_logs`): candidates that are neither
@@ -811,6 +898,14 @@ Rules:
   - `metric_keywords_en`
   - `metric_unit_en`
   - `value_class_en`
+  - `condition_en`
+- save `condition`, `condition_en` (migration `20261016000001`), `value_min` and `value_max`
+  (migration `20260801000014`) from the Pass 2 row; endpoints are NULL unless the row is a `range`
+  (never 0 for a missing value). `SaveMetrics` (force_clear) and `UpsertMetrics` (merge, also in
+  `ON CONFLICT … DO UPDATE`) both write them, and `GetMetricsByInputRecordID` /
+  `loadPersistedMetricArtifactRows` read them back. Until 2026-10-16 the doc-processor path wrote
+  none of the three (only the old `kbhandler` import path did); rows extracted earlier keep NULL
+  until re-extracted (no backfill)
 - when populating `search_document`, concatenate the searchable metric fields only once each; if normalized field text is duplicated across fields such as `metric_desc`/`metric_context` or `metric_unit`/`metric_unit_en`, keep the first occurrence and drop repeats
 - save `metric_categories` to support category membership indexing
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
@@ -851,6 +946,17 @@ metrics detail panel with this display order:
 
 - under `Context`, show `Document Title` and `Doc No` above `Section`
 - under `Metric`, show `Object` directly under `Subject`
+- under `Metric`, show `Condition` and `Condition (English)` after `Subject` (since 2026-10-16;
+  `web/src/lib/components/home3/metric-detail-groups.ts`, Paraglide keys `metric_mgmt_condition`,
+  `metric_mgmt_condition_en`)
+
+`GET /kb/metrics` (production, gold `source=testbed`, and dropped rows from `row_data`) and the
+single-metric read return `condition` and `condition_en`; `PATCH` accepts them. The same panel is
+used by the Metrics workspace and the Product Review "Full Details" dialog. The production-vs-gold
+comparison shelf (`context-shelf.svelte`) lists both, and the metric wiki infobox shows the
+condition in the page language (`metricWikiCondition`; pages cached before 2026-10-16 show it
+after a refresh). Gold metrics store `testbed.metrics.condition_en` (migration
+`20261016000002`).
 
 ### 5.2 Category Table Migration
 
@@ -1112,4 +1218,7 @@ Refer to [3], [4], [5] and [6].
 [10] KnowledgeStore/doc-repo/adrs/202607/2026071002-adr-doc-processor-incremental.md \
 [11] KnowledgeStore/doc-repo/adrs/202610/2026100603-adr-separate-requirements-from-metrics.md \
 [12] ChenWeb/openspec/changes/exclude-pure-requirements-from-metrics/ (spec
-`metric-pure-requirement-exclusion`)
+`metric-pure-requirement-exclusion`) \
+[13] ChenWeb/openspec/changes/extract-metrics-conditions/ (specs `metric-condition`,
+`metric-value-notation`, `metric-row-granularity`); devdoc
+`KnowledgeStore/doc-repo/devdocs/202610/2026101601-devdoc-extract-metrics-conditions.md`
