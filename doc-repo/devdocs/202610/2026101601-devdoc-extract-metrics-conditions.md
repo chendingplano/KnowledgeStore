@@ -45,7 +45,8 @@ Now:
 
 The same change cleans up how values are stored:
 
-- a `±2 mm` tolerance is an upper limit on the deviation;
+- a bare `±2 mm` tolerance is an upper limit on the deviation, while a centred tolerance such as
+  `65±5 mm` is a range from 60 to 70 mm even if the model labels it an upper bound;
 - the value field no longer repeats the unit or the "≥" sign;
 - ranges carry their two end numbers;
 - tables of example data (such as a list of simulated test subjects) are no longer turned into
@@ -60,8 +61,8 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 
 ## Where things live
 
-- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v16.md` (finding candidates, with
-  a condition hint), `prompt-enrich-metrics-v13.md` (the "Conditions" and "One Value Per Row"
+- **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v18.md` (finding candidates, with
+  a condition hint), `prompt-enrich-metrics-v15.md` (the "Conditions" and "One Value Per Row"
   sections) and `prompt-merge-resolve-metrics-v2.md` (a different condition is a different metric).
   They are the defaults in code and in `mise.local.toml`.
 - **Database:** `kb.metrics.condition`, `condition_en` (new, migration
@@ -69,7 +70,9 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 - **Value clean-up:** `metric_value_notation.go` (`normalizeMetricValueNotation`). Rows that still
   hold several values are listed in `kb.doc_proc_logs` under the activity `multi_value_rows`.
 - **Duplicate checks:** `dedupeFinalMetricRows` in `extract-metrics.go`, and `metricsIdentical` /
-  `metricStaticMatch` in `metrics_merge.go`. All of them compare the condition.
+  `metricStaticMatch` in `metrics_merge.go`. All of them compare the condition. Reordering or
+  repeating the same labelled qualifiers does not create another identity. Different labels or
+  qualifier values remain distinct.
 - **Pages:** the metric details panel (Metrics workspace and Product Review "Full Details") shows
   Condition and Condition (English) for production and gold metrics, the side-by-side
   production/gold comparison shows both, and the metric wiki infobox shows the condition in the
@@ -95,3 +98,49 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 - A metric wiki page generated before this change keeps its old infobox, with no condition, until
   it is refreshed.
 - Gold runs made before rules 6.4.0 have no `condition_en`.
+
+## Improving extraction after the record 371 review
+
+The comparison against gold run `20261016_085615` (rules 6.4.0, claude-opus-5-5) scored the
+previous candidates-v17/enrich-v14 output at 93/100 using scoring version 2. It matched 469 of
+474 gold assertions. Most field mismatches concerned conditions; the two 80 mm loading widths
+and the 0.1% grip-test dynamometer accuracy were missing as independent metrics.
+
+The saved run-220 candidate logs explain two different failures. The widths and grip-test
+accuracy appeared inside other candidates' condition hints without becoming candidates. The
+adult beat-error candidate was present with the correct population; the saved final rows had
+only the student assertion. A stopwatch-error candidate on line 271 appeared only in the next
+chunk's overlap, which cannot rescue a miss on the normal source line.
+
+The current prompts audit dense clauses for embedded settings, keep each table population tied
+to its own row, name the parent property of generic resolution/error columns, and keep a
+clause's apparatus on every setting it governs. Qualitative apparatus capabilities stay in the
+condition; numeric dimensions and accuracy get separate rows. Product specifications and
+acceptance criteria are distinguished from the setup used to test them. An instruction to
+adjust a knob after a reading exceeds a trigger does not create a second acceptance limit.
+
+The Go normalizer repairs the unambiguous `a±b` comparator error and clears endpoints on
+non-range numeric rows. It does not guess missing metrics, infer populations, or reclassify
+assertions from domain-specific keywords. Those decisions remain in the extraction prompts.
+
+`server/api/doc-processing/metric_extraction_quality_test.go` provides an opt-in real-model
+check for representative clauses from this review. It exercises both extraction passes, checks
+the missing settings, distinct populations/methods, classification, tolerances and adjustment
+exclusion, and keeps returned metrics out of the database:
+
+```sh
+mise exec -- env METRIC_QUALITY_LIVE=1 \
+  METRIC_QUALITY_OUTPUT=/tmp/metric-quality.json \
+  go test ./server/api/doc-processing -run '^TestMetricExtractionQualityLive$' -count=1 -v
+```
+
+Run this from ChenWeb. The ordinary suite skips the model calls. These focused checks do not
+replace re-extracting and scoring the full document against the same gold run. Existing
+`kb.metrics` rows and gold metrics are not rewritten by these fixes.
+
+Verification on 2026-10-16: all six live cases passed with the configured deepseek-flash model,
+returning 27 metrics and satisfying 16 expected assertions plus adjustment-trigger exclusion.
+The ordinary processor/handler suites passed (1,729 checks, four skips), along with `go vet`,
+the doc-processor build and strict validation of the OpenSpec change. An initial run under the
+full mise environment exposed unrelated environment-dependent suite failures; the ordinary
+suite passes without those production overrides. No new full-document score is claimed.
