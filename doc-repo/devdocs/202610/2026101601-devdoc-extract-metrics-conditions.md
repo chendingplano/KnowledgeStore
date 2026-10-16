@@ -70,8 +70,15 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
   hold several values are listed in `kb.doc_proc_logs` under the activity `multi_value_rows`.
 - **Duplicate checks:** `dedupeFinalMetricRows` in `extract-metrics.go`, and `metricsIdentical` /
   `metricStaticMatch` in `metrics_merge.go`. All of them compare the condition.
+- **Pages:** the metric details panel (Metrics workspace and Product Review "Full Details") shows
+  Condition and Condition (English) for production and gold metrics, the side-by-side
+  production/gold comparison shows both, and the metric wiki infobox shows the condition in the
+  page's language. The metrics API returns and accepts `condition` / `condition_en`.
 - **Answer key and scoring:** `.agents/skills/extract-metrics-benchmark/rules/6.4.0.md` (§3,
-  Conditions) and `.agents/skills/score-extract-metrics` (condition check, weights in `score.json`).
+  Conditions), `testbed.metrics.condition_en` (migration `20261016000002`, required by the
+  benchmark tooling from rules 6.4.0 for a non-English condition), and
+  `.agents/skills/score-extract-metrics` (condition check, weights in `score.json`). The in-app
+  scorer uses the matching prompt `prompt-score-extract-metrics-v2.md`.
 
 ## Known limitations
 
@@ -84,6 +91,7 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 - Splitting a row that holds several values is left to the model. The code only reports such rows;
   it never splits them itself.
 - Fraction ranges such as `1/2~2/3` get no numeric end points.
-- The condition is not yet shown on the metric pages.
-- The answer key stores only the source-language condition (no `condition_en`), and the scorer
-  compares only that.
+- The scorer compares only the source-language condition; `condition_en` is shown but not scored.
+- A metric wiki page generated before this change keeps its old infobox, with no condition, until
+  it is refreshed.
+- Gold runs made before rules 6.4.0 have no `condition_en`.
