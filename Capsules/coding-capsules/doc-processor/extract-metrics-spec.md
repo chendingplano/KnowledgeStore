@@ -248,7 +248,12 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
 - **data sets**: a table of records, samples, simulated subjects, example cases or
   input/expected-output pairs is data, not a requirement; its candidates are dropped with reason
   `dataset_record`, and a column is never summarised into a min~max range. Record 371's informative
-  Table E.1 (体脂率模拟测试参数库) had produced 75 such rows
+  Table E.1 (体脂率模拟测试参数库) had produced 75 such rows. Since candidates v24 / enrich v22
+  (2026-10-17) a data set is defined by its rows being records of individual cases, and a table
+  that prescribes the values a test, its apparatus or a reference standard must have (one row per
+  model, grade or setting: 371's 表 3 标准电阻模型阻值) is kept cell by cell with the row as
+  condition. The v16–v23 wording ("parameter library … reference data table") made the candidates
+  pass skip Table 3 entirely in most runs (0–1 of 6 on the production chunk; 6/6 with v15 and v24)
 - **pass criteria vs test settings**: a value that sets the pass criterion of a requirement on the
   product (a load it must withstand, a tilt at which it must stay upright) is a `requirement` with
   its bound and no `test_condition` tag ("倾斜 10° 时不应翻倒" → `lower_bound` 10); a value that only
