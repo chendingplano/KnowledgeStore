@@ -259,6 +259,19 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
   measured band or observed state is its condition (`心率：≤40次/min`, `意识：清楚`). Equal
   scores under different conditions remain distinct. Both languages must use the source
   column's score. See bug `2026101701-bug-sparse-score-table-column-shift` for record 364.
+- **numeric category labels** (candidates v27 / enrich v26, 2026-10-17): a numeral
+  that names a workflow, priority, routing or administrative category is not a measured
+  quantity or quantitative score. Exclude it as `categorical_label`, including tables
+  mapping qualitative circumstances to numbered actions. Do not convert labels to a
+  range or a count. A clause that selects a procedure for an already assigned category
+  is `applicability_scope`, not a new assertion of the category's value. A separate
+  numerical requirement under that category stays a metric, with the category in its
+  condition (`1级患者应在10 min内转运` → time limit 10 min, no grade-1 metric).
+  These eligibility rules precede filled-cell and interpretation-band rules. Keep
+  measurements, clinical cutoffs, model-specific reference values and defined numeric
+  assessment scores such as MEWS. Never filter by the word grade/level/级 alone.
+  The existing tagged-row fallback also sets aside `categorical_label` rows emitted
+  despite the prompt's exclusion instruction. See bug `2026101702-bug-numeric-workflow-category-false-metrics`.
 - notation: a symmetric tolerance `±x` is `upper_bound` with the ± kept (gold rules ≥ 6.1.0);
   `metric_value` never contains the unit or a comparator (`5~25` with unit s, not `5 s~25 s`)
 - **data sets**: a table of records, samples, simulated subjects, example cases or
