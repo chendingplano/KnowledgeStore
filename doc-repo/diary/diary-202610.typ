@@ -2,6 +2,7 @@
 #import "@preview/oxdraw:0.1.0": *
 #import "../../Reviews/Review-ai-laya.typ": ref_review_laya
 #import "../../Reviews/review-knowhere.typ": ref_review_knowhere
+#import "../../Research/embedding.md": ref_embedding
 
 #set heading(numbering: "1.")
 #set quote(block: true)
@@ -1072,3 +1073,28 @@ and manifestations.
 == Work
 - Install Tencent WeVisDoc-4B in mlx-vlm (done by Codex)
 - New (done by Claude Code): References => Benchmark
+- Improvement (done by Claude Code): gold references improvement
+- Improvement (done by Codex): rework on "Workspace"
+- New (done by Codex): add Knowledge Graph in 'Workspace'
+
+= 2026/10/15
+
+== Work
+- Bug (fixed by Codex): enrich metrics using wrong prompt name
+- Improvement (done by Claude): gold metrics, version 6.2.0
+
+= 2026/10/16
+
+== Work
+- Installed anatomy skill (done): anatomy draws 3D images, works with Codex, 
+  Claude Code
+- Improvement (done by Claude Code): improve metrics
+
+= 2026/10/17
+
+== Late Embedding
+- Understand what the late embedding is.
+- BGE-M3 and Jina 3 are good candidates. Jina 3 is better,
+  but there is a license issue for using Jina 3. BGE-M3 has an embedding
+  issue. Its standard embedding and late embedding use different embeddings.
+- Conclusion: need experiments and benchmark. Not for now

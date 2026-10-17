@@ -191,7 +191,7 @@ and logical rules. This enables software to infer new facts automatically rather
 storing explicitly defined relationships.
 
 The central elements of OWL are **classes**, **individuals**, and **properties**. 
-OLWprovides classes, properties, individuals, axioms, and inference. A class 
+OWL provides classes, properties, individuals, axioms, and inference. A class 
 represents a type of thing (for example, *Medical Device* or *Performance Metric*), while 
 individuals are concrete instances of those classes (for example, a specific MRI scanner 
 or a particular latency measurement). Properties describe relationships or attributes. 
