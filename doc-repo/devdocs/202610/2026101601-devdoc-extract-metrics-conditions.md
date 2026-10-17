@@ -62,7 +62,7 @@ before 2026-10-16 (scoring version 1) cannot be compared with newer ones (scorin
 ## Where things live
 
 - **Prompts:** `ChenWeb/prompts/prompt-extract-metric-candidates-v25.md` (finding candidates, with
-  a condition hint), `prompt-enrich-metrics-v23.md` (the "Conditions" and "One Value Per Row"
+  a condition hint), `prompt-enrich-metrics-v24.md` (the "Conditions" and "One Value Per Row"
   sections) and `prompt-merge-resolve-metrics-v2.md` (a different condition is a different metric).
   They are the defaults in code and in `mise.local.toml`.
 - **Database:** `kb.metrics.condition`, `condition_en` (new, migration

@@ -246,7 +246,12 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
   user ruling on 371 mtc_3/4 and mtc_267/268) a product size is ONE row: "250 mm×200 mm 的面" →
   加载面尺寸 `250×200` mm, "长300 mm×宽 300 mm" → 底座尺寸 `300×300` mm, exact, and a tolerance serving
   it is one row (底座尺寸允许误差 ±5 mm). Dimensions stated separately (长 3 000 mm,宽 100 mm) stay
-  one row each
+  one row each. A permitted-error or resolution row carries the qualifiers of the quantity it serves
+  (底座尺寸允许误差 has 形状：方形底座 like 底座尺寸): enrich v24 asks for it, and
+  `inheritServedQuantityConditions` (after `inheritClauseConditions`) copies a missing qualifier
+  from the one row with the same subject, the name without 允许误差/分度值, and an overlapping line.
+  A description of the object's form or material that selects nothing (塑料或橡胶材质) is not a
+  condition
 - notation: a symmetric tolerance `±x` is `upper_bound` with the ± kept (gold rules ≥ 6.1.0);
   `metric_value` never contains the unit or a comparator (`5~25` with unit s, not `5 s~25 s`)
 - **data sets**: a table of records, samples, simulated subjects, example cases or
