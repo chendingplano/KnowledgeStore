@@ -201,6 +201,12 @@ still a candidate for that criterion, and a number inside a definition (高滑�
 `term_definition`. The Pass 1 rule "general concepts without measurable form" did not cover these:
 a defined pressure has a measurable form. The rule was first written for the terms-and-definitions
 clause only; it describes the statement, not its location, because definitions appear anywhere.
+Since candidates v23 / enrich v21 (2026-10-17, benchmark rules 6.7.0) the kept number must limit a
+property measured on the document's own object (高滑移 classifies the refrigerant by its glide). Also
+`term_definition`: a category boundary of the people or things the object is for (GB/T 44700 4 注 1,
+"3 周岁～6 周岁为幼儿…": nothing on the test equipment is compared with it; the category stays a
+`condition`, `适用人群：幼儿`) and a counting, naming or unit convention ("采用跳绳绕轴360°计一圈的方法计数").
+A value required of a person, sample or population ("受试者年龄应为 3 周岁～6 周岁") is still a metric.
 
 **Data dictionaries** (candidates v15 / enrich v12, 2026-10-15). In a data dictionary,
 data-element catalogue, message or dataset specification the data element is the object, and its
