@@ -252,6 +252,13 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
   from the one row with the same subject, the name without 允许误差/分度值, and an overlapping line.
   A description of the object's form or material that selects nothing (塑料或橡胶材质) is not a
   condition
+- **sparse scoring tables** (candidates v26 / enrich v25, 2026-10-17): multi-level table
+  headers are bound to every nonempty data cell in the model input (`评分/2: ≤40`), rather
+  than relying on positional alignment through blanks. Empty cells supply no assertion.
+  Each nonempty scoring cell yields one row; when the value is the assigned score, the
+  measured band or observed state is its condition (`心率：≤40次/min`, `意识：清楚`). Equal
+  scores under different conditions remain distinct. Both languages must use the source
+  column's score. See bug `2026101701-bug-sparse-score-table-column-shift` for record 364.
 - notation: a symmetric tolerance `±x` is `upper_bound` with the ± kept (gold rules ≥ 6.1.0);
   `metric_value` never contains the unit or a comparator (`5~25` with unit s, not `5 s~25 s`)
 - **data sets**: a table of records, samples, simulated subjects, example cases or
