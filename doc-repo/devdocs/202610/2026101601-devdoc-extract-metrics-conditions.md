@@ -188,6 +188,12 @@ The scorer now treats dash variants as equal in conditions (`GB/T 19851.21—200
 The scoring agent is reminded to override a condition that states the same qualifiers in other
 words.
 
+The gold inconsistencies are fixed in a corrected copy, run `20261017_060405` (6.6.0 /
+claude-opus-5-5). It has the same ledger and rows and changes 24 rows in 5.4.3.3, 6.4.2.3, 6.4.2.6
+and Table C.1. Each list item's equipment category is now a condition (`器材类别：…`) rather than part
+of the subject, and every row of an item carries all the qualifiers the item states. The change
+log is in the run's `correctness_review`. Score 371 against that run from now on.
+
 Not done yet: a full re-extraction of 371 with v22/v20 and a new score. The doc-processor must be
-restarted to load the new prompts. The 5.4.3 gold rows have not been corrected.
+restarted to load the new prompts.
 
