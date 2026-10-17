@@ -238,11 +238,15 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
   qualifies a row (a population column, 四肢 / 躯干) is a stated condition of every value in that
   row. Not a condition: the object, the comparator or value, a cited document, the measurement basis
   (dry basis), or where a method is a good choice. Never inferred
-- `metric_value` holds one value: one number, interval `a~b`, tolerance `±x` or `a±b`. Values for
-  different conditions become one row each (男 300 / 女 250); a list of settings or check points
-  (10、30、50 mm) one row per value; a cell naming several properties (底座 300 mm×300 mm；高度
-  550 mm) one row per property; every filled property column of a table row (规格 | 分度值 |
-  允许误差) one row each
+- `metric_value` holds one value: one number, interval `a~b`, tolerance `±x`, `a±b`, or a size
+  written as a product `a×b`. Values for different conditions become one row each (男 300 / 女
+  250); a list of settings or check points (10、30、50 mm) one row per value; a cell naming several
+  properties (底座 300 mm×300 mm；高度 550 mm) one row per property; every filled property column of
+  a table row (规格 | 分度值 | 允许误差) one row each. Since candidates v25 / enrich v23 (2026-10-17,
+  user ruling on 371 mtc_3/4 and mtc_267/268) a product size is ONE row: "250 mm×200 mm 的面" →
+  加载面尺寸 `250×200` mm, "长300 mm×宽 300 mm" → 底座尺寸 `300×300` mm, exact, and a tolerance serving
+  it is one row (底座尺寸允许误差 ±5 mm). Dimensions stated separately (长 3 000 mm,宽 100 mm) stay
+  one row each
 - notation: a symmetric tolerance `±x` is `upper_bound` with the ± kept (gold rules ≥ 6.1.0);
   `metric_value` never contains the unit or a comparator (`5~25` with unit s, not `5 s~25 s`)
 - **data sets**: a table of records, samples, simulated subjects, example cases or
