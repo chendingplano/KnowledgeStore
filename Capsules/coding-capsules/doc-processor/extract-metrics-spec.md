@@ -18,7 +18,22 @@ whom or how the value holds: applicability (population, category, size class, va
 and operating state, test method or apparatus, location or body site, load, input level or time
 point. The same property of the same object under two conditions is two metrics, even with the same
 value: GB/T 44700 clauses 6.5.14.1 (运动模拟装置) and 6.5.14.2 (模拟物) state the same test settings
-and give two rows each. Each row holds one value (3.3.1, "Conditions and one value per row").
+and give two rows each. One row is one independently interpretable assertion, which may have a
+structured collection of values (3.3.1, "Meaning-preserving value granularity").
+
+**A metric holds its value inside a frame** (user decision, 2026-10-18, openspec change
+`metric-frame` [14]). Besides the condition, a row records in `frame`:
+- `uses`: the resources the value uses, each with a role (agent, material, apparatus, reagent,
+  medium, sample, device) and its own identifying spec (葡萄糖 {浓度 50 %}, 量块 {等级 5 等});
+- `method`: the test method, route or mode;
+- `procedure`: the step (clause), stage and preceding step.
+
+Since then the condition no longer holds the apparatus, medium, reagent, agent, method, route or
+stage. A strength, concentration, dilution or grade that only names the resource another value
+uses is not a metric: 364_mtc_30 (葡萄糖浓度 50 %, the product of the 40 ml dose 364_mtc_29) was such
+a row. It stays a metric when the resource is the document's specified object (a product
+standard's 含量). `uses` (role, name, spec) and `method` are part of a metric's identity;
+`procedure` is not.
 
 This processor uses a multi-pass extraction strategy.
 
@@ -69,7 +84,16 @@ concept names the property, not the metric instance) and `metricStaticMatch` req
 normalized conditions (an empty and a non-empty condition differ), `metricMergeComparedFields`
 lists `condition`, the merge-resolve payload carries `condition`, and
 `prompt-merge-resolve-metrics-v2.md` (env `METRIC_MERGE_RESOLVE_PROMPT`) says a different
-condition is a different metric. Normalization as in 3.4.
+condition is a different metric. Normalization as in 3.4. Since 2026-10-18 the same holds for the
+frame: `metricsIdentical` and `metricStaticMatch` also require equal `metricFrameIdentityKey`
+(sorted uses signature and method values; `procedure` ignored), `metricMergeComparedFields` and
+the merge-resolve payload carry `frame`, and `prompt-merge-resolve-metrics-v3.md` introduced the rule that
+a different resource, strength or method is a different metric. `frame` is not one of
+`mergeResolveDecidedFields`, so a winner keeps its source row's frame. The current default is
+merge-resolve v4: the payload also carries `value_structure`, and response validation rejects
+relationship changes, explicit structure erasure and incompatible absorption. Omitted structure
+is restored from the winning source. Incremental identity and matching require equal value
+structures; expression/unresolved values additionally require equal complete display text.
 
 ### 3.3 Pass 1: Metric Candidates
 
@@ -120,7 +144,9 @@ Pass 1 rules:
 - do not keep overlap-only candidates unless the same metric is supported by normal lines
 - do not extract a requirement with nothing to measure: an inspection requirement, or a clause
   whose criteria live only in a cited document (e.g. "应按照 CJJ 27 的要求配置…") (see 3.3.1)
-- emit one candidate per stated quantity, including plain counts in dense test-method clauses
+- emit one candidate per independently interpretable stated quantity, preserving alternatives
+  and required point collections as whole candidates (current candidates v30, below), including
+  plain counts in dense test-method clauses
   (samples, replicates, blank controls), and check every normal line of the chunk, not only
   its tables (since candidates prompt v12); since v13 (2026-10-08) a count is evidence of a
   metric only through what it counts (3.3.1)
@@ -226,7 +252,7 @@ examples, codes and identifier ranges. Score 1 (log run 204) → 99 (log run 208
 misprint is copied as written (`nl` for `n1`, `n3..4.1`), where gold stores the notation's reading;
 test settings inside a description or code meaning (连续测量 3 次, 餐后 2 小时) are mostly missed.
 
-**Conditions and one value per row** (candidates v16 / enrich v13 / merge-resolve v2,
+**Conditions and assertion boundaries** (introduced in candidates v16 / enrich v13 / merge-resolve v2,
 2026-10-16, openspec change `extract-metrics-conditions` [13]). Before this change the
 doc-processor path never stored a condition: the Pass 2 schema the model was told to use, the
 parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifiers into the subject
@@ -238,17 +264,19 @@ parser and the INSERT all lacked it (0 of 2,383 rows). The model wrote qualifier
   qualifies a row (a population column, 四肢 / 躯干) is a stated condition of every value in that
   row. Not a condition: the object, the comparator or value, a cited document, the measurement basis
   (dry basis), or where a method is a good choice. Never inferred
-- `metric_value` holds one value: one number, interval `a~b`, tolerance `±x`, `a±b`, or a size
-  written as a product `a×b`. Values for different conditions become one row each (男 300 / 女
-  250); a list of settings or check points (10、30、50 mm) one row per value; a cell naming several
-  properties (底座 300 mm×300 mm；高度 550 mm) one row per property; every filled property column of
-  a table row (规格 | 分度值 | 允许误差) one row each. Since candidates v25 / enrich v23 (2026-10-17,
+- `metric_value` holds the complete value of one assertion: a number, interval `a~b`, tolerance
+  `±x` / `a±b`, composite size `a×b`, collection or expression. Different independently stated
+  conditions become separate rows (男 300 / 女 250); different independently stated properties
+  also split. A list of mandatory check points stays one `required_points` collection; permitted
+  alternatives stay one `alternatives` set. Every filled independent property column of
+  a table row (规格 | 分度值 | 允许误差) gives its own row. Since candidates v25 / enrich v23 (2026-10-17,
   user ruling on 371 mtc_3/4 and mtc_267/268) a product size is ONE row: "250 mm×200 mm 的面" →
   加载面尺寸 `250×200` mm, "长300 mm×宽 300 mm" → 底座尺寸 `300×300` mm, exact, and a tolerance serving
   it is one row (底座尺寸允许误差 ±5 mm). Dimensions stated separately (长 3 000 mm,宽 100 mm) stay
   one row each. A permitted-error or resolution row carries the qualifiers of the quantity it serves
   (底座尺寸允许误差 has 形状：方形底座 like 底座尺寸): enrich v24 asks for it, and
-  `inheritServedQuantityConditions` (after `inheritClauseConditions`) copies a missing qualifier
+  `inheritServedQuantityConditions` (after `inheritClauseConditions`; since 2026-10-18 also the
+  served row's `frame.uses` / `frame.method`) copies a missing qualifier
   from the one row with the same subject, the name without 允许误差/分度值, and an overlapping line.
   A description of the object's form or material that selects nothing (塑料或橡胶材质) is not a
   condition
@@ -295,6 +323,77 @@ its unit, several values or Table E.1 data. Remaining errors: the model sometime
 property as a qualifier (`测量部位：座板高度`) or carries one clause's apparatus into the parallel
 clause. Matches gold rules 6.4.0 §3 (Conditions).
 
+**Meaning-preserving value granularity** (candidates v30 / enrich v29 / merge-resolve v4,
+implemented 2026-10-18; capsule updated 2026-10-19, change `semantic-metric-values` [15]).
+The earlier rule that every list must split is superseded. Multiple numbers are not an error.
+Before splitting, both passes ask whether each output can stand independently without losing a
+choice, collection, dependency or source-supported condition. Do not invent qualifiers to force a split.
+
+| Source meaning | Stored representation |
+|---|---|
+| Male 300 mm; female 250 mm | Two rows with the respective sex conditions |
+| Available diameters: 10, 20 or 30 mm | One row, `alternatives`, members `10`, `20`, `30` |
+| Inspect at 10, 30 and 50 mm | One row, `required_points`, all three members required |
+| 10~30 mm or 65±5 mm | Existing interval/tolerance representation, not a discrete set |
+| Surface size 250×200 mm | One row, `composite`, ordered members `250`, `200` |
+| Parameter-dependent bound 70+年龄×2 | One row, `expression`, complete expression retained |
+| Ambiguous list or an unrepresentable cross-object choice | One complete row, `unresolved` |
+
+`value_structure` is nullable JSON beside `metric_value`, not a replacement for the display text:
+
+```json
+{"kind":"alternatives","values":["10","20","30"]}
+```
+
+Supported kinds are `alternatives`, `required_points`, `composite`, `expression`, `unresolved`.
+The first three require at least two nonempty string members in the row's unit; unordered
+collections reject duplicate members, while composite order and repeated dimensions matter.
+Expressions and unresolved values retain the full text in `metric_value` and need no members.
+Ordinary scalar, interval and supported tolerance values use null. Null alone does not certify
+scalar parseability. Metadata and display must agree; numeric validation includes full-width digits.
+Collections never acquire continuous `value_min` / `value_max` endpoints and are not relabelled
+qualitative merely because the numeric consumer cannot interpret them.
+
+`recoverMultiValueMetricRows` reviews only unclassified/invalid combined values once against
+original candidate evidence, using `multi_value_rows_to_review`. Each affected candidate needs an
+explicit `value_review_decisions` item: `candidate_id`, `action` (`split`, `keep`, `unresolved`)
+and a nonempty source-based `reason`:
+
+- `split`: at least two distinct valid assertions; source spans must remain within original
+  evidence, and all original numeric tokens must survive with sign and multiplicity. Rows may
+  include a legitimate collection plus a separate property, e.g. required positions 20/80 % and
+  an intermediate point-count range 2~3 个.
+- `keep`: one complete supported structured value with the same display/unit. The implementation
+  keeps the original subject, conditions, frame and provenance, adds the validated structure,
+  clears numeric interval endpoints and removes the unresolved-value tag. This is successful recovery.
+- `unresolved`, missing/invalid decisions or call failure: keep the original row as `unresolved`,
+  tagged `value_review_unresolved`. Non-combined siblings remain intact.
+
+Valid non-scalar structures trigger neither corrective calls nor multi-value warnings merely for
+containing multiple numbers. Evidence/numeric checks guard against loss; they do not prove arbitrary
+semantic equivalence. The model remains responsible for interpreting the source.
+
+These rules address four requirements together:
+
+1. Preserve each value's condition and frame when independent assertions split.
+2. Protect numeric consumers: `resolveMetricValue` defers non-scalar or malformed structures as
+   `unparsed`, with no numeric fields. Scalar parsing requires a complete supported expression;
+   legacy lists, composites, ratios and unsupported formulas cannot become their first number.
+   Legacy interval endpoints cannot turn displayed collections into continuous ranges. Existing
+   supported scalar, interval and tolerance handling remains available.
+3. Support structured multi-values explicitly rather than equating structured with scalar.
+4. Align annotation and scoring: gold rules 10.0.0 and scoring version 5 preserve these boundaries
+   and compare the relationship plus every collection member. Order is ignored for unordered sets,
+   retained for composites. First-member and bounding-interval substitutions fail the value check.
+   Frozen earlier rules/runs remain unchanged; compare scores only with compatible gold/scoring versions.
+
+Collection comparison is currently unsupported and defers through the existing unparsed path;
+extraction/display remain available. Deployment needs migration `20261018000003` before the new
+API/worker, current prompt overrides and updated scoring scripts. This implementation does not
+repair prior splits or derived assertions: historical data requires explicit re-extraction and
+semantic reprocessing after deployment. No production deployment or reprocessing was performed
+as part of this implementation.
+
 **Numbers that qualify another value; relative limits** (candidates v19 / enrich v16, 2026-10-16,
 user rulings from the record 371 review; ChenWeb jj `qpwu`). Earlier prompts asked for a candidate
 for every number, so record 371 stored three numbers that only qualify another value:
@@ -308,7 +407,8 @@ Now:
 - a number that only says under which load, input, grade or arrangement ANOTHER stated value of the
   same clause holds or is checked goes into that value's `condition`, not into a row of its own:
   - a load paired with a criterion → the criterion's condition (`静载荷力：300 N`)
-  - an apparatus grade → the apparatus qualifier (`试验装置：5 等量块`)
+  - an apparatus grade → the apparatus qualifier (`试验装置：5 等量块`; since 2026-10-18 the
+    apparatus's spec in `frame.uses`: 量块 {等级 5 等})
   - the same setting stated again in the same clause → one row
 
   Pass 2 drops the extra candidate as `not_a_metric:condition_of:<candidate_id>` or
@@ -324,6 +424,35 @@ Now:
 These match gold rules 6.5.0 (§3 "Numbers that qualify another value", A1/D1). The 6.4.0 gold run
 `20261016_085615` predates them: it records 5.5.2 as D1, so 371_mtc_8 scores as a false positive
 there, and its gold_282 lacks the 5 等量块 qualifier. Not yet verified by a live re-extraction.
+
+**Metric frame; resource specs** (candidates v29 / enrich v28 / merge-resolve v3, 2026-10-18,
+openspec change `metric-frame` [14]; gold rules 9.0.0). Before this change `condition` was the only
+place for what surrounds a value. It had grown about 45 labels, many of them not conditions
+(试验装置 167 rows, 给药途径, 试验方法, 治疗阶段), and the model turned a product's strength into a row
+of its own (record 364: 葡萄糖浓度 50 %, 10％葡萄糖静点浓度, 葡萄糖注射液浓度 5 %, 肾上腺素浓度 1:1000). Now:
+
+- Pass 2 returns an optional `frame` (`uses` / `method` / `procedure`, shape in the enrich prompt's
+  output schema and in spec `metric-frame`); `normalizeMetricList` parses it with
+  `metricFrameFromValue` (`metric_frame.go`), tolerating numeric spec values and mapping an unknown
+  role to `""` (counted and logged)
+- the candidates pass emits no candidate for a strength, concentration, dilution, grade, class or
+  model that only names which resource another value uses. It writes the resource with its spec
+  in `condition_hint` (`药物：50％葡萄糖`, `试剂：0.1 mol/L 盐酸溶液`, `试验装置：5 等量块`). An amount-less
+  step with a strength ("之后以10％葡萄糖静点") is a requirement with nothing to measure. An apparatus's
+  accuracy, error, range, resolution or dimensions and a reagent's amount stay candidates. A
+  concentration the case must reach (血药浓度) is a value
+- enrich writes those as `frame.uses` / `frame.method` / `frame.procedure`, drops a stray
+  strength candidate as `resource_spec`, and names rows without the strength (`葡萄糖静推剂量`).
+  The product-standard exception is kept (葡萄糖含量 95.0~105.0 % of 葡萄糖注射液)
+- safety nets in code (3.4, 3.4.2): `applyMetricFrames` moves legacy labels out of `condition`;
+  `dropResourceSpecRows` sets aside strength rows that still slip through
+
+Live check (`TestMetricExtractionQualityLive`, 12 cases, one run, 2026-10-18): 364 A.2.4/A.2.5 gave
+only the dose, infusion-time and furosemide rows, each with its agent and strength in `uses`, its
+route in `method` and its clause in `procedure.step`; a 0.1 mol/L reagent clause gave the volume
+and time rows with the reagent spec. The first run wrongly turned 标准测力计 准确度 0.1 % into a spec;
+prompts and guard were tightened (identifying spec properties only) and all 12 cases passed. Not yet
+verified by a full re-extraction of 364 or 371.
 
 **Row conventions** (enrich v9): every test, sampling or analysis setting carries the
 `test_condition` tag (kind `test_parameter`, 3.4.2), but definition rows never do; when a
@@ -398,6 +527,7 @@ Pass 2 output:
       "unit": "string",
       "unit_en": "string",
       "metric_value": "string",
+      "value_structure": null,
       "value_data_type": "string",
       "value_range_type": "string",
       "value_class": "string",
@@ -416,6 +546,7 @@ Pass 2 output:
       "reasoning_tags": ["string"]
     }
   ],
+  "value_review_decisions": [],
   "uncertain_metrics": [],
   "dropped_candidates": [{"candidate_id": "48_2", "reason": "applicability_scope"}]
 }
@@ -423,7 +554,12 @@ Pass 2 output:
 
 Important notes:
 
-- one output row = one metric = one value under one condition
+- one output row = one independently interpretable assertion, including its value relationship,
+  condition and frame; numeric token count does not determine row count
+- current defaults: `prompt-extract-metric-candidates-v30.md`, `prompt-enrich-metrics-v29.md`,
+  `prompt-merge-resolve-metrics-v4.md`; in-app scoring prompt v5
+- `value_structure` carries valid collections/composites/expressions or unresolved interpretation;
+  `value_review_decisions` is empty outside corrective review (3.3.1)
 - `value_min` / `value_max` are numbers for `range` rows only; `condition_en` is empty for English
   documents. The batch prompt's "use exactly this schema" block (`buildMetricRelationBatchPrompt`)
   must list every field the processor stores: before 2026-10-16 it omitted `condition`,
@@ -438,7 +574,7 @@ Important notes:
 
 `dedupeFinalMetricRows` deduplicates the enriched metric rows before persistence.
 
-**Dedup key** — built by `normalizedMetricCandidateKey` over five fields (each lowercased, trimmed, and whitespace-collapsed, then joined with `|`), plus the condition:
+**Dedup key** — built by `normalizedMetricCandidateKey` over five fields (each lowercased, trimmed, and whitespace-collapsed, then joined with `|`), plus condition, frame and value structure:
 
 1. `metric_name`
 2. `subject`
@@ -449,6 +585,26 @@ Important notes:
    folded, lower-cased, all whitespace removed and `;` written as `；`. Without it, rows that
    differ only in condition (握力测试仪 分度值 1 N for 幼儿 and for 成年人, same table line) would
    merge once the population moved out of the subject
+7. `|frame=` + `metricFrameIdentityKey` (since 2026-10-18): the sorted uses signature
+   (role, compacted name, sorted spec property=value+unit) and method values; empty when the row
+   has no uses or method. `procedure` is not in the key
+8. `|value_structure=` + `metricValueStructureKey`: kind and complete members, sorted only for
+   unordered collections. Different relationships cannot deduplicate merely because numbers match
+
+Before dedup (since 2026-10-18), `applyMetricFrames` runs `splitLegacyCondition` on every live and
+tagged row. It moves qualifiers whose label is in `metricConditionLabelFacets` out of `condition`
+(and `condition_en`, when it has as many qualifiers) into `frame`:
+- 试验装置, 试验设备, 仪器 → `uses` apparatus, with a leading grade split off as spec;
+- 试验介质, 溶媒 → medium; 试剂 → reagent; 药物 → agent, with a leading strength (`50％`) or trailing
+  dilution (`（1:1000）`) split off as spec;
+- 试验方法, 给药途径, 给药方式, 给氧方式, 操作, 评估依据 → `method`;
+- 治疗阶段, 用药时机 → `procedure.stage`;
+- 药物浓度 → spec of the row's single agent, reagent or medium, kept in `condition` when there is
+  none or more than one.
+
+Unknown labels and 器材类型 (a variant of the specified object) stay in `condition`. The inheritance
+steps then work on frame items: `inheritClauseConditions` copies the clause-wide `uses:apparatus`,
+`method:试验方法` and `uses:medium` (same agreement and clause-lead checks as before).
 
 `source_line_spans` normalization (`normalizeSourceLineSpans`):
 - Accepts string spans (`"12"`, `"13:15"`), bare `float64` integers, or `{"line_number": N}` objects
@@ -482,7 +638,8 @@ sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every rea
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
-| `enrich` | per enrich batch, `enrichCandidateDropRows` (since 2026-10-18) | every candidate the enrich pass listed in `dropped_candidates`; `row_data` is built from the candidate (name, subject, value and unit hints, condition hint, evidence quotes as `threshold_or_target`, `source_line_spans`), so a wrong drop can be reviewed and scored | the listed reason (`term_definition`, `duplicate_of:<id>`, `not_a_metric:condition_of:<id>`, …) |
+| `enrich` | per enrich batch, `enrichCandidateDropRows` (since 2026-10-18) | every candidate the enrich pass listed in `dropped_candidates`; `row_data` is built from the candidate (name, subject, value and unit hints, condition hint, evidence quotes as `threshold_or_target`, `source_line_spans`), so a wrong drop can be reviewed and scored | the listed reason (`term_definition`, `duplicate_of:<id>`, `not_a_metric:condition_of:<id>`, `resource_spec`, …) |
+| `enrich` | after dedup and notation, `dropResourceSpecRows` (`metric_frame.go`, since 2026-10-18) | a row whose value is a dilution or a number in %, mol/L, mmol/L, g/L, mg/mL or g/mL, that does not use that spec itself, while another row on an overlapping line uses a resource whose identifying spec (浓度, 稀释度, 等级, 型号, …) has the same value and unit. `row_data.resource_spec_host` names that row by `candidate_id` and `metric_name` | `resource_spec` |
 | `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `document_identifier`, `dataset_record`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
 | `no_value` | after that, `excludeRowsWithoutValue` (`metric_soft_drop.go`) | `metric_value` empty or a placeholder (`-`, `—`, `/`, `N/A`, `无`), whatever the row's class, tags or formula | `no_value` |
@@ -503,14 +660,15 @@ chunk-batch save paths, for `force_clear` true and false):
      `strict_bound`
    - `±x` with `exact` or `range` → `upper_bound` (`a±b` and asymmetric tolerances unchanged)
    - a `range` row without both endpoints gets them from `a~b` / `a-b` / `a±b`
-   - a value still holding several numbers joined by `、 ； ; ，` or 男…女 is left unchanged and
-     listed in the run's `multi_value_rows` log (3.7); `/` is not a separator because it is part of
-     units. Exception (since 2026-10-18, `metricRowHoldsSeveralValues`): a whole value `a/b` with a
-     physical unit (not 倍, %, ‰, ratio) and a > b is a paired notation of two quantities
-     (`180/110` mmHg: systolic and diastolic) and is sent back for splitting like any multi-value
-     row; `1/10 倍`, `3/4 in` and `30/70 %` stay one value
+   - a populated non-scalar `value_structure` bypasses scalar notation conversion and clears
+     interval endpoints. Valid collections remain whole; unresolved values remain reviewable
+   - unclassified values containing multiple numbers joined by list separators (including English
+     commas/and/or and Chinese conjunctions) or sex labels are candidates for semantic review,
+     not mandatory splitting. A paired `a/b` with a physical unit and a > b is also reviewed;
+     ordinary fractions such as `1/10 倍` or `3/4 in` are not split by this heuristic
 
-   Notation only: splitting a multi-value row needs the model
+   Semantic review occurs per Pass 2 batch before final dedup; its split/keep/unresolved contract
+   is in 3.3.1. Only unresolved interpretations are listed in `multi_value_rows` (3.7).
 2. classify each row with `metricStatementKind`
    (`server/api/doc-processing/metric_statement_kind.go`) and set aside pure requirements
 3. set aside every row without a value (`no_value`). A formula without a value is a definition,
@@ -856,10 +1014,11 @@ The processor should log:
   `threshold_or_target`, `context`, `source_line_spans` and `decision`. No row is written when
   nothing is set aside. Runs before 2026-10-08 wrote `exclude_pure_requirements` instead
   (`excluded` array, pure requirements only)
-- rows that still hold several values (3.4.2 step 1): one `kb.doc_proc_logs` row per run that has
-  any, `activity = 'multi_value_rows'`, `extra_info.num_rows`, artifact `multi_value_rows` listing
-  each row's `candidate_id`, `metric_name`, `metric_value` and `source_line_spans` (since
-  2026-10-16). It measures the one-value-per-row prompt rule; no row is changed
+- unresolved value interpretations (3.3.1): one `kb.doc_proc_logs` row per run with
+  `activity = 'multi_value_rows'`, `extra_info.num_rows`, artifact `multi_value_rows` listing
+  each row's `candidate_id`, `metric_name`, `metric_value`, `value_structure` and
+  `source_line_spans`. Valid collections are excluded. Semantic review start/success is Info;
+  failed or invalid review is Warn. Preserved originals are tagged `value_review_unresolved`
 - open-value decision failures (Warn, with record and candidate ids); an unconfigured decision
   model is warned once per run
 - per enrich batch (Info/Warn logger, not `kb.doc_proc_logs`): candidates that are neither
@@ -994,6 +1153,16 @@ Rules:
   `loadPersistedMetricArtifactRows` read them back. Until 2026-10-16 the doc-processor path wrote
   none of the three (only the old `kbhandler` import path did); rows extracted earlier keep NULL
   until re-extracted (no backfill)
+- save nullable `value_structure` (JSONB, migration `20261018000003`) on `kb.metrics` and
+  `testbed.metrics`. Worker save/upsert/read/artifact export, REST import/update, metric APIs,
+  reference copies and review/scoring input retain it. Writes validate both structure and display;
+  partial edits validate against the retained counterpart. Existing rows remain NULL until explicitly
+  reprocessed; no automatic historical repair is performed
+- save `frame` (JSONB, migration `20261018000001`; NULL when the row has no facet) and
+  `provision_id` in `SaveMetrics` and `UpsertMetrics` (`ON CONFLICT … DO UPDATE` too);
+  `GetMetricsByInputRecordID` reads `frame` back. Rows extracted before 2026-10-18 have NULL until
+  re-extracted; `server/cmd/metric-frame-backfill` can move their legacy labels without an LLM
+  (`--dry-run`, `--backup`, `--revert`). It has not been run on `miner`, by the user's decision
 - when populating `search_document`, concatenate the searchable metric fields only once each; if normalized field text is duplicated across fields such as `metric_desc`/`metric_context` or `metric_unit`/`metric_unit_en`, keep the first occurrence and drop repeats
 - save `metric_categories` to support category membership indexing
 - initialize `connected_artifacts` as an empty JSON object or the full required shape with empty arrays; the post-save indexing step must update it with deterministic line-overlap links
@@ -1012,8 +1181,11 @@ Rules:
 - this is forward-only behavior; no backfill is required for existing metric rows
 
 `provision_id` (nullable, references `kb.provisions.id`, `ON DELETE SET NULL`) names the provision
-clause a requirement row is a criterion of (ADR 2026100603 DR2). `extract_metrics` does not fill
-it yet. It stays `NULL` until the deferred `extract_provisions` linking work lands.
+clause a requirement row is a criterion of (ADR 2026100603 DR2). Since 2026-10-18,
+`LinkMetricProvisions` runs after each save. It links an unlinked live row that has a
+`frame.procedure.step` to the one provision of the record whose `source_line_spans` contain all of
+the row's `line_range`. It leaves the row unlinked when no provision or several provisions match.
+Few records have provisions, so most rows stay `NULL`.
 
 Customer-facing views label each row's statement kind (requirement, metric, test parameter,
 definition) at read time from `value_class`, `value_range_type`, `formula_or_definition` and
@@ -1037,9 +1209,15 @@ metrics detail panel with this display order:
 - under `Metric`, show `Condition` and `Condition (English)` after `Subject` (since 2026-10-16;
   `web/src/lib/components/home3/metric-detail-groups.ts`, Paraglide keys `metric_mgmt_condition`,
   `metric_mgmt_condition_en`)
+- under `Metric`, show `Uses` (one chip per resource, `<role>: <name> (<spec>)`), `Method`
+  (`<label>：<value>` chips) and `Procedure` (step · stage · after) after the condition (since
+  2026-10-18; keys `metric_frame_uses`, `metric_frame_method`, `metric_frame_procedure`,
+  `metric_frame_use_item`, `metric_frame_role_*`)
 
 `GET /kb/metrics` (production, gold `source=testbed`, and dropped rows from `row_data`) and the
-single-metric read return `condition` and `condition_en`; `PATCH` accepts them. The same panel is
+single-metric read return `condition` and `condition_en`; `PATCH` accepts them. Since 2026-10-18
+they also return `frame` (object or `null`, always present; the wiki compile path too). `PATCH`
+does not edit it. The same panel is
 used by the Metrics workspace and the Product Review "Full Details" dialog. The production-vs-gold
 comparison shelf (`context-shelf.svelte`) lists both, and the metric wiki infobox shows the
 condition in the page language (`metricWikiCondition`; pages cached before 2026-10-16 show it
@@ -1307,6 +1485,13 @@ Refer to [3], [4], [5] and [6].
 [11] KnowledgeStore/doc-repo/adrs/202610/2026100603-adr-separate-requirements-from-metrics.md \
 [12] ChenWeb/openspec/changes/exclude-pure-requirements-from-metrics/ (spec
 `metric-pure-requirement-exclusion`) \
-[13] ChenWeb/openspec/changes/extract-metrics-conditions/ (specs `metric-condition`,
+[13] ChenWeb/openspec/changes/archive/2026-10-18-extract-metrics-conditions/ (specs `metric-condition`,
 `metric-value-notation`, `metric-row-granularity`); devdoc
-`KnowledgeStore/doc-repo/devdocs/202610/2026101601-devdoc-extract-metrics-conditions.md`
+`KnowledgeStore/doc-repo/devdocs/202610/2026101601-devdoc-extract-metrics-conditions.md` \
+[14] ChenWeb/openspec/changes/metric-frame/ (specs `metric-frame`, `metric-resource-spec`,
+`metric-frame-benchmark`, changes to `metric-condition` and `metric-provision-link`); devdoc
+`KnowledgeStore/doc-repo/devdocs/202610/2026101803-devdoc-metric-frame.md`
+ \
+[15] ChenWeb/openspec/changes/semantic-metric-values/ (specs `metric-value-structure`,
+`metric-row-granularity`, `metric-value-notation`); devdoc
+`KnowledgeStore/doc-repo/devdocs/202610/2026101804-devdoc-metric-value-structure.md`
