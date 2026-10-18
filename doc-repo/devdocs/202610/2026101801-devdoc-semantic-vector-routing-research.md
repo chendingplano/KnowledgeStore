@@ -6,7 +6,7 @@
 **Code root:** Not applicable; this report does not describe a shipped feature. \
 **Evidence checked:** 2026-10-18.
 
-## Summary
+## 1. Summary
 
 Organizing vectors into related groups, routing queries to promising groups, and searching locally is a viable architecture with substantial research precedent. The research opportunity is improving how those groups are formed and selected, particularly when human-readable categories and language models are involved.
 
@@ -14,9 +14,9 @@ Vector search does not inherently require every vector to reside in memory: disk
 
 The proposed next step is a comparative pilot of semantic routing with overlapping membership and adaptive search expansion, alongside global disk-backed search and ordinary geometric partitioning. This is a research recommendation, not a production architecture decision.
 
-## Details
+## 2. Details
 
-### Research question, method, and boundaries
+### 2.1 Research question, method, and boundaries
 
 **Focal question:** Can semantic organization and query routing reduce resident memory and search cost while preserving relevant evidence across topic boundaries, compared with tuned global disk-backed and geometrically partitioned vector search?
 
@@ -26,13 +26,11 @@ The investigation used the scientific-brainstorming workflow: independent AI-ass
 
 Throughout this document, **evidence** means a located result, **inference** means reasoning from the design or sources, and **proposal**, **assumption**, and **prediction** describe ideas requiring experiments.
 
-### Memory scaling: storage and semantic organization are separate decisions
+### 2.2 Memory scaling: storage and semantic organization are separate decisions
 
 Consider 100 million vectors with 1,536 float32 dimensions:
 
-\[
-100{,}000{,}000 \times 1{,}536 \times 4 = 614.4\text{ GB}
-\]
+$$100{,}000{,}000 \times 1{,}536 \times 4 = 614.4\text{ GB}$$
 
 This is raw vector payload alone, excluding indexes, metadata, caches, replicas, and temporary work. GB here uses decimal units.
 
@@ -49,7 +47,7 @@ This is raw vector payload alone, excluding indexes, metadata, caches, replicas,
 
 Disk storage still needs working memory. Qdrant documents disk-backed structures whose pages enter the operating system's cache as accessed. Eviction reduces residency but creates subsequent disk reads. Stored-on-disk placement does not guarantee negligible RAM consumption or stable latency. [Qdrant memory documentation](https://qdrant.tech/documentation/ops-configuration/memory-tiers/)
 
-### Prior research closely related to the proposal
+### 2.3 Prior research closely related to the proposal
 
 | Research | Mechanism | Connection to semantic buckets |
 |---|---|---|
@@ -67,7 +65,7 @@ SPANN addresses three problems the proposed system will also face: uneven partit
 
 The learned-routing work frames cluster selection as a ranking problem and demonstrates improvements using a simple linear model. An LLM router should be compared with inexpensive alternatives. [A Learning-to-Rank Formulation of Clustering-Based Approximate Nearest Neighbor Search](https://arxiv.org/abs/2404.11731)
 
-### Retrieval noise: supporting evidence and counterevidence
+### 2.4 Retrieval noise: supporting evidence and counterevidence
 
 **Evidence supporting the concern:** Reimers and Gurevych theoretically and experimentally examined increasing false positives as dense-retrieval indexes grow. Lower-dimensional representations were particularly vulnerable in their analysis. A larger search universe creates more opportunities for misleading similarity under the studied conditions. [The Curse of Dense Low-Dimensional Information Retrieval for Large Index Sizes](https://arxiv.org/abs/2012.14210)
 
@@ -84,7 +82,7 @@ Four effects should be measured separately:
 
 A system can have excellent nearest-neighbor recall and poor answer relevance. Recent research explicitly distinguishes recovery of mathematically nearest vectors from recovery of semantically relevant results. [Semantic Recall for Vector Search](https://doi.org/10.1145/3805712.3809894)
 
-### The principal failure mode: topic is different from question relevance
+### 2.5 The principal failure mode: topic is different from question relevance
 
 A document categorized as employment might contain decisive evidence for a tax question. A document about a person's ancestry could be relevant to a query mentioning a politician, even though a category classifier selects politics.
 
@@ -94,19 +92,17 @@ This is a documented selective-search failure mode. The query-biased partitionin
 
 For a query, let:
 
-- \(G\) be its relevant documents;
-- \(S\) be all documents accessible through the selected buckets;
-- \(F\) be the final returned documents, with \(F\subseteq S\).
+- $G$ be its relevant documents;
+- $S$ be all documents accessible through the selected buckets;
+- $F$ be the final returned documents, with $F\subseteq S$.
 
 For a nonempty relevance set:
 
-\[
-\frac{|F\cap G|}{|G|} \leq \frac{|S\cap G|}{|G|}
-\]
+$$\frac{|F\cap G|}{|G|} \leq \frac{|S\cap G|}{|G|}$$
 
 **Final recall cannot exceed the relevant evidence available in the selected buckets.** Perfect local vector search cannot recover an excluded document. A fallback helps only to the extent that it expands the accessible candidate set.
 
-### Splitting vectors does not automatically save total RAM
+### 2.6 Splitting vectors does not automatically save total RAM
 
 **Inference:** Dividing the illustrative 614.4 GB corpus into 100 equal buckets yields approximately 6.14 GB per bucket. Three resident buckets contain about 18.4 GB of raw vectors. This is an illustrative payload calculation, not a serving-memory estimate:
 
@@ -117,7 +113,7 @@ For a nonempty relevance set:
 
 The actual saving comes from selective residency, compression, or a smaller working set. Semantic organization is useful when it helps achieve those conditions.
 
-### Proposed architecture
+## 3. Proposed architecture
 
 **Proposal:** Combine semantic organization with bounded physical partitions. This design emerged after the evidence check and adversarial review; it remains a candidate for evaluation.
 
@@ -154,7 +150,7 @@ flowchart TD
 
 A global fallback has a cost too. Maintaining both local indexes and another global index adds storage, maintenance, and possibly RAM. It should be a measured option, with fallback frequency and resource consumption reported.
 
-### Candidate register and adversarial review
+### 3.1 Candidate register and adversarial review
 
 Independent candidate generation considered disk-backed global search, hard topic buckets, overlapping buckets, and routed search with a broader fallback. The evidence review refined the comparison to the four candidates below. These are AI-assisted proposals, not measured outcomes.
 
@@ -173,7 +169,7 @@ Candidate B remains useful where the search scope is explicit, such as a user se
 
 The minority alternative remains important: a tuned global disk-backed index may meet requirements with less complexity. The current evidence does not justify eliminating it.
 
-### Research directions after the literature check
+### 3.2 Research directions after the literature check
 
 These are AI-assisted proposals informed by the literature. This search does not establish their novelty.
 
@@ -185,7 +181,7 @@ These are AI-assisted proposals informed by the literature. This search does not
 
 Existing research already separates partition construction from routing and evaluates neighborhood-preserving shards at billion scale. Those methods provide important competitors for these proposals. [Unleashing Graph Partitioning for Large-Scale Nearest Neighbor Search](https://arxiv.org/abs/2403.01797)
 
-### Proposed comparative pilot
+### 3.3 Proposed comparative pilot
 
 **Next action:** A comparative pilot, with success criteria fixed before tuning. This is an evaluation outline, not a completed validation or formal experimental protocol.
 
@@ -204,13 +200,33 @@ Use an oracle that selects buckets using known relevant-document locations to di
 
 Keep a held-out query set separate from router training and threshold selection. Inspect cross-topic and multilingual results separately so an average does not hide concentrated losses. Any numerical acceptance thresholds must be chosen by the decision owner before evaluating the final holdout.
 
-### Provisional decision and revisit triggers
+### 3.4 Provisional decision and revisit triggers
 
 **Provisional recommendation:** Advance candidate D to a pilot alongside A and C. Preserve the simpler global disk-backed option until semantic routing demonstrates lower cost or better relevance at matched quality. The user must set the acceptable recall loss and latency budget; no measurements currently justify choosing a production winner.
 
 **Revisit triggers:** Routing misses on cross-topic queries; excessive fallback frequency; replication or cache churn erasing savings; workload or language drift; material changes in corpus size, embeddings, or hardware. These are proposed triggers, not observed failures.
 
-## Known limitations
+### 3.5 Exact search for small buckets
+
+**Proposal:** A bucket small enough to scan efficiently should use exhaustive vector search instead of maintaining its own approximate-nearest-neighbor (ANN) index. For example, a configurable threshold near 5,000 vectors is a reasonable starting point for evaluation, not a universal cutoff.
+
+An exhaustive scan computes the query distance or similarity against every eligible vector in the bucket, then selects the top *k*. For vectors of dimension *d* and a bucket containing *n* eligible vectors, this costs approximately $O(nd)$ arithmetic per query. The results are exact relative to the stored vectors, metric, and filters: there is no ANN traversal or index-pruning error. This is especially attractive when the bucket is small, queries are infrequent, vectors are already resident, or filtering leaves only a small candidate set.
+
+The comparison should include the full cost of each option. An ANN index consumes memory and requires build and update work; exhaustive search consumes CPU on each query and may become slower as the bucket grows or concurrency rises. If vectors must be fetched from storage for each scan, the scan can become I/O-bound. Thus, choose the strategy using observed query latency and throughput under expected concurrency, resident bytes, update rate, and index-maintenance cost—not vector count alone. The threshold should be configurable and can differ by vector dimension, hardware, distance metric, filter selectivity, and workload. Buckets near the crossover can be benchmarked during the pilot, with hysteresis or an explicit rebuild policy to avoid repeatedly switching strategies as their size fluctuates.
+
+The exhaustive path still needs a consistent distance metric, embedding version, filter semantics, and top-*k* merge behavior so its results can be combined with ANN results from larger buckets. It should also report scanned-vector count and latency, making it possible to identify buckets that have outgrown the scan path.
+
+### 3.6 Bounded in-memory vector cache
+
+**Proposal:** Add a vector cache with an explicit configurable maximum memory budget. The cache holds vector payloads needed by local searches, whether those vectors come from a small-bucket scan or from a disk-backed shard. It is a working-set optimization; it does not replace durable vector storage or, by itself, bound memory used by indexes, metadata, query buffers, or concurrent requests.
+
+Account for cache capacity in bytes rather than entry count because vector dimensions, precision, and payload formats can differ. On a cache miss, load the vector from its backing store and insert it if it fits. When an insertion would exceed the configured limit, evict the least recently used entries until there is room; this makes “older” mean least recently accessed, rather than simply the oldest vector by creation time. If one item exceeds the entire budget, use it for the current request without caching it. Keep a small operational headroom so temporary allocations and concurrent loads do not push the process over its memory target.
+
+Cache keys should include stable vector identity and the embedding or content version. Updates and deletions must invalidate prior entries; otherwise a cache hit could return stale vector data. Concurrent misses for the same key should avoid redundant backing-store reads, and eviction must not invalidate vectors already in use by an active search. If a hard memory bound matters, account for in-flight loads and pinned entries when admitting new items; when entries are temporarily non-evictable, defer or bypass caching rather than exceeding the budget.
+
+Measure cache bytes, hit and miss rates, evictions, load latency, and backing-store reads, alongside process and operating-system cache memory. A high hit rate is not sufficient if the cache is dominated by a few hot buckets or causes churn for the rest of the workload. Evaluate warm and cold starts and realistic query concurrency. The configured cache budget should be allocated from a total memory budget that also includes index structures, routing metadata, runtime overhead, and concurrent-query working memory.
+
+## 4. Known limitations
 
 - The targeted search covered disk ANN, topical selective search, cluster routing, learned routing, and corpus-size effects. It is not a systematic literature review and does not establish novelty.
 - The sources establish prior art and plausible mechanisms; they do not establish superiority for LLM-generated categories or validate this proposed architecture.
@@ -218,7 +234,7 @@ Keep a held-out query set separate from router training and threshold selection.
 - No repository feature, database schema, API, or runtime behavior changed. There is no associated OpenSpec implementation contract. If this proposal is implemented, specifications and implementation documentation must describe the resulting behavior separately.
 - No source-code tests were needed for saving this research document. Document verification covers its filing, structure, citations, and isolated commit; it does not validate the architecture.
 
-## Method attribution
+## 5. Method attribution
 
 The scientific-brainstorming skill materially informed independent ideation, evidence labeling, adversarial review, and the provisional decision process. Its current publication record was checked during the research:
 
