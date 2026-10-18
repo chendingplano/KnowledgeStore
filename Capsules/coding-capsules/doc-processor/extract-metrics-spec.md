@@ -478,10 +478,11 @@ Metric IDs are defined as `<record_id>` + '_mtc_' + `<seqno>`, where `<seqno>` i
 Since 2026-10-08 (openspec change `metric-row-soft-drop-decision-model`, specs
 `metric-row-soft-drop` and `metric-open-value-decision`) no row is discarded. A row the pipeline
 sets aside is saved to `kb.metrics_dropped`, never to `kb.metrics`, so every reader of
-`kb.metrics` sees live rows only. Four stages set rows aside, in this order:
+`kb.metrics` sees live rows only. Five stages set rows aside, in this order:
 
 | Stage (`drop_stage`) | Where | Rows | `drop_reason` |
 |---|---|---|---|
+| `enrich` | per enrich batch, `enrichCandidateDropRows` (since 2026-10-18) | every candidate the enrich pass listed in `dropped_candidates`; `row_data` is built from the candidate (name, subject, value and unit hints, condition hint, evidence quotes as `threshold_or_target`, `source_line_spans`), so a wrong drop can be reviewed and scored | the listed reason (`term_definition`, `duplicate_of:<id>`, `not_a_metric:condition_of:<id>`, …) |
 | `llm_tag` | per enrich batch, `dropRowsTaggedWithDropReason` | `reasoning_tags` hold `applicability_scope`, `formula_operand`, `activity_schedule`, `own_table_pointer`, `procedure_count`, `no_named_quantity`, `term_definition`, `document_identifier`, `dataset_record`, `obligation_no_property`, `inspection_requirement`, `delegated_requirement` or `qualitative_requirement` (the LLM emitted a row it should have listed in `dropped_candidates`) | the tag |
 | `statement_kind` | after dedup, `excludePureRequirements` | kind `inspection_requirement` or `delegated_requirement` | the kind |
 | `no_value` | after that, `excludeRowsWithoutValue` (`metric_soft_drop.go`) | `metric_value` empty or a placeholder (`-`, `—`, `/`, `N/A`, `无`), whatever the row's class, tags or formula | `no_value` |
@@ -504,7 +505,10 @@ chunk-batch save paths, for `force_clear` true and false):
    - a `range` row without both endpoints gets them from `a~b` / `a-b` / `a±b`
    - a value still holding several numbers joined by `、 ； ; ，` or 男…女 is left unchanged and
      listed in the run's `multi_value_rows` log (3.7); `/` is not a separator because it is part of
-     units
+     units. Exception (since 2026-10-18, `metricRowHoldsSeveralValues`): a whole value `a/b` with a
+     physical unit (not 倍, %, ‰, ratio) and a > b is a paired notation of two quantities
+     (`180/110` mmHg: systolic and diastolic) and is sent back for splitting like any multi-value
+     row; `1/10 倍`, `3/4 in` and `30/70 %` stay one value
 
    Notation only: splitting a multi-value row needs the model
 2. classify each row with `metricStatementKind`

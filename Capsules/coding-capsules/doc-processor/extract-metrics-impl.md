@@ -163,6 +163,8 @@ Spec section 3.4.2; openspec change `metric-row-soft-drop-decision-model` (it re
 discard of `exclude-pure-requirements-from-metrics`). `enrichMetricCandidates` returns
 `(metrics, uncertain, dropped []droppedMetricRow, err)`:
 
+0. per batch, the payload's `dropped_candidates` become `enrich` rows (`enrichCandidateDropRows`,
+   `metric_soft_drop.go`, since 2026-10-18), first in the returned `dropped`
 1. per batch, `dropRowsTaggedWithDropReason` splits off rows with a drop-reason tag
    (`metricDropReasonTag`); after all batches they are deduplicated and become `llm_tag` rows
 2. `canonicalizeMetricValueRangeTypes(metrics)`
