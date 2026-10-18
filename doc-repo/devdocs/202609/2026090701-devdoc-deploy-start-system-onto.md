@@ -26,7 +26,11 @@ step silently no-op'd — fixed by adding `PRODUCT_DRAWINGS_DIR` and restarting 
 also fixed the underlying silent-failure bug in source (ChenWeb jj commit `9d34`, not yet
 deployed to this box's binary);
 rev 2026-09-28: consolidated the ChenWeb/Kratos build and deploy instructions, added
-selected-binary deployment, and documented the NATS/PDF-parser restart behavior)
+selected-binary deployment, and documented the NATS/PDF-parser restart behavior;
+rev 2026-10-18: moved the PDF worker to a container with MinerU 4.0.9 and PyTorch
+2.7.1+cpu, bypassing the host's glibc 2.27 wheel restriction; provisioned the MinerU 4
+models and verified real PDF parsing. CPU parsing uses ONNX and llama.cpp to avoid a
+native-library conflict when PyTorch and llama.cpp are loaded in the same process.)
 **Scope:** Operations, build, and deployment for the ChenWeb stack on the China production
 box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
 **`https://onto.bzton.cn`**. The original manual procedures and why this box deviates from
@@ -95,7 +99,7 @@ DEPLOY_NAMES=server,doc-processor bash ~/Workspace/ChenWeb/shell_server_deploy.s
 | Doc Service | `doc-service` | `~/Workspace/ChenWeb/doc-service-linux -config ./config.toml` | — (staging dir watcher + NATS publisher) | nats, chenweb (schema) |
 | Doc Processor | `doc-processor` | `~/Workspace/ChenWeb/doc-processor-linux` | — (NATS worker) | nats, chenweb (schema) |
 | Converter | `parser-result-converter` | `~/Workspace/ChenWeb/parser-result-converter-linux` | — (NATS worker) | nats, chenweb (schema) |
-| PDF Python | `pdf-parser` | `python/pdf-parser/.venv/bin/python pdf_parser.py` | — (NATS worker) | nats |
+| PDF Python | `pdf-parser` | Docker `chenweb-pdf-parser:mineru-4.0.9` (Python 3.12) | — (NATS worker) | docker, nats |
 | Reverse proxy | `nginx` | shared box nginx | `:80`→301, `:443 ssl` | chenweb, kratos |
 
 **How traffic flows:** browser → `https://onto.bzton.cn` (nginx :443, Let's Encrypt cert) →
@@ -387,8 +391,23 @@ Expected streams (created by the **workers** on their startup, not by NATS itsel
 ## 4. PDF Python service — `ChenWeb/python/pdf-parser`
 
 A standalone Python 3.12 service that subscribes to JetStream `kb.pdf.staged`, shells out to
-MinerU (CPU / pipeline backend, v3.0.9) to OCR/parse the PDF, and publishes the result to
-`pdf-parsed-events`.
+MinerU Kit 4.0.9 to OCR/parse the PDF, and publishes the result to `pdf-parsed-events`.
+The worker runs in Docker image `chenweb-pdf-parser:mineru-4.0.9`, managed by the existing
+`pdf-parser` systemd unit through `/etc/systemd/system/pdf-parser.service.d/container.conf`.
+The container is named `chenweb-pdf-parser` and runs as `gui` (1001:1001), with host
+networking for loopback PostgreSQL/NATS and bind mounts for the workspace, models and cache.
+The original worker's database and JetStream code is retained in the image; its MinerU
+backend, result adapter and OCR fallback integration are updated for version 4.
+
+The host's Ubuntu 18.04/glibc 2.27 cannot load official PyTorch 2.7 CPU wheels, which
+require glibc 2.28. The container supplies glibc 2.31 and PyTorch 2.7.1+cpu. CPU parsing
+uses MinerU's default ONNX small-model backend and llama.cpp VLM; importing PyTorch and
+`mineru-llama-cpp 0.1.3` together crashes in this image, while each works independently.
+The native host virtualenv remains at PyTorch 2.6.0+cpu and is no longer used by this service.
+
+Build, model provisioning and rollback instructions are in
+`ChenWeb/python/pdf-parser/container/README.md`. The deployed build context and smoke
+results are under `/home/gui/Workspace/deploy/mineru-4.0.9-container/`.
 
 **Start (systemd):**
 ```bash
@@ -399,31 +418,44 @@ env LC_ALL=C LANG=C su -c 'systemctl start pdf-parser'
 ```bash
 cd ~/Workspace/ChenWeb/python/pdf-parser
 set -a; source ~/Workspace/ChenWeb/.env; set +a
-VIRTUAL_ENV=~/Workspace/ChenWeb/python/pdf-parser/.venv \
-PYTHONPATH=. \
-MINERU_DEVICE_MODE=cpu \
-MINERU_BACKEND=pipeline \
-MINERU_TOOLS_CONFIG_JSON=~/Workspace/mineru.json \
+PDF_BACKUP_DIR=/home/gui/Workspace/ChenWeb/Data/Backup \
+MINERU_OCR_MODE=ocr \
+PDF_PIPELINE_MODE=jetstream \
 PDF_STAGE_EVENT_STREAM=kb-pdf-staged-events \
 PDF_PARSED_EVENT_STREAM=pdf-parsed-events \
-  .venv/bin/python pdf_parser.py
+  /usr/bin/python3 container/run-container.py
 ```
-(These `Environment=` lines are baked into `pdf-parser.service`; reproduce them for a
-foreground run.)
+Stop the systemd unit before a foreground run so only one worker/container is active.
+The launcher forwards systemd's parsed environment by variable name and filters obsolete
+native Python/MinerU paths. Credentials remain in the existing production `.env`.
 
 **Check:**
 ```bash
 journalctl -u pdf-parser -n 20 --no-pager      # -> "starting pdf_parser service in jetstream mode"
-~/Workspace/ThirdParty/mineru/.venv/bin/mineru --version   # -> mineru, version 3.0.9
+docker exec chenweb-pdf-parser mineru-kit --version  # -> MinerU version: 4.0.9
+docker exec chenweb-pdf-parser python -c 'import torch; print(torch.__version__)'  # -> 2.7.1+cpu
+docker exec chenweb-pdf-parser mineru-kit models verify --tier standard
 ```
 
+**Verification:** A page from the Chinese/English standard GBZ 221-2009 passed standard-tier
+inference and result adaptation, producing one page with nine items in ChenWeb's persisted
+JSON format. Model verification passed for `MinerU-4_models_onnx` and the GGUF VLM bundle.
+PyTorch 2.7.1+cpu also passed a separate tensor calculation.
+Forced basic OCR passed on the same cover page. A standard-tier table page produced
+two table items and two image assets. The service sets `MINERU_OCR_MODE=ocr` to preserve
+the previous deployment's forced OCR setting (`MINERU_EXTRA_ARGS=-m ocr -l ch`).
+
 **Notes**
-- Venv Python is uv-managed (`~/.local/share/uv/python/cpython-3.12-...`), symlinked in
-  `.venv/bin/python`.
-- MinerU model weights: `~/.cache/huggingface/hub/models--opendatalab--PDF-Extract-Kit-1.0/...`,
-  wired via `~/Workspace/mineru.json` (`models-dir.pipeline`).
-- Relevant `.env` keys: `PDF_PARSER_NAME=mineru`, `MINERU_EXTRA_ARGS=-m ocr -l ch`,
+- Image Python is 3.12.4. The image uses OpenCV's headless distribution for server parsing.
+- Legacy MinerU 3 model weights are in
+  `~/.cache/huggingface/hub/models--opendatalab--PDF-Extract-Kit-1.0/...`, wired via
+  `~/Workspace/mineru.json`. MinerU 4 reads YAML config at `~/.mineru/config.yaml` and
+  model repositories under `~/.mineru/models`; the old JSON config and model cache do not
+  provision MinerU 4 models.
+- Relevant `.env` keys: `PDF_PARSER_NAME=mineru`,
   `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged`, `PDF_PIPELINE_MODE=jetstream`.
+- MinerU 4 YAML config is `~/.mineru/config.yaml`, with `model.source: local`; missing
+  models therefore fail visibly rather than downloading during a production PDF job.
 - The unit has `Wants=nats-server.service` and `After=nats-server.service`. These order
   startup, but they do not restart an already-running PDF parser when NATS is restarted.
   A Production NATS restart on 2026-09-27 dropped the parser's connection; the Python
