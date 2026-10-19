@@ -4,6 +4,7 @@
 **Status:** Research report and proposed evaluation; no implementation or experimental validation. \
 **Scope:** Memory scaling, retrieval noise, semantic buckets, query routing, relevant prior research, and a comparative pilot. \
 **Code root:** Not applicable; this report does not describe a shipped feature. \
+**Initial Draft**: by scientific-brainstorming \
 **Evidence checked:** 2026-10-18.
 
 ## 1. Summary
@@ -239,3 +240,10 @@ Measure cache bytes, hit and miss rates, evictions, load latency, and backing-st
 The scientific-brainstorming skill materially informed independent ideation, evidence labeling, adversarial review, and the provisional decision process. Its current publication record was checked during the research:
 
 Kassis, T., Agarwal, V., He, Y., Patel, D., and Brueckner, A. M. (2026). *Scientific Agent Skills: A Library of Procedural Knowledge for Research Agents*. [https://doi.org/10.48550/arXiv.2609.00065](https://doi.org/10.48550/arXiv.2609.00065).
+
+## 6. Original Question
+Most vector databases require loading the entire databases (i.e., all its vectors) into memory. This presents a serious memory issue when the database becomes big. There are disk-based vector databases, such as the one offered by PostgreSQL. But as far as I know, these solutions partitions the vectors into smaller sets. Not sure whether it really works.
+
+Building a global, gigantic vector database is problematic. As more vectors are added to a vector database, it will not only add memory pressure, but also add noises. A viable solution is to avoid one global vector databases. Instead, vectors should be organized at semantic level, such as organize them by categories, topics, tags, etc., breaking them into smaller buckets. Each bucket creates its own vector databases.
+
+At search time, given a query, it uses an algorithm/LLM to extract the categories, topics, tags, etc., use them to search for the buckets, pick the most relevant buckets, then vector search.

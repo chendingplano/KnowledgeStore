@@ -736,10 +736,13 @@ without restarting a service. The default selection deploys all these packaged b
 it does not restart every process on the box and does not restart `nats-server`,
 `pdf-parser`, or `kratos`.
 
-Every payload also includes migration files, prompts, reviewer configs, `config.toml`,
+Every payload also includes migration files, runtime prompts, reviewer configs, `config.toml`,
 `config/`, and `docs/doc-templates/`. The deploy script synchronizes these files even
 when only one binary is selected. Migrations are copied additively before service startup;
 set `SKIP_MIGRATIONS=1` before the Production command to leave migration files untouched.
+When `doc-processor` is selected, the build embeds the prompt contents chosen by its configured
+prompt environment variables into the Go binary and excludes those prompt files from the payload.
+Other prompts remain packaged for services that read them from disk.
 The machine-specific `config.local.toml`, `.env`, and Kratos configuration are not in
 the payload.
 

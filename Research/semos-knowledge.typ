@@ -46,7 +46,20 @@
   keywords: [Knowledge, what is knowledge],
 )
 
-= Semantics
+= Introduction
+This chapter focuses on:
+- What exact is knowledge
+- Knowledge and semantics
+- Knowledge mining
+- Knowledge and applications
+
+== Knowledge
+
+*Knowledge and Facts*
+
+Facts are not knowledge. 
+
+== Knowledge and Semantics
 
 The most important question about semantics is how to represent semantics.
 There is no silver-bullet method of representing semantics. 
@@ -58,6 +71,7 @@ Below are the methods of representing semantics:
 - Topic
 - Category
 - Graph
+- Rules
 
 *Vector View*
 
@@ -76,5 +90,11 @@ Keywords can relate content with similar semantics.
 
 *Graphs*
 
+== Knowledge Mining
 
+Knowledge mining requires deep understanding of knowledge.
+One form of knowledge is to set a goal and collect all the information
+that may affect the goal.
+
+In [review-rag-MatSeek], it extracts 
 

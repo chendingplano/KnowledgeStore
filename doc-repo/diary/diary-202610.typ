@@ -1098,3 +1098,73 @@ and manifestations.
   but there is a license issue for using Jina 3. BGE-M3 has an embedding
   issue. Its standard embedding and late embedding use different embeddings.
 - Conclusion: need experiments and benchmark. Not for now
+
+= 2026/10/18
+
+== DeepSeek Search
+Link: https://api-docs.deepseek.com/guides/search/
+
+Price: 1000 successful requests/second
+
+== Scientic Research Skill
+Link: https://github.com/K-Dense-AI/scientific-agent-skills/tree/main
+
+Open-source AI co-scientist that runs on your desktop, powered by Scientific 
+Agent Skills. Bring your own API keys, pick from 40+ models, and get a full 
+research workspace with web search, file handling, 100+ scientific databases, 
+and access to all 177 skills in this repo. Your data stays on your computer, 
+and you can optionally scale to cloud compute via Modal for heavy workloads.
+
+I installed six of its skills, all started with "scientific-"
+
+== A tutorial for humans with models
+Link: https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/
+
+*Be ambitious*
+=== Speed
+The same work in less time, the bread and butter for AI’s economic value: 
+If you need some code written, I’ll do it faster with Claude. Well established 
+and requires little creativity in how you approach AI, so I’ll skip this one.
+
+=== Altitude
+Going up in abstraction and considering the outcome rather than the individual task.
+
+=== Depth
+Considering a task the way a field-leading expert would. Rather than 
+operating at the task’s layer, we go one level deeper and touch the underlying 
+data, tools, and problems.
+
+How:
+
+1. 强制要求使用行业顶尖专家的真实武器：当你让 Claude 分析数据，如果它只满足于给
+你吐出几个 Markdown 格式的简单文本表格，立刻打回去！强行要求它使用工业级数据库、
+严谨的统计学回归模型与因果推断方法，哪怕你不知道专家用什么，直接问 Claude，
+它自己全懂.
+
+2. 提出看似不可思议的超高目标，并坚定告诉它这非常合理：网页加载时间想从 10 秒压到 
+5 秒？别提 5 秒，直接要求压到 200 毫秒！当模型叫苦觉得不可能时，明确告诉它：
+“这在工程上完全可以解决，继续往下深挖，不要停”
+
+3. 用原始底层数据反向对抗既有假设：业务里很多所谓的常识，其实都只是对现实的粗糙脑补，
+把最底层的原始日志全部扔给模型：“管理层普遍认为用户流失是新手引导没做好导致的，
+请完全基于原始日志，尝试能否复现并证实这个结论”
+
+4. 挖掘盲区，创造前所未有的新知识：让模型在真实日志中建立微观用户行为模拟器，
+去预测它从未见过的新数据，找出连老员工都从未注意到的早期流失信号
+
+5. 必须引入客观的外部裁判：这一条至关重要！在当下大模型发展的阶段，绝对不要让模型自
+己去评判自己的答案，它会陷入自我感动，必须引入能够运行代码、单元测试、基准跑分的外
+部校验工具，让模型在实打实的客观反馈下快速迭代
+
+Felix prompt:
+I want a deeper version of this task, not a bigger one. Before rewriting it: 
+(1) say what a top professional in this field would do here that I’m not asking for; 
+(2) name the rawest material they would start from instead of what has already 
+been digested for me; 
+(3) name the specific methods and tools they would use; 
+(4) say what, other than you or me, would show the result is right. Then rewrite 
+my prompt to ask for exactly that.
+
+=== Range
+Drawing on multiple fields rather than just the one the task might need 
+  at the surface, using knowledge, tools, and techniques you normally wouldn’t.

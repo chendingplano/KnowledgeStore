@@ -19,6 +19,16 @@ be duplicates, or when comparing scores from before and after this change.
   changes** — this doc explains the feature for humans and points at code; the specs are the
   contract for agents.
 
+> **Partly superseded (2026-10-18).** The test method, apparatus, medium, route and stage are no longer
+> part of the condition; they are in the metric's *frame*. See
+> `2026101803-devdoc-metric-frame.md`. The `extract-metrics-conditions` change is archived under
+> `ChenWeb/openspec/changes/archive/2026-10-18-extract-metrics-conditions/`.
+
+> **Value granularity superseded (2026-10-18).** The one-value-per-row and mandatory splitting
+> descriptions below are historical. Alternatives and required point collections now remain
+> structured single metrics; only independent assertions split. See
+> [Meaning-preserving metric values](2026101804-devdoc-metric-value-structure.md).
+
 ## Summary
 
 A standard often gives the same kind of number several times for different situations: one height

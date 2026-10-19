@@ -139,6 +139,13 @@ Three properties bind a metric to its measurement science:
 | `mea:has_unit` | Binds a value to its unit term. |
 | `mea:measured_by` | Binds a metric to the procedure that measures it. |
 
+A metric's value can also **use resources**: an agent with its strength, an apparatus with its
+grade, a reagent, medium, material, sample or device. Since 2026-10-18 the measurement module has
+`mea:resource` (class), `mea:uses_resource`, `mea:resource_role` and `mea:has_spec` (properties) and
+the role terms `mea:role_agent` … `mea:role_device`. Extraction stores them per row in
+`kb.metrics.frame` (`uses`, `method`, `procedure`); they are not yet projected into semantic
+assertions. See devdoc `2026101803-devdoc-metric-frame.md`.
+
 ### 4.2 The quantity chain
 
 Quantity kind, dimension, and unit form a chain, and each link does a job the others cannot:
@@ -623,6 +630,14 @@ At the time of observation, `kb.metrics` and `kb.semantic_assertions` were both 
 - *Metric and Assertion Semantic Processing* — the processing pipeline in detail.
 
 ## Change Log
+
+### 1.3 — 2026-10-18T11:30:00-05:00
+
+Author: Claude
+
+Reason: The measurement module gained resource terms for the metric frame (ChenWeb openspec change `metric-frame`).
+
+Summary: Added a paragraph after the binding-properties table in §4.1 on resources a metric's value uses, the new terms and where extraction stores them.
 
 ### 1.2 — 2026-09-05T07:22:57-05:00
 

@@ -455,4 +455,20 @@ vectors in a hierarchy, such as through:
 - And so on
 
 === Category
-Given a query, 
+Given a query, use LLMs to generate the categories for the query and then
+search the category store for the categories. If not found, we can either
+use an LLM to explore the category store to the possible categories or
+use a decision model to pick the possible categories.
+
+Leaf categories contain up to maximum N vectors, where N defaults to 10,000.
+If the average size of leaf nodes is 1,000, 1 billion vectors will generate
+1 million categories. 
+
+If the average inner node size is 20:
+- 1 level: 20
+- 2 levels: 400
+- 3 levels: 8,000
+- 4 levels: 160,000
+- 5 levels: 3,200,000
+
+This means that the category tree may have 5 levels.
