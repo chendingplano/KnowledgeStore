@@ -1,4 +1,4 @@
-# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code and Codex front ends)
+# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code, Codex and DeepSeek Harness front ends)
 
 Date: 2026-09-15, updated 2026-10-20.
 
@@ -6,10 +6,11 @@ Status:
 - **Pi Knowledge Desk:** built and tested automatically; the live pilot with a real model and a chosen user has **not** been run.
 - **Claude Code front end:** built and checked live against the real Claude Code on 2026-10-20. Its browser page works with Claude Code, but some page controls are not connected yet.
 - **Codex front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real Codex. Not yet checked in a browser.
+- **DeepSeek Harness front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real DeepSeek Harness. Not yet checked in a browser.
 
-ChenWeb now connects to agent harnesses in two ways. A *harness* is the program that turns a model into a working assistant: Pi, Claude Code, Codex and so on.
+ChenWeb now connects to agent harnesses in two ways. A *harness* is the program that turns a model into a working assistant: Pi, Claude Code, Codex, DeepSeek Harness and so on.
 - **SemOS-owned services:** the Pi Knowledge Desk. ChenWeb keeps the conversation and controls the tools and citations.
-- **Harness front end:** Claude Code and Codex. ChenWeb is only the user interface, the way VS Code is for either.
+- **Harness front end:** Claude Code, Codex and DeepSeek Harness. ChenWeb is only the user interface, the way VS Code is for Claude Code or Codex.
 
 The design and the reasons for having two ways are in the devdoc `KnowledgeStore/doc-repo/devdocs/202610/2026101802-devdoc-harness-neutral-agentic-services.md`. Read that first.
 
@@ -181,6 +182,38 @@ No database migration is involved. The gateway strips `OPENAI_API_KEY`, `CODEX_A
 - The test runs left a few short threads ("Remember the codeword …", "Reply with the word hi only.") in Codex's history for the Workspace folder; they also show in VS Code.
 
 **Next steps (open).** Browser check of the Chat page with Codex; the Claude Code next steps (permission-mode switching, attachments, keeping tabs across reloads) apply to Codex too; MCP elicitations are declined for now.
+
+## 2b. DeepSeek Harness front end
+
+DeepSeek Harness (`dsh`, a developer preview from DeepSeek, checked out and built in `ThirdParty-2/deepseek-harness`) is served the same way: dsh keeps its own instructions, tools, skills, sandbox and approval policy, and session history; ChenWeb only relays. It uses dsh's own login (the DeepSeek key in `~/.dsh/.env`, set up on 2026-10-20 from the key already in the checkout's `.env`) and works in `/Users/cding/Workspace`. All routes are admin-only.
+
+On the Chat page, choosing **DeepSeek Harness** in the harness menu (a new entry) gives:
+- **Model menu:** the models dsh offers (deepseek-v4-flash, DeepSeek-V4.1-Flash, DeepSeek-V4-Pro).
+- **Tool calls:** under dsh's own names (`read`, `write`, `edit`, `bash`, ...).
+- **Approvals:** dsh confines writes to the workspace; when the model asks to go beyond that, a card appears. Allow approves that one action only.
+- **Stop** and the **Sessions menu** work as for Claude Code; the menu includes sessions started in dsh's own Web UI in the same folder.
+
+Differences from the other two: replies arrive a message at a time rather than word by word; only the normal permission mode works (plan and accept-edits are refused); dsh has no questions in this interface; cost and tokens show 0.
+
+**What was built.**
+- `ChenWeb/gateways/deepseek-harness/`: a private Bun service that drives dsh through `dsh --profile acp` (the Agent Client Protocol). Because that interface does not return history, the gateway reads earlier sessions from dsh's session files in `~/.dsh/sessions`. Its README has the details.
+- `server/api/routes.go` registers `deepseek-harness` when `DEEPSEEK_HARNESS_GATEWAY_URL` and `DEEPSEEK_HARNESS_GATEWAY_SECRET` are set; `HARNESS_BY_AGENT` maps the new **DeepSeek Harness** menu entry to it, and gateway harnesses now stay in the menu even if a user's saved chat settings list other agents.
+- The Go live test (`live_test.go`) now approves only requests that name its probe file and denies anything else, for every harness.
+- OpenSpec change: `ChenWeb/openspec/changes/deepseek-harness-frontend/`.
+
+No database migration is involved. The gateway strips `DEEPSEEK_API_KEY` and ChenWeb's other secrets from dsh's environment, so dsh always uses its own login.
+
+**Run it.** `mise dev-deepseek-harness-gateway` from ChenWeb (port 4320). `mise.local.toml` holds `DEEPSEEK_HARNESS_GATEWAY_URL`, a generated `DEEPSEEK_HARNESS_GATEWAY_SECRET`, `DEEPSEEK_HARNESS_WORKSPACE` and `DEEPSEEK_HARNESS_BIN` (the checkout's `apps/cli/lib/bin.js`). Then restart `mise dev` itself; until then ChenWeb has not registered the harness and its model menu shows "Models unavailable".
+
+**Verification (2026-10-20).** Gateway: 15 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests, `svelte-check` and the i18n check. Live, through ChenWeb's real handler: model list, a `write` approval that wrote a file after Allow, and a follow-up answered from dsh's memory. Gateway live check: tool use, memory, approval, history from dsh's session file, and session listing. To repeat: `HARNESS_NAME=deepseek-harness HARNESS_GATEWAY_URL=http://127.0.0.1:4320 HARNESS_GATEWAY_SECRET=... go test -tags live -run TestLive ./api/harnessfrontend/` from `ChenWeb/server`; the gateway's own check is `DEEPSEEK_HARNESS_WORKSPACE=/Users/cding/Workspace DEEPSEEK_HARNESS_BIN=... bun run live-check.ts` in `gateways/deepseek-harness`.
+
+**Watch out.**
+- dsh is a developer preview. The gateway reads dsh's session-file format version 4; an upgrade that changes it makes earlier sessions show an error until `sessionlog.ts` is updated. Rerun the live check after updating the checkout, and rebuild the checkout (`pnpm run build`) first.
+- By default dsh sends its session log to DeepSeek with each request (`session-log-deepseek`). That is dsh's own setting.
+- Reading the model list leaves one empty session file in `~/.dsh/sessions` per dsh start; ChenWeb hides it, dsh's own Web UI may show it.
+- The test runs left a few short sessions ("Remember the codeword …") in dsh's history for the Workspace folder.
+
+**Next steps (open).** Browser check of the Chat page with DeepSeek Harness, including reopening a session started in dsh's own Web UI; the Claude Code next steps apply here too.
 
 ## 3. Open decisions
 

@@ -1,13 +1,14 @@
 # Harness-Neutral Agentic Services — ChenWeb and agent harnesses
 
 **Date:** 2026-10-18 (revised 2026-10-20) \
-**Scope:** How ChenWeb works with agent harnesses (Pi, Claude Code, Codex, and later others): the two ways a harness is connected, what is built today, where the code is, and what is still open. Open this before adding a harness or changing either integration. \
-**Code root:** `ChenWeb/server/api/agentservicehandler/` (SemOS-owned services), `ChenWeb/server/api/harnessfrontend/`, `ChenWeb/gateways/claude-code/` and `ChenWeb/gateways/codex/` (harness front end)
+**Scope:** How ChenWeb works with agent harnesses (Pi, Claude Code, Codex, DeepSeek Harness, and later others): the two ways a harness is connected, what is built today, where the code is, and what is still open. Open this before adding a harness or changing either integration. \
+**Code root:** `ChenWeb/server/api/agentservicehandler/` (SemOS-owned services), `ChenWeb/server/api/harnessfrontend/`, `ChenWeb/gateways/claude-code/`, `ChenWeb/gateways/codex/` and `ChenWeb/gateways/deepseek-harness/` (harness front end)
 
 **Traceability — openspec** (none of these changes is archived yet):
 - `ChenWeb/openspec/changes/harness-adapter-registry/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/agent-harness-adapters/spec.md`: adapter registry, capability checks, per-run harness record for the SemOS-owned services.
 - `ChenWeb/openspec/changes/harness-frontend-sessions/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/harness-frontend/spec.md`: ChenWeb as a front end to Claude Code, including the model list and the chat page.
 - `ChenWeb/openspec/changes/codex-harness-frontend/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/harness-frontend/spec.md`: Codex as a second harness behind the same front end.
+- `ChenWeb/openspec/changes/deepseek-harness-frontend/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/harness-frontend/spec.md`: DeepSeek Harness as a third harness behind the same front end.
 - `ChenWeb/openspec/specs/agent-conversation-history/spec.md` — conversation history rules for the SemOS-owned services.
 
 The spec files are the contract. **If behavior changes, update the spec, not only this document.** This document explains the design for people and points at the code.
@@ -16,7 +17,7 @@ Note: SemOS is the product name of the project ChenWeb.
 
 ## Summary
 
-An *agent harness* is the program that turns a language model into a working assistant. It writes the instructions the model sees, runs the loop of thinking and using tools, remembers the conversation, handles errors and fallbacks, and asks the user before risky actions. Claude Code, Pi, Codex, OpenClaw and OpenCode are harnesses. Building one is a large job, so ChenWeb does not build its own; it uses existing ones.
+An *agent harness* is the program that turns a language model into a working assistant. It writes the instructions the model sees, runs the loop of thinking and using tools, remembers the conversation, handles errors and fallbacks, and asks the user before risky actions. Claude Code, Pi, Codex, DeepSeek Harness, OpenClaw and OpenCode are harnesses. Building one is a large job, so ChenWeb does not build its own; it uses existing ones.
 
 ChenWeb connects to harnesses in two different ways.
 
@@ -25,15 +26,15 @@ ChenWeb connects to harnesses in two different ways.
 - shows what the harness answers, as it arrives;
 - passes the user's approvals back.
 
-ChenWeb keeps no copy of the conversation; when a page needs the history, it asks the harness. Claude Code and Codex are connected this way. Each runs on the server under the server's own login for that harness (the same one VS Code uses) and works in `/Users/cding/Workspace`. Either can do any task it can do in a terminal (coding first, but nothing limits it to coding), so this front end is restricted to administrators.
+ChenWeb keeps no copy of the conversation; when a page needs the history, it asks the harness. Claude Code, Codex and DeepSeek Harness are connected this way. Each runs on the server under the server's own login for that harness (for Claude Code and Codex, the same one VS Code uses; for DeepSeek Harness, the one stored in `~/.dsh`) and works in `/Users/cding/Workspace`. Either can do any task it can do in a terminal (coding first, but nothing limits it to coding), so this front end is restricted to administrators.
 
-On the **Chat** page (Development → Workspace → Chat), choosing Claude Code or Codex in the harness menu lets a user:
-- pick a model from the list the harness offers that account (Anthropic models for Claude Code, OpenAI models for Codex);
+On the **Chat** page (Development → Workspace → Chat), choosing Claude Code, Codex or DeepSeek Harness in the harness menu lets a user:
+- pick a model from the list the harness offers that account (Anthropic models for Claude Code, OpenAI models for Codex, DeepSeek models for DeepSeek Harness);
 - send messages and watch the answer stream in;
-- see each tool the harness uses (Codex's commands appear as `Shell`, its file changes as `Edit`);
-- approve or deny actions the harness asks about, and answer its questions;
+- see each tool the harness uses (Codex's commands appear as `Shell`, its file changes as `Edit`; DeepSeek Harness's tools keep its own names, such as `read`, `write` and `bash`);
+- approve or deny actions the harness asks about, and answer its questions (Claude Code and Codex);
 - stop a running reply;
-- reopen the harness's earlier sessions, including ones started in VS Code, with their full history.
+- reopen the harness's earlier sessions, including ones started in VS Code (or, for DeepSeek Harness, in its own Web UI), with their full history.
 
 **2. SemOS-owned services — the Knowledge Desk (Pi).** The Knowledge Desk answers questions from ChenWeb's knowledge base. Here ChenWeb is in charge:
 - it stores the conversation;
@@ -47,14 +48,14 @@ Why two ways: the services model needs a harness to accept ChenWeb's strict limi
 
 ## How each model divides the work
 
-| | Harness front end (Claude Code, Codex) | SemOS-owned services (Pi Knowledge Desk) |
+| | Harness front end (Claude Code, Codex, DeepSeek Harness) | SemOS-owned services (Pi Knowledge Desk) |
 | --- | --- | --- |
 | Instructions, agent loop, tools | The harness's own | Set by ChenWeb's service profile; only ChenWeb's knowledge tools |
 | Conversation history and memory | Kept by the harness; ChenWeb stores nothing | Stored and resent by ChenWeb |
 | Model choice | From the harness's own model list | Fixed per service profile version |
 | Who may use it | Administrators only (the harness has shell and file access) | Users granted access to the service and its knowledge stores |
-| Approvals | The harness's own permission rules (Codex: its sandbox and approval policy); ChenWeb shows the prompt and relays the answer | ChenWeb's ask/auto setting per service |
-| Login to the model provider | The machine's Claude Code or Codex login | Credentials configured for the Pi gateway |
+| Approvals | The harness's own permission rules (Codex and DeepSeek Harness: their sandbox and approval policy); ChenWeb shows the prompt and relays the answer | ChenWeb's ask/auto setting per service |
+| Login to the model provider | The machine's Claude Code or Codex login; DeepSeek Harness's key stored in `~/.dsh` | Credentials configured for the Pi gateway |
 
 For the services model these rules hold whatever the harness:
 - the browser never receives harness credentials or calls the harness directly;
@@ -71,9 +72,10 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - `ChenWeb/gateways/claude-code/` — a small private service on the server (Bun) that runs the real Claude Code through the Claude Agent SDK, used only as the connection, the way an IDE launches Claude Code. Its README documents the routes, settings and permission handling. Start it with `mise dev-claude-code-gateway`.
 - `ChenWeb/server/api/harnessfrontend/` — ChenWeb's admin-only routes under `/api/v1/harness-frontend/:harness/...` (models, sessions, history, send, stop, approve), which relay to the gateway.
 - `ChenWeb/gateways/codex/` — the same kind of service for Codex. It drives the real Codex through `codex app-server`, the interface the Codex VS Code extension uses. Its README documents the routes, settings and how Codex's approvals and questions are shown. Start it with `mise dev-codex-gateway`.
-- Chat page: `web/src/lib/components/shared-ui/chatter-01.svelte`, with `harness-dialog.svelte` and `harness-conversation.ts` beside it, and `web/src/lib/services/harnessFrontendService.ts`. `HARNESS_BY_AGENT` in that service decides which entries in the harness menu are served by a gateway (currently Claude Code and Codex).
-- Settings in ChenWeb's `mise.local.toml`: `CLAUDE_CODE_GATEWAY_URL`, `CLAUDE_CODE_GATEWAY_SECRET`, `CLAUDE_CODE_WORKSPACE`, and for Codex `CODEX_GATEWAY_URL`, `CODEX_GATEWAY_SECRET`, `CODEX_WORKSPACE`. A harness's routes exist in ChenWeb only when its URL and secret are set. ChenWeb reads them only when `mise dev` starts. When the Go code is rebuilt (by `air`), the server keeps the settings it started with, so after adding or changing a gateway setting, restart `mise dev` itself.
-- A new harness joins by getting its own gateway that speaks the same protocol (the gateway READMEs describe it), one entry in the gateway list in `server/api/routes.go`, and one entry in `HARNESS_BY_AGENT`. Codex was added this way with no change to `harnessfrontend` or the chat page.
+- `ChenWeb/gateways/deepseek-harness/` — the same kind of service for DeepSeek Harness (`dsh`, checked out and built in `ThirdParty-2/deepseek-harness`). It drives the real dsh through `dsh --profile acp`, dsh's Agent Client Protocol server. That interface does not give back a conversation's history, so the gateway reads earlier sessions from dsh's own session files in `~/.dsh/sessions`. Its README documents the routes, settings, login and approvals. Start it with `mise dev-deepseek-harness-gateway`.
+- Chat page: `web/src/lib/components/shared-ui/chatter-01.svelte`, with `harness-dialog.svelte` and `harness-conversation.ts` beside it, and `web/src/lib/services/harnessFrontendService.ts`. `HARNESS_BY_AGENT` in that service decides which entries in the harness menu are served by a gateway (currently Claude Code, Codex and DeepSeek Harness). These entries stay in the menu even when a user's saved chat settings list other agents.
+- Settings in ChenWeb's `mise.local.toml`: `CLAUDE_CODE_GATEWAY_URL`, `CLAUDE_CODE_GATEWAY_SECRET`, `CLAUDE_CODE_WORKSPACE`, for Codex `CODEX_GATEWAY_URL`, `CODEX_GATEWAY_SECRET`, `CODEX_WORKSPACE`, and for DeepSeek Harness `DEEPSEEK_HARNESS_GATEWAY_URL`, `DEEPSEEK_HARNESS_GATEWAY_SECRET`, `DEEPSEEK_HARNESS_WORKSPACE`, `DEEPSEEK_HARNESS_BIN`. A harness's routes exist in ChenWeb only when its URL and secret are set. ChenWeb reads them only when `mise dev` starts. When the Go code is rebuilt (by `air`), the server keeps the settings it started with, so after adding or changing a gateway setting, restart `mise dev` itself.
+- A new harness joins by getting its own gateway that speaks the same protocol (the gateway READMEs describe it), one entry in the gateway list in `server/api/routes.go`, and one entry in `HARNESS_BY_AGENT`. Codex was added this way with no change to `harnessfrontend` or the chat page; DeepSeek Harness also needed a new entry in the chat page's default agent list, since the menu had none for it.
 
 **SemOS-owned services**
 - `ChenWeb/server/api/agentservicehandler/`:
@@ -98,6 +100,13 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - **Earlier sessions:** the thread was listed with the workspace's VS Code threads, and its history was read back.
 - Not checked live: Codex's questions (`request_user_input`) and the Chat page in a browser.
 
+**Verified on 2026-10-20 against the real DeepSeek Harness** (dsh 0.2.1-rc.2), using the key stored in `~/.dsh`, through ChenWeb's real handler (`HARNESS_NAME=deepseek-harness go test -tags live ./api/harnessfrontend/`) and the gateway's `live-check.ts`:
+- **Model list:** the three models dsh offers (deepseek-v4-flash as the default, DeepSeek-V4.1-Flash, DeepSeek-V4-Pro).
+- **Approval:** a write to the home folder was refused by dsh's sandbox; dsh then asked to escalate, raising a `write` approval; after Allow, the file was written.
+- **Memory:** a follow-up message was answered from dsh's own session.
+- **Earlier sessions:** the session was listed with its title, and its history was read back from dsh's session file.
+- Not checked live: the Chat page in a browser, and reopening a session started in dsh's own Web UI.
+
 ## Known limitations
 
 **Harness front end (both harnesses)**
@@ -107,11 +116,11 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - Open tabs are not kept when the page is reloaded; earlier sessions are reopened from the Sessions menu.
 - Text written by a harness's helper agents (subagents) is not streamed. For Claude Code, their tool use is shown; for Codex, only the call that starts or messages a subagent (shown as `Agent`).
 - Hidden reasoning is never shown, for either harness.
-- Sessions started from ChenWeb also appear in VS Code's session list, and the other way round, because each harness keeps one history for the folder (Claude Code in `~/.claude/projects`, Codex in `~/.codex/sessions`).
+- Sessions started from ChenWeb also appear in VS Code's session list (DeepSeek Harness: its own Web UI), and the other way round, because each harness keeps one history for the folder (Claude Code in `~/.claude/projects`, Codex in `~/.codex/sessions`, DeepSeek Harness in `~/.dsh/sessions`).
 - A harness's gateway must be running for it to work in ChenWeb; neither gateway is started with `mise dev`.
 - If the model menu shows "Models unavailable" after a harness is selected, ChenWeb could not get that harness's model list. Check, in this order:
   1. ChenWeb was started after the harness's settings were added. On 2026-10-20, Codex showed "Models unavailable" because `mise dev` had been running since before the `CODEX_*` settings existed; restarting it fixed this.
-  2. The harness's gateway is running (`mise dev-claude-code-gateway` or `mise dev-codex-gateway`).
+  2. The harness's gateway is running (`mise dev-claude-code-gateway`, `mise dev-codex-gateway` or `mise dev-deepseek-harness-gateway`).
   3. The harness itself can list models; for example, the machine is still signed in to it.
 
 **Harness front end (Codex only)**
@@ -122,6 +131,16 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - On macOS, Codex's default sandbox can write to temporary folders such as `/tmp` without asking; only writes outside the workspace and those folders raise an approval.
 - Codex reports tokens, not cost, so the reported cost is always 0.
 
+**Harness front end (DeepSeek Harness only)**
+- The gateway runs one dsh process for all sessions. If it exits, running replies end with an error, and the next message starts a new one and resumes the session.
+- Replies appear a message at a time, not word by word: dsh's interface sends each message only once it is complete. Token counts and cost are reported as 0, since that interface carries neither.
+- Only the normal permission mode works. dsh's interface has no modes, so a request for accept-edits or plan mode is refused rather than run with dsh's normal permissions. The reasoning-effort setting cannot be chosen from ChenWeb; dsh's default (high) applies.
+- dsh's questions, plans and to-do lists are not part of the interface the gateway uses, so they do not appear.
+- History and titles are read from dsh's session files, which use dsh's internal format (version 4). If a dsh upgrade changes that format, earlier sessions show an error naming the new version until the gateway is updated. dsh is a developer preview; rerun the gateway's live check after upgrading it.
+- Reading the model list opens one session, which dsh keeps as an empty file in `~/.dsh/sessions` (once per start of the dsh process). ChenWeb's session list hides sessions with no messages.
+- By default, dsh sends its session log to DeepSeek along with each request (its `session-log-deepseek` plugin). This is dsh's own setting, unchanged by ChenWeb.
+- `dsh` runs from the checkout's built files (`apps/cli/lib/bin.js`). After updating the checkout, rebuild it there (`pnpm run build`).
+
 **SemOS-owned services (Pi Knowledge Desk)**
 - Pi is the only adapter.
 - Run error codes keep their historical `gateway_*` names for every harness.
@@ -131,7 +150,7 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 
 **Open decisions**
 - Whether the Knowledge Desk moves to the front-end model.
-- Which harness is connected next (Pi as a full harness, OpenCode, ...). Each needs its own review of how it runs, how it signs in, and what it can access.
+- Which harness is connected next (Pi as a full harness, OpenCode, ...). DeepSeek Harness's interface (the Agent Client Protocol) is a standard one that other harnesses also offer, so its gateway may be a starting point for them. Each needs its own review of how it runs, how it signs in, and what it can access.
 
 ## References
 
@@ -142,3 +161,5 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 [3] ChenWeb/gateways/claude-code/README.md — gateway routes, settings, login and permission handling
 
 [4] ChenWeb/gateways/codex/README.md — the Codex gateway: app-server connection, login, approvals and questions
+
+[5] ChenWeb/gateways/deepseek-harness/README.md — the DeepSeek Harness gateway: ACP connection, login, session files and approvals
