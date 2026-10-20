@@ -6,33 +6,33 @@
 
 ## Summary
 
-Code Monitor gives the development workspace a daily history of configured parts of the ChenWeb codebase. It shows how many source lines and frontend or backend files each part contains. The daily history is stored in the database, so the charts can show changes across the selected date range.
+Code Monitor gives the development workspace a daily history of configured parts of the ChenWeb codebase. It shows source lines and frontend or backend file counts, grouped by configured project path. Each chart shows the recorded total and the change since the previous snapshot.
 
 ## Details
 
 ### Configuration
 
-Set repository-relative paths in the `frontend.code-packages-to-monitor` string list in `ChenWeb/config.local.toml`. The current local configuration monitors `web/src` and `server`. Paths are resolved from the directory containing the main `ChenWeb/config.toml` file.
+Set repo-relative project paths in the `frontend.projects-to-monitor` string list in `ChenWeb/config.local.toml`. The current local configuration monitors `web/src` and `server`. Paths are resolved from the directory containing the main `ChenWeb/config.toml` file.
 
 ### Counting rules
 
-- Only paths returned by `git ls-files` under each configured directory are considered.
-- Frontend extensions: `.js`, `.jsx`, `.ts`, `.tsx`, `.svelte`, `.css`, `.scss`, `.html`, `.vue`.
+- Only paths returned by `git ls-files` under each configured project path are considered.
+- Frontend extensions: `.js`, `.jsx`, `.ts`, `.tsx`, `.svelte`, `.css`, `.scss`, `.html`, `.vue`, `.json`.
 - Backend extensions: `.go`, `.py`, `.rs`, `.java`, `.kt`, `.php`, `.rb`, `.sql`, `.sh`, `.yaml`, `.yml`, `.toml`.
 - Other extensions are ignored. The total line count sums physical lines in both recognized categories. Blank lines count; a final line without a newline counts; an empty file has zero lines.
-- A file deleted from the worktree after Git lists it is skipped. Other read failures fail that package's collection for the date, while collection continues for other packages.
+- A tracked file deleted from the worktree is skipped. Other read failures fail that project's collection for the date, while collection continues for other projects.
 
 ### Scheduling and persistence
 
-The server schedules collection for 2:00 am in `llm.workspace_timezone` (`America/Chicago` by default). If that local time does not exist during the spring daylight-saving transition, collection runs at the first valid time afterward. The worker waits for the next scheduled time on startup; it does not run a catch-up collection immediately.
+The server schedules collection for 2:00 am in `llm.workspace_timezone` (`America/Chicago` by default). If that local time does not exist during the spring daylight-saving transition, collection runs at the first valid time afterward. If `kb.code_monitor` is empty at startup, the server immediately writes a snapshot for the current local date with `collected_at` set to 2:00 am local time. Subsequent collection runs daily at 2:00 am.
 
-`kb.code_monitor` has one row per `(package_path, collection_date)`. Repeated writes for that key update the snapshot and collected timestamp. The Goose migration is `project_migrations/20261020000001_create_kb_code_monitor.sql`.
+`kb.code_monitor` has one row per `(project_path, collection_date)`. Repeated writes for that key update the snapshot and collected timestamp. Deltas are computed from the previous recorded row for the same project, even when that row falls before the requested chart range; the first row has a zero delta. The initial schema migration is `project_migrations/20261020000001_create_kb_code_monitor.sql`; the follow-up migration renames `package_path` to `project_path`.
 
 ### API and page
 
-The authenticated endpoint is `GET /api/v1/code-monitor?range=<range>`. Its response groups rows by `package_path`; each row has `collection_date`, `total_lines`, `frontend_files`, and `backend_files`.
+The authenticated endpoint is `GET /api/v1/code-monitor?range=<range>`. Its response groups rows by `project_path`; each row has `collection_date`, total and delta values for `total_lines`, `frontend_files`, and `backend_files`.
 
-The page is **Development → System Admin → System → Code Monitor**. It renders three line-and-bar charts per package. Date ranges are inclusive in the configured workspace timezone:
+The page is **Development → System Admin → System → Code Monitor**. It renders three ECharts bar charts per project. Each chart plots Total against the left y-axis and Delta against the right y-axis. Date ranges are inclusive in the configured workspace timezone:
 
 | Range | Dates |
 | --- | --- |
@@ -47,5 +47,4 @@ For the last two ranges, the start date is clamped to the final day of the targe
 
 ## Known limitations
 
-- A new database or a server started after 2:00 am has no snapshot for the current date until the next scheduled collection.
-- The extension classifier is intentionally explicit; a source language with an unlisted extension is not counted until the classifier is updated.
+- Source languages with unlisted extensions are not counted until the classifier is updated.
