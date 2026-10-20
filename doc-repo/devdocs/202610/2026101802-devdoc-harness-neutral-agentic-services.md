@@ -8,6 +8,8 @@
 
 SemOS's agentic services should support multiple agent harnesses through one adapter per harness. A harness is the runtime that coordinates a model and its tools, such as Pi, Codex, Claude Code, OpenClaw, or OpenCode. SemOS remains the product: it authenticates the user, chooses the service and harness, checks access, stores the conversation, and decides which events and citations reach the user. Each adapter translates between SemOS's stable run contract and one harness's own API or process model. This keeps Pi useful while allowing later integrations without making harness-specific details part of the SemOS page or conversation model.
 
+**Change of direction (2026-10-20).** A second integration model now exists beside the one above: ChenWeb as a **front end** to a harness, the way VS Code is a front end to Claude Code. In that model the harness keeps its own system prompt, loop, tools, memory, skills and session history. ChenWeb only sends the user's messages, relays what the harness streams back, and passes approvals to it. Claude Code is the first harness built this way (§2.7). It is not limited to coding; the intended use is close to Claude Cowork, handling general tasks. The SemOS-owned services model (Pi Knowledge Desk, sections 2.1–2.6) is unchanged for now. Whether it moves to the front-end model is an open decision.
+
 Note: SemOS is the product name of the project ChenWeb.
 
 ## 2. Details
@@ -43,7 +45,7 @@ SemOS agent-service layer
        └─ future adapters ── OpenClaw, OpenCode, etc.
 ```
 
-Two adapters exist: Pi (`PiHarnessAdapter`, gateway in `ThirdParty/pi/gateway`) and Claude Code (`ClaudeCodeHarnessAdapter`, gateway in `ChenWeb/gateways/claude-code`). Both gateways speak the same protocol: the same run request, NDJSON event vocabulary and routes, each behind its own secret. The Go adapters differ only in the capabilities they declare and the profiles they accept.
+Pi (`PiHarnessAdapter`, gateway in `ThirdParty/pi/gateway`) is the only adapter in this model. A Claude Code adapter for it was built on 2026-10-20 and then backed out. It had to strip Claude Code down to a bare loop (its own prompt, tools, settings and sessions all switched off) to fit SemOS's tool boundary, which defeats the point of using a harness. Claude Code is integrated through the front-end model instead (§2.7).
 
 Each adapter translates requests, events, cancellation, and any supported approval flow. The adapter may use an SDK, a private HTTP service, or a supervised worker process, depending on the harness. Harness packages and wire protocols must not leak into SemOS's browser API or persisted product-level conversation model.
 
@@ -106,29 +108,44 @@ If a harness cannot be constrained to the service's approved tool boundary, it i
 1. **Done:** Rename/generalize the SemOS runtime boundary and event/request types without changing the Pi protocol or user-visible behavior.
 2. **Done:** Keep Pi-specific profile mapping, model metadata calls, summaries, and gateway protocol handling behind `PiHarnessAdapter`. The existing Pi implementation remains the compatibility reference. The gateway's request-size limit is now declared by the adapter, and run-handler logs and the public start-failure message no longer name Pi.
 3. **Done:** Add adapter registration and startup validation for supported capabilities. Keep service-to-adapter selection server-side. (OpenSpec change `harness-adapter-registry`.)
-4. **Done (pending a live round-trip):** Add one second adapter as a vertical slice, after selecting the harness and deployment model and verifying that its tools can be constrained to SemOS's capability boundary. Claude Code was chosen, deployed as a loopback Bun gateway that drives the Claude Agent SDK (OpenSpec change `claude-code-harness-adapter`; see §2.7).
-5. **Not started:** Run the same service evaluation cases against Pi and the new adapter, including access denial/revocation, hostile source content, approval denial, cancellation, interrupted streams, and citation validation.
+4. **Superseded:** Add one second adapter as a vertical slice. A Claude Code adapter was built and backed out (see §2.2). Claude Code now runs through the harness front end (§2.7) instead of this adapter contract.
+5. **Not started:** Run the same service evaluation cases against Pi and any new adapter, including access denial/revocation, hostile source content, approval denial, cancellation, interrupted streams, and citation validation.
 
 Do not start by integrating all named harnesses. Codex, Claude Code, OpenClaw, and OpenCode have different runtime and trust models; each needs an explicit deployment and capability review before being enabled for a service.
 
-### 2.7 Claude Code adapter
+### 2.7 Harness front end (Claude Code)
 
-The Claude Code gateway runs each turn through the Agent SDK's `query()` and is constrained to SemOS's tool boundary as follows:
+ChenWeb fronts a harness the way an IDE does. The harness is the agent; ChenWeb is its user interface.
 
-| Concern | How it is constrained |
+| Owned by the harness | Owned by ChenWeb |
 | --- | --- |
-| Built-in tools (shell, files, web, subagents) | `tools: []`. A live run confirmed the session starts with only `mcp__semos__*` tools. |
-| Settings, `CLAUDE.md`, skills, plugins, other MCP servers, saved sessions | `settingSources: []`, `strictMcpConfig`, empty skills/plugins/agents, `persistSession: false`; the Claude Code process gets an empty per-run directory as working directory and `HOME`, and only model credentials in its environment |
-| Tool calls | SemOS's tools are served in-process. `canUseTool` denies everything except this run's tools on that server, applies ask/auto approval, counts calls, and records the SDK tool-use ID. A call that bypassed it fails. |
-| Knowledge scope and user access | Unchanged: ChenWeb checks the run capability on every internal tool call |
+| System prompt, agent loop, built-in tools, MCP servers, skills, `CLAUDE.md`, memory, compaction, model fallback | Sign-in and admin authorization |
+| Session transcript, resume, session list | Which harness and session a request goes to |
+| Permission rules from the user's settings | Showing permission prompts and relaying the decision |
+| Model login (the machine's Claude Code login) | Relaying the event stream to the browser |
 
-Differences from Pi:
-- **History.** It is replayed as a transcript inside the user message, because the SDK cannot be seeded with assistant turns.
-- **History budget.** The gateway reports no context window, so ChenWeb uses its fallback budget.
-- **Provider.** Only provider `anthropic` is accepted, enforced through the `HarnessProfileValidator` hook.
-- **Thinking.** The profile's thinking level maps to SDK effort.
+ChenWeb stores nothing about these conversations. There is no ChenWeb table: sessions and their history are read from the harness.
 
-Administrators choose a service's harness on the existing admin page. The adapter registers only when `CLAUDE_CODE_GATEWAY_URL` and `CLAUDE_CODE_GATEWAY_SECRET` are set.
+**Components.**
+- **Gateway** `ChenWeb/gateways/claude-code`: a private Bun service on loopback with a bearer secret. It uses the Claude Agent SDK only as the connection to the real Claude Code. Claude Code's own system prompt and tools are kept (the `claude_code` presets) and all setting sources are loaded. It runs in `CLAUDE_CODE_WORKSPACE` (here `/Users/cding/Workspace`) with the machine's Claude Code login. The gateway removes `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`, which would override the login, and keeps variables named like secrets out of Claude Code's environment.
+- **Sessions.** Each session is one long-lived Claude Code process fed messages as they arrive, like a terminal. After an idle period the process is closed, and the next message resumes the session from Claude Code's own transcript. Sessions started in VS Code in the same folder can be continued too.
+- **Harness front-end protocol v1.** All routes are on the gateway:
+  - `GET /v1/sessions` and `GET /v1/sessions/:id/messages`
+  - `POST /v1/turns` (NDJSON events: `session`, `text`, `tool_use`, `tool_result`, `permission_request`, `status`, `result`, `error`)
+  - `POST /v1/sessions/:id/interrupt` and `POST /v1/sessions/:id/permissions/:requestId`
+
+  Hidden reasoning is not relayed. The protocol is harness-neutral: another harness gets its own gateway speaking it.
+- **ChenWeb** `server/api/harnessfrontend`: a protocol-v1 client per configured gateway. It exposes admin-only routes under `/api/v1/harness-frontend/:harness/...` and relays turns as SSE. Claude Code is registered when `CLAUDE_CODE_GATEWAY_URL` and `CLAUDE_CODE_GATEWAY_SECRET` are set.
+
+**Permissions.** Claude Code's own permission rules decide first. Calls it would prompt for in a terminal become `permission_request` events, and ChenWeb answers allow or deny. An allow can carry `updatedInput`, which is how answers to `AskUserQuestion` are returned. Modes `default`, `acceptEdits` and `plan` are accepted; `bypassPermissions` is refused. A turn whose client disconnects is interrupted.
+
+**Trust.** Claude Code has shell and file access as the server's OS user, so every front-end route is admin-only. This model does not carry the §2.5 invariants, which belong to SemOS-owned services.
+
+**Verified live (2026-10-20).** The full chain ran through ChenWeb's handler, the gateway and Claude Code with the Claude Code login (`apiKeySource: none`, model `claude-opus-5-5`):
+- a `Write` outside the workspace raised a permission request, which was approved through ChenWeb, and the file was written;
+- a second turn on the same session recalled the first from Claude Code's own history.
+
+The exact behavior is in the OpenSpec change `harness-frontend-sessions`; operating details are in the gateway's README.
 
 ### 2.8 Documentation and contract ownership
 
@@ -138,12 +155,13 @@ The Pi integration now has an administrator page at **Development → Coding Ass
 
 ## 3. Known limitations
 
-- Pi and Claude Code are the only adapters. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
-- The Claude Code adapter has not completed a live model round-trip: the available API key had no credit when it was built. Tool loading and failure mapping were verified live; everything else is covered only by tests with a scripted SDK.
-- The admin page is still titled and routed as the Pi page, though it now selects the harness. Its gateway check covers only the Pi gateway.
+- Pi is the only adapter in the SemOS-owned services model. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
+- The harness front end has no browser page yet; only its API exists.
+- It supports one workspace folder, and does not keep a turn running after the browser disconnects.
+- Subagent text is not streamed; subagent tool calls are, with their parent ID.
+- Whether the Knowledge Desk services move to the front-end model is undecided.
 - Run-time error codes still use the historical `gateway_*` names (for example `gateway_unavailable`) for every harness.
 - The Pi pilot has not completed the real-provider, signed-in user evaluation described in the handoff. Passing automated checks does not establish answer quality for any harness.
-- No second harness is selected. Worker isolation, credential handling, tool restriction, and data-handling compatibility must be assessed for the specific harness and deployment before implementation.
 - There is no universal administrator UI for adapter configuration, automatic failover, or cross-harness conversation migration. The shipped Pi profile page is Pi-specific and does not configure other harnesses.
 
 ## 4. References
