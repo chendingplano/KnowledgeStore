@@ -4,6 +4,10 @@
 **Scope:** ChenWeb's development Code Monitor page and its daily source metrics.  \
 **Code root:** `ChenWeb/server/api/codemonitor`
 
+## OpenSpec references
+
+The [Code Monitor specification](../../../../ChenWeb/openspec/specs/code-monitor/spec.md) is the current behavior contract. The archived implementation change includes the [proposal](../../../../ChenWeb/openspec/changes/archive/2026-10-20-code-monitor/proposal.md), [design](../../../../ChenWeb/openspec/changes/archive/2026-10-20-code-monitor/design.md), [tasks](../../../../ChenWeb/openspec/changes/archive/2026-10-20-code-monitor/tasks.md), and the [spec snapshot](../../../../ChenWeb/openspec/changes/archive/2026-10-20-code-monitor/specs/code-monitor/spec.md).
+
 ## Summary
 
 Code Monitor gives the development workspace a daily history of configured projects. For each project, it shows how many source lines are in the frontend and backend trees, how many files each tree contains, and how those totals changed since the prior snapshot.
