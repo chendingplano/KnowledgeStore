@@ -35,7 +35,7 @@ The server schedules collection for 2:00 am in `llm.workspace_timezone` (`Americ
 
 The authenticated endpoint is `GET /api/v1/code-monitor?range=<range>`. Its response groups rows by `project_path`; each row has `collection_date`, `total_lines`, `frontend_lines_delta`, and `backend_lines_delta`.
 
-The page is **Development → System Admin → System → Code Monitor**. It renders one ECharts bar chart per project with total project lines and frontend/backend daily line deltas. Total lines use the left y-axis and signed deltas use the right. Date ranges are inclusive in the configured workspace timezone:
+The page is **Development → System Admin → System → Code Monitor**. It renders three ECharts bar charts per project on the same row: total project lines, frontend daily line deltas, and backend daily line deltas. Date ranges are inclusive in the configured workspace timezone:
 
 | Range | Dates |
 | --- | --- |
