@@ -161,10 +161,11 @@ The Linux deployment build generates `server/api/doc-processing/prompt_defaults_
 from the prompt references configured by the active environment variables. The Go map embeds
 the selected prompt contents and keeps each reference as the default for its corresponding
 environment variable. A configured file on disk takes precedence; if it is absent, the
-doc-processor uses the embedded contents. This lets deployments omit these doc-processor prompt
-files while keeping other prompts in the deployment package for consumers that still read them
-from disk. Regenerate the defaults with
-`python3 scripts/generate-doc-processor-prompt-defaults.py --refs-out /tmp/doc-processor-prompt-refs.txt`.
+doc-processor uses the embedded contents. The deployment payload also omits every prompt whose
+filename starts with a prefix in `[frontend].exclude_prompt_prefixes` from `config.local.toml`.
+Other prompts remain packaged for consumers that still read them from disk. Regenerate the Go
+defaults and exclusion list with
+`python3 scripts/generate-doc-processor-prompt-defaults.py --refs-out /tmp/doc-processor-prompt-refs.txt --exclude-prefixes-out /tmp/excluded-prompt-prefixes.txt`.
 
 ## 7. Doc Processing Pipeline
 This service is a controller. For a received event, it applies a number of doc processors to it.

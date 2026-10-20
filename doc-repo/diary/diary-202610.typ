@@ -1168,3 +1168,14 @@ my prompt to ask for exactly that.
 === Range
 Drawing on multiple fields rather than just the one the task might need 
   at the surface, using knowledge, tools, and techniques you normally wouldn’t.
+
+= 2026/10/20
+
+== Telemetry
+url: https://netflixtechblog.com/ontology-driven-observability-building-an-end-to-end-knowledge-graph-at-netflix-scale-421392cf5adf
+
+This is a good article. Briefly read it. Working on a solution through Codex Sol now.
+
+== Work
+- Research (done by Codex): Telemetry
+- Improvement (by Claude Code): continue the harness integration path

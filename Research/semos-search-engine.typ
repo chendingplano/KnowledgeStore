@@ -148,63 +148,75 @@ they are called 'node categories'.
 
 ==== Resolving Artifact Categories
 
+An artifact can be a chunk, metric, provision, etc.
+Categories are used as an index for artifacts.
+Categories are identified by canonical names (SKOS).
+
+*Category Tree*
+Each named category is a category tree. There are two types of nodes
+in the tree: inner node and leaf. Members of an inner node should be
+either all inner nodes or artifacts.
+
+*Resolve categories for an artifact*
+
 Given an artifact:
 1. Add the root category to 'pending queue'
 2. If 'pending queue' is empty, stop. Otherwise, it pops
    a category from the front of the 'pending queue' and
    set it as the 'active category'.
-3. If the active category is a leaf category, treat it
-   as a group with only one category, goto Step 5.
-4. Otherwise, retrieve all the sub-categories from the 
-   active category. If there are more than 19 (configurable) 
-   sub-categories, divide these sub-categories evenly to N groups,
-   each group has no more than 19 sub-categories.
-5. For each group, use the decision model to decide whether 
-   the given query belong to some of the categories in the group.
-   Note that a query may belong to multiple categories. If more than
-   M categories are returned from the decision model,
-   pick the top M categories. M is configurable and defaults
-   to 3.
-6. If the LLM returns only 'others' category:
-   - If this is not the last group, move on to the next group
-   - Otherwise, add the full path of the 'others' to the 
-     'matched categories'
-7. If the LLM returns other than 'others' categories, for each of the
-   matched categories: 
-   - if it is a leaf category, add the full path of the category
-     to the 'matched categories' list. When 'matched categories'
-     list length >= 10, stop.
-   - otherwise, push the full path of the category into 
-     the 'pending queue'.
+3. If the active category is a leaf node, add the artifact
+   to the node and associate the node path with the artifact.
+4. Otherwise, retrieve all its members. Use a decision model to decide whether 
+   the given artifact belongs to some of the members (categories).
+   Note that an artifact may belong to multiple categories.
+   Most decision models limit the max number of choises. If the number of
+   members > R (R defaults to 20), it cuts the members into multiple
+   groups, each with no more than 20 categories. It then sends multiple
+   requests to the decision model, one per group.
+5. If the LLM returns none or only 'others' categories, add the artifact
+   to the node's "others" member (create one if it does not have one yet).
+   Otherwise, for each returned category, if the corresponding child
+   is a leaf node, add the artifact to it and associate the child with
+   the artifact. Otherwise, append the category to 'pending queue'.
 
-=== Process 'others' category
-If a 'others' category contains too many artifacts, extract categories
-for these artifacts. For each artifact:
-- If the 'category list' is not empty, use a decision model to determine
-  whether the artifact belongs to one or more of the categories.
-- If the decision model returns , add the artifact to each of the matched categoriesuse
-- If 
-  the categories already extracted. The LLM 
-When there are too many entries (such as 1000), we can ask LLMs to create new
-higher-level categories for the existing categories, constructing category
-hierarchy.
+*Process 'others' category*
+The 'others' category contains the artifacts that do not belong to any of
+the categories in its level. 
 
-If each node in the hiearchy holds no more than 20 children:
+If a 'others' category contains more than S artifacts (S defaults to 1,000), 
+use an LLM to extract categories for these artifacts. For each category:
+- Use a decision model to determine whether the category belongs to any 
+  of the categories in its level. If not (normally it should not belong to 
+  any of its siblings), add the category as a new child to its parent.
+- Otherwise, resolve this is a sub-category to each of the matched categories.
+
+After that, the "others" node is removed.
+
+*Process inner nodes*
+
+When there are too many children (> T, T defaults to 100), use an LLM
+to categorize the children. Then resolve the new categories the same
+way as processing the "others" node.
+
+*Process leaf nodes*
+
+Do the same thing when a leaf node has more than W artifacts, W defaults
+to 1000.
+
+If each node in the hiearchy holds no more than 100 children:
 ```text
 Level       Max Categories
 ----------------------------------------------
-1           20
-2           400
-3           8000
-4           160,000
-5           3,200,000           3 millions
-6           64,000,000          64 millions
-7           1,280,000,000       1.28 billions
-8           25,600,000,000      25 billions
-9           512,000,000,000     512 billions
-10          10,240,000,000,000  10 trillions
+1           100
+2           10,000
+3           1,000,000           1 million
+4           100,000,000         100 millions
+5           10,000,000,000      10 billions 
 ----------------------------------------------
 ```
+
+This means that the category tree may have up to 5 levels to index 10 billion
+artifacts.
 
 Given a user query, we need to find its categories:
 1. Which category the query belongs to, given the level-0 categories (up to 20)

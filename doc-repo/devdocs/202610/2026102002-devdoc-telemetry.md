@@ -8,7 +8,7 @@ Status: Proposed
 
 ## 1. Purpose and status
 
-ChenWeb's telemetry should help an engineer understand what happened, what was affected, what may have caused it, and what helped last time. It should connect the user's experience to application work, background processing, databases, external providers, and recent changes. The goal is to shorten investigations and preserve what engineers learn so the next investigation starts with useful context.
+ChenWeb's telemetry should help an engineer understand what happened, what was affected, what may have caused it, and what helped last time. It should connect the user's experience to application work, background processing, databases, external providers, and recent changes. The goal is to find the problem earlier, shorten investigations and preserve what engineers learn so the next investigation starts with useful context.
 
 This document describes a **proposed architecture**, not a completed feature. Section 3 identifies the existing foundation verified in the repository. The ontology, investigation features, and rollout below are proposed additions. This is a high-level direction; implementation should establish its detailed behavior in OpenSpec before building it.
 
@@ -32,7 +32,7 @@ These connections let an engineer move from a failed document to the relevant ru
 
 “Ontology driven” means this agreement guides collection, identity matching, validation, and investigation from the beginning. It is more than drawing a graph over unrelated logs afterward. Each source maps its own fields to the same approved concepts and identities.
 
-### The Netflix influence
+### 2.1 The Netflix influence
 
 Netflix describes slow investigations caused by disconnected tools using different names for the same operational entities. Its approach combines a shared ontology, a knowledge graph, enrichment, evidence-backed hypotheses, and incident knowledge. It uses RDF, OWL, SHACL, and SPARQL—standards for representing, defining, validating, and querying graph data—and a distributed graph store. Its correlation results remain hypotheses for people to assess. These ideas inform ChenWeb's direction; the storage and rollout choices below are our proposal for a much smaller system. [Netflix TechBlog](https://netflixtechblog.com/ontology-driven-observability-building-an-end-to-end-knowledge-graph-at-netflix-scale-421392cf5adf)
 
@@ -84,7 +84,7 @@ flowchart TD
     I --> D
 ```
 
-### Collect signals with useful context
+### 5.1 Collect signals with useful context
 
 Telemetry includes four kinds of evidence: metrics summarize measurements over time; events record changes such as a deployment; logs describe individual occurrences; traces show the steps of an operation and how long they took.
 
@@ -92,25 +92,25 @@ Reuse OpenTelemetry and the current collectors for signals they already handle. 
 
 Coverage can grow gradually. Start with document processing; add browser experience and other dependencies when they help answer a concrete investigation question. The interface should make gaps in coverage visible.
 
-### Keep detailed signals in their existing store
+### 5.2 Keep detailed signals in their existing store
 
 ClickHouse should hold the large, short-lived stream of telemetry. The graph should hold selected facts and references to the underlying evidence, not a node for every log line or metric sample.
 
 For example, the graph might record that a run failed with repeated provider timeouts, together with its trace reference and a bounded log search. HyperDX remains useful for inspecting the details. Evidence references should retain the source, identifiers, environment, and time range needed to find the records.
 
-### Build knowledge in one background worker
+### 5.3 Build knowledge in one background worker
 
 Start with one worker running ordered steps: read new source records, resolve identities, validate relationships, and save accepted facts. Use incremental checkpoints and repeatable writes so retries do not create duplicates. A failed source should leave a visible gap and be retried without blocking unrelated sources.
 
 Begin with direct mappings and explicit rules. A trace carrying a known run ID is stronger evidence than two records with similar names. Unknown or ambiguous identities should be held for review, rather than silently creating new components.
 
-### Store the small graph in PostgreSQL
+### 5.4 Store the small graph in PostgreSQL
 
 A knowledge graph describes how information is connected; it does not require a dedicated graph database. Initially, PostgreSQL can hold typed entities, their relationships, evidence references, and reviewed findings. Use ChenWeb's centralized connection pool and goose migrations when implementing it.
 
 Keep the ontology versioned and reviewed separately from the continuously arriving operational records. Validation should check that entity types, required properties, and relationship endpoints follow the model. Stable identifiers and explicit relationship meanings should make later export or migration possible. PostgreSQL alone does not provide RDF or SPARQL compatibility; adopting those standards would require an explicit mapping and validation effort.
 
-### Serve engineers and, later, assistants
+### 5.5 Serve engineers and, later, assistants
 
 Expose a small investigation API for looking up a run, its neighborhood of related entities, its timeline, and its supporting evidence. Start with a run detail view and links to HyperDX. A graph visualization is optional; a clear timeline and related-record list may be more useful initially.
 
@@ -132,7 +132,7 @@ The first model should describe only what the first investigation needs. The fol
 
 Add incidents, hypotheses, and reviewed resolutions when the incident workflow is introduced. Keeping a component distinct from an application avoids treating every processor as a separately deployed service.
 
-### Identity comes first
+### 6.1 Identity comes first
 
 Maintain a small authoritative component catalog, initially as reviewed configuration. It should define stable IDs, aliases, maintainers, and known dependencies. Use the real source record IDs for runs and resources, qualified by their source and operational scope. Keep staging and production deployments and observations distinct.
 

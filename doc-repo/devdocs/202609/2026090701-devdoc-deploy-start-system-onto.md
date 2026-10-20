@@ -741,8 +741,10 @@ Every payload also includes migration files, runtime prompts, reviewer configs, 
 when only one binary is selected. Migrations are copied additively before service startup;
 set `SKIP_MIGRATIONS=1` before the Production command to leave migration files untouched.
 When `doc-processor` is selected, the build embeds the prompt contents chosen by its configured
-prompt environment variables into the Go binary and excludes those prompt files from the payload.
-Other prompts remain packaged for services that read them from disk.
+prompt environment variables into the Go binary. The build excludes prompt files whose names
+start with any prefix listed in `[frontend].exclude_prompt_prefixes` in `config.local.toml`, as
+well as the embedded prompt files, from the payload. Other prompts remain packaged for services
+that read them from disk.
 The machine-specific `config.local.toml`, `.env`, and Kratos configuration are not in
 the payload.
 
