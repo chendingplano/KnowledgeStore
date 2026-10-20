@@ -43,6 +43,8 @@ SemOS agent-service layer
        └─ future adapters ── OpenClaw, OpenCode, etc.
 ```
 
+Two adapters exist: Pi (`PiHarnessAdapter`, gateway in `ThirdParty/pi/gateway`) and Claude Code (`ClaudeCodeHarnessAdapter`, gateway in `ChenWeb/gateways/claude-code`). Both gateways speak the same protocol: the same run request, NDJSON event vocabulary and routes, each behind its own secret. The Go adapters differ only in the capabilities they declare and the profiles they accept.
+
 Each adapter translates requests, events, cancellation, and any supported approval flow. The adapter may use an SDK, a private HTTP service, or a supervised worker process, depending on the harness. Harness packages and wire protocols must not leak into SemOS's browser API or persisted product-level conversation model.
 
 ### 2.3 Adapter contract
@@ -104,12 +106,31 @@ If a harness cannot be constrained to the service's approved tool boundary, it i
 1. **Done:** Rename/generalize the SemOS runtime boundary and event/request types without changing the Pi protocol or user-visible behavior.
 2. **Done:** Keep Pi-specific profile mapping, model metadata calls, summaries, and gateway protocol handling behind `PiHarnessAdapter`. The existing Pi implementation remains the compatibility reference. The gateway's request-size limit is now declared by the adapter, and run-handler logs and the public start-failure message no longer name Pi.
 3. **Done:** Add adapter registration and startup validation for supported capabilities. Keep service-to-adapter selection server-side. (OpenSpec change `harness-adapter-registry`.)
-4. **Not started:** Add one second adapter as a vertical slice. Before implementation, select the candidate harness and deployment model, then verify that its tools can be constrained to SemOS's capability boundary.
-5. Run the same service evaluation cases against Pi and the new adapter, including access denial/revocation, hostile source content, approval denial, cancellation, interrupted streams, and citation validation.
+4. **Done (pending a live round-trip):** Add one second adapter as a vertical slice, after selecting the harness and deployment model and verifying that its tools can be constrained to SemOS's capability boundary. Claude Code was chosen, deployed as a loopback Bun gateway that drives the Claude Agent SDK (OpenSpec change `claude-code-harness-adapter`; see §2.7).
+5. **Not started:** Run the same service evaluation cases against Pi and the new adapter, including access denial/revocation, hostile source content, approval denial, cancellation, interrupted streams, and citation validation.
 
 Do not start by integrating all named harnesses. Codex, Claude Code, OpenClaw, and OpenCode have different runtime and trust models; each needs an explicit deployment and capability review before being enabled for a service.
 
-### 2.7 Documentation and contract ownership
+### 2.7 Claude Code adapter
+
+The Claude Code gateway runs each turn through the Agent SDK's `query()` and is constrained to SemOS's tool boundary as follows:
+
+| Concern | How it is constrained |
+| --- | --- |
+| Built-in tools (shell, files, web, subagents) | `tools: []`. A live run confirmed the session starts with only `mcp__semos__*` tools. |
+| Settings, `CLAUDE.md`, skills, plugins, other MCP servers, saved sessions | `settingSources: []`, `strictMcpConfig`, empty skills/plugins/agents, `persistSession: false`; the Claude Code process gets an empty per-run directory as working directory and `HOME`, and only model credentials in its environment |
+| Tool calls | SemOS's tools are served in-process. `canUseTool` denies everything except this run's tools on that server, applies ask/auto approval, counts calls, and records the SDK tool-use ID. A call that bypassed it fails. |
+| Knowledge scope and user access | Unchanged: ChenWeb checks the run capability on every internal tool call |
+
+Differences from Pi:
+- **History.** It is replayed as a transcript inside the user message, because the SDK cannot be seeded with assistant turns.
+- **History budget.** The gateway reports no context window, so ChenWeb uses its fallback budget.
+- **Provider.** Only provider `anthropic` is accepted, enforced through the `HarnessProfileValidator` hook.
+- **Thinking.** The profile's thinking level maps to SDK effort.
+
+Administrators choose a service's harness on the existing admin page. The adapter registers only when `CLAUDE_CODE_GATEWAY_URL` and `CLAUDE_CODE_GATEWAY_SECRET` are set.
+
+### 2.8 Documentation and contract ownership
 
 This document records the recommended architecture, not a shipped multi-harness feature contract. When implementation begins, put exact behavior and acceptance criteria in the applicable OpenSpec change or implementation specification. Update this devdoc after the adapter framework and additional adapters are built so it describes the actual architecture and supported capabilities.
 
@@ -117,8 +138,9 @@ The Pi integration now has an administrator page at **Development → Coding Ass
 
 ## 3. Known limitations
 
-- Only Pi is registered. The handler boundary, adapter registry, capability checks, and normalized profile, request, history, source, and event types are harness-neutral; the only runtime implementation and wire protocol are Pi's. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
-- A profile's harness is server-owned and always `pi`: the Pi admin page cannot select another harness. Moving a service to another harness needs a profile-version path that sets `harness`.
+- Pi and Claude Code are the only adapters. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
+- The Claude Code adapter has not completed a live model round-trip: the available API key had no credit when it was built. Tool loading and failure mapping were verified live; everything else is covered only by tests with a scripted SDK.
+- The admin page is still titled and routed as the Pi page, though it now selects the harness. Its gateway check covers only the Pi gateway.
 - Run-time error codes still use the historical `gateway_*` names (for example `gateway_unavailable`) for every harness.
 - The Pi pilot has not completed the real-provider, signed-in user evaluation described in the handoff. Passing automated checks does not establish answer quality for any harness.
 - No second harness is selected. Worker isolation, credential handling, tool restriction, and data-handling compatibility must be assessed for the specific harness and deployment before implementation.
