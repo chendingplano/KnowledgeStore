@@ -12,14 +12,14 @@ Code Monitor gives the development workspace a daily history of configured parts
 
 ### Configuration
 
-Set repo-relative project paths in the `frontend.projects-to-monitor` string list in `ChenWeb/config.local.toml`. The current local configuration monitors `web/src` and `server`. Paths are resolved from the directory containing the main `ChenWeb/config.toml` file.
+Set project directory names in the `frontend.projects-to-monitor` string list in `ChenWeb/config.local.toml`. The current local configuration monitors `ChenWeb`. Names are resolved from the workspace root, the parent of the ChenWeb config directory.
 
 ### Counting rules
 
-- Only paths returned by `git ls-files` under each configured project path are considered.
+- Within each configured project, only paths returned by `git ls-files` under `web/src` and `server` are considered. Frontend metrics count recognized files in `web/src`; backend metrics count recognized files in `server`.
 - Frontend extensions: `.js`, `.jsx`, `.ts`, `.tsx`, `.svelte`, `.css`, `.scss`, `.html`, `.vue`, `.json`.
 - Backend extensions: `.go`, `.py`, `.rs`, `.java`, `.kt`, `.php`, `.rb`, `.sql`, `.sh`, `.yaml`, `.yml`, `.toml`.
-- Other extensions are ignored. The total line count sums physical lines in both recognized categories. Blank lines count; a final line without a newline counts; an empty file has zero lines.
+- The total line count sums physical lines in both directories. Blank lines count; a final line without a newline counts; an empty file has zero lines. Other extensions and files outside these directories are ignored.
 - A tracked file deleted from the worktree is skipped. Other read failures fail that project's collection for the date, while collection continues for other projects.
 
 ### Scheduling and persistence
