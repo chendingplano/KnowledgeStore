@@ -5,10 +5,11 @@ Date: 2026-09-15, updated 2026-10-20.
 Status:
 - **Pi Knowledge Desk:** built and tested automatically; the live pilot with a real model and a chosen user has **not** been run.
 - **Claude Code front end:** built and checked live against the real Claude Code on 2026-10-20. Its browser page works with Claude Code, but some page controls are not connected yet.
+- **Codex front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real Codex. Not yet checked in a browser.
 
 ChenWeb now connects to agent harnesses in two ways. A *harness* is the program that turns a model into a working assistant: Pi, Claude Code, Codex and so on.
 - **SemOS-owned services:** the Pi Knowledge Desk. ChenWeb keeps the conversation and controls the tools and citations.
-- **Harness front end:** Claude Code. ChenWeb is only the user interface, the way VS Code is for Claude Code.
+- **Harness front end:** Claude Code and Codex. ChenWeb is only the user interface, the way VS Code is for either.
 
 The design and the reasons for having two ways are in the devdoc `KnowledgeStore/doc-repo/devdocs/202610/2026101802-devdoc-harness-neutral-agentic-services.md`. Read that first.
 
@@ -152,10 +153,30 @@ Those runs left a few small test sessions ("Chenweb-ui-e2e…") in Claude Code's
 - Showing text written by Claude Code's helper agents (subagents).
 - Archiving the OpenSpec changes `harness-adapter-registry` and `harness-frontend-sessions` once the work is accepted.
 
+## 2a. Codex front end
+
+Codex is served the same way as Claude Code: Codex keeps its own instructions (`AGENTS.md`), tools, sandbox and approval rules, memories and thread history. ChenWeb only relays. It uses the server's Codex login (`~/.codex/auth.json`) and works in `/Users/cding/Workspace`. All routes are admin-only.
+
+The pieces:
+- `ChenWeb/gateways/codex/`: a private Bun service that drives the real Codex through `codex app-server`, the interface the Codex VS Code extension uses. Its README explains how Codex's approvals and questions are shown.
+- `server/api/routes.go` registers `codex` when `CODEX_GATEWAY_URL` and `CODEX_GATEWAY_SECRET` are set; `HARNESS_BY_AGENT` maps the **Codex** menu entry to it. Nothing else in ChenWeb changed.
+- Contract: `ChenWeb/openspec/changes/codex-harness-frontend/`.
+
+**Run it.** `mise dev-codex-gateway` from ChenWeb (port 4319). `mise.local.toml` already holds `CODEX_GATEWAY_URL`, a generated `CODEX_GATEWAY_SECRET` and `CODEX_WORKSPACE`. Restart `mise dev` so ChenWeb picks them up.
+
+**Verification (2026-10-20).** Gateway: 18 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests, `svelte-check` and the i18n check. Live, through ChenWeb's real handler: model list, a `Shell` approval that wrote a file after Allow, and a follow-up answered from Codex's memory. Gateway live check: tool use, history and session listing. Codex's questions and the browser page were not checked live.
+
+**Watch out.**
+- `~/.codex/config.toml` sets `model = "gpt-6.1-sol"`, which Codex says this ChatGPT account cannot use. A message sent without choosing a model fails with that error; pick one from the menu.
+- During testing Codex returned `429 Too Many Requests` for `gpt-5.6-sol` for several minutes, even though usage was low, while `gpt-5.6-luna` worked. The plain Codex CLI got the same 429, so this is on the account side.
+- The test runs left a few short threads ("Remember the codeword …", "Reply with the word hi only.") in Codex's history for the Workspace folder; they also show in VS Code.
+
+**Next steps (open).** Browser check of the Chat page with Codex; the Claude Code next steps (permission-mode switching, attachments, keeping tabs across reloads) apply to Codex too; MCP elicitations are declined for now.
+
 ## 3. Open decisions
 
 - Whether the Knowledge Desk moves to the front-end model, with Pi as a full harness, or stays SemOS-owned.
-- Which harness is connected next (Codex, Pi as a full harness, ...). Each needs its own review of how it runs, how it signs in, and what it can access before it is enabled.
+- Which harness is connected next (Pi as a full harness, OpenCode, ...). Each needs its own review of how it runs, how it signs in, and what it can access before it is enabled.
 
 ## 4. Where to continue
 
@@ -171,6 +192,7 @@ Those runs left a few small test sessions ("Chenweb-ui-e2e…") in Claude Code's
   - `ThirdParty/pi/gateway/`
   - `ChenWeb/web/src/routes/home3/agent-services/+page.svelte`
 - Evaluation checklist: `ChenWeb/server/api/agentservicehandler/testdata/evaluation-cases.json`
+- Codex front end: `ChenWeb/gateways/codex/` (start with its README), `ChenWeb/openspec/changes/codex-harness-frontend/`
 - Claude Code front end:
   - `ChenWeb/gateways/claude-code/` (start with its README)
   - `ChenWeb/server/api/harnessfrontend/`
