@@ -1,4 +1,4 @@
-# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code front end)
+# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code and Codex front ends)
 
 Date: 2026-09-15, updated 2026-10-20.
 
@@ -110,7 +110,7 @@ On the Chat page (Development → Workspace → Chat), choosing **Claude Code** 
 - **Approvals:** a card with Allow and Deny whenever Claude Code would ask in a terminal. Its questions appear as option buttons.
 - **Stop:** ends the running reply.
 - **Sessions menu:** reopens Claude Code's stored sessions with their history, including ones started in VS Code in the same folder.
-- **Other harnesses:** OpenClaw, Codex and the rest behave as before.
+- **Other harnesses:** Codex works the same way (section 2a). OpenClaw, Qwen Code, OpenCode and pi behave as before.
 
 The pieces:
 - `ChenWeb/gateways/claude-code/`: a private Bun service that runs the real Claude Code through the Claude Agent SDK, used only as the connection. Its README documents the routes, settings, login and permissions.
@@ -146,25 +146,34 @@ Those runs left a few small test sessions ("Chenweb-ui-e2e…") in Claude Code's
 ### Next steps (open)
 
 - Permission-mode switching (normal, accept edits, plan) on the Chat page.
-- Attachments, the Prompt picker and the result-format menu for Claude Code tabs.
+- Attachments, the Prompt picker and the result-format menu for harness tabs (Claude Code and Codex).
 - Keeping open tabs across a page reload.
 - More than one workspace folder.
 - Letting a reply keep running after the browser disconnects; today it stops.
 - Showing text written by Claude Code's helper agents (subagents).
-- Archiving the OpenSpec changes `harness-adapter-registry` and `harness-frontend-sessions` once the work is accepted.
+- Archiving the OpenSpec changes `harness-adapter-registry`, `harness-frontend-sessions` and `codex-harness-frontend` once the work is accepted.
 
 ## 2a. Codex front end
 
 Codex is served the same way as Claude Code: Codex keeps its own instructions (`AGENTS.md`), tools, sandbox and approval rules, memories and thread history. ChenWeb only relays. It uses the server's Codex login (`~/.codex/auth.json`) and works in `/Users/cding/Workspace`. All routes are admin-only.
+
+On the Chat page, choosing **Codex** in the harness menu gives the same controls as Claude Code:
+- **Model menu:** the models Codex offers the account (its own model list, Codex's default first).
+- **Tool calls:** Codex's commands appear as `Shell`, file changes as `Edit`, MCP calls as `mcp__<server>__<tool>`, web searches as `WebSearch`, subagent calls as `Agent`.
+- **Approvals:** a card whenever Codex would ask in its own UI: a command or file change outside its sandbox, or a request for more permissions. Allow sends Codex `accept`, Deny sends `decline`.
+- **Questions:** Codex's questions appear as option buttons, like Claude Code's.
+- **Stop** and the **Sessions menu** work as for Claude Code; the menu includes Codex threads started in VS Code or a terminal in the same folder.
 
 The pieces:
 - `ChenWeb/gateways/codex/`: a private Bun service that drives the real Codex through `codex app-server`, the interface the Codex VS Code extension uses. Its README explains how Codex's approvals and questions are shown.
 - `server/api/routes.go` registers `codex` when `CODEX_GATEWAY_URL` and `CODEX_GATEWAY_SECRET` are set; `HARNESS_BY_AGENT` maps the **Codex** menu entry to it. Nothing else in ChenWeb changed.
 - Contract: `ChenWeb/openspec/changes/codex-harness-frontend/`.
 
+No database migration is involved. The gateway strips `OPENAI_API_KEY`, `CODEX_API_KEY` and ChenWeb's other secrets from Codex's environment, so Codex always uses its own login.
+
 **Run it.** `mise dev-codex-gateway` from ChenWeb (port 4319). `mise.local.toml` already holds `CODEX_GATEWAY_URL`, a generated `CODEX_GATEWAY_SECRET` and `CODEX_WORKSPACE`. Then restart `mise dev` itself, not just let `air` rebuild. Until ChenWeb restarts, it has not registered Codex, and selecting Codex shows "Models unavailable" in the model menu. This happened on 2026-10-20: `mise dev` had been running since 07:31, before the settings were added.
 
-**Verification (2026-10-20).** Gateway: 18 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests, `svelte-check` and the i18n check. Live, through ChenWeb's real handler: model list, a `Shell` approval that wrote a file after Allow, and a follow-up answered from Codex's memory. Gateway live check: tool use, history and session listing. Codex's questions and the browser page were not checked live.
+**Verification (2026-10-20).** Gateway: 18 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests, `svelte-check` and the i18n check. Live, through ChenWeb's real handler: model list, a `Shell` approval that wrote a file after Allow, and a follow-up answered from Codex's memory. Gateway live check: tool use, history and session listing. Codex's questions and the browser page were not checked live. To repeat the Go live test against Codex: `HARNESS_NAME=codex HARNESS_MODEL=gpt-5.6-luna HARNESS_GATEWAY_URL=http://127.0.0.1:4319 HARNESS_GATEWAY_SECRET=... go test -tags live -run TestLive ./api/harnessfrontend/` from `ChenWeb/server`; the gateway's own check is `CODEX_WORKSPACE=/Users/cding/Workspace bun run live-check.ts` in `gateways/codex`.
 
 **Watch out.**
 - `~/.codex/config.toml` sets `model = "gpt-6.1-sol"`, which Codex says this ChatGPT account cannot use. A message sent without choosing a model fails with that error; pick one from the menu.
@@ -185,6 +194,7 @@ The pieces:
 - Contracts:
   - `ChenWeb/openspec/changes/harness-adapter-registry/`
   - `ChenWeb/openspec/changes/harness-frontend-sessions/`
+  - `ChenWeb/openspec/changes/codex-harness-frontend/`
   - `ChenWeb/openspec/specs/agent-conversation-history/spec.md`
 - Pi operations and access setup: `ChenWeb/docs/pi-agentic-services-operations.md`
 - Knowledge Desk code:
@@ -204,6 +214,5 @@ Commits are separate in ChenWeb, `ThirdParty/pi` and KnowledgeStore. The 2026-10
 - `rvwr` and `umou`: a Claude Code services adapter, built and then reverted;
 - `tyqq`: the front end;
 - `plml`: the model menu;
-- `txkz`: the chat page.
-
-The ChenWeb working copy also holds uncommitted `server/api/kbhandler` changes. They are unrelated to this work and were not part of these commits.
+- `txkz`: the chat page;
+- `xyun`: the Codex front end (gateway, registration, menu entry, OpenSpec change).

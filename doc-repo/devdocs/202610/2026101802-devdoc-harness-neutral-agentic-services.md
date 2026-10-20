@@ -103,11 +103,11 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 **Harness front end (both harnesses)**
 - It works in one folder (`/Users/cding/Workspace`).
 - A reply stops if the browser disconnects; nothing runs unattended.
-- The Chat page cannot yet switch permission mode (normal, accept edits, plan). Attachments, the Prompt picker and the result-format menu are not connected for Claude Code tabs.
+- The Chat page cannot yet switch permission mode (normal, accept edits, plan). Attachments, the Prompt picker and the result-format menu are not connected for harness tabs.
 - Open tabs are not kept when the page is reloaded; earlier sessions are reopened from the Sessions menu.
-- Text written by Claude Code's helper agents (subagents) is not streamed; their tool use is shown.
-- Claude Code's hidden reasoning is never shown.
-- Sessions started from ChenWeb also appear in VS Code's session list, and the other way round, because Claude Code keeps one history for the folder.
+- Text written by a harness's helper agents (subagents) is not streamed. For Claude Code, their tool use is shown; for Codex, only the call that starts or messages a subagent (shown as `Agent`).
+- Hidden reasoning is never shown, for either harness.
+- Sessions started from ChenWeb also appear in VS Code's session list, and the other way round, because each harness keeps one history for the folder (Claude Code in `~/.claude/projects`, Codex in `~/.codex/sessions`).
 - A harness's gateway must be running for it to work in ChenWeb; neither gateway is started with `mise dev`.
 - If the model menu shows "Models unavailable" after a harness is selected, ChenWeb could not get that harness's model list. Check, in this order:
   1. ChenWeb was started after the harness's settings were added. On 2026-10-20, Codex showed "Models unavailable" because `mise dev` had been running since before the `CODEX_*` settings existed; restarting it fixed this.
@@ -115,6 +115,8 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
   3. The harness itself can list models; for example, the machine is still signed in to it.
 
 **Harness front end (Codex only)**
+- The gateway runs one `codex app-server` process for all sessions. If it exits, running replies end with an error, and the next message starts a new one and resumes the thread.
+- Permission modes map to Codex's sandbox: normal leaves Codex's own configuration in charge, accept edits uses `workspace-write`, and plan uses `read-only`. The Chat page cannot switch modes yet.
 - Codex's MCP elicitations (a form or link an MCP server asks the user for) are declined, because the Chat page cannot show them. Codex questions that expect free text get only the listed options.
 - A message sent without a model uses `model` from `~/.codex/config.toml`. On 2026-10-20 that was `gpt-6.1-sol`, which Codex reports this ChatGPT account cannot use, so such turns fail with Codex's error. Choosing a model from the menu avoids it.
 - On macOS, Codex's default sandbox can write to temporary folders such as `/tmp` without asking; only writes outside the workspace and those folders raise an approval.
