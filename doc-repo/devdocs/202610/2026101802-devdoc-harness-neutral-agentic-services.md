@@ -158,7 +158,7 @@ The Pi integration now has an administrator page at **Development → Coding Ass
 ## 3. Known limitations
 
 - Pi is the only adapter in the SemOS-owned services model. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
-- In the browser, only the chat page's model menu uses the harness front end so far. Sending, streaming, sessions and permission prompts are not wired to the page yet.
+- Chat page (`chatter-01.svelte`, Development → Chat): with Claude Code selected, it sends messages to Claude Code and streams the reply. It shows tool calls, approval cards (option buttons for Claude Code's questions), Stop, and a Sessions menu that reopens stored sessions with their history. Not yet supported: permission-mode switching, attachments, and the page's Prompt/Result-format controls for harness tabs. Tabs are not kept across page reloads; reopen sessions from the Sessions menu.
 - It supports one workspace folder, and does not keep a turn running after the browser disconnects.
 - Subagent text is not streamed; subagent tool calls are, with their parent ID.
 - Whether the Knowledge Desk services move to the front-end model is undecided.
