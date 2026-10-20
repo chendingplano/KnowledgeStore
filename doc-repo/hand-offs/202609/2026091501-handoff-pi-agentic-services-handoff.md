@@ -1,43 +1,187 @@
-# Handoff: Pi-powered agentic services in ChenWeb
+# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code front end)
 
-Date: 2026-09-15. Status: implementation and automated verification complete; a live pilot with a real model and selected user has **not** yet been run.
+Date: 2026-09-15, updated 2026-10-20.
 
-## What is ready
+Status:
+- **Pi Knowledge Desk:** built and tested automatically; the live pilot with a real model and a chosen user has **not** been run.
+- **Claude Code front end:** built and checked live against the real Claude Code on 2026-10-20. Its browser page works with Claude Code, but some page controls are not connected yet.
 
-ChenWeb now has two guides, identified by the slugs `knowledge-guide` and `problem-diagnostics`. Both use the same Knowledge Desk page at `/home3/agent-services`, but each has its own prompt, model/provider settings, limits, and knowledge scope. Signed-in users can create, reopen, delete, and rate conversations; ask questions; see streamed answers, plain-language tool activity, and checked source cards; choose ask-before-use or automatic read-tool permission; and stop a run.
+ChenWeb now connects to agent harnesses in two ways. A *harness* is the program that turns a model into a working assistant: Pi, Claude Code, Codex and so on.
+- **SemOS-owned services:** the Pi Knowledge Desk. ChenWeb keeps the conversation and controls the tools and citations.
+- **Harness front end:** Claude Code. ChenWeb is only the user interface, the way VS Code is for Claude Code.
 
-The browser talks only to ChenWeb. ChenWeb owns the user check, conversation storage, source access checks, and the final answer signal. A loopback-only gateway in `ThirdParty/pi` runs Pi with five bounded, read-only ChenWeb knowledge tools: hybrid search, source passages, artifact details, document context, and related knowledge. Pi receives a short-lived run capability—not the browser's sign-in credential or database access. Source-dependent answers become complete only after ChenWeb verifies and saves their citations. Previously saved answers whose source access or version changed are hidden on resume and omitted from later Pi history.
+The design and the reasons for having two ways are in the devdoc `KnowledgeStore/doc-repo/devdocs/202610/2026101802-devdoc-harness-neutral-agentic-services.md`. Read that first.
 
-Three project migrations create the agentic tables, explicit user knowledge grants, and a one-active-turn guard. The prompts are stored under `ChenWeb/prompts`, not in code. Profile pilot users are not exposed in the service-list response.
+## 1. Pi Knowledge Desk
 
-## Start a pilot
+### What is ready
 
-Use [the operations guide](pi-agentic-services-operations.md) for exact setup. In brief: configure the project database and Pi provider credential; give ChenWeb and Pi the same private `PI_GATEWAY_SECRET`; give ChenWeb a separate `PI_RUN_CAPABILITY_SECRET`; set `PI_GATEWAY_DIR` to the installed `ThirdParty/pi`; restrict the profile's pilot users as desired; and grant the chosen signed-in user access to the **verified numeric** knowledge-store ID. Then run `mise dev-agent-services` from ChenWeb and open Workspace → Knowledge Desk. The gateway defaults to `127.0.0.1:4317` and must not be publicly proxied.
+ChenWeb has two guides, `knowledge-guide` and `problem-diagnostics`, on the Knowledge Desk page (Workspace → Knowledge Desk, `/home3/agent-services`). Each has its own prompt, model, limits and knowledge scope. Signed-in users can:
+- create, reopen, delete and rate conversations;
+- ask questions and see streamed answers, plain-language tool activity and checked source cards;
+- choose ask-before-use or automatic permission for the read tools;
+- stop a run.
 
-The grant is currently provisioned by an operator, not by a ChenWeb admin page. A visible guide alone is not a knowledge grant. Choose the user, store/tenant, document scope, expiry, and model/provider disclosure before inviting pilot users. Conversation data remains until the user deletes it; there is no automatic retention job in this proof of concept.
+**How it is put together.**
+- The browser talks only to ChenWeb. ChenWeb owns the user check, conversation storage, source access checks and the final answer.
+- A loopback-only gateway in `ThirdParty/pi` runs Pi with ChenWeb's read-only knowledge tools: hybrid search, source passages, artifact details, document context and related knowledge. A sixth tool returns the full stored result of an earlier tool call.
+- Pi receives a short-lived run capability, never the browser's sign-in or database access.
+- An answer that depends on sources becomes complete only after ChenWeb verifies and saves its citations.
 
-## Verification completed
+**Changed since 2026-09-15.**
+- **Knowledge stores (09-30).** Each run tells Pi which knowledge stores the user may use, and which one is the default. A user with no granted store can still chat, but gets no knowledge tools.
+- **History (10-04):**
+  - Earlier turns are resent to Pi within a token budget, and older turns are folded into a rolling summary. Conversations get titles.
+  - Tool calls are stored and replayed with later turns.
+- **Snapshot rule (10-04).** This **replaces the 09-15 behavior** of hiding answers whose sources changed. Saved history younger than `PI_HISTORY_SNAPSHOT_DUR` (default 48 hours) is shown and resent exactly as saved. In older history, sources and tool results for documents the user can no longer access are removed. Answers are never hidden.
+- **Profiles (10-18).** Service profiles are now immutable, numbered versions stored in the database. They are managed on an admin page: Development → Coding Assistant → Harnesses → Pi. New conversations use the active version; existing ones keep theirs.
+- **Adapter registry (10-20).** Pi runs through an adapter registry. Before a service runs, ChenWeb checks that its harness supports what the service needs. Each run records its harness, adapter version and model in `kb.agentic_response_attempts`. Pi is the only adapter.
 
-- Pi gateway: 17 Bun tests pass; TypeScript check passes.
-- ChenWeb frontend: 374 Bun tests pass; Svelte/TypeScript check has 0 errors and 2 pre-existing CSS compatibility warnings; static build succeeds and is copied into the server embed directory.
-- ChenWeb backend: `go test ./...`, `go vet ./...`, and `mise build-server` pass.
-- The three new goose migrations passed up → down → up in a dedicated empty PostgreSQL probe database. The probe database and copied migration files were removed afterward; no existing ChenWeb database was changed by that cycle.
+Project migrations create:
+- the conversation tables;
+- explicit user knowledge grants;
+- a one-active-turn guard;
+- the history-summary columns;
+- stored tool results;
+- profile versions;
+- the per-run harness columns.
 
-These checks include authentication-derived ownership, current user grants, source revocation after save, bounded tool responses, prompt/profile separation, SSE filtering, cancellation/approval controls, idempotent turn handling, partial answers on interruption, and failure settlement. They do **not** establish answer quality with a real provider model.
+Prompts are under `ChenWeb/prompts`, not in code.
 
-## Next acceptance step
+### Start a pilot
 
-Run a real signed-in browser pilot with one chosen user and a current provider credential. Work through [the evaluation cases](../server/api/agentservicehandler/testdata/evaluation-cases.json) for both guides: normal evidence, ambiguity, missing evidence, conflicting sources, a hostile document, denied access, and access revoked after saving. Record the actual answer and its citations, then have a human review them. Do not widen access or treat the guides as safe for consequential decisions until that review is complete.
+Exact steps are in `ChenWeb/docs/pi-agentic-services-operations.md`. In brief:
+1. Configure the project database and the Pi provider credential.
+2. Give ChenWeb and Pi the same private `PI_GATEWAY_SECRET`.
+3. Give ChenWeb a separate `PI_RUN_CAPABILITY_SECRET`.
+4. Set `PI_GATEWAY_DIR` to `ThirdParty/pi`.
+5. Grant the chosen signed-in user access to the **verified numeric** knowledge-store ID.
+6. Run `mise dev-agent-services` from ChenWeb and open Workspace → Knowledge Desk.
 
-The source cards currently open ChenWeb's knowledge-document page and display the exact record ID plus line/page/artifact references; they do not yet jump directly to the cited line. An admin grant UI, automatic retention policy, and deployment/monitoring beyond this local loopback pilot were intentionally not added. Those are separate decisions for a wider rollout.
+The gateway listens on `127.0.0.1:4317` and must not be publicly proxied. After the first start, change profiles on the admin page; environment variables only seed the first version.
 
-## Where to continue
+Grants are still created by an operator; there is no grant admin page. A visible guide is not a knowledge grant. Before inviting pilot users, choose:
+- the user;
+- the store and tenant;
+- the document scope;
+- the expiry;
+- the model/provider disclosure.
 
-- Plain-language intent: `KnowledgeStore/doc-repo/requirements/202609/2026091401-requirements-pi-agentic-services-for-chenweb.md`
-- Operations and access setup: `ChenWeb/docs/pi-agentic-services-operations.md`
-- ChenWeb API, persistence, and tests: `ChenWeb/server/api/agentservicehandler/`
-- Pi gateway and tests: `ThirdParty/pi/gateway/`
-- Knowledge Desk UI: `ChenWeb/web/src/routes/home3/agent-services/+page.svelte`
+Conversation data stays until the user deletes it; there is no retention job.
+
+### Verification
+
+On 2026-09-15:
+- Pi gateway: 17 tests and the TypeScript check passed.
+- ChenWeb frontend: 374 tests passed.
+- ChenWeb backend: `go test ./...`, `go vet ./...` and `mise build-server` passed.
+- The first three migrations passed up → down → up on an empty probe database.
+
+Each later change was committed with its own tests passing. On 2026-10-20, the `agentservicehandler` tests, `go vet` and `mise build-server` passed. One existing migration test was fixed: it had started failing after the migration file was reformatted, and its check no longer depends on spacing.
+
+These checks do **not** establish answer quality with a real model.
+
+### Next acceptance step (still open)
+
+Run a real signed-in browser pilot with one chosen user and a current provider credential. Work through the evaluation cases in `ChenWeb/server/api/agentservicehandler/testdata/evaluation-cases.json` for both guides:
+- normal evidence;
+- ambiguity;
+- missing evidence;
+- conflicting sources;
+- a hostile document;
+- denied access;
+- access revoked after saving.
+
+Record each answer with its citations and have a person review them. Do not widen access, or rely on the guides for consequential decisions, until that review is done.
+
+Source cards open ChenWeb's knowledge-document page and show the record ID and line/page/artifact references; they do not jump to the cited line. A grant admin page, a retention policy, and deployment and monitoring beyond the local loopback pilot were left out on purpose. They are separate decisions for a wider rollout.
+
+## 2. Claude Code front end
+
+### What is ready
+
+Claude Code runs as itself: its own instructions, tools, MCP servers, skills, memory, settings and session history. ChenWeb sends messages, streams the replies, and passes approvals back; it stores nothing about these conversations. Claude Code uses the server's own Claude Code login (no API key) and works in `/Users/cding/Workspace`. It can do any task Claude Code can, so every route is admin-only.
+
+On the Chat page (Development → Workspace → Chat), choosing **Claude Code** in the harness menu gives:
+- **Model menu:** the models Claude Code offers the account, the same list as its `/model` picker.
+- **Replies:** messages stream in, with answers rendered as Markdown (raw HTML is shown as text).
+- **Tool calls:** shown as rows that expand to their input and result.
+- **Approvals:** a card with Allow and Deny whenever Claude Code would ask in a terminal. Its questions appear as option buttons.
+- **Stop:** ends the running reply.
+- **Sessions menu:** reopens Claude Code's stored sessions with their history, including ones started in VS Code in the same folder.
+- **Other harnesses:** OpenClaw, Codex and the rest behave as before.
+
+The pieces:
+- `ChenWeb/gateways/claude-code/`: a private Bun service that runs the real Claude Code through the Claude Agent SDK, used only as the connection. Its README documents the routes, settings, login and permissions.
+- `ChenWeb/server/api/harnessfrontend/`: admin-only relay routes under `/api/v1/harness-frontend/:harness/...`.
+- The chat page files: `chatter-01.svelte`, `harness-dialog.svelte` and `harness-conversation.ts` in `web/src/lib/components/shared-ui/`, and `web/src/lib/services/harnessFrontendService.ts`.
+
+No database migration is involved.
+
+### Run it
+
+1. Start the gateway with `mise dev-claude-code-gateway` from ChenWeb.
+2. ChenWeb's `mise.local.toml` (not committed) already holds `CLAUDE_CODE_GATEWAY_URL=http://127.0.0.1:4318`, a generated `CLAUDE_CODE_GATEWAY_SECRET` and `CLAUDE_CODE_WORKSPACE=/Users/cding/Workspace`.
+3. Restart `mise dev` whenever those settings change.
+
+The gateway is **not** started by `mise dev`; Claude Code appears only while it runs. The gateway removes `ANTHROPIC_API_KEY` from Claude Code's environment, because that key would override the Claude Code login, and it currently has no credit.
+
+### Verification
+
+On 2026-10-20:
+- Gateway: 13 tests and the TypeScript check passed.
+- ChenWeb: Go tests, `go vet` and `mise build-server` passed. Frontend: 9 tests, `svelte-check` and the i18n check passed.
+
+Live checks against the real Claude Code with the Claude Code login:
+- the model list loaded;
+- a file write raised an approval card in the Chat page, and the file was written after approval;
+- a follow-up message was answered from Claude Code's own memory;
+- reopening an earlier session showed its full history.
+
+For the browser check, ChenWeb's real handler ran on a side port with a stand-in admin user, because there is no test login. The live test for the Go relay is `go test -tags live ./api/harnessfrontend/` against a running gateway.
+
+Those runs left a few small test sessions ("Chenweb-ui-e2e…") in Claude Code's history for the Workspace folder. They also show in VS Code's session list and can be deleted there.
+
+### Next steps (open)
+
+- Permission-mode switching (normal, accept edits, plan) on the Chat page.
+- Attachments, the Prompt picker and the result-format menu for Claude Code tabs.
+- Keeping open tabs across a page reload.
+- More than one workspace folder.
+- Letting a reply keep running after the browser disconnects; today it stops.
+- Showing text written by Claude Code's helper agents (subagents).
+- Archiving the OpenSpec changes `harness-adapter-registry` and `harness-frontend-sessions` once the work is accepted.
+
+## 3. Open decisions
+
+- Whether the Knowledge Desk moves to the front-end model, with Pi as a full harness, or stays SemOS-owned.
+- Which harness is connected next (Codex, Pi as a full harness, ...). Each needs its own review of how it runs, how it signs in, and what it can access before it is enabled.
+
+## 4. Where to continue
+
+- Design and status: `KnowledgeStore/doc-repo/devdocs/202610/2026101802-devdoc-harness-neutral-agentic-services.md`
+- Plain-language intent of the Pi services: `KnowledgeStore/doc-repo/requirements/202609/2026091401-rqmt-pi-agentic-services-for-chenweb.md`
+- Contracts:
+  - `ChenWeb/openspec/changes/harness-adapter-registry/`
+  - `ChenWeb/openspec/changes/harness-frontend-sessions/`
+  - `ChenWeb/openspec/specs/agent-conversation-history/spec.md`
+- Pi operations and access setup: `ChenWeb/docs/pi-agentic-services-operations.md`
+- Knowledge Desk code:
+  - `ChenWeb/server/api/agentservicehandler/`
+  - `ThirdParty/pi/gateway/`
+  - `ChenWeb/web/src/routes/home3/agent-services/+page.svelte`
 - Evaluation checklist: `ChenWeb/server/api/agentservicehandler/testdata/evaluation-cases.json`
+- Claude Code front end:
+  - `ChenWeb/gateways/claude-code/` (start with its README)
+  - `ChenWeb/server/api/harnessfrontend/`
+  - `ChenWeb/web/src/lib/components/shared-ui/chatter-01.svelte`
 
-The implementation commits were made separately in ChenWeb and Pi. The unrelated, previously uncommitted OpenSpec/auth/knowledge-page changes in the ChenWeb main worktree were preserved and are not part of this handoff.
+Commits are separate in ChenWeb, `ThirdParty/pi` and KnowledgeStore. The 2026-10-20 ChenWeb commits are:
+- `luzm`: migration test fix;
+- `zxwq`: adapter registry;
+- `rvwr` and `umou`: a Claude Code services adapter, built and then reverted;
+- `tyqq`: the front end;
+- `plml`: the model menu;
+- `txkz`: the chat page.
+
+The ChenWeb working copy also holds uncommitted `server/api/kbhandler` changes. They are unrelated to this work and were not part of these commits.
