@@ -92,7 +92,7 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - **Earlier sessions:** reopening an earlier session showed its full history.
 
 **Verified on 2026-10-20 against the real Codex** (codex-cli 0.146.0), using the Codex login (ChatGPT Plus), with no API key involved, through ChenWeb's real handler (`HARNESS_NAME=codex go test -tags live ./api/harnessfrontend/`) and the gateway's `live-check.ts`:
-- **Model list:** the three models Codex offers the account (GPT-5.6-Sol, -Terra, -Luna).
+- **Model list:** the models Codex offers the account: three under codex-cli 0.146.0, and seven after the upgrade to 0.163.0 (GPT-6.1-Sol as the default). A turn on GPT-6.1-Sol was checked under 0.163.0.
 - **Approval:** a write to the home folder raised a `Shell` approval; after Allow, the file was written.
 - **Memory:** a follow-up message was answered from Codex's own thread.
 - **Earlier sessions:** the thread was listed with the workspace's VS Code threads, and its history was read back.
@@ -118,7 +118,7 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - The gateway runs one `codex app-server` process for all sessions. If it exits, running replies end with an error, and the next message starts a new one and resumes the thread.
 - Permission modes map to Codex's sandbox: normal leaves Codex's own configuration in charge, accept edits uses `workspace-write`, and plan uses `read-only`. The Chat page cannot switch modes yet.
 - Codex's MCP elicitations (a form or link an MCP server asks the user for) are declined, because the Chat page cannot show them. Codex questions that expect free text get only the listed options.
-- A message sent without a model uses `model` from `~/.codex/config.toml`. On 2026-10-20 that was `gpt-6.1-sol`, which Codex reports this ChatGPT account cannot use, so such turns fail with Codex's error. Choosing a model from the menu avoids it.
+- A message sent without a model uses `model` from `~/.codex/config.toml` (`gpt-6.1-sol` on 2026-10-20). The model menu follows Codex: after Codex was upgraded from 0.146.0 to 0.163.0 on 2026-10-20, the menu grew from three models to seven with no change in ChenWeb. Under 0.146.0, `gpt-6.1-sol` was not offered and turns without a model failed; under 0.163.0 they work.
 - On macOS, Codex's default sandbox can write to temporary folders such as `/tmp` without asking; only writes outside the workspace and those folders raise an approval.
 - Codex reports tokens, not cost, so the reported cost is always 0.
 
