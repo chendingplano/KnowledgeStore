@@ -123,7 +123,7 @@ No database migration is involved.
 
 1. Start the gateway with `mise dev-claude-code-gateway` from ChenWeb.
 2. ChenWeb's `mise.local.toml` (not committed) already holds `CLAUDE_CODE_GATEWAY_URL=http://127.0.0.1:4318`, a generated `CLAUDE_CODE_GATEWAY_SECRET` and `CLAUDE_CODE_WORKSPACE=/Users/cding/Workspace`.
-3. Restart `mise dev` whenever those settings change.
+3. Restart `mise dev` itself whenever those settings change. An automatic rebuild by `air` is not enough: the server keeps the settings `mise dev` started with.
 
 The gateway is **not** started by `mise dev`; Claude Code appears only while it runs. The gateway removes `ANTHROPIC_API_KEY` from Claude Code's environment, because that key would override the Claude Code login, and it currently has no credit.
 
@@ -162,7 +162,7 @@ The pieces:
 - `server/api/routes.go` registers `codex` when `CODEX_GATEWAY_URL` and `CODEX_GATEWAY_SECRET` are set; `HARNESS_BY_AGENT` maps the **Codex** menu entry to it. Nothing else in ChenWeb changed.
 - Contract: `ChenWeb/openspec/changes/codex-harness-frontend/`.
 
-**Run it.** `mise dev-codex-gateway` from ChenWeb (port 4319). `mise.local.toml` already holds `CODEX_GATEWAY_URL`, a generated `CODEX_GATEWAY_SECRET` and `CODEX_WORKSPACE`. Restart `mise dev` so ChenWeb picks them up.
+**Run it.** `mise dev-codex-gateway` from ChenWeb (port 4319). `mise.local.toml` already holds `CODEX_GATEWAY_URL`, a generated `CODEX_GATEWAY_SECRET` and `CODEX_WORKSPACE`. Then restart `mise dev` itself, not just let `air` rebuild. Until ChenWeb restarts, it has not registered Codex, and selecting Codex shows "Models unavailable" in the model menu. This happened on 2026-10-20: `mise dev` had been running since 07:31, before the settings were added.
 
 **Verification (2026-10-20).** Gateway: 18 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests, `svelte-check` and the i18n check. Live, through ChenWeb's real handler: model list, a `Shell` approval that wrote a file after Allow, and a follow-up answered from Codex's memory. Gateway live check: tool use, history and session listing. Codex's questions and the browser page were not checked live.
 

@@ -72,7 +72,7 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - `ChenWeb/server/api/harnessfrontend/` — ChenWeb's admin-only routes under `/api/v1/harness-frontend/:harness/...` (models, sessions, history, send, stop, approve), which relay to the gateway.
 - `ChenWeb/gateways/codex/` — the same kind of service for Codex. It drives the real Codex through `codex app-server`, the interface the Codex VS Code extension uses. Its README documents the routes, settings and how Codex's approvals and questions are shown. Start it with `mise dev-codex-gateway`.
 - Chat page: `web/src/lib/components/shared-ui/chatter-01.svelte`, with `harness-dialog.svelte` and `harness-conversation.ts` beside it, and `web/src/lib/services/harnessFrontendService.ts`. `HARNESS_BY_AGENT` in that service decides which entries in the harness menu are served by a gateway (currently Claude Code and Codex).
-- Settings in ChenWeb's `mise.local.toml`: `CLAUDE_CODE_GATEWAY_URL`, `CLAUDE_CODE_GATEWAY_SECRET`, `CLAUDE_CODE_WORKSPACE`, and for Codex `CODEX_GATEWAY_URL`, `CODEX_GATEWAY_SECRET`, `CODEX_WORKSPACE`. A harness's routes exist in ChenWeb only when its URL and secret are set.
+- Settings in ChenWeb's `mise.local.toml`: `CLAUDE_CODE_GATEWAY_URL`, `CLAUDE_CODE_GATEWAY_SECRET`, `CLAUDE_CODE_WORKSPACE`, and for Codex `CODEX_GATEWAY_URL`, `CODEX_GATEWAY_SECRET`, `CODEX_WORKSPACE`. A harness's routes exist in ChenWeb only when its URL and secret are set. ChenWeb reads them only when `mise dev` starts. When the Go code is rebuilt (by `air`), the server keeps the settings it started with, so after adding or changing a gateway setting, restart `mise dev` itself.
 - A new harness joins by getting its own gateway that speaks the same protocol (the gateway READMEs describe it), one entry in the gateway list in `server/api/routes.go`, and one entry in `HARNESS_BY_AGENT`. Codex was added this way with no change to `harnessfrontend` or the chat page.
 
 **SemOS-owned services**
@@ -109,6 +109,10 @@ A harness that cannot be held to these rules cannot be a services adapter. The f
 - Claude Code's hidden reasoning is never shown.
 - Sessions started from ChenWeb also appear in VS Code's session list, and the other way round, because Claude Code keeps one history for the folder.
 - A harness's gateway must be running for it to work in ChenWeb; neither gateway is started with `mise dev`.
+- If the model menu shows "Models unavailable" after a harness is selected, ChenWeb could not get that harness's model list. Check, in this order:
+  1. ChenWeb was started after the harness's settings were added. On 2026-10-20, Codex showed "Models unavailable" because `mise dev` had been running since before the `CODEX_*` settings existed; restarting it fixed this.
+  2. The harness's gateway is running (`mise dev-claude-code-gateway` or `mise dev-codex-gateway`).
+  3. The harness itself can list models; for example, the machine is still signed in to it.
 
 **Harness front end (Codex only)**
 - Codex's MCP elicitations (a form or link an MCP server asks the user for) are declined, because the Chat page cannot show them. Codex questions that expect free text get only the listed options.
