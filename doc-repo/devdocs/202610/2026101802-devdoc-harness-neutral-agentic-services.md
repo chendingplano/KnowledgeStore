@@ -137,6 +137,8 @@ ChenWeb stores nothing about these conversations. There is no ChenWeb table: ses
   Hidden reasoning is not relayed. The protocol is harness-neutral: another harness gets its own gateway speaking it.
 - **ChenWeb** `server/api/harnessfrontend`: a protocol-v1 client per configured gateway. It exposes admin-only routes under `/api/v1/harness-frontend/:harness/...` and relays turns as SSE. Claude Code is registered when `CLAUDE_CODE_GATEWAY_URL` and `CLAUDE_CODE_GATEWAY_SECRET` are set.
 
+**Models.** The harness decides which models it offers. The gateway asks Claude Code for the list its `/model` picker shows the signed-in account (`supportedModels()`, without sending a message): aliases such as `default`, `opus` and `sonnet`, plus pinned model IDs. ChenWeb relays the list at `GET /api/v1/harness-frontend/:harness/models`. The chat page's model menu (`chatter-01.svelte`) shows it when the selected agent is harness-backed (`HARNESS_BY_AGENT`, currently Claude Code only) and keeps its configured list for other agents. A turn's `model` starts a new session on that model, or switches a live session as `/model` does.
+
 **Permissions.** Claude Code's own permission rules decide first. Calls it would prompt for in a terminal become `permission_request` events, and ChenWeb answers allow or deny. An allow can carry `updatedInput`, which is how answers to `AskUserQuestion` are returned. Modes `default`, `acceptEdits` and `plan` are accepted; `bypassPermissions` is refused. A turn whose client disconnects is interrupted.
 
 **Trust.** Claude Code has shell and file access as the server's OS user, so every front-end route is admin-only. This model does not carry the §2.5 invariants, which belong to SemOS-owned services.
@@ -156,7 +158,7 @@ The Pi integration now has an administrator page at **Development → Coding Ass
 ## 3. Known limitations
 
 - Pi is the only adapter in the SemOS-owned services model. A new adapter must emit the same newline-delimited normalized events that `RunEventCollector` accepts.
-- The harness front end has no browser page yet; only its API exists.
+- In the browser, only the chat page's model menu uses the harness front end so far. Sending, streaming, sessions and permission prompts are not wired to the page yet.
 - It supports one workspace folder, and does not keep a turn running after the browser disconnects.
 - Subagent text is not streamed; subagent tool calls are, with their parent ID.
 - Whether the Knowledge Desk services move to the front-end model is undecided.
