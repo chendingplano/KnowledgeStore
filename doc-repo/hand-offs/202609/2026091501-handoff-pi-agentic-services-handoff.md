@@ -232,7 +232,7 @@ On the Chat page, choosing **pi** in the harness menu (the entry was already the
 - `ThirdParty/pi` (its own repository): removed the `harness-session-persistence` extension, which copied every Pi session into `kb.harness_sessions` / `kb.harness_messages`, and its `postgres` dependency.
 - OpenSpec change: `ChenWeb/openspec/changes/pi-harness-frontend/`.
 
-No database migration is involved. The gateway strips provider keys and ChenWeb's other secrets from Pi's environment (a wider filter than the other gateways'), so Pi uses its own login; `PI_HARNESS_PASS_ENV` lets through keys that Pi's own configuration names.
+No database migration is involved. The gateway strips provider keys and ChenWeb's other secrets from Pi's environment, so Pi uses its own login. On 2026-10-20 the same, wider filter (names containing `TOKEN`, `ENCRYPTION`, `CREDENTIAL` or `DATABASE_URL`, or ending in `_KEY` or `_DSN`, besides `SECRET`, `PASSWORD` and `API_KEY`) was applied to the Claude Code, Codex and DeepSeek Harness gateways too: the old one let `OPENMETADATA_ADMIN_TOKEN`, `PROMPT_OPTIMIZER_ENCRYPTION_KEY` and `TEST_DATABASE_URL` through to the harnesses; `PI_HARNESS_PASS_ENV` lets through keys that Pi's own configuration names.
 
 **Run it.** `mise dev-pi-harness-gateway` from ChenWeb (port 4321). `mise.local.toml` holds `PI_HARNESS_GATEWAY_URL`, a generated `PI_HARNESS_GATEWAY_SECRET`, `PI_HARNESS_WORKSPACE` and `PI_HARNESS_PASS_ENV=DASHSCOPE_API_KEY`. Then restart `mise dev` itself.
 
