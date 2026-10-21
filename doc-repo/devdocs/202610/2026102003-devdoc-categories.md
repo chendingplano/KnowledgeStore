@@ -1,6 +1,6 @@
 ---
 Date: 2026/10/20
-Status: Drafting
+Status: Implemented (core; see section 9)
 ---
 
 # Summary
@@ -406,3 +406,27 @@ in the connection shape, rather than writing a second copy of each binding.
 The existing `category_name` partition of `kb.artifact_connections` and
 `kb.artifact_categories` belong to ADR 2026071901 and are retired with it; no
 new bindings are written there.
+
+# 9. Implementation status
+
+Implemented 2026-10-21 as ChenWeb OpenSpec change `category-trees`
+(`ChenWeb/openspec/changes/category-trees/`, which holds the decisions below in detail).
+
+- **Built:** the section 8.1 tables (`project_migrations/20261021000001_create_kb_category_trees.sql`);
+  package `server/api/categorytree` with change sets, the section 3.3 validation, automatic
+  "others" leaves, revisions and replay, the section 4.3 stale marking, the section 5 walk,
+  publication, the review queue and an "others" report; HTTP API under `/api/kb/category-trees`,
+  `/api/kb/category-tree-types`, `/api/kb/category-classifications` and `/api/kb/category-bindings`.
+- **Artifact types:** only `metrics` has a source. Its proposals are `category_paths(_en)` and,
+  since those are empty in practice, the category keys in `metric_categories(_en)`.
+- **Decisions taken where this document left them open:** deleting a node retires its subtree;
+  one Jev `noul` question per candidate child (`CATEGORY_DECISION_MODEL`, a `.models.toml`
+  profile of type `decision-model` or `llm`); P >= 0.7 is a match, P <= 0.3 a non-match,
+  anything between is uncertain; R = 20; at most 60 requests and 2 retries per request per
+  artifact (all env vars). A failed request ends the attempt `failed`; uncertainty or an
+  exhausted budget ends it `in_review`. When the tree changes while an artifact is being
+  classified, its new bindings are published already stale.
+- **Not built:** a UI, a doc-processing pipeline stage (classification is started through the
+  API), the initial vocabulary and namespace, the evaluation sample, automatic checking that a
+  child's definition is narrower than its parent's, `skos:related`, and retirement of the
+  ADR 2026071901 data.
