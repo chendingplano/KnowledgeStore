@@ -151,4 +151,21 @@ Verified live on 2026-10-05 with `qwen-plus` and `qwen-turbo` on Jev's quickstar
 - **One call per question.** Cost and latency grow with the number of questions, unlike Jev's single call. Prefix caching only reduces the cost of the repeated state.
 - **Letter position bias.** Choice options are lettered in alphabetical key order, and a model may slightly favour early letters.
 - **Narrower question format than Jev.** No `noul` criteria, and no object/array `instructions` or `criteria`; this matches the shared `JevQuestion` type.
-- **Not selectable from ChenWeb config.** ChenWeb's `.models.toml` importer maps `decision-model` profiles only to `jev_compatible`; `jev_emulated` clients must be constructed in code. Exception: the Decision Model Playground (System Admin → LLM → Decision Models → Playground, requirement `2026100502-rqmt`) runs any `model_type = 'llm'` entry through `jev_emulated`, with `top_logprobs = 5` for DashScope base URLs and `temperature = omit` when `omit_temperature` is set. Since 2026-10-08 that mapping lives in `ChenWeb/server/api/decisionmodel` and is also used by `extract_metrics`, which picks its decision model with `METRIC_DECISION_MODEL` (a `.models.toml` profile) to judge value-open requirements (openspec change `metric-row-soft-drop-decision-model`).
+
+## ChenWeb configuration (`.models.toml`)
+
+Whether a `.models.toml` entry is a decision model, and which kind, is set by its fields (since 2026-10-23):
+
+| `model_type` | `decision_model_type` | Runs as |
+| --- | --- | --- |
+| `decision-model` | `native` | Real Jev service (`jev_compatible`). Example: `jev-latest`. |
+| `decision-model` | `emulated` | This provider (`jev_emulated`). Examples: `deepseek-flash-decision-model`, `chatgpt-decision-model`. |
+| `decision-model` | missing or anything else | **Error.** The attribute is mandatory for this type. |
+| `llm` | not used | This provider (`jev_emulated`): any ordinary chat model can be run as a decision model. |
+| other | not used | Cannot run decisions. |
+
+- The mapping lives in `ChenWeb/server/api/decisionmodel` (`Provider`, `ProviderConfig`). It also adds the per-provider settings above automatically: `top_logprobs = 5` for DashScope, `thinking = disabled` and `temperature = 1` for DeepSeek, and `temperature = omit` when `omit_temperature` is set.
+- The `.models.toml` importer rejects a file with an invalid `decision-model` entry, naming the profile. Only a `native` entry is imported as `jev_compatible`; an `emulated` one is classified by its base URL like any chat model.
+- The attribute is `DecisionModelType` on `ApiTypes.LLMModelDef` (`shared/go`), checked by `CheckDecisionModelType()`.
+- `extract_metrics` is stricter: `METRIC_DECISION_MODEL` must name a `model_type = 'decision-model'` profile (`RequireDecisionModel`); an `llm` profile is a configuration error there. The Playground still accepts `llm` profiles.
+- Users of this mapping: the Decision Model Playground (System Admin → LLM → Decision Models → Playground, requirement `2026100502-rqmt`; an invalid entry is logged and left out of its list), `extract_metrics` (`METRIC_DECISION_MODEL`, openspec change `metric-row-soft-drop-decision-model`), and category classification (`CATEGORY_DECISION_MODEL`, default `deepseek-flash-decision-model`, devdoc 2026102003).

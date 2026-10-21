@@ -40,7 +40,7 @@ metrics, and provisions. Category leaves store artifacts, so functionally each
 category is an index of the artifacts it holds. An artifact is classified
 against one category tree and may belong to multiple branches of it.
 
-This document is a proposal, not a description of implemented behavior. It is
+This document began as a proposal; section 9 records what is implemented. It is
 new, and its implementation is independent of the category-consolidation
 proposal (ADR 2026071901). It does not inherit that ADR's storage, hierarchy,
 or migration decisions, and the ADR will be retired gradually as this proposal
@@ -72,8 +72,8 @@ categories the artifact matches, and only those canonical categories are bound
 to the artifact. Classification never creates or changes categories; the tree
 is maintained manually or offline (section 4).
 
-A decision model such as [Jev](https://jev-ai.pro/docs) is a candidate for these
-membership decisions. The aim is to make classification cheap and fast; actual
+A decision model such as [Jev](https://jev-ai.pro/docs), or an emulated one built on a
+chat model (default: DeepSeek Flash), makes these membership decisions. The aim is to make classification cheap and fast; actual
 quality, latency, and cost must be measured before choosing a model. The key
 design change is reusing category identities and structure instead of repeatedly
 canonicalizing newly generated paths.
@@ -420,13 +420,148 @@ Implemented 2026-10-21 as ChenWeb OpenSpec change `category-trees`
 - **Artifact types:** only `metrics` has a source. Its proposals are `category_paths(_en)` and,
   since those are empty in practice, the category keys in `metric_categories(_en)`.
 - **Decisions taken where this document left them open:** deleting a node retires its subtree;
-  one Jev `noul` question per candidate child (`CATEGORY_DECISION_MODEL`, a `.models.toml`
-  profile of type `decision-model` or `llm`); P >= 0.7 is a match, P <= 0.3 a non-match,
+  one `noul` question per candidate child, answered by a decision model chosen with
+  `CATEGORY_DECISION_MODEL` (a `.models.toml` profile; default `deepseek-flash-decision-model`,
+  an emulated decision model, so no Jev account is needed). A profile of `model_type =
+  'decision-model'` must set `decision_model_type` to `native` (real Jev) or `emulated` (a chat
+  model answering through its logprobs), otherwise it is an error; a `model_type = 'llm'` profile
+  also runs emulated. See devdoc 2026100502. Emulated probabilities are not calibrated, so the
+  thresholds below are untested for the default model; P >= 0.7 is a match, P <= 0.3 a non-match,
   anything between is uncertain; R = 20; at most 60 requests and 2 retries per request per
   artifact (all env vars). A failed request ends the attempt `failed`; uncertainty or an
   exhausted budget ends it `in_review`. When the tree changes while an artifact is being
   classified, its new bindings are published already stale.
+- **Initial tree loaded (2026-10-21):** `cat:general-tech-categories` (namespace
+  `https://onto.bzton.cn/ns/cat/general-tech-categories/`) was built from `resources.iso_ics`:
+  all 40 ICS Fields, their groups and subgroups, 1381 nodes plus the root and 188 "others" leaves
+  (1570 change-log entries, seq 1570). Each node's canonical name is its ICS code, and its source
+  is the row's `source_iri`. Titles that repeat across Fields (11 in English, 8 in Chinese) carry the
+  ICS code in parentheses so their labels stay unique. Chinese labels were written by hand, since
+  ICS has only English and French. Definitions use the ICS scope note where one exists, and
+  otherwise a generated sentence; the Chinese definitions are generated from the labels and need
+  review. Tree names may contain `:`; node names keep the slug rule (section 3.1).
 - **Not built:** a UI, a doc-processing pipeline stage (classification is started through the
-  API), the initial vocabulary and namespace, the evaluation sample, automatic checking that a
-  child's definition is narrower than its parent's, `skos:related`, and retirement of the
-  ADR 2026071901 data.
+  API), the evaluation sample, automatic checking that a child's definition is narrower than its
+  parent's, `skos:related`, retirement of the ADR 2026071901 data, and the label-match shortcut
+  (section 10).
+
+# 10. Label-match shortcut ("category cache")
+
+Status: Proposed, not implemented (2026-10-23). It may not be worth building;
+measure first (section 10.6).
+
+## 10.1 Idea
+
+Most of the cost of filing an artifact is the decision-model calls made while
+walking down the tree (section 5). Often the AI model's proposed category
+already has exactly the name of a category in the tree, such as "Temperature"
+or "温度". The shortcut looks such names up in the tree's labels and, when a
+proposal names one leaf without doubt, files the artifact there without walking
+the tree. It is called a cache because a lookup that succeeds saves the walk,
+but nothing is stored: the labels in the tree are the lookup table.
+
+The shortcut is off by default and is switched on with
+`METRIC_CATEGORY_CACHE_ON=on` (values `on` or `off`; default `off`; anything
+else is treated as `off` and logged as a warning).
+
+## 10.2 This bends a rule of section 5
+
+Section 5 says the AI model's proposals are evidence only and are never bound
+to an artifact directly. A shortcut hit does bind a proposal without the
+decision model confirming it. That is accepted only because the match is on a
+label that people put in the tree, not on a name the model made up, and only
+while the switch is on. The consequences are deliberate and must be measured:
+
+- **Missed branches.** The walk can find categories the AI model did not
+  propose. The shortcut finds only proposed ones. An artifact that belongs to
+  several branches may be filed under fewer of them.
+- **Wrong labels.** A proposal can use a category's exact label for a different
+  meaning. The decision model would have caught that; the shortcut does not.
+
+## 10.3 Matching
+
+A proposal is matched against the `pref_labels` and `alt_labels` of the tree's
+nodes. No new column is added: aliases are `skos:altLabel`s (section 3.1) and
+are edited through change sets like any other label.
+
+- **Normalisation:** the same `labelKey()` that the section 3.3 checks use
+  (trimmed, lower-cased), so matching and label uniqueness agree.
+- **Language:** labels in the artifact's language are tried first, then the
+  other languages.
+- **Leaves only.** Only ordinary leaves can be matched. A match on an inner
+  node, or on an "others" leaf, is ignored, because bindings are leaf-only
+  (section 6) and an inner node would still need the walk below it.
+- **Paths.** A path proposal such as `A > B > C` is matched on its last part,
+  `C`. When `C` matches more than one leaf, the earlier parts are used to narrow
+  the result: a leaf is kept only if its ancestors' labels contain `B` and `A`
+  in that order. Parts that match no ancestor are not held against a leaf.
+
+The section 3.3 checks keep preferred labels unique, and alternative labels
+unique, within each language. A label can still match more than one leaf when
+it is the preferred label of one leaf and an alternative label of another, when
+it is a label in different languages on different leaves, or when a path's last
+part is shared. These are the "multiple" cases below.
+
+## 10.4 Outcomes
+
+Each proposal ends in exactly one of three outcomes:
+
+| Outcome | When | What happens |
+|---|---|---|
+| Hit | The proposal matches exactly one leaf. | The leaf is a direct membership. |
+| Hit multiple | The proposal matches two or more leaves. | The decision model is asked about each candidate leaf, one `noul` question per leaf as in section 5, with the same thresholds. Every leaf it accepts is a direct membership. If it accepts none, or any answer is uncertain or fails, the outcome counts as a miss instead. |
+| Miss | The proposal matches no leaf (including when it matches only inner nodes or "others" leaves), or a hit multiple was not resolved. | Nothing is bound from this proposal. |
+
+For the artifact as a whole:
+
+- If every proposal ends in a hit or a resolved hit multiple, the walk is
+  skipped. The direct memberships are the deduplicated leaves, and they are
+  published with their ancestors as in section 6.
+- If any proposal is a miss, or the artifact has no proposals, the normal walk
+  of section 5 runs, and its result is published. Leaves found by the shortcut
+  are not added to it: the walk decides on its own, so the shortcut never mixes
+  verified and unverified memberships in one assignment.
+
+The classification record (section 8.1) records that the assignment came from
+the shortcut, which proposal matched which leaf, and which label matched, so
+that reviewers can find and audit unverified bindings.
+
+The label lookup is built in memory from the current tree and rebuilt after
+every change set, so it never matches a retired node or an old label. The
+binding records the tree `seq` as usual.
+
+## 10.5 Statistics
+
+Counts are kept in memory per tree and artifact type, and added to a database
+table every `FLUSH_METRIC_CATEGORY_CACHE_FREQ` seconds (default 10; an invalid
+value falls back to 10 with a warning). They are counted per proposal:
+
+- `hit`, `hit_multiple` (resolved), `miss`;
+- `walks_skipped`: artifacts filed without the walk;
+- `decision_requests`: decision-model requests made by the shortcut, so the
+  saving can be compared with the walk's cost.
+
+Proposed table `kb.category_cache_stats`, created through a goose migration:
+`tree_id`, `artifact_type`, `bucket_start` (the flush period, truncated to the
+minute), and one count column per number above, with primary key
+`(tree_id, artifact_type, bucket_start)`. A flush adds to the stored row
+(`count = count + excluded.count`) instead of overwriting it, so several server
+processes and restarts never erase each other's counts. A flush with nothing to
+add is skipped. Counts are also flushed on shutdown; a crash loses at most one
+flush period, which is acceptable for statistics.
+
+## 10.6 Is it worth building?
+
+Probably only if both of these hold, which should be measured on the evaluation
+sample (section 7) before building:
+
+- **A high hit rate.** The loaded ICS tree has formal titles ("Thermodynamics
+  and temperature measurements"), while metric proposals are short everyday
+  names. Exact label matches may be rare until many `alt_labels` are added,
+  and adding them is manual tree work.
+- **Few missed branches.** Compare the shortcut's memberships with the full
+  walk's on the same artifacts. If the shortcut regularly files fewer branches
+  or wrong ones, the requests it saves are not worth the loss.
+
+A cheap first step is to compute the hit, hit multiple and miss rates offline
+against existing metric proposals, without changing classification.

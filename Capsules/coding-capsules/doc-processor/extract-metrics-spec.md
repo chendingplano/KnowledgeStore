@@ -687,21 +687,26 @@ word list can tell them apart across domains, so a decision model judges it. Onl
 `requirement_value_open` are judged; every other kind is decided deterministically, and a unit
 does not exempt a row (收运频次 can carry 次/日).
 
-- Model: the `.models.toml` profile named by `METRIC_DECISION_MODEL`, run through
-  `jev_emulated` (an `llm` profile) or `jev_compatible` (a `decision-model` profile) by
-  `server/api/decisionmodel` (shared with the Decision Model Playground). Must return logprobs:
-  no reasoning models.
+- Model: the `.models.toml` profile named by `METRIC_DECISION_MODEL`. It must be a decision model:
+  `model_type = 'decision-model'` with `decision_model_type` `native` (real Jev, via
+  `jev_compatible`) or `emulated` (a chat model answering through its logprobs, via
+  `jev_emulated`). Any other `model_type` (an `llm` profile included) or a missing or invalid
+  `decision_model_type` is a configuration error: it is logged, each open-value row is kept with
+  the error as its reason, and the run goes on. Mapping in `server/api/decisionmodel` (shared with
+  the Decision Model Playground). Must return logprobs: no reasoning models. Current setting:
+  `deepseek-flash-decision-model`.
 - Policy: current version of decision policy `metric_open_value_kind` (`shared.decision_policies`),
-  seeded from `prompts/prompt-metric-open-value-policy-v2.md` when missing (v2 is current since
-  2026-10-08; v1 listed clause 8.2.2 of record 416 as an `object_quantity` example, wrongly).
+  seeded from the prompt named by env `METRIC_OPEN_VALUE_POLICY_PROMPT` when missing (v2 has been
+  current since 2026-10-08; v1 listed clause 8.2.2 of record 416 as an `object_quantity` example,
+  wrongly).
   Revise it as a new version in the Playground, not in code.
 - Request: one per row, state `{"policy", "row": {metric_name, subject, threshold_or_target,
   desc, context}}`, three questions: `kind` (`choice`: `object_quantity`, `activity_schedule`,
   `not_a_quantity`), `named` (`noul`: does the source clause itself name the row's quantity?) and
   `provision_only` (`noul`: does the clause only require providing something, naming no quantity
-  of it?). The `named` and `provision_only` wording is in
-  `prompts/prompt-metric-open-value-q-named-v1.md` and `...-q-provision-v1.md`; moving it into the
-  policy made the answers worse. Usage events: `PromptName = metric_open_value_kind`,
+  of it?). The `named` and `provision_only` wording is in the prompts named by env
+  `METRIC_OPEN_VALUE_Q_NAMED_PROMPT` and `METRIC_OPEN_VALUE_Q_PROVISION_PROMPT`; moving it into
+  the policy made the answers worse. Usage events: `PromptName = metric_open_value_kind`,
   `CallReason = extract_metrics`.
 - Drops: `activity_schedule` or `not_a_quantity` with p ≥ the threshold (`not_a_quantity`, e.g.
   主体工艺 among 运行技术参数, gold X13); or `no_named_quantity`: P(named) ≤

@@ -48,8 +48,9 @@ amortized over the document.
 Create `kb.ex_summaries` through a project goose migration, with the current
 `kb.summaries` fields plus nonempty `algorithm`, `source_sentence_spans` (exact
 selected evidence), and `extraction_config` (sentence count, dependency versions, input digest and worker version).
-`source_line_spans` contains the selected evidence's compact line ranges; an empty
-extract has `[]`. `summary_level=0`, `summary_seq_no=chunk.SeqNo`, `child_summary_ids=[]`.
+`source_line_spans` contains the chunk's full compact line ranges, the same as its
+`.chunks` entry (overlap lines plus regular lines), including for an empty extract.
+Lines cited by selected sentences are not stored here; they are in `source_sentence_spans`. `summary_level=0`, `summary_seq_no=chunk.SeqNo`, `child_summary_ids=[]`.
 Unused translation and keyword fields remain empty. `language` identifies the
 tokenization language used for that chunk.
 

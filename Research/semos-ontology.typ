@@ -87,6 +87,7 @@
 #let ref_ontology_vs_semantic_layer = link(
   "https://lowhangingdata.com/article/ontology-vs-semantic-layer/"
 )[#text(fill:blue)[Ontology vs Semantic Layer]]
+
 = Ontology
 
 == Ontology vs Semantic Layer
@@ -122,8 +123,8 @@ instances of Relation Class.
 
 === Rule-004 Relation Hierarchy
 
-== Concepts
-=== Category
+= Concepts
+== Category
 
 A category is a mathematical structure that appears much like a directed
 graph: it consists of objects (nodes) and arrows (edges) between them (a graph).
@@ -177,7 +178,7 @@ a food f and a child c such that c ate all of f
 a triple (p, a, j) where p is a paper, a is an author of p, and j is a journal in which p was published
 ```
 
-=== Aspects
+== Aspects
 An aspect of a thing x is a way of viewing it. Below is a view:
 ```text
 'a woman --is--> 'a person'
@@ -206,21 +207,35 @@ When we say "chunk has metric", it connects a chunk to a metric. From `aspect` p
 this is an invalid aspect because not all chunks have metrics. I am not sure whether `aspect`
 is truly useful.
 
-=== Facts
+== Facts
+Ontology starts with facts. 
 A `Fact` is a derived relation. This is quite counterintuitive. We can declare "Person A is a woman"
-as a fact. But in Olog, we need to list "Person A has-as-parents a pair (w, m) where w is a woman
+as a fact. 
+
+But in Olog, we need to list "Person A has-as-parents a pair (w, m) where w is a woman
 and m is a man", then we can declare "Person A has-as-mother is a woman".
 
-== Knowledge Engineering
-=== Four Layers of Knowledge Engineering
+Below are from @ref-ontology-driven-telemetry
+```text
+api-gateway   rdf:type       ops:Application .
+api-gateway   ops:ownedBy    "Team Bedrock" .
+api-gateway   ops:deployedIn "us-east-1" .
+
+INC-5377      rdf:type       ops:Incident .
+INC-5377      ops:affects    api-gateway .
+INC-5377      ops:severity   "SEV 2" .
+```
+
+= Knowledge Engineering
+== Four Layers of Knowledge Engineering
 Four layers:
 - Tags: flat, no hierarchy
 - Categories: hierarchical, more organized
 - Ontology: define the semantics
 - Knowledge Graphs: instantiation of ontology, Knowledge Graph = Ontology + Real Instance Data + Semantic Connections
 
-== Reviews
-=== Palantir Foundry
+= Reviews
+== Palantir Foundry
 
 Palantir Foundry is an enterprise data operating system designed to integrate disparate data 
 sources, apply complex logic, and power operational applications and AI-driven workflows. 
@@ -404,7 +419,7 @@ Palantir Foundry Ontology 的核心竞争力不是"大数据平台"，而是在�
 - Action Type: 定义可执行的操作（如"审核订单"）从"知道"到"行动"的闭环
 - Functions: 计算和推理引擎（如自动计算交付优先级）本体推理的实现层
 
-=== Open-Source: OntoFlow
+== Open-Source: OntoFlow
 
 #a_001 \
 Date: 2026/04/27
@@ -417,7 +432,7 @@ Date: 2026/04/27
 #a_002 \
 Source: WeChat
 
-=== Semantica and OntoFlow
+== Semantica and OntoFlow
 Link: https://mp.weixin.qq.com/s/xrD3N1rpD4-2YQw3Q4XPxg
 
 *Summary*
@@ -516,3 +531,7 @@ OntoFlow 的核心思路不是：
 
 [3] 标签 vs 分类法 vs 本体 vs 知识图谱：企业知识组织四层金字塔,
 https://mp.weixin.qq.com/s/YSJFvt-J9DHbF5JzFlXTZg 
+
+```text
+#bibliography("../references/references.bib")
+```

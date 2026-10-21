@@ -2,7 +2,6 @@
 #import "@preview/oxdraw:0.1.0": *
 #import "../../Reviews/Review-ai-laya.typ": ref_review_laya
 #import "../../Reviews/review-knowhere.typ": ref_review_knowhere
-#import "../../Research/embedding.md": ref_embedding
 
 #set heading(numbering: "1.")
 #set quote(block: true)
@@ -1179,3 +1178,62 @@ This is a good article. Briefly read it. Working on a solution through Codex Sol
 == Work
 - Research (done by Codex): Telemetry
 - Improvement (by Claude Code): continue the harness integration path
+
+= 2026/10/21
+
+== Work
+- New (done by Claude Code): build categories, not tested yet
+- New (done by Codex): summy integration, extracted summary benchmark
+- New (done by Claude Code): show categories 
+- Bug (by Codex): when changing language, refresh the entire page
+
+= 2026/10/22
+
+== Stock trading
+#let ref-stock-trading = link(
+  "https://www.toutiao.com/article/7698608790358262298/?app=news_article&category_new=__all__&module_name=iOS_tt_others&req_id_new=202610211923474587FE26B6ABAE2D9535&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=d26ac188-cd42-11f1-8007-861e103815f3&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1792582230&tt_from=weixin&upstream_biz=iOS_wechat&use_new_style=1&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
+)[#text(fill: blue)[Stock Trading]]
+
+Link: #ref-stock-trading
+
+== DeepSeek Plugins
+#let ref-deepseek-plugins = link(
+  "url: https://www.toutiao.com/article/7676863778490892823/?app=news_article&category_new=__all__&module_name=iOS_tt_others&req_id_new=20261021182208EBEEC856AD7C5D986E9B&share_did=MS4wLjACAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&share_token=c42fccb5-cd39-11f1-a06a-00163e7019e1&share_uid=MS4wLjABAAAAw3rqzAbRbSo4klPah7FJFhb-dpoy0Y2_hu6Pcvvt2pc&timestamp=1792578341&tt_from=weixin&upstream_biz=iOS_wechat&use_new_style=1&utm_campaign=client_share&utm_medium=toutiao_ios&utm_source=weixin&wxshare_count=1&source=m_redirect"
+)[#text(fill: blue)[DeepSeek Plugins]]
+  
+Link: #ref-deepseek-plugins
+
+== Category datasets
+#let ref-category-datasets = "2026102201-devdoc-category-datasets.md."
+
+I have created a category tree based on ICS. This may not be good enough for
+artifacts such as metrics, chunks, provisions, etc. We need to explore the
+possibilities of integrating the datasets mentioned in #ref-category-datasets.
+
+Another issue is about category tree vs. graph. My opinion is that define
+categories as trees and associate categories as graphs. 
+
+For example, consider Temperature Monitoring Equipment. It could reasonably belong under:
+
+- Medical equipment
+- Measurement instruments
+- Cold-chain technology
+- Environmental monitoring
+
+These categories are defined in category trees (such as ICS). If we combine ICS with
+data, this forms a graph. In this graph, nodes are no longer only categories but
+artifacts, too. An artifact connects to one or more categories, which may connect
+to other artifacts.
+
+The question now is how to massage the category datasets into a category framework.
+
+= 2026/10/23
+
+== Document Model
+It creates a document model for a type of documents, such as standards, user manual,
+specification, requirements, design, etc.
+
+For more information, refer to 
+
+== Work
+- New (done by Codex): added 'chatgpt-decision-model'
