@@ -102,6 +102,7 @@ Doc processors may generate rows scoped by `input_record_id`:
 * `kb.inventory_items`
 * `kb.inventory_item_duplicates`
 * `kb.summaries`
+* `kb.ex_summaries` (per-chunk Sumy extracts; input foreign key uses `ON DELETE CASCADE`)
 * `kb.topics`
 
 Delete behavior:

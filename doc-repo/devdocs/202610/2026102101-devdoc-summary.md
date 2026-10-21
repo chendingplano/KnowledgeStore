@@ -2,14 +2,14 @@
 
 **Date:** 2026-10-21
 **Scope:** Options for reducing summary-generation cost, the benchmark now built, and the evaluation still required.
-**Code root:** `ChenWeb/benchmark/summaries/`
-**Implementation commit:** ChenWeb `896e763703e32670b8902035b10f485fe38638f4`
+**Code roots:** `ChenWeb/benchmark/summaries/` and `ChenWeb/server/api/doc-processing/`
+**Benchmark implementation commit:** ChenWeb `896e763703e32670b8902035b10f485fe38638f4`
 
 ## Summary
 
 SemOS may reduce summarization costs by selecting useful passages with classical algorithms instead of generating every summary with a language model. Selected passages can preserve the source wording and evidence, but they can still mislead by omitting a condition, exception or important requirement. The potential savings and summary quality have not yet been established for the SemOS corpus.
 
-An offline benchmark is now built and frozen before candidate algorithms are implemented or tuned. It contains English, Chinese and mixed-language cases, fixed output budgets, source-backed annotations, and checks for evidence loss. It also provides a separate human-review protocol for comparing generated summaries with extracts. The current real-document pilot comes from one standard, so it cannot establish production quality across the corpus.
+The offline benchmark was built and frozen first. A Sumy processor, `extract_summaries`, is now implemented to extract source passages from each chunk and persist them in `kb.ex_summaries`, identified by algorithm. It contains English, Chinese and mixed-language cases, fixed output budgets, source-backed annotations, and checks for evidence loss. It also provides a separate human-review protocol for comparing generated summaries with extracts. The current real-document pilot comes from one standard, so it cannot establish production quality across the corpus.
 
 ## Details
 
@@ -153,11 +153,11 @@ The implementation passed **26 automated tests**, covering altered numbers, drop
 
 These are macro averages over the 16 cases. The lead control greedily selects source lines that fit; the structural control prioritizes content following headings. Both use canonical lines rather than NLP sentences. The gold control reads the annotations and exists only to check scorer feasibility; it is not a summarizer. Its 100% score is a calibration result, not evidence of achievable algorithm quality.
 
-**Sumy, PyTextRank, BERT and LLM candidates have not yet been evaluated.** No runtime, memory, cost-saving or human semantic-quality result for those candidates is available.
+**No comparative quality or cost evaluation of Sumy, PyTextRank, BERT or LLM candidates has been performed.** The Sumy processor has functional tests with actual English/Chinese extraction and database migration checks, described below; those are not summary-quality, runtime, memory or cost-saving benchmarks.
 
 ### 7. Cost evaluation and the next step
 
-Start with Sumy/LexRank and PyTextRank adapters against the frozen benchmark and the simple controls. Consider embedding-based extraction or generated synthesis according to measured failures and total cost. Compare methods at the same source scope and output budget; use a common human semantic-review protocol when comparing extraction with generation.
+Next, build budget-matched evaluation adapters around the implemented Sumy worker and a PyTextRank candidate, using the frozen benchmark and simple controls. Consider embedding-based extraction or generated synthesis according to measured failures and total cost. Compare methods at the same source scope and output budget; use a common human semantic-review protocol when comparing extraction with generation.
 
 The harness provides deterministic scaling inputs for per-document and per-chunk experiments:
 
@@ -172,9 +172,94 @@ Evaluate total operating cost rather than API charges alone. Include preprocessi
 
 Before a production decision, expand to previously unseen full documents across languages, document families, lengths and table density. Obtain independent human annotations and preregister acceptable quality and cost thresholds. Keep related chunks and editions within the same evaluation partition to prevent leakage.
 
+### 8. Implemented Sumy doc processor
+
+`extract_summaries` is a configurable Phase B processor that consumes the existing
+chunk buffer or `.chunks` artifact. It runs an embedded Python worker with the
+locked Sumy environment, ranking each chunk independently. A document uses one
+worker invocation, so Python initialization is shared across its chunks. It is
+registered in both the production runtime and the command helper and bypasses the
+LLM off-peak gate.
+
+The processor defaults to LexRank and three sentences per chunk. Supported
+algorithms are `lexrank`, `textrank`, `lsa`, `luhn` and `sumbasic`. Set
+`EXTRACT_SUMMARIES_ALGORITHM`, `EXTRACT_SUMMARIES_SENTENCES` (1–100),
+`EXTRACT_SUMMARIES_TIMEOUT` (default `2m` per document) and `SUMY_PYTHON`
+(default `python3`). English and Chinese are supported; empty/mixed language
+metadata triggers per-chunk detection. Unsupported explicit languages fail visibly.
+
+Install packages and tokenizer data once on each execution host, from ChenWeb:
+
+```sh
+uv sync --locked --directory python/sumy
+python/sumy/.venv/bin/python -m nltk.downloader -d python/sumy/nltk_data punkt_tab
+export SUMY_PYTHON="$PWD/python/sumy/.venv/bin/python"
+```
+
+The Go binary embeds the worker code, not the Python interpreter, packages or
+NLTK data. There are no downloads during processing. See the
+[worker setup guide](../../../../ChenWeb/python/sumy/README.md).
+Add `extract_summaries` to the active `[doc-processing].required_processors`
+configuration to make it available; add it to `default_processors` only when it
+should run automatically. It has been added to the local available list while
+retaining the existing nonempty automatic defaults. A Dev Mode request is:
+
+```json
+{"record_ids":[416],"doc-processors":["extract_summaries"],"failed-proc-only":false}
+```
+
+The controller still applies mandatory prerequisites and governing pipeline policy.
+This example is an invocation format; no corpus-wide reprocessing was launched.
+
+#### Stored results
+
+The project goose migration
+[20261021000002_create_kb_ex_summaries.sql](../../../../ChenWeb/project_migrations/20261021000002_create_kb_ex_summaries.sql)
+creates `kb.ex_summaries` on normal service migration startup. Its columns follow
+the current `kb.summaries` schema, with `algorithm`, `source_sentence_spans` and
+`extraction_config` added. It stores one level-0 row per chunk; `summary_seq_no`
+is the chunk sequence. Unused translation, keyword and child-summary fields
+remain empty. It does not create a summary tree or modify `kb.summaries`.
+
+Uniqueness includes `(input_record_id, algorithm, summary_level, summary_seq_no)`.
+Summary IDs have the form `<record>_exsum_<algorithm>_0_<chunk>`. A rerun atomically
+replaces only that record's selected algorithm after every chunk succeeds. Other
+algorithms remain available for comparison. Input deletion cascades through the
+foreign key. Table-local search columns use the same trigger as `kb.summaries`;
+global hybrid-search indexing is outside this implementation.
+
+`source_line_spans` contains compact ranges of selected source lines.
+`source_sentence_spans` stores each exact selected sentence and its original
+line/Unicode-code-point offsets. Go verifies the entire worker response: chunk
+identity/count, algorithm, language, sentence count, source order and quotation
+accuracy. The stored configuration includes dependency versions, sentence count,
+worker version and the exact worker-input digest. When no usable ranking vocabulary
+or no ranked result exists, a source-order fallback is explicitly recorded.
+
+Short lines, bullets and uppercase text are retained. Sentences split across lines
+keep both evidence spans, repeated sentences map by occurrence, and unterminated
+Chinese tails are preserved. Image-only chunks receive empty extracts; missing or
+empty chunk artifacts fail. Stale artifact references to absent source lines also
+fail instead of being silently discarded. Source/chunk fingerprints are rechecked
+under the database input-row lock before replacement. This detects changes during
+the worker run; it does not make external filesystem updates transactional, so
+concurrent reprocessing of the same document should be serialized operationally.
+
+Status uses operation `extract_summaries`, with algorithm, sentence budget,
+chunk/summary counts, progress, duration and `active|success|failed|stopped` state.
+A `doc_proc_summary` log records the outcome. User cancellation terminates the
+worker, and failed/stopped runs retain previously committed extracts.
+
+The capsule [specification](../../../Capsules/coding-capsules/doc-processor/extract-summaries-spec.md)
+is the behavior contract; its
+[implementation notes](../../../Capsules/coding-capsules/doc-processor/extract-summaries-impl.md)
+record validation and remaining limitations. Update those documents when processor
+behavior changes. The frozen benchmark remains unchanged: sentence-budget extraction
+must still be evaluated through an adapter using the benchmark's character budget.
+
 ## Known limitations
 
 - The real pilot consists of three correlated excerpts from one document and is not a blind holdout or representative corpus sample.
 - Gold covers a declared subset of important summary information, not every requirement in each excerpt. Exact extraction can still produce fragmented or misleading prose.
 - Independent agent review checks consistency and evidence; human semantic review and original-page verification remain outstanding.
-- No candidate summarizer or production integration has been implemented by this benchmark-first work. Production behavior and database schemas are unchanged.
+- The Sumy processor is implemented, but comparative quality/cost evaluation remains outstanding. Its migration is applied by normal startup; this work tests migration up/down/up in an isolated schema and does not restart the running service or launch document processing.

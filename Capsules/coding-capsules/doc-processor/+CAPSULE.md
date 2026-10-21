@@ -196,6 +196,7 @@ Currently, it has the following doc processors:
 |22 | facet_tier2 | routed (registry-only, non-wave-dispatched) | 1 | No | after 4 (runs inside `extract_metadata`'s `HandleEvent`, right after it persists `doc_no`/`publish_date`) | Tier-2 document-facet producer (`tier2FacetsFromSource`, `facet_tier2.go`). Derives facets (issuer, edition, publish date, authority hints) from `extract_metadata`'s output and writes them to `kb.doc_facet_values`. Not selectable via the JetStream `operation` field; runs inside `ExtractDocMetadataProcessor.HandleEvent`, gated by `facetTier2GatedOff` (a `kb.pipeline_rules` row, `target_processor="facet_tier2"`). See ADR 2026072901 §3.5. |
 |23 | extract_products | configurable | 2 | Yes | `chunking` | Extract Product Relations Processor: multi-pass mention/relation/translate/categorize extraction of product mentions and their structural relations. Saves to `kb.products`. Re-registered 2026-09-12 — was present in `config.toml`'s `required_processors` in earlier revisions of this doc but had been dropped from both `server/api/doc-processing/runtime.go`'s constructed processor list and `processor_plan.go`'s `ProcessorSpec` table, so it silently never ran regardless of config; both are now fixed. Switched from Blocks to Chunks the same day (`resolveProductChunkBlocks` loads the `.chunks` artifact and adapts it to `[]Block` via the same `chunksToBlocks` helper `extract_metrics` uses), so it now shares the one chunk set every other Phase B extractor reads instead of independently re-blocking the document. Refer to [21] for its spec. |
 |24 | extract_references | configurable | 2 | Yes | `chunking` | Lower reference layer: detects and labels every reference (reference model), catalogues resources (R1), resolves holdings with access (R2), and runs registered artifact-family resolvers (step 5). Uses no output of any other extractor; `extract_metrics` resolves incoming metric references after saving (step 6). Saves to `kb.ref_mentions`, `kb.ref_resources*`, `kb.reference_artifact_links`, and resolved rows `<rec>_rfm_<n>` in `kb.metrics`. Refer to [22] |
+|25 | extract_summaries | configurable | 2 | No | `chunking` | Runs Sumy per chunk and saves source-grounded level-0 extracts to `kb.ex_summaries`, separated by algorithm. See [spec](extract-summaries-spec.md) and [implementation](extract-summaries-impl.md). |
 ---
 
 Note: the term 'after n' (such as 'after 1') means it uses the processor 'n' output as its input.
@@ -237,11 +238,11 @@ About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `extract_references`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
+**Configurable processors** (`extract_metrics`, `extract_provisions`, `extract_references`, `extract_summaries`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
 
 ```toml
 [doc-processing]
-required_processors = ["extract_metrics", "extract_provisions", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_semantic_projections", "extract_entity_relation", "extract_inventory_items", "extract_products"]
+required_processors = ["extract_metrics", "extract_provisions", "extract_summaries", "generate_summaries", "generate_topics", "generate_scene_blocks", "extract_semantic_projections", "extract_entity_relation", "extract_inventory_items", "extract_products"]
 default_processors = ["extract_metrics", "extract_products"]
 ```
 
@@ -745,6 +746,33 @@ Written by the chunk batch coordinator (like §9.11); see [22].
   "start_time": "yyyymmdd hh:mm:ss"
 }
 ```
+
+### 9.13 Extract Summaries
+
+`extract_summaries` uses operation `extract_summaries`. It is independent of
+`generate_summaries` and never replaces `kb.summaries`. The processor writes detailed
+status and a `doc_proc_summary` log; the controller retains its terminal details.
+For example:
+
+```json
+{
+  "record_id": "416",
+  "operation": "extract_summaries",
+  "proc_status": "success",
+  "algorithm": "lexrank",
+  "sentence_count": 3,
+  "num_chunks": 8,
+  "num_summaries": 8,
+  "progress": "100%",
+  "start_time": "20261021 12:00:00",
+  "ms_used": 1200
+}
+```
+
+`proc_status` is `active`, `success`, `failed` or `stopped`. Failed/stopped runs
+retain previously committed extracts; the completed replacement is atomic for
+one document and algorithm. Worker timeout is a failure, while a user stop is
+`stopped`. See [extract-summaries-spec.md](extract-summaries-spec.md).
 
 ## 10 Handle Stop Request
 
