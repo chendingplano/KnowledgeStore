@@ -22,7 +22,8 @@ unrelated processor from starting. List `extract_summaries` in the configured
 ## Input and extraction
 
 Read the in-memory chunk buffer when available, otherwise read the canonical line
-file and existing `.chunks` artifact. Never re-chunk or merge documents. Include
+file and existing `.chunks` artifact. Process only original level-0 chunks; never
+submit higher-level grouped chunks. Never re-chunk or merge documents. Include
 overlap context. Exclude image-only lines; retain short lines, bullets, headings,
 numbers and table text. A chunk with no usable textual content has an empty extract.
 

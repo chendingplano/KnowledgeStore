@@ -1,28 +1,22 @@
 # Overview
 
 A document is broken down into a number of chunks. This feature does the following:
-- Use an LLM to generate a summary for each chunk
-- Build a summary tree for a document
+- Use an LLM to generate one summary for each original level-0 chunk
+- Do not generate summaries for grouped higher-level chunks or build summary rollups
 - Cluster summaries based on semantic similarity
 
 ## 1 Generate Summaries
 
 ### 1.1 Workflow
-- For each chunk, it uses GENERATE_SUMMARY_MODEL_NAME model with GENERATE_SUMMARY_PROMPT to generate 
-  a summary for the chunk.  
-- Summaries that belong to the same level may be generated concurrently, capped by
-  `GENERATE_SUMMARY_MAX_TASKS`.
-- Generate a Level-1 summary for every SUMMARY_GROUP_SIZE continuous leaf summaries using the 
-  same model and prompt. 
-- Recursively, it generates higher level summaries in the same fashion until there is only
-  one summary in its level.
-- Higher summary levels still wait for the previous level to finish before they begin.
+- For each original level-0 chunk, use `GENERATE_SUMMARY_MODEL_NAME` and
+  `GENERATE_SUMMARY_PROMPT` to generate one summary.
+- Generate chunk summaries concurrently, capped by `GENERATE_SUMMARY_MAX_TASKS`.
+- Do not call the model on grouped summaries or higher-level chunks.
 
 ### 1.2 Save Summaries
 - Leaf summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_0_dddd.txt`, where
   'dddd' is a sequence number, starting from 1.
-- Summaries of summaries are saved to `ARTIFACT_DIR + /<group_id>/<record_id>/summary_n_dddd.txt`,
-  where 'n' is the level: 1, 2, ... and 'dddd' is a sequence number, starting from 1.
+- Only level-0 summaries are saved. No summary files are created for levels above 0.
 - For a leaf summary, the saved `lines` field MUST cover the full chunk input sent to the summary model,
   including both overlap context and regular chunk lines.
 
@@ -44,15 +38,12 @@ After receiving the model's output, apply the following language override rule b
 - If the metadata language is **not empty** and differs from the summary's `language` field, replace the summary's `language` with the metadata language.
 - This ensures consistent language tagging across all summaries of a document, overriding any per-chunk inference the model may have made.
 
-### 1.4 Edge Cases
-- The last group takes the remaining chunks, which may be less than SUMMARY_GROUP_SIZE chunks.
-
 ### 1.5 Summary ID
 ```<record_id>_sum_<level>_<seqno>```
 
 where:
 - `<record_id>` is the record ID
-- `<level>`: the summary level
+- `<level>`: always `0`
 - `<seqno>`: the summary seqno
 
 ### 1.6 Summary Embedding
@@ -68,9 +59,9 @@ For example, the embed file for `summary_0_0001.txt` is `summary_0_0001.embed`.
 ```text
 summary_id: "<record_id>_sum_<level>_dddd"
 record_id": 123
-level: 2
+level: 0
 lines: [ddd, ddd-ddd]
-children: ["1_0012", "1_0013"]
+children: []
 language: "the language"
 keywords: ["xxx",...]
 keywords_en: ["xxx",...]
@@ -96,16 +87,12 @@ When a document is re-chunked, it should clear all the related data and before r
 Persist operation status using canonical name:
 - `operation = "generate_summaries"`
 
-**Progress Update (per summary):**
+**Progress Update (per level-0 chunk summary):**
 - When beginning generation, set `progress` to `"0%"` in `kb.inputs.status`.
-- After each summary generation (at every level), insert a log entry to `kb.doc_proc_logs` with `proc_progress` set to the current progress (see [doc-processor-log-spec.md Section 1.3.1](doc-processor-log-spec.md)), then update the `progress` attribute of the corresponding entry in `kb.inputs.status`.
+- After each level-0 summary generation, insert a log entry to `kb.doc_proc_logs` with `proc_progress` set to the current progress (see [doc-processor-log-spec.md Section 1.3.1](doc-processor-log-spec.md)), then update the `progress` attribute of the corresponding entry in `kb.inputs.status`.
 
 ```text
-total_planned_summaries =
-  level0_count +
-  ceil(level0_count / SUMMARY_GROUP_SIZE) +
-  ceil(level1_count / SUMMARY_GROUP_SIZE) + ...
-  (stop when the level count becomes 1)
+total_planned_summaries = level0_count
 
 percent = floor(completed_summaries * 100 / total_planned_summaries)
 progress = "<percent>% (<completed_summaries>/<total_planned_summaries>)"

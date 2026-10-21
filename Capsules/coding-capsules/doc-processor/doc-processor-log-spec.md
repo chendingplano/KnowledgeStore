@@ -123,20 +123,12 @@ When the doc processor finishes, generate one record:
 
 **Denominator**
 
-The total planned summary count is the total number of summary nodes that will be generated across the whole summary tree:
-
-1. Start with the number of leaf summaries, which equals the chunk count.
-2. For each higher level, add the number of parent summaries created by grouping the previous level using `SUMMARY_GROUP_SIZE`.
-3. Stop when the current level has only one summary node.
+The total planned summary count equals the number of original level-0 chunks. Higher-level rollup summaries are not generated.
 
 In formula form:
 
 ```text
-total_planned_summaries =
-level0_count +
-ceil(level0_count / group_size) +
-ceil(level1_count / group_size) + ...
-until the level count becomes 1
+total_planned_summaries = level0_count
 ```
 
 **Numerator**
