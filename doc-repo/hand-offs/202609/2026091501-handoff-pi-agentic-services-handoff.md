@@ -1,4 +1,4 @@
-# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code, Codex and DeepSeek Harness front ends)
+# Handoff: agentic services in ChenWeb (Pi Knowledge Desk and the Claude Code, Codex, DeepSeek Harness and Pi front ends)
 
 Date: 2026-09-15, updated 2026-10-20.
 
@@ -7,10 +7,11 @@ Status:
 - **Claude Code front end:** built and checked live against the real Claude Code on 2026-10-20. Its browser page works with Claude Code, but some page controls are not connected yet.
 - **Codex front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real Codex. Not yet checked in a browser.
 - **DeepSeek Harness front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real DeepSeek Harness. Not yet checked in a browser.
+- **Pi front end:** built on 2026-10-20 behind the same protocol and Chat page, and checked live through ChenWeb's handler against the real Pi. Not yet checked in a browser. It replaces an earlier Pi session copy in ChenWeb's database.
 
 ChenWeb now connects to agent harnesses in two ways. A *harness* is the program that turns a model into a working assistant: Pi, Claude Code, Codex, DeepSeek Harness and so on.
 - **SemOS-owned services:** the Pi Knowledge Desk. ChenWeb keeps the conversation and controls the tools and citations.
-- **Harness front end:** Claude Code, Codex and DeepSeek Harness. ChenWeb is only the user interface, the way VS Code is for Claude Code or Codex.
+- **Harness front end:** Claude Code, Codex, DeepSeek Harness and Pi. ChenWeb is only the user interface, the way VS Code is for Claude Code or Codex.
 
 The design and the reasons for having two ways are in the devdoc `KnowledgeStore/doc-repo/devdocs/202610/2026101802-devdoc-harness-neutral-agentic-services.md`. Read that first.
 
@@ -214,6 +215,37 @@ No database migration is involved. The gateway strips `DEEPSEEK_API_KEY` and Che
 - The test runs left a few short sessions ("Remember the codeword …") in dsh's history for the Workspace folder.
 
 **Next steps (open).** Browser check of the Chat page with DeepSeek Harness, including reopening a session started in dsh's own Web UI; the Claude Code next steps apply here too.
+
+## 2c. Pi front end
+
+Pi (`pi` 0.84.2, installed globally with bun; the workspace package is `ThirdParty/pi`) is served the same way: Pi keeps its own instructions, tools, extensions, skills, settings and session files; ChenWeb only relays. It uses Pi's own login (`~/.pi/agent/auth.json`: DeepSeek by key, OpenAI Codex by OAuth) and works in `/Users/cding/Workspace`. All routes are admin-only. This is separate from the Pi Knowledge Desk (section 1), which keeps its own gateway and limits.
+
+On the Chat page, choosing **pi** in the harness menu (the entry was already there, but not connected) gives:
+- **Model menu:** the models of the providers Pi is signed in to, Pi's default first (33 on 2026-10-20).
+- **Tool calls:** under Pi's own names (`read`, `write`, `edit`, `bash`, ...); text streams word by word; cost and tokens are Pi's own figures.
+- **Approvals:** Pi asks before nothing by itself. Cards appear only when a Pi extension asks (a yes/no question becomes an approval card, a pick-one question a question card).
+- **Stop** and the **Sessions menu** work as for Claude Code; the menu includes sessions started in a terminal in the same folder.
+
+**What was built.**
+- `ChenWeb/gateways/pi/`: a private Bun service that drives Pi through `pi --mode rpc`, one Pi process per open session. The session list and history are read from Pi's session files in `~/.pi/agent/sessions`. Its README has the details.
+- `server/api/routes.go` registers `pi` when `PI_HARNESS_GATEWAY_URL` and `PI_HARNESS_GATEWAY_SECRET` are set; `HARNESS_BY_AGENT` maps the existing **pi** menu entry to it.
+- `ThirdParty/pi` (its own repository): removed the `harness-session-persistence` extension, which copied every Pi session into `kb.harness_sessions` / `kb.harness_messages`, and its `postgres` dependency.
+- OpenSpec change: `ChenWeb/openspec/changes/pi-harness-frontend/`.
+
+No database migration is involved. The gateway strips provider keys and ChenWeb's other secrets from Pi's environment (a wider filter than the other gateways'), so Pi uses its own login; `PI_HARNESS_PASS_ENV` lets through keys that Pi's own configuration names.
+
+**Run it.** `mise dev-pi-harness-gateway` from ChenWeb (port 4321). `mise.local.toml` holds `PI_HARNESS_GATEWAY_URL`, a generated `PI_HARNESS_GATEWAY_SECRET`, `PI_HARNESS_WORKSPACE` and `PI_HARNESS_PASS_ENV=DASHSCOPE_API_KEY`. Then restart `mise dev` itself.
+
+**Verification (2026-10-20).** Gateway: 18 tests and the TypeScript check. ChenWeb: Go tests, `go vet`, `mise build-server`, service tests. Live, through ChenWeb's real handler: model list, a write in the home folder, and a follow-up answered from Pi's memory. Gateway live check: tool use, memory, an extension approval (a test extension loaded for the check only), history from Pi's session file, listing, and resuming in a new Pi process. To repeat: `HARNESS_NAME=pi HARNESS_GATEWAY_URL=http://127.0.0.1:4321 HARNESS_GATEWAY_SECRET=... go test -tags live -run TestLive ./api/harnessfrontend/` from `ChenWeb/server`; the gateway's own check is `PI_HARNESS_WORKSPACE=/Users/cding/Workspace bun run live-check.ts` in `gateways/pi`.
+
+**Watch out.**
+- Pi has no sandbox; without an extension that asks, it writes and runs commands freely as this machine's user.
+- Choosing a model in ChenWeb also makes it Pi's default in `~/.pi/agent/settings.json`, as Pi's own picker does.
+- Pi's Qwen provider fails with "Incorrect API key", from a terminal too; it is listed but not usable until its key is fixed.
+- System Admin → LLM → **Pi Sessions** still reads the old database copy, which is no longer updated. Removing the page is open.
+- The test runs left a few short sessions ("Remember the codeword ...") in Pi's history for the Workspace folder.
+
+**Next steps (open).** Browser check of the Chat page with pi; decide on the Pi Sessions page; free-text extension questions.
 
 ## 3. Open decisions
 
