@@ -21,6 +21,8 @@ an optional Description, and choose **Metrics per document** and **Total metrics
 Both counts start at ten. Each metric produces one-hop, two-hop, and multi-hop
 questions (ten metrics produce thirty questions). A specified record ignores
 Total metrics; batch mode reduces the final document's count to reach the target.
+Close the dialog with **Close**, Escape, or a press starting on the backdrop.
+Selecting text inside a field and dragging outside keeps the dialog open.
 
 Generation runs in the background. A status panel reports its saved Run ID,
 progress, and any failure. The list and filter options refresh when the run ends,
