@@ -1,6 +1,28 @@
 # Question Generator implementation plan
 
-## Current revision: Bounded metric context and usage correlation (2026-10-24)
+## Current revision: Metric counts, triplets, and line ranges (2026-10-24)
+
+- [x] Replace hop count controls with Metrics per document (1–50, default 10) and
+  Total metrics (1–1,000, default 10). A specified input ignores the total.
+- [x] Sample N metrics per document and generate exactly three questions per metric:
+  one-hop, two-hop, and multi-hop, each with an independent English/Chinese choice.
+  Batch clipping counts metric sets, keeping all triplets intact.
+- [x] Accept `metrics_per_document` and `total_metrics` in the API. Preserve existing
+  per-hop storage and saved runs; accept equal legacy hop counts, reject unequal
+  legacy requests. Explicit new fields take precedence.
+- [x] Replace expanded context IDs in model input and new metric snapshots with
+  inclusive `context_line_ranges`, such as `["124:144"]`. Preserve gaps and check
+  integer output citations against exact internal IDs.
+- [x] Update the Search Metrics prompt, bilingual form, tests, and current devdoc.
+
+Verification: generator and PostgreSQL tests, server build, bilingual type/i18n
+checks, and English/dark plus Chinese/light browser fixtures pass. A broader
+handler run (excluding the two historical metric-scoring failures) still fails
+unrelated model-configuration tests (`deepseek-v4-flash` is missing locally) and
+`TestGetRelatedMetricsSimilarClassRanksByMatchedClassScore` (SQL mock argument
+mismatch). No live provider call was made for this revision.
+
+## Earlier revision: Bounded metric context and usage correlation (2026-10-24)
 
 - [x] Carry the saved generator run ID and actual input record ID on every LLM
   request so the existing LLM Usage Logs Run ID column is populated. Label run IDs

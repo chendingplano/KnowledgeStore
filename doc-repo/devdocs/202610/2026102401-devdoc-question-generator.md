@@ -9,13 +9,13 @@
 Question Generator creates candidate questions for evaluating metric search.
 Open **System Admin → Benchmark → Question Generator**, enter an input record ID,
 or leave it blank to sample documents randomly. Select **Search Metrics** as the
-Purpose, add an optional Description, and choose per-document and total counts
-for one-hop, two-hop, and multi-hop questions. All counts start at ten. A specified
-record uses only the per-document counts; batch mode repeats until it reaches the
-total targets, reducing the final document's counts as necessary.
+Purpose, add an optional Description, and choose **Metrics per document** and **Total metrics**. Both start at ten.
+Each sampled metric produces three questions: one-hop, two-hop, and multi-hop
+(ten metrics produce thirty questions). A specified record ignores Total metrics;
+batch mode reduces the final document's metric count to reach the total exactly.
 
 Generation runs in the background. The page shows its status and lets you reopen
-saved runs for one record or across all records. For each requested question, the
+saved runs for one record or across all records. For each requested metric set, the
 system randomly selects a stored metric and sends only its surrounding source
 context to the model. Each question independently uses English or Chinese, chosen
 randomly by the server. It includes a reference answer, reasoning steps, the
@@ -33,12 +33,12 @@ These are generated candidates that need human review before use as a benchmark.
   Each supported purpose resolves to its own versioned prompt; unknown purposes
   fail validation. Historical free-text purposes remain readable.
 - `description`: optional additional context, up to 10,000 characters.
-- `one_hop_count`, `two_hop_count`, `multi_hop_count`: optional integers, default
-  ten each per document; 0–50 per category, with at least one positive count.
-- `total_one_hop_count`, `total_two_hop_count`, `total_multi_hop_count`: optional
-  batch targets, default ten each; 0–1,000 per category, with at least one positive
-  total. Each positive total needs a positive per-document count. A specified
-  input ID ignores supplied total values and uses the per-document counts instead.
+- `metrics_per_document`: optional integer, default ten, range 1–50.
+- `total_metrics`: optional batch target, default ten, range 1–1,000. A specified
+  input ID ignores this value and uses Metrics per document instead.
+- Legacy per-hop count request fields remain accepted when equal; unequal values
+  fail validation because a metric always generates one question of each hop type.
+  The new metric count fields take precedence over legacy fields.
 - `lang`: legacy request field, ignored. New runs have `lang = mixed`; each question
   has `en` or `zh-cn`. Random selection does not guarantee both languages appear
   in a small run. Interface language changes do not translate saved questions.
@@ -57,7 +57,9 @@ content with newline separators: up to ten actual canonical lines before its fir
 source line, its metric source lines, and up to ten lines after its last source
 line. Disjoint metric spans exclude intervening lines outside those spans. Window
 boundaries are clamped to the document, and sparse line IDs do not reduce the
-neighbor count. `context_line_ids` preserves the corresponding canonical IDs.
+neighbor count. `context_line_ranges` preserves the corresponding canonical IDs as inclusive
+range strings, for example `["124:128", "130", "132:144"]`. Missing IDs between
+ranges remain unavailable evidence. Output question citations remain integer IDs.
 Tables use the existing numbered-row representation.
 
 The context windows are combined and deduplicated for evidence validation and
@@ -74,10 +76,11 @@ each selected document; a document whose metrics disappeared is skipped as well.
 Missing line files, insufficient metric grounding, or invalid model responses skip
 the candidate in batch mode and fail a specifically requested single document.
 
-For a document, N is the sum of the requested one-hop, two-hop, and multi-hop
-counts. The generator randomly samples N metric entries, choosing without
+For a document, N is Metrics per document, clipped to the remaining Total metrics
+in batch mode. The generator randomly samples N metric entries, choosing without
 replacement until the eligible pool is exhausted, then refilling it if necessary.
-Every set contains one selected metric and exactly one assigned question target.
+Every set contains one selected metric and three assigned targets: one-hop,
+two-hop, and multi-hop. Each target gets an independent random language.
 The model never receives the full stored metric inventory or the full source file.
 
 The input JSON starts with `document_metadata`: input record ID, title, document
@@ -115,6 +118,8 @@ model reference and resolved model name, prompt filename, creator, timestamps,
 counts per hop, document processing count, and expiration deadline. Batch runs
 have a null `input_record_id` in the database (returned as zero by the API).
 `documents_processed` counts successful document visits, including repeat visits.
+For new runs, the three per-hop requested counts each equal the metric count,
+and their total targets each equal Total metrics. Existing run rows are unchanged.
 
 `testbed.generated_questions` holds one row per question: `run_id`,
 `input_record_id`, `hop_type`, `question`, `answer`, `reasoning_steps`,
@@ -122,8 +127,9 @@ have a null `input_record_id` in the database (returned as zero by the API).
 `metric_id`, `metric_snapshot`, `lang`, and `source_sha256`. Each question keeps its
 actual input ID even when its run samples many documents. The metric snapshot is
 copied from the loaded database metric, not accepted from model output. Set numbers
-identify individual question targets within one document model call. The metric
-snapshot includes `context` and `context_line_ids`. The hash covers the serialized
+identify metric sets within one document model call, shared by their three
+questions. New metric snapshots include `context` and `context_line_ranges`;
+historical snapshots with `context_line_ids` remain readable. The hash covers the serialized
 union of selected context lines, not the raw file bytes. Legacy run-level source hashes
 remain readable. Deleting an input deletes its questions and its single-document
 runs; a batch run and its other documents' questions remain.
