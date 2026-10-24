@@ -116,7 +116,9 @@ two-hop, and multi-hop. Each target gets an independent random language.
 The model never receives the full stored metric inventory or the full source file.
 
 The input JSON starts with `document_metadata`: input record ID, title, document
-number, filename, publication date, and the stored extracted metadata. It then
+number, filename, publication date, and the stored extracted metadata excluding
+`drafting_persons` and `drafting_organizations`. These two fields are omitted only
+from question-generation model input; stored document metadata is unchanged. It then
 contains `run_id`, record ID, Purpose, Description, the selected metric sets (with
 their individual contexts), and previous questions. Citation validation restricts
 each question to its own metric's context, even if another selected metric has
