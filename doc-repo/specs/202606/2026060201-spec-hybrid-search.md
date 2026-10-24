@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-24 (by Claude Code; §8.2 search run IDs, §13.2 benchmark page, options and timings)
+- **Last Updated**: 2026-10-25 (by Claude Code; §13.2 benchmark parallelism, keyword failures)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -531,8 +531,17 @@ overall and by hop type and language.
 - Every mode searches only the metric partition: the lexical side reads
   `kb.search_artifacts_metric` directly, and the semantic side's `artifact_type = $n` filter makes
   Postgres prune the other ten partitions at run time (`EXPLAIN`: *Subplans Removed: 10*).
-- Questions run one at a time in a background goroutine; each stored result extends the run's
-  10-minute deadline, and an expired `running` run is marked failed on the next listing.
+- Questions run in a pool of *Parallel queries* workers (run option, 1–32, default 8; migration
+  `20261025000001`). Query times therefore include the load of the other workers. 40 questions
+  took 6.7 s at 8 workers. Each stored result extends the run's 10-minute deadline, and an expired
+  `running` run is marked failed on the next listing. A server restart (e.g. air rebuilding) kills
+  the worker goroutines, so the run then expires.
+- A failed or empty keyword call is not cached, so after one the question's three searches run
+  without keywords (the raw query, as live search falls back to) instead of calling the model
+  again; the result row records `query keywords failed or empty`. On 2026-10-25 every
+  `deepseek-flash` call returned HTTP 402 (account balance exhausted), which produced exactly this.
+- Run IDs are per feature, so a search run ID can equal another feature's run ID in
+  `llm_usage_event`; filter by Run ID *and* Call Reason (`search_query_*`).
 - The question generator writes each question from its target metric's own context, so these
   are easy known-item queries that favour vector search (as in §13.1). Only the exact target
   counts as a hit (no near-duplicate credit).
