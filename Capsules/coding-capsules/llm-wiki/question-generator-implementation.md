@@ -1,5 +1,49 @@
 # Question Generator implementation plan
 
+## Current revision: Search Metrics (2026-10-24)
+
+The user's follow-up replaces the generic purpose with `search_metrics` (dropdown
+label Search Metrics), mapped to `prompt-question-generator-search-metrics-v1.md`.
+The earlier implementation notes below describe the first version.
+
+- [x] Keep existing hop counts as per-document limits (default 10, range 0–50).
+  Add total targets (default 10, range 0–1000 per hop). A specified input ID ignores
+  total targets. Otherwise sample eligible inputs in random order, clipping the
+  last document's counts to hit every total exactly. A positive target requires a
+  positive per-document count for that hop.
+- [x] Retrieve stored metrics for each document. Documents without metrics are
+  skipped. For each set, randomly choose a metric and create one question per active
+  hop type. Randomly assign English or Chinese to each question on the server.
+  A document model call receives numbered sets, selected metric snapshots, desired
+  languages, and the canonical source. Validate the exact set/hop/language mapping.
+- [x] Use a new goose migration: batch runs have nullable input IDs, total targets,
+  progress counters, and deadlines; each question keeps its actual input ID,
+  metric identity/snapshot, set number, language, and source hash. Save each full
+  document transactionally and expose progress. Completed documents remain visible
+  if a later failure interrupts a batch. Never revive expired/failed runs.
+- [x] Revisit eligible documents if targets exceed a single pass; stop with a clear
+  error if an entire pass makes no progress. Missing line files, insufficient
+  source evidence, or invalid model output skip that candidate in batch mode.
+  Bound the worker by 10 minutes for a single input and one hour for a batch.
+  Prior question context and bounded duplicate retries prevent uniqueness conflicts
+  from terminating a batch on the first repeated response.
+- [x] Add request/selection/target-clipping/metric-provenance/language tests, worker
+  and database lifecycle coverage, bilingual frontend and browser fixture checks.
+  Review, update the existing devdoc, and commit only this task's files through jj.
+
+Current revision verification: focused generator tests and isolated PostgreSQL
+migration/storage lifecycle tests pass, including exact target clipping, metric-free
+document skipping, duplicate recovery/exhaustion, preserved batch progress, and old
+row retention. `mise build-server` and `bun run check` pass. Browser fixtures pass
+in English/dark and Chinese/light with both count groups, optional IDs, history,
+per-question metadata and source citations. Real provider calls were not exercised.
+The two previously documented unrelated metric-scoring tests remain excluded from
+the broader kbhandler check. The new migration is present in the local application
+database. An identical duplicate SEARCH_QUERY_KEYWORDS_MODEL_NAME assignment was
+removed from ignored mise.local.toml to restore mise parsing, retaining its value.
+
+## Original implementation (historical)
+
 User-approved scope (2026-10-24): a ChenWeb web page and API, with input record ID,
 Purpose, Description, and counts for one-hop, two-hop, and multi-hop questions.
 Each count defaults to ten. Persist results in `testbed.generated_questions`.
