@@ -120,7 +120,13 @@ The model never receives the full stored metric inventory or the full source fil
 The input JSON starts with `document_metadata`: input record ID, title, document
 number, filename, publication date, and the stored extracted metadata excluding
 `drafting_persons` and `drafting_organizations`. These two fields are omitted only
-from question-generation model input; stored document metadata is unchanged. It then
+from question-generation model input; stored document metadata is unchanged.
+Before sending the request, empty metadata values are removed recursively:
+nulls, blank or whitespace-only strings, and empty arrays or objects (including
+containers emptied by pruning). This applies to top-level fields such as `doc_no`
+and all nested extracted metadata. Empty array entries are removed while retaining
+the order of remaining entries. Numeric values, including zero, and booleans,
+including false, are retained. It then
 contains `run_id`, record ID, Purpose, Description, the selected metric sets (with
 their individual contexts), and previous questions. Citation validation restricts
 each question to its own metric's context, even if another selected metric has
