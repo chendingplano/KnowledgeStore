@@ -144,6 +144,17 @@ unknown or repeated evidence lines, and unsupported reasoning steps.
 - The page inspects saved candidates; it does not score search results, edit
   questions, or mark candidates as an approved benchmark.
 
+## Development troubleshooting
+
+If a blank record ID gets HTTP 400 with `positive input_record_id and purpose are
+required`, the API is serving the original implementation. The current handler
+accepts omitted, null, and zero input IDs; a PostgreSQL-backed HTTP integration test
+covers all three alongside a specified ID. Check the running API process, not just
+whether the latest binary builds. Air uses `stop_on_error = false`, so failed
+rebuilds can leave the older server running. Resolve the build/configuration error
+and restart the development API through `mise dev-server` after stopping its old
+reloader. The frontend may already have updated independently.
+
 ## Related documents
 
 - [Hybrid search](../../../Capsules/coding-capsules/llm-wiki/hybrid-search.md)
