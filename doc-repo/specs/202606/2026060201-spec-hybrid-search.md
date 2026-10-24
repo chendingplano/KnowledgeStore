@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-24 (by Claude Code; §8.2 search run IDs, §13.2 benchmark page)
+- **Last Updated**: 2026-10-24 (by Claude Code; §8.2 search run IDs, §13.2 benchmark page, options and timings)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -518,6 +518,19 @@ overall and by hop type and language.
   `testbed.hybrid_search_benchmark_results` (question snapshot, keywords, three ranks, hybrid top
   10, error, search run ID — §8.2). Migrations `20261024000014`, `20261024000015`.
 - API (admin): `POST|GET /kb/hybrid-search-benchmark/runs`, `GET …/runs/:id`.
+- Run options (start form; defaults = the live configuration, returned as `defaults` by the run
+  list): query keywords on/off, the two RRF weights (0–100, not both 0) and candidates per list
+  (1–1000, `registrySearchConfig.candidateLimit`; ranks beyond it are misses). Keywords are
+  switched per search through `searchCall.keywords`, overriding `SEARCH_QUERY_KEYWORDS`. A run
+  records the keyword model and prompt it used (migration `20261024000016`).
+- Timings per question (ms): query embedding, keyword extraction (a fresh LLM call that bypasses
+  the keyword cache, `searchCall.freshKeywords`; the three searches then hit the cache), and each
+  mode's search query. The page's *Query time* = embedding + keywords + hybrid query, i.e. one
+  live hybrid search. First live check (5 questions, keywords on): about 1.2–1.5 s, of which the
+  keyword call 0.9–1.4 s, embedding 40–100 ms, each search query 120–290 ms.
+- Every mode searches only the metric partition: the lexical side reads
+  `kb.search_artifacts_metric` directly, and the semantic side's `artifact_type = $n` filter makes
+  Postgres prune the other ten partitions at run time (`EXPLAIN`: *Subplans Removed: 10*).
 - Questions run one at a time in a background goroutine; each stored result extends the run's
   10-minute deadline, and an expired `running` run is marked failed on the next listing.
 - The question generator writes each question from its target metric's own context, so these
