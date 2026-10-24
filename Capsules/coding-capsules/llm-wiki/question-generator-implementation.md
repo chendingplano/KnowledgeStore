@@ -1,6 +1,24 @@
 # Question Generator implementation plan
 
-## Current revision: Metric counts, triplets, and line ranges (2026-10-24)
+## Current revision: Correct invalid model output once (2026-10-24)
+
+Run 6 for input 416 returned two reasoning steps but one `step_line_ids` array
+for question 1. Its archived response confirms a citation alignment error, not
+an absence of reasoning or a problem with the record ID.
+
+- [x] Retain strict reasoning/citation validation and report precise counts.
+- [x] Give invalid parsed output one correction call with `validation_error` and
+  `previous_response`; retain the exact sampled sets, source context, run ID, and
+  language targets. Request the full corrected output through the versioned prompt.
+- [x] Validate again before saving. A repeated failure stops the document; provider
+  errors do not trigger correction, and the existing run deadline/size cap apply.
+- [x] Regression tests reproduce the mismatch, verify corrected triplets, bound
+  persistent failures to two calls, and leave provider errors at one call.
+
+Generator/PostgreSQL tests and the server build pass. No live provider call was
+made for this revision; the original failed run remains unchanged.
+
+## Earlier revision: Metric counts, triplets, and line ranges (2026-10-24)
 
 - [x] Replace hop count controls with Metrics per document (1–50, default 10) and
   Total metrics (1–1,000, default 10). A specified input ignores the total.

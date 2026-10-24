@@ -158,6 +158,21 @@ evidence must be their exact union, including a source line for the selected met
 The returned set/hop/language must exactly match an assigned target. Evidence text
 is copied from the loaded source by the server, never accepted from the model.
 
+If a parsed model response fails validation, the generator makes one correction
+call with the same sampled metrics, contexts, language targets, run ID, and input
+record ID. Its JSON input adds `validation_error` and `previous_response`; the
+Search Metrics prompt instructs the model to return the full corrected question
+array. Both attempts use the same strict validation, input-size cap, and run
+deadline. A second invalid response fails the document without saving partial
+questions. Provider/request errors do not trigger this correction call. Each call
+is recorded separately in LLM usage logs under the same run ID.
+
+Reasoning errors report the actual counts, for example two reasoning steps but
+one citation array. Multiple explanations supported by one source line still
+require one citation array per explanation; the server does not infer or copy
+missing citations. This reproduces the failure seen in run 6 for input 416.
+
+
 The server rejects unknown hop types, wrong per-category counts, blank questions
 or answers, duplicate questions (ignoring case and whitespace), empty reasoning,
 unknown or repeated evidence lines, and unsupported reasoning steps.
