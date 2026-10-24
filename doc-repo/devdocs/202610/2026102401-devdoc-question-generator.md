@@ -44,7 +44,9 @@ These are generated candidates that need human review before use as a benchmark.
   in a small run. Interface language changes do not translate saved questions.
 - `QUESTION_GEN_MODEL_NAME`: model reference in `.models.toml`, default
   `deepseek-flash-processor` when unset or blank. Uses the existing configured
-  provider client and usage logging.
+  provider client and usage logging. Generator calls explicitly send
+  `thinking.type = disabled`, overriding the profile's reasoning setting for
+  this client. The model profile itself is unchanged.
 - Search Metrics prompt: `ChenWeb/prompts/prompt-question-generator-search-metrics-v1.md`, loaded through the
   existing prompt resolver (`PROMPT_DIR` or the project's prompts directory).
 
