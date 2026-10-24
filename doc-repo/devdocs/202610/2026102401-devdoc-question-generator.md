@@ -6,23 +6,43 @@
 
 ## Summary
 
-Question Generator creates candidate questions for evaluating metric search.
-Open **System Admin → Benchmark → Question Generator**, enter an input record ID,
-or leave it blank to sample documents randomly. Select **Search Metrics** as the
-Purpose, add an optional Description, and choose **Metrics per document** and **Total metrics**. Both start at ten.
-Each sampled metric produces three questions: one-hop, two-hop, and multi-hop
-(ten metrics produce thirty questions). A specified record ignores Total metrics;
-batch mode reduces the final document's metric count to reach the total exactly.
+Question Generator creates and browses candidate questions for evaluating metric
+search. Open **System Admin → Benchmark → Question Generator** to see saved
+questions immediately. Filter by Purpose, Run ID, Record ID, Language, and creation
+time, then click **Search**. **Reset** clears the conditions and reloads all
+questions. Results are paginated, newest first. Each question shows its answer,
+model, prompt, source record, language, and expandable reasoning and evidence.
+The site footer is hidden on this page.
 
-Generation runs in the background. The page shows its status and lets you reopen
-saved runs for one record or across all records. For each requested metric set, the
-system randomly selects a stored metric and sends only its surrounding source
-context to the model. Each question independently uses English or Chinese, chosen
-randomly by the server. It includes a reference answer, reasoning steps, the
-selected metric, and copies of the cited source lines. Previous runs are kept.
-These are generated candidates that need human review before use as a benchmark.
+Click **Generate Questions** to open the generation dialog. Enter an input record
+ID or leave it blank to sample documents randomly. Select **Search Metrics**, add
+an optional Description, and choose **Metrics per document** and **Total metrics**.
+Both counts start at ten. Each metric produces one-hop, two-hop, and multi-hop
+questions (ten metrics produce thirty questions). A specified record ignores
+Total metrics; batch mode reduces the final document's count to reach the target.
+
+Generation runs in the background. A status panel reports its saved Run ID,
+progress, and any failure. The list and filter options refresh when the run ends,
+using the currently applied search conditions. Existing questions remain saved.
+Only each sampled metric's surrounding source context is sent to the model.
+Question language is independently chosen as English or Chinese. These are
+candidates that need human review before use as a benchmark.
 
 ## Details
+
+### Browsing and filters
+
+The page loads up to 50 questions per page. Purpose, Run ID, Record ID, and Language
+menus contain all distinct values stored in `testbed.generated_questions`, including
+historical purposes. The API provides these values independently of active filters.
+Time From and Time To are local date/time pickers, converted to timezone-aware
+RFC3339 timestamps by the client. Either bound can be omitted; both are inclusive
+and filter each question's `created_at`. Reversed ranges are rejected.
+
+Editing controls does not change results until Search is clicked. Pagination uses
+the last applied conditions. Reset clears both draft and applied conditions and
+queries the database again. Request cancellation prevents stale searches from
+replacing newer results. The modal supports keyboard dismissal and focus return.
 
 ### Inputs and configuration
 
@@ -107,10 +127,20 @@ Usage Logs → Run ID** can display and filter the corresponding calls.
 
 | Method | Path under `/api/v1/kb/question-generator` | Result |
 |---|---|---|
+| GET | `/questions` | Paginated questions and total count matching filters |
+| GET | `/question-filters` | Distinct purposes, run IDs, record IDs, and languages from saved questions |
 | POST | `/runs` | Validate input, persist a running run, return HTTP 202 with `{run}` |
 | GET | `/runs` | Latest 50 runs across all records, as `{runs}` |
 | GET | `/runs?input_record_id=416` | Latest 50 runs for this record, including batches with saved questions for it |
 | GET | `/runs/:id` | `{run, questions}`, or HTTP 404 |
+
+`GET /questions` accepts optional `purpose`, `run_id`, `input_record_id`, `lang`,
+`created_from`, and `created_to`, combined with AND. Values are SQL parameters.
+Positive `page` defaults to 1 (maximum 1,000,000); `page_size` defaults to 50
+(maximum 100). Results sort by `created_at DESC, id DESC` and return
+`{questions, total, page, page_size}`. `GET /question-filters` returns
+`{purposes, run_ids, record_ids, languages}`. Both endpoints use the same admin
+middleware as generation. The older run-history endpoints remain available.
 
 `testbed.generated_question_runs` holds Purpose, Description, counts, language,
 model reference and resolved model name, prompt filename, creator, timestamps,
@@ -122,13 +152,15 @@ For new runs, the three per-hop requested counts each equal the metric count,
 and their total targets each equal Total metrics. Existing run rows are unchanged.
 
 `testbed.generated_questions` holds one row per question: `run_id`,
-`input_record_id`, `purpose`, `hop_type`, `question`, `answer`, `reasoning_steps`,
+`input_record_id`, `purpose`, `prompt_name`, `model_name`, `created_at`, `hop_type`, `question`, `answer`, `reasoning_steps`,
 `step_line_ids`, `evidence` (objects containing `line_id` and `text`), `set_no`,
 `metric_id`, `metric_snapshot`, `lang`, and `source_sha256`. Each question keeps its
 actual input ID even when its run samples many documents. Its non-null `purpose`
 is copied from the saved run when inserted and included in question API responses;
-model-supplied purpose is ignored. Existing questions are backfilled from their
-parent runs, preserving historical purpose values. The metric snapshot is
+model-supplied purpose is ignored. `prompt_name` and `model_name` are also copied
+from the parent run on insertion and returned by question APIs. Existing questions
+are backfilled from their parent runs, preserving historical purposes and known
+model/prompt values (an unknown historical model stays empty). The metric snapshot is
 copied from the loaded database metric, not accepted from model output. Set numbers
 identify metric sets within one document model call, shared by their three
 questions. New metric snapshots include `context` and `context_line_ranges`;
@@ -147,7 +179,9 @@ the same limits. Failure details and progress appear in the run inspector.
 Migrations: `20261024000001_create_generated_questions.sql` (initial schema) and
 `20261024000011_question_generator_metric_batches.sql` (batch/metric metadata),
 and `20261024000012_add_generated_questions_purpose.sql` (question-level purpose
-and historical backfill).
+and historical backfill), plus
+`20261024000013_add_generated_questions_model_prompt.sql` (question-level model
+and prompt provenance).
 The existing startup project migrator applies them before routes are served. The
 second migration retains historical rows and backfills their counts and languages.
 Its rollback refuses to proceed while batch runs exist, because the original schema
@@ -192,7 +226,8 @@ unknown or repeated evidence lines, and unsupported reasoning steps.
 - Generation uses an in-process background worker. A server restart interrupts it;
   history reads report failure after the deadline. Interrupted runs do not resume
   automatically.
-- Each history request shows the latest 50 matching runs.
+- The legacy run-history API shows the latest 50 matching runs. The question
+  browser uses pagination across all matching questions.
 - The page inspects saved candidates; it does not score search results, edit
   questions, or mark candidates as an approved benchmark.
 

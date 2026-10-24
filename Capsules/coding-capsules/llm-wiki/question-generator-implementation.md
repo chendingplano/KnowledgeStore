@@ -1,6 +1,31 @@
 # Question Generator implementation plan
 
-## Current revision: Question purpose column (2026-10-24)
+## Current revision: Filterable question browser and generation dialog (2026-10-24)
+
+- [x] List saved questions on page load; remove the site footer only on Question
+  Generator. Show model/prompt, purpose, run/record IDs, language, and creation time.
+- [x] Move the existing form to a native modal opened by Generate Questions. Retain
+  optional input IDs, metric counts, background progress, and failure details.
+- [x] Add Purpose, Run ID, Record ID, Language menus populated from distinct table
+  values, plus inclusive local From/To time pickers. Search applies all filters;
+  Reset clears and re-queries. Keep pagination tied to applied conditions.
+- [x] Add admin-only GET `/questions` and `/question-filters` endpoints under the
+  existing question-generator API, parameterized filters and stable pagination.
+- [x] Add migration 20261024000013 for non-null question `prompt_name`/`model_name`.
+  Backfill from parent runs and copy authoritative run metadata on future inserts.
+- [x] Extend PostgreSQL tests for backfill/rollback/re-up, insert provenance, API
+  responses, combined filters, exact time boundaries, pagination, and SQL parameters.
+
+Verification: generator and PostgreSQL integration tests pass, including combined
+filters, exact date boundaries, provenance, pagination, and migration rollback.
+Server build and bilingual frontend checks pass. English/dark and Chinese/light
+browser fixtures cover default listing, modal focus/Escape, Search/Reset, stale
+requests, applied-filter pagination, optional IDs, generation progress and failure,
+reasoning/evidence, and footer absence. Migration 13 is applied on staging with
+zero question/run model or prompt mismatches.
+
+
+## Earlier revision: Question purpose column (2026-10-24)
 
 - [x] Add non-null TEXT `testbed.generated_questions.purpose` through goose migration
   `20261024000012_add_generated_questions_purpose.sql`, with rollback.
