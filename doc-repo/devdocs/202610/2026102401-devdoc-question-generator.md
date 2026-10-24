@@ -212,7 +212,9 @@ is copied from the loaded source by the server, never accepted from the model.
 If a parsed model response fails validation, the generator makes one correction
 call with the same sampled metrics, contexts, language targets, run ID, and input
 record ID. Its JSON input adds `validation_error` and `previous_response`; the
-Search Metrics prompt instructs the model to return the full corrected question
+Search Metrics prompt instructs the model to address every reported error, check
+the full array for citation alignment, blank fields, and duplicate questions,
+preserve valid questions, and return the full corrected question
 array. Both attempts use the same strict validation, input-size cap, and run
 deadline. A second invalid response fails the document without saving partial
 questions. Provider/request errors do not trigger this correction call. Each call
@@ -222,6 +224,16 @@ Reasoning errors report the actual counts, for example two reasoning steps but
 one citation array. Multiple explanations supported by one source line still
 require one citation array per explanation; the server does not infer or copy
 missing citations. This reproduces the failure seen in run 6 for input 416.
+
+For a correctly sized, decodable response, structural validation checks every
+question and reports the first failure for each invalid question together with
+any hop-count errors. This prevents an early citation mismatch from hiding later
+invalid questions in the correction request, as could happen in run 7 for input
+753. Blank question text, missing answers, and duplicate text have separate error
+messages; duplicate errors identify the earlier question, ignoring case and
+whitespace. Metric assignment and context checks run after structural validation
+passes. A correction can still fail; this feedback does not guarantee valid model
+output.
 
 
 The server rejects unknown hop types, wrong per-category counts, blank questions
