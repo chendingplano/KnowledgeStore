@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-24 (by Claude Code; §13.2 benchmark page)
+- **Last Updated**: 2026-10-24 (by Claude Code; §8.2 search run IDs, §13.2 benchmark page)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -299,6 +299,22 @@ hybrid lexical CTE.
   0.80 (English queries 0.20 → 0.75), matching a median of about 110 metrics instead of all
   of them; hybrid at weights 1.0/1.0: 0.85 → 0.90. Vector alone: 0.95.
 
+### 8.2 Search run IDs
+
+Each search takes one run ID from the sequence `kb.search_run_id_seq` (migration
+`20261024000015`): one per search API request (`searchRegistryArtifacts`, shared by its count and
+result queries), one per agent search call (`SearchAgentKnowledge`) and one per benchmark question
+(§13.2). The ID and the user (when known) travel in the context (`searchCall`,
+`kbhandler/search_run.go`) to the search's LLM calls, which record them as `run_id` / `user_id` in
+`public.llm_usage_event`:
+
+- query embedding — `call_reason = search_query_embedding`, `call_loc = MID-20261024-02`;
+- query keywords — `call_reason = search_query_keywords`, `call_loc = MID-20261024-01`.
+
+A keyword cache hit makes no call, so a repeated query may log only its embedding. Filter LLM
+Usage Logs by Run ID to see one search's calls. If the sequence cannot be read, the search still
+runs with run ID 0 (a warning is logged).
+
 **Choosing types.** The type comes from the route (`/search/<type>`, or the all-types route).
 On the all-types route, `artifact_types=a,b` (comma-separated) narrows the set; an unknown
 value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
@@ -398,6 +414,7 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | Live benchmark page (generated questions) | `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`, `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-view.svelte` |
 | Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |
+| Search run IDs (usage-log correlation) | `ChenWeb/server/api/kbhandler/search_run.go` |
 | Backfill handler | `ChenWeb/server/api/kbhandler/backfill_embeddings_handler.go` |
 | Route registration | `ChenWeb/server/api/routes.go` (`POST /kb/search/backfill-embeddings`) |
 | Startup wiring | `ChenWeb/server/cmd/deepdoc/main.go` (calls `CheckSearchBackend` after migrations) |
@@ -499,7 +516,7 @@ overall and by hop type and language.
 - Tables: `testbed.hybrid_search_benchmark_runs` (status, progress and the settings in force:
   lexical backend, `SEARCH_QUERY_KEYWORDS`, `EMBEDDING_MODEL_NAME`, weights, candidate limit) and
   `testbed.hybrid_search_benchmark_results` (question snapshot, keywords, three ranks, hybrid top
-  10, error). Migration `20261024000014`.
+  10, error, search run ID — §8.2). Migrations `20261024000014`, `20261024000015`.
 - API (admin): `POST|GET /kb/hybrid-search-benchmark/runs`, `GET …/runs/:id`.
 - Questions run one at a time in a background goroutine; each stored result extends the run's
   10-minute deadline, and an expired `running` run is marked failed on the next listing.
