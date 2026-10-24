@@ -1,6 +1,36 @@
 # Question Generator implementation plan
 
-## Current revision: Search Metrics (2026-10-24)
+## Current revision: Bounded metric context and usage correlation (2026-10-24)
+
+- [x] Carry the saved generator run ID and actual input record ID on every LLM
+  request so the existing LLM Usage Logs Run ID column is populated. Label run IDs
+  explicitly on the generator page in both languages.
+- [x] Resolve the Search Metrics prompt through `PROMPT_GENERATE_METRIC_QUESTIONS`,
+  with the existing prompt filename as fallback. Preserve the resolved reference
+  on generator runs and usage events.
+- [x] Let N be the sum of requested per-document hop counts. Sample N metrics,
+  without replacement until the usable pool is exhausted, then refill if needed.
+  Assign exactly one question target to each sampled metric entry.
+- [x] Attach `context` and `context_line_ids` to each sampled metric. Concatenate
+  ten actual lines before the first metric line, the metric's own lines, and ten
+  after its last line; clamp boundaries and exclude disjoint-span gaps. Do not send
+  the full source or full metric inventory. Validate citations within each metric's
+  context and hash only the union of selected lines.
+- [x] Put document metadata first in the JSON input, ahead of the sampled listing.
+  Include record ID, title, document number, filename, date, and extracted metadata.
+- [x] Cover input shape, metadata order, prompt override, sampling, large unused
+  document content, sparse/disjoint spans, citation isolation, and run correlation
+  with tests. Review the implementation and update the current devdoc.
+
+Generator and PostgreSQL tests, server build, and bilingual UI checks pass. The
+broader kbhandler suite passes excluding the same two previously documented
+unrelated metric-scoring tests. A live call records its saved run ID in
+`public.llm_usage_event` and uses a reduced context input. Live inspection also
+identified a model response with misaligned per-step citations; the prompt now
+explicitly requires one citation array per explanation, including repeated arrays
+when multiple steps use the same table line.
+
+## Earlier revision: Search Metrics (2026-10-24)
 
 The user's follow-up replaces the generic purpose with `search_metrics` (dropdown
 label Search Metrics), mapped to `prompt-question-generator-search-metrics-v1.md`.

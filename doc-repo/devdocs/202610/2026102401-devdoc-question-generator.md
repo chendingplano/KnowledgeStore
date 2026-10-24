@@ -15,9 +15,9 @@ record uses only the per-document counts; batch mode repeats until it reaches th
 total targets, reducing the final document's counts as necessary.
 
 Generation runs in the background. The page shows its status and lets you reopen
-saved runs for one record or across all records. For each question set, the system
-randomly selects a stored metric and generates one question per active hop type
-about that metric. Each question independently uses English or Chinese, chosen
+saved runs for one record or across all records. For each requested question, the
+system randomly selects a stored metric and sends only its surrounding source
+context to the model. Each question independently uses English or Chinese, chosen
 randomly by the server. It includes a reference answer, reasoning steps, the
 selected metric, and copies of the cited source lines. Previous runs are kept.
 These are generated candidates that need human review before use as a benchmark.
@@ -47,13 +47,23 @@ These are generated candidates that need human review before use as a benchmark.
   provider client and usage logging. Generator calls explicitly send
   `thinking.type = disabled`, overriding the profile's reasoning setting for
   this client. The model profile itself is unchanged.
-- Search Metrics prompt: `ChenWeb/prompts/prompt-question-generator-search-metrics-v1.md`, loaded through the
-  existing prompt resolver (`PROMPT_DIR` or the project's prompts directory).
+- `PROMPT_GENERATE_METRIC_QUESTIONS`: Search Metrics prompt file reference, default
+  `prompt-question-generator-search-metrics-v1.md`. Loaded through the existing
+  prompt resolver (`PROMPT_DIR`, an absolute path, or the project's prompts directory).
+  The resolved reference is saved on the run and its LLM usage events.
 
-The full source and metric context are sent without truncation. Empty sources or
-formatted inputs over 600,000 characters fail. A model's own context and output
-limits may impose lower limits. Only metrics with usable source-line references
-can be selected as question anchors.
+Only sampled metric contexts are sent. For each metric, `context` joins the source
+content with newline separators: up to ten actual canonical lines before its first
+source line, its metric source lines, and up to ten lines after its last source
+line. Disjoint metric spans exclude intervening lines outside those spans. Window
+boundaries are clamped to the document, and sparse line IDs do not reduce the
+neighbor count. `context_line_ids` preserves the corresponding canonical IDs.
+Tables use the existing numbered-row representation.
+
+The context windows are combined and deduplicated for evidence validation and
+source hashing. Unrelated document content is neither included in the prompt nor
+subject to the context size limit. Empty contexts or assembled inputs over 600,000
+characters fail without truncation. A model's context/output limits may be lower.
 
 ### Document and metric sampling
 
@@ -64,11 +74,18 @@ each selected document; a document whose metrics disappeared is skipped as well.
 Missing line files, insufficient metric grounding, or invalid model responses skip
 the candidate in batch mode and fail a specifically requested single document.
 
-Within a document, each set chooses a metric independently, with replacement.
-Each set produces one question for every hop category still needing a question;
-unequal counts mean later sets may contain fewer than three questions. The model
-receives all stored document metrics, the chosen anchor for each set, and the
-server-assigned language for each question.
+For a document, N is the sum of the requested one-hop, two-hop, and multi-hop
+counts. The generator randomly samples N metric entries, choosing without
+replacement until the eligible pool is exhausted, then refilling it if necessary.
+Every set contains one selected metric and exactly one assigned question target.
+The model never receives the full stored metric inventory or the full source file.
+
+The input JSON starts with `document_metadata`: input record ID, title, document
+number, filename, publication date, and the stored extracted metadata. It then
+contains `run_id`, record ID, Purpose, Description, the selected metric sets (with
+their individual contexts), and previous questions. Citation validation restricts
+each question to its own metric's context, even if another selected metric has
+additional context in the same request.
 
 If one pass cannot fill the totals, eligible documents are sampled again. Already
 saved question texts are supplied to later calls and normalized duplicates are
@@ -78,6 +95,12 @@ passes get up to two extra retries. Earlier completed documents remain available
 ### API and storage
 
 All endpoints require an authenticated administrator or owner:
+
+Creation generates a saved numeric run ID (`testbed.generated_question_runs.id`),
+which all its `testbed.generated_questions.run_id` values reference. The generator
+page explicitly labels it **Run ID**. Every LLM call also carries that same ID in
+`JSONExtractionInput.RunID` plus the actual input record in `RecordID`, so **LLM
+Usage Logs → Run ID** can display and filter the corresponding calls.
 
 | Method | Path under `/api/v1/kb/question-generator` | Result |
 |---|---|---|
@@ -99,8 +122,9 @@ have a null `input_record_id` in the database (returned as zero by the API).
 `metric_id`, `metric_snapshot`, `lang`, and `source_sha256`. Each question keeps its
 actual input ID even when its run samples many documents. The metric snapshot is
 copied from the loaded database metric, not accepted from model output. Set numbers
-identify sets within one document model call. The hash covers the serialized source
-lines supplied to the model, not the raw file bytes. Legacy run-level source hashes
+identify individual question targets within one document model call. The metric
+snapshot includes `context` and `context_line_ids`. The hash covers the serialized
+union of selected context lines, not the raw file bytes. Legacy run-level source hashes
 remain readable. Deleting an input deletes its questions and its single-document
 runs; a batch run and its other documents' questions remain.
 
