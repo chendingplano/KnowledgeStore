@@ -1,6 +1,19 @@
 # Question Generator implementation plan
 
-## Current revision: Correct invalid model output once (2026-10-24)
+## Current revision: Question purpose column (2026-10-24)
+
+- [x] Add non-null TEXT `testbed.generated_questions.purpose` through goose migration
+  `20261024000012_add_generated_questions_purpose.sql`, with rollback.
+- [x] Backfill existing questions from their parent run's purpose, including historical
+  free-text purposes. New inserts copy the saved run's purpose directly in SQL.
+- [x] Include purpose in question API responses and TypeScript types.
+- [x] Verify migration up/down/re-up, historical backfill, authoritative insert and
+  API round trip in isolated PostgreSQL; run generator tests and build checks.
+
+Staging startup applied the migration: all eight existing questions have
+`search_metrics`, with zero question/run purpose mismatches.
+
+## Earlier revision: Correct invalid model output once (2026-10-24)
 
 Run 6 for input 416 returned two reasoning steps but one `step_line_ids` array
 for question 1. Its archived response confirms a citation alignment error, not

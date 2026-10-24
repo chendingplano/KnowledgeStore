@@ -122,10 +122,13 @@ For new runs, the three per-hop requested counts each equal the metric count,
 and their total targets each equal Total metrics. Existing run rows are unchanged.
 
 `testbed.generated_questions` holds one row per question: `run_id`,
-`input_record_id`, `hop_type`, `question`, `answer`, `reasoning_steps`,
+`input_record_id`, `purpose`, `hop_type`, `question`, `answer`, `reasoning_steps`,
 `step_line_ids`, `evidence` (objects containing `line_id` and `text`), `set_no`,
 `metric_id`, `metric_snapshot`, `lang`, and `source_sha256`. Each question keeps its
-actual input ID even when its run samples many documents. The metric snapshot is
+actual input ID even when its run samples many documents. Its non-null `purpose`
+is copied from the saved run when inserted and included in question API responses;
+model-supplied purpose is ignored. Existing questions are backfilled from their
+parent runs, preserving historical purpose values. The metric snapshot is
 copied from the loaded database metric, not accepted from model output. Set numbers
 identify metric sets within one document model call, shared by their three
 questions. New metric snapshots include `context` and `context_line_ranges`;
@@ -142,7 +145,9 @@ expired runs failed, and a late worker cannot revive them. Worker contexts enfor
 the same limits. Failure details and progress appear in the run inspector.
 
 Migrations: `20261024000001_create_generated_questions.sql` (initial schema) and
-`20261024000011_question_generator_metric_batches.sql` (batch/metric metadata).
+`20261024000011_question_generator_metric_batches.sql` (batch/metric metadata),
+and `20261024000012_add_generated_questions_purpose.sql` (question-level purpose
+and historical backfill).
 The existing startup project migrator applies them before routes are served. The
 second migration retains historical rows and backfills their counts and languages.
 Its rollback refuses to proceed while batch runs exist, because the original schema
