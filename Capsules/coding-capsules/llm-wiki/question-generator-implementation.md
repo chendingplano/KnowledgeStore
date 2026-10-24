@@ -1,6 +1,21 @@
 # Question Generator implementation plan
 
-## Current revision: Filterable question browser and generation dialog (2026-10-24)
+## Current revision: Compact name-value records (2026-10-24)
+
+- [x] Replace full-width question rows with three equal-width cards on wide
+  layouts; reduce to two or one column based on the results container's width.
+- [x] Reuse the existing Name-Value Visualizer through a question-record adapter
+  for questions, answers, metadata, expandable reasoning, and source evidence.
+- [x] Preserve localized labels, original question language, selectable text,
+  filters, paging, generation dialog, and progress reporting.
+
+Bilingual frontend checks and English/dark plus Chinese/light browser fixtures
+pass. Browser measurements verify roughly one-third widths at 3840px, two columns
+at 1920px and one at 1440px with the normal navigation/context shell. Filters,
+Reset, pagination, modal behavior, generation progress, and citations remain covered.
+
+
+## Earlier revision: Filterable question browser and generation dialog (2026-10-24)
 
 - [x] List saved questions on page load; remove the site footer only on Question
   Generator. Show model/prompt, purpose, run/record IDs, language, and creation time.

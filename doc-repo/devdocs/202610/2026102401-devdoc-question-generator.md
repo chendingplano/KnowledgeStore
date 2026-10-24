@@ -10,7 +10,8 @@ Question Generator creates and browses candidate questions for evaluating metric
 search. Open **System Admin → Benchmark → Question Generator** to see saved
 questions immediately. Filter by Purpose, Run ID, Record ID, Language, and creation
 time, then click **Search**. **Reset** clears the conditions and reloads all
-questions. Results are paginated, newest first. Each question shows its answer,
+questions. Results are paginated, newest first, in three columns on wide layouts.
+Each question shows its answer,
 model, prompt, source record, language, and expandable reasoning and evidence.
 The site footer is hidden on this page.
 
@@ -38,6 +39,17 @@ historical purposes. The API provides these values independently of active filte
 Time From and Time To are local date/time pickers, converted to timezone-aware
 RFC3339 timestamps by the client. Either bound can be omitted; both are inclusive
 and filter each question's `created_at`. Reversed ranges are rejected.
+
+Each record uses the shared [Name-Value Visualizer](../../modules/module-name-value-visualizer.md)
+through `question-record.svelte`, which adapts the question, answer, run/record
+metadata, language, model, prompt, and creation time into localized field lists.
+Expandable reasoning and evidence use the same component, including per-step line
+IDs. Values retain source language and line breaks; optional blank fields are
+omitted by the visualizer. Text stays selectable in both themes.
+
+The results container uses three equal-width cards when its content width exceeds
+1,100px, two at 721–1,100px, and one at 720px or below. These breakpoints use the
+available results width, so navigation and context panels are accounted for.
 
 Editing controls does not change results until Search is clicked. Pagination uses
 the last applied conditions. Reset clears both draft and applied conditions and
