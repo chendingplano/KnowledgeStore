@@ -82,7 +82,7 @@ replacing newer results. The modal supports keyboard dismissal and focus return.
   `thinking.type = disabled`, overriding the profile's reasoning setting for
   this client. The model profile itself is unchanged.
 - `PROMPT_GENERATE_METRIC_QUESTIONS`: Search Metrics prompt file reference, default
-  `prompt-question-generator-search-metrics-v1.md`. Loaded through the existing
+  `prompt-question-generator-search-metrics-v2.md`. Loaded through the existing
   prompt resolver (`PROMPT_DIR`, an absolute path, or the project's prompts directory).
   The resolved reference is saved on the run and its LLM usage events.
 
@@ -212,6 +212,22 @@ facts can share a table's canonical line. Every step must have citations, and th
 evidence must be their exact union, including a source line for the selected metric.
 The returned set/hop/language must exactly match an assigned target. Evidence text
 is copied from the loaded source by the server, never accepted from the model.
+
+The version 2 prompt returns a `reasoning` array of objects, each with `text` and
+its own nonempty `line_ids`. Keeping each explanation together with its citations
+avoids the mismatched parallel arrays repeatedly produced for one-hop questions
+in run 8 (input 753). A one-hop question can still have two written explanations;
+each must supply citations, even if they cite the same line. The server converts
+these objects into the existing stored `reasoning_steps` and `step_line_ids`, and
+derives evidence from their unique citation union. No schema or browser API change
+is needed. Missing citations, unknown source lines, and unsupported steps still
+fail validation; the server does not fill in missing citations.
+
+Legacy parallel-array responses remain supported for custom prompts and undergo
+the same strict alignment validation. A response cannot mix paired objects with
+legacy arrays. Version 1 remains available; deployments explicitly setting
+`PROMPT_GENERATE_METRIC_QUESTIONS` to version 1 must switch it to version 2 to use
+the paired output contract.
 
 If a parsed model response fails validation, the generator makes one correction
 call with the same sampled metrics, contexts, language targets, run ID, and input
