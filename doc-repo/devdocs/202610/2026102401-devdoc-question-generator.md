@@ -47,7 +47,10 @@ Close the dialog with **Close**, Escape, or a press starting on the backdrop.
 Selecting text inside a field and dragging outside keeps the dialog open.
 
 Generation runs in the background. A status panel reports its saved Run ID,
-progress, and any failure. The list and filter options refresh when the run ends,
+progress, and any failure. The Running badge has an amber highlight that flashes
+gently in both themes; reduced-motion settings keep the highlight steady. The
+highlight and animation stop when the run finishes or fails.
+The list and filter options refresh when the run ends,
 using the currently applied search conditions. Existing questions remain saved.
 Only each sampled metric's surrounding source context is sent to the model.
 Question language is independently chosen as English or Chinese. These are
