@@ -14,7 +14,7 @@ The menu uses `view=development&child=dev-modules`, preserving selection when re
 
 Search runs locally over all loaded records, matching a trimmed, case-insensitive substring against module ID, name, description, type, language, raw status, version, documentation path, file paths, and serialized configuration. It supports Chinese descriptions as well as English. Names, descriptions and paths are registry content and are displayed as stored; translated labels do not rewrite that content.
 
-Cards are 340 × 280 CSS pixels and wrap into as many columns as the panel fits. On narrow mobile screens their width shrinks to fit. Long card descriptions scroll; the details dialog retains full text. Loading, error/retry, empty-registry, and no-search-match states have separate messages. Native modal behavior supplies keyboard focus handling and Escape to close.
+Cards are 340 × 280 CSS pixels and wrap into as many columns as the panel fits. They use a solid brighter slate background in dark mode and white in light mode. On narrow mobile screens their width shrinks to fit. Long card descriptions scroll; the details dialog retains full text. Its header has a drag handle supporting pointer movement and arrow keys (10 pixels per keypress). Movement stays within the viewport, adjusts on window resize, and resets to the centered position each time Details opens. Loading, error/retry, empty-registry, and no-search-match states have separate messages. Native modal behavior supplies keyboard focus handling and Escape to close.
 
 ## Known limitations
 
