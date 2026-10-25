@@ -95,9 +95,13 @@ Results are kept in the database (schema `testbed`), so runs can be compared lat
 
 ## Known limitations
 
-- **Easy questions.** Each question is written from its target metric's own text, so semantic
-  search finds most targets at rank 1. Scores show how modes compare on known-item questions, not
-  how search performs on real user queries.
+- **Question difficulty depends on the generator version.** Questions from prompts v1/v2
+  (question-generation runs 1–9) were mostly direct or compound lookups that name the target, so
+  semantic search found 98–100% in the top 10 at every hop level. Prompt v3 (2026-10-25) makes
+  two- and multi-hop questions describe the need without naming the metric; in a first check of 12
+  v3 questions, hybrid ranks fell to 3–11 for two-hop and up to 44 for multi-hop. Use **Tests to
+  run** (filter by question run) to benchmark one generation at a time. Questions are still written
+  from the target's own text, so they are not real user queries.
 - **Exact target only.** A near-duplicate of the target (the same metric in another document)
   counts as a miss.
 - **Metrics only.** The only purpose is *Search Metrics*, and every query searches only metrics

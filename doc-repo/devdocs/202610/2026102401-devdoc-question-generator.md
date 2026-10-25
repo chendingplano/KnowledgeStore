@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 \
+**Date:** 2026-10-24 (updated 2026-10-25: prompt v3, indirect two/multi-hop questions) \
 **Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -82,7 +82,7 @@ replacing newer results. The modal supports keyboard dismissal and focus return.
   `thinking.type = disabled`, overriding the profile's reasoning setting for
   this client. The model profile itself is unchanged.
 - `PROMPT_GENERATE_METRIC_QUESTIONS`: Search Metrics prompt file reference, default
-  `prompt-question-generator-search-metrics-v2.md`. Loaded through the existing
+  `prompt-question-generator-search-metrics-v3.md` (v2 until 2026-10-25). Loaded through the existing
   prompt resolver (`PROMPT_DIR`, an absolute path, or the project's prompts directory).
   The resolved reference is saved on the run and its LLM usage events.
 
@@ -211,9 +211,30 @@ cannot represent them.
 
 ### Question validation
 
-The prompt defines one-hop as direct fact retrieval, two-hop as combining two
-independently evidenced facts, and multi-hop as combining at least three linked
-facts. Each needs at least one, two, or three reasoning steps respectively. Distinct
+Hop types measure how indirect a question is — how much a searcher must work out
+before knowing which metric to look up (prompt v3, openspec
+`question-generator-indirect-hops`):
+
+- **one-hop** names the metric and asks for its value: the question is itself a
+  good search query.
+- **two-hop** must not name the metric; it describes a situation, purpose or
+  condition whose answer is the metric, so one inference is needed to know what to
+  search for. Example: "After the gas cooler reaches steady state, how long must I
+  keep recording?" instead of "What is the minimum test duration?".
+- **multi-hop** must not name the metric either, and identifying it takes a chain
+  of at least two inferences (e.g. scenario → method or table → metric).
+
+Every question has exactly one target metric; "what are X, Y and Z" lists are not
+allowed. The model input carries both `metric_name` and `metric_name_en`, and the
+server rejects a two- or multi-hop question containing either name
+(case-insensitive, names of two or more characters); the correction round passes
+that error back. Close paraphrases are forbidden by the prompt but not checked.
+
+Before v3 (runs 1–9, prompts v1/v2), a hop meant a reasoning step over the evidence:
+most two- and multi-hop questions named the target and asked for several values at
+once, and semantic search still found 98–100% of targets in the top 10. Those
+questions remain stored; filter by run (or prompt) to benchmark only v3 questions.
+Each question needs at least one, two, or three reasoning steps respectively. Distinct
 facts can share a table's canonical line. Every step must have citations, and the
 evidence must be their exact union, including a source line for the selected metric.
 The returned set/hop/language must exactly match an assigned target. Evidence text
