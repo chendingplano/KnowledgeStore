@@ -1,8 +1,8 @@
 # Module: Name-Value Visualizer
 
 **Module ID:** `20261024-01`
-**Type:** frontend · **Language:** svelte · **Version:** 1.0.0
-**Status:** active — used by the MeSH Browser (Knowledge Base → Ontology → MeSH → MeSH Browser)
+**Type:** frontend · **Language:** svelte · **Version:** 1.1.0
+**Status:** active — used by the MeSH Browser (Knowledge Base → Ontology → MeSH → MeSH Browser) and the [Metric Detail Visualizer](module-metric-detail-visualizer.md) (`20261025-01`)
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/name-value/`
 **Created:** 2026-10-24
@@ -30,9 +30,9 @@ It is not a table: it shows one record, not many.
 
 | File | Purpose |
 |---|---|
-| `name-value-visualizer.svelte` | The component. Renders a `<dl>` grid. |
+| `name-value-visualizer.svelte` | The component. Renders a `<dl>` grid inside a size-query container. |
 | `name-value.ts` | Types (`NameValueItem`, `NameValueField`, `NameValueInput`) and `normalizeFields()`. |
-| `name-value.test.ts` | Unit test for `normalizeFields()` (`bun test`). |
+| `name-value.test.ts` | Unit tests for `normalizeFields()` (`bun test`). |
 
 ## 3. Data model
 
@@ -54,9 +54,10 @@ type NameValueInput = {
 
 Each value renders one way: `href` wins, then `onClick`, otherwise plain text.
 
-`normalizeFields()` (applied by the component) turns bare strings into items, drops
-`null`/`undefined`/blank values, and then drops fields left with no values. Callers can
-therefore pass optional fields without filtering them first.
+`normalizeFields(fields, keepEmpty = false)` (applied by the component) turns bare
+strings into items, drops `null`/`undefined`/blank values, and then drops fields left
+with no values — unless `keepEmpty` is set, in which case they stay with `values: []`.
+Callers can therefore pass optional fields without filtering them first.
 
 ## 4. Props
 
@@ -64,7 +65,11 @@ therefore pass optional fields without filtering them first.
 |---|---|---|---|
 | `fields` | `NameValueInput[]` | — | The fields, in display order. |
 | `labelWidth` | CSS length | `13rem` | Maximum width of the name column (minimum is 9rem). |
+| `emptyText` | string | — | When set, fields without values stay in the list, dimmed, showing this text (e.g. `—`). When unset they are hidden. |
 | `ariaLabel` | string | — | Accessible name for the list; pass an `m.*()` string. |
+
+`labelWidth` and `emptyText` are the module's settings (`config_json` in
+`kb.reusable_modules`); `fields` and `ariaLabel` are per-use data.
 
 ## 5. Usage
 
@@ -111,12 +116,22 @@ on the Concepts tab.
 - **Theme:** colours come from the page's CSS variables `--accent` (links) and fall back
   to `currentColor`, so it works in light and dark themes without its own tokens.
 - **Layout:** long values wrap anywhere and keep line breaks (`white-space: pre-wrap`).
-  Below 600px the name column shrinks to 35% of the width.
+  When the list itself is narrower than 600px (a container query, so it also applies in
+  side panels on a wide screen) the name column shrinks to 35% of the width, at least 6rem.
+- **Empty fields:** with `emptyText`, a field without values keeps its row; name and
+  placeholder are dimmed (`opacity: 0.55`).
 - **Keyboard:** links and link buttons are focusable and show a focus outline.
 
 ## 7. Scope and limits
 
 Intentionally left out until a caller needs them: custom per-value render snippets,
-showing empty fields with a placeholder, grouping fields under section headings, and
-inline editing. If the component is needed by a project other than ChenWeb, move it to
-`shared/svelte` (`@chendingplano/shared`) rather than copying it.
+grouping fields under section headings (the Metric Detail Visualizer draws one list per
+group instead), and inline editing. If the component is needed by a project other than
+ChenWeb, move it to `shared/svelte` (`@chendingplano/shared`) rather than copying it.
+
+## 8. Changes
+
+- **1.1.0** (2026-10-25) — `emptyText` prop and `normalizeFields(…, keepEmpty)`; the
+  compact layout now follows the list's own width (container query) instead of the
+  viewport. Added for the Metric Detail Visualizer. No caller changes needed.
+- **1.0.0** (2026-10-24) — first version, for the MeSH Browser.
