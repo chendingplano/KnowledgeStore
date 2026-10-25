@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: question-count sampling, shortage confirmation, List/Cards views and archiving) \
+**Date:** 2026-10-24 (updated 2026-10-25: questions/jobs tabs, question-count sampling, shortage confirmation and archiving) \
 **Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -10,7 +10,11 @@ Question Generator creates and browses candidate questions for evaluating metric
 search. Open **System Admin → Benchmark → Question Generator** to see saved
 questions immediately. Filter by Purpose, Run ID, Record ID, Language, and creation
 time, then click **Search**. **Reset** clears the conditions and reloads all
-questions. Results are paginated, newest first. The **Cards** tab is selected by
+questions. The results panel has two tabs: **Generated questions** (selected by
+default) and **Question generation jobs**. The first contains the existing question
+browser; switching tabs preserves its filters, selection, and List/Cards view.
+Question filters are hidden while viewing jobs, whose list always spans all documents.
+Question results are paginated, newest first. The **Cards** view is selected by
 default and shows three columns on wide layouts; **List** shows a compact table
 with expandable full details.
 Each question shows its answer,
@@ -25,6 +29,16 @@ Selections carry between tabs and clear when the results reload. Questions are
 retained in full, with who archived them and when, and disappear from active
 results. A failed archive keeps the selected questions available for retry.
 The site footer is hidden on this page.
+
+**Question generation jobs** lists every saved generation run, newest first, in
+pages of 25. It shows Run ID, Record ID (or Random documents for batch jobs), status,
+generated/target question counts, start time, elapsed time for finished jobs, and
+description. **Previous** and **Next** reach older jobs beyond the first 50.
+**Refresh** reloads the current page; a page with running jobs refreshes every
+2.5 seconds. Running jobs use the same flashing amber badge, with a steady highlight
+for reduced motion. **View** opens the job's status panel above the tabs, including
+progress, model/prompt, and failure details. Starting a new job refreshes the visible
+jobs list to its first page. Both tabs support keyboard navigation and English/Chinese.
 
 Click **Generate Questions** to open the generation dialog. Enter an input record
 ID or leave it blank to sample documents randomly. Select **Search Metrics**, add
@@ -218,9 +232,17 @@ Usage Logs → Run ID** can display and filter the corresponding calls.
 | GET | `/questions` | Paginated questions and total count matching filters |
 | GET | `/question-filters` | Distinct purposes, run IDs, record IDs, and languages from saved questions |
 | POST | `/runs` | Validate input and capacity; return HTTP 409 for a shortage, otherwise persist a running run and return HTTP 202 with `{run}` |
-| GET | `/runs` | Latest 50 runs across all records, as `{runs}` |
+| GET | `/runs` | Latest 50 runs across all records, as `{runs}`; legacy unpaginated interface |
+| GET | `/runs?page=1&page_size=25` | Paginated jobs as `{runs, total, page, page_size}`, reaching all saved runs |
 | GET | `/runs?input_record_id=416` | Latest 50 runs for this record, including batches with saved questions for it |
 | GET | `/runs/:id` | `{run, questions}`, or HTTP 404 |
+
+Job pagination accepts `page` from 1 to 1,000,000 (default 1) and `page_size` from
+1 to 100 (default 50). Invalid values return HTTP 400. The optional `input_record_id`
+filter also works with pagination, although the jobs tab intentionally requests all
+records. The implementation is `question-generation-jobs.svelte` and
+`listQuestionJobs` in `questionGeneratorService.ts`; the existing status panel remains
+in `question-generator-view.svelte`.
 
 The shortage response is `{confirmation_required, available_metrics, available_questions,
 requested_questions}`. `confirmation_required` is false at zero capacity; otherwise
