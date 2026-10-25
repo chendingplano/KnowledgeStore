@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-25 (by Claude Code; §13.2 benchmark parallelism, keyword failures, question selection)
+- **Last Updated**: 2026-10-25 (by Claude Code; §8.3 effort levels, metric route correction)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -315,6 +315,35 @@ A keyword cache hit makes no call, so a repeated query may log only its embeddin
 Usage Logs by Run ID to see one search's calls. If the sequence cannot be read, the search still
 runs with run ID 0 (a warning is logged).
 
+### 8.3 Effort levels
+
+Registry search (`/kb/search` and the per-type routes in the table below) takes
+`effort=low|medium|high` (default `low`; other values → HTTP 400, `CWB_KB_GSR_015`).
+Code: `kbhandler/search_effort.go`; openspec change `hybrid-search-effort-levels`.
+
+- **low** — the input is the query, exactly as before.
+- **medium / high** — an LLM first analyses the input (`prompt-search-effort-analyze-v1.md`):
+  *direct* (it names what it wants; the first attempt searches it as written) or *compose* (it
+  describes a situation; the LLM writes 1–3 queries naming the inferred quantity). Each
+  **attempt** runs the current queries through the normal hybrid search (top 20 each), fuses
+  everything seen so far with RRF (k = 60), and a judge LLM (`prompt-search-effort-judge-v1.md`)
+  sees the request, the inferred need, the queries tried and the top 10 candidates (label,
+  snippet and the first 800 characters of their `search_document`). It returns whether a
+  candidate answers the request, which ones, and new queries from another angle. The loop stops
+  when one matches, when the judge proposes nothing new, or after `HYBRID_SEARCH_MEDIUM_EFFORTS`
+  (default 2) / `HYBRID_SEARCH_HIGH_EFFORTS` (default 5) attempts. Matches are ranked first, then
+  the fused list.
+- "Found" is the judge's decision — live search has no ground truth.
+- Model `HYBRID_SEARCH_EFFORT_MODEL_NAME` (default `deepseek-flash-processor`, reasoning off),
+  `HYBRID_SEARCH_EFFORT_TIMEOUT_MS` per call (default 20000). Calls carry the search run ID with
+  call reasons `search_effort_analyze` / `search_effort_judge`.
+- Failures degrade: analysis failure → low-effort search; judge failure → the fused results so
+  far. The response adds `effort` and `effort_trace` (strategy, need, attempts with queries,
+  matches and reasons); `total` is the length of the final list.
+- First measurement (12 prompt-v3 questions, keywords on): single-shot hybrid ranked the
+  targets 1–44; high effort put 10 of 12 at rank 1 and the worst from 44 to 7, at about 3–6 s per
+  question when the first attempt succeeds and 20–27 s when all five attempts run.
+
 **Choosing types.** The type comes from the route (`/search/<type>`, or the all-types route).
 On the all-types route, `artifact_types=a,b` (comma-separated) narrows the set; an unknown
 value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
@@ -328,7 +357,7 @@ value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
 | `summary` | `/kb/summaries/search` | yes |
 | `topic` | `/kb/topics/search` | yes |
 | `scene_block` | `/kb/scene-blocks/search` | yes |
-| `metric` | `/kb/metrics/search` | yes |
+| `metric` | none (`/kb/metrics/search` is a separate full-text search over `kb.metrics`, not hybrid; use `/kb/search?artifact_types=metric`) | yes |
 | `provision` | `/kb/provisions/search` | yes |
 | `product` | `/kb/products/search` | yes |
 | `inventory_item` | `/kb/inventory-items/search` | yes |
@@ -415,6 +444,7 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |
 | Search run IDs (usage-log correlation) | `ChenWeb/server/api/kbhandler/search_run.go` |
+| Effort levels (analyse → search → judge loop) | `ChenWeb/server/api/kbhandler/search_effort.go`, `ChenWeb/prompts/prompt-search-effort-*-v1.md` |
 | Backfill handler | `ChenWeb/server/api/kbhandler/backfill_embeddings_handler.go` |
 | Route registration | `ChenWeb/server/api/routes.go` (`POST /kb/search/backfill-embeddings`) |
 | Startup wiring | `ChenWeb/server/cmd/deepdoc/main.go` (calls `CheckSearchBackend` after migrations) |

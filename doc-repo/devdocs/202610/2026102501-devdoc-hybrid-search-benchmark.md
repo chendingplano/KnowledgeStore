@@ -46,8 +46,10 @@ Run Benchmark**. In *Start a benchmark run*:
 - Adjust the search settings for this run. Each starts at the server's current configuration:
   **Query keywords** on/off, **Lexical weight** and **Semantic weight** (how much each list counts
   when merged; 0 ignores a list), **Candidates per list** (how many results each list keeps; a
-  target ranked lower counts as not found), and **Parallel queries** (how many questions run at
-  once).
+  target ranked lower counts as not found), **Parallel queries** (how many questions run at
+  once) and **Effort** (Low searches each question as written; Medium and High let a language
+  model work out what to look for, compose its own queries, check the results and try again —
+  see spec `doc-2026060201` §8.3).
 - Optionally press **Tests to run** to pick questions. The dialog searches the questions by
   creation time, generating run, hop type, language, source document, words in the question or
   answer, and metric ID; tick individual questions or select every match. Ticks survive new
@@ -65,7 +67,8 @@ the keyword prompt and model), then:
   every target came second; a miss counts as 0. MRR rewards putting the target near the top, not
   just on the page.
 - **Questions**: one row per question with the target metric, its rank in the Lexical, Semantic
-  and Hybrid lists ("miss" when not found), the keywords used, the **Query time**, and a **Search
+  and Hybrid lists (and, for Medium/High runs, the **Effort loop** rank with the number of attempts,
+  whether the model judged it found, the time, and a *Queries tried* list under the question) ("miss" when not found), the keywords used, the **Query time**, and a **Search
   run ID**. Query time is what one live hybrid search costs: embedding + keyword extraction + the
   hybrid query; hover for the parts. The search run ID finds that question's model calls in **LLM
   Usage Logs**. A red note under a question explains a failure, e.g. that keyword extraction
@@ -102,6 +105,10 @@ Results are kept in the database (schema `testbed`), so runs can be compared lat
   v3 questions, hybrid ranks fell to 3–11 for two-hop and up to 44 for multi-hop. Use **Tests to
   run** (filter by question run) to benchmark one generation at a time. Questions are still written
   from the target's own text, so they are not real user queries.
+- **Effort "found" is the model's opinion.** The loop never sees the target; it stops when its
+  judge believes a result answers the question. The Effort loop rank shows whether that belief was
+  right. Medium and High runs are much slower (several seconds per question, up to about half a
+  minute when all attempts run).
 - **Exact target only.** A near-duplicate of the target (the same metric in another document)
   counts as a miss.
 - **Metrics only.** The only purpose is *Search Metrics*, and every query searches only metrics
