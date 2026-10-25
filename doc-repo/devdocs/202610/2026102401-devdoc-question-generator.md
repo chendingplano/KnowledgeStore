@@ -16,7 +16,10 @@ with expandable full details.
 Each question shows its answer,
 model, prompt, source record, language, and expandable reasoning and evidence.
 Check questions in either view, or use **Select All** to select the current page,
-and click **Delete** to move them to an archive. Select All shows a partial state
+and click **Delete** to move them to an archive. A confirmation prompt shows how many
+questions are selected and explains that they will be archived. Confirming starts the
+archive request; cancelling keeps the selection and sends no request. The prompt is
+available in English and Chinese. Select All shows a partial state
 when only some questions are checked; unchecking it clears the selection.
 Selections carry between tabs and clear when the results reload. Questions are
 retained in full, with who archived them and when, and disappear from active
