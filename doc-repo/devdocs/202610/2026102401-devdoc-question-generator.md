@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: List/Cards views and question archiving) \
+**Date:** 2026-10-24 (updated 2026-10-25: question-count sampling, shortage confirmation, List/Cards views and archiving) \
 **Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -28,10 +28,21 @@ The site footer is hidden on this page.
 
 Click **Generate Questions** to open the generation dialog. Enter an input record
 ID or leave it blank to sample documents randomly. Select **Search Metrics**, add
-an optional Description, and choose **Metrics per document** and **Total metrics**.
-Both counts start at ten. Each metric produces one-hop, two-hop, and multi-hop
-questions (ten metrics produce thirty questions). A specified record ignores
-Total metrics; batch mode reduces the final document's count to reach the target.
+an optional Description, and set **Questions to generate** for a specific document
+(default thirty, range 1–3,000). The server loads all the document's metrics, keeps
+those linked to usable source lines, and randomly selects distinct metrics. Each
+selected metric produces one-hop, two-hop, and multi-hop questions, so the count
+rounds up to a complete group of three: requesting ten questions selects four
+metrics and produces twelve questions. The dialog shows this plan before submission.
+If there are too few usable metrics, a confirmation prompt states how many questions
+can be generated. Confirming uses all the available metrics once; cancelling keeps
+the settings and starts no run. With no usable metrics, the page reports zero
+available questions and starts no run. The confirmed metric pool and source lines
+are retained for the worker, so generation uses the same pool that was checked.
+
+For random batch mode, choose **Metrics per document** and **Total metrics** instead.
+Both counts start at ten; batch mode reduces the final document's count to reach
+the target. The single-document count and confirmation flow do not change batch mode.
 Close the dialog with **Close**, Escape, or a press starting on the backdrop.
 Selecting text inside a field and dragging outside keeps the dialog open.
 
@@ -110,6 +121,13 @@ There is no archive browser or per-question restore action in this change.
   Each supported purpose resolves to its own versioned prompt; unknown purposes
   fail validation. Historical free-text purposes remain readable.
 - `description`: optional additional context, up to 10,000 characters.
+- `num_questions_to_generate`: integer 1–3,000 for a specified document. Takes
+  precedence over metric and legacy hop counts; the sample size is `ceil(count / 3)`.
+  Every selected metric is distinct within this run.
+- `confirmed_available_questions`: the reduced question count accepted by the user
+  after a shortage response. The server rechecks capacity on resubmission; a changed
+  capacity requires a new confirmation. No run is inserted and no model is called
+  before this check succeeds.
 - `metrics_per_document`: optional integer, default ten, range 1–50.
 - `total_metrics`: optional batch target, default ten, range 1–1,000. A specified
   input ID ignores this value and uses Metrics per document instead.
@@ -153,9 +171,11 @@ each selected document; a document whose metrics disappeared is skipped as well.
 Missing line files, insufficient metric grounding, or invalid model responses skip
 the candidate in batch mode and fail a specifically requested single document.
 
-For a document, N is Metrics per document, clipped to the remaining Total metrics
-in batch mode. The generator randomly samples N metric entries, choosing without
-replacement until the eligible pool is exhausted, then refilling it if necessary.
+For a single document using Questions to generate, N is `ceil(requested / 3)` or
+the available metric count after a confirmed shortage. Sampling is without replacement;
+duplicate metric IDs do not inflate availability. Legacy requests without the question
+count and random batch mode retain Metrics per document, clipped to remaining Total
+metrics in batch mode, and may refill the eligible pool after exhausting it.
 Every set contains one selected metric and three assigned targets: one-hop,
 two-hop, and multi-hop. Each target gets an independent random language.
 The model never receives the full stored metric inventory or the full source file.
@@ -194,10 +214,24 @@ Usage Logs → Run ID** can display and filter the corresponding calls.
 |---|---|---|
 | GET | `/questions` | Paginated questions and total count matching filters |
 | GET | `/question-filters` | Distinct purposes, run IDs, record IDs, and languages from saved questions |
-| POST | `/runs` | Validate input, persist a running run, return HTTP 202 with `{run}` |
+| POST | `/runs` | Validate input and capacity; return HTTP 409 for a shortage, otherwise persist a running run and return HTTP 202 with `{run}` |
 | GET | `/runs` | Latest 50 runs across all records, as `{runs}` |
 | GET | `/runs?input_record_id=416` | Latest 50 runs for this record, including batches with saved questions for it |
 | GET | `/runs/:id` | `{run, questions}`, or HTTP 404 |
+
+The shortage response is `{confirmation_required, available_metrics, available_questions,
+requested_questions}`. `confirmation_required` is false at zero capacity; otherwise
+the client asks the user and resubmits with `confirmed_available_questions` only after
+acceptance. Missing canonical files and database errors remain failures, not shortages.
+
+Migration `20261025000005_question_generation_requested_count.sql` raises each stored
+per-hop count limit from 50 to 1,000 for question-count requests. Startup applies the
+project migrations before serving requests. Rollback restores the old checks and
+fails transactionally if any run exceeds 50 metrics; it never deletes run history.
+
+The question-count and confirmation contract is in
+`ChenWeb/openspec/changes/question-generator-indirect-hops/specs/question-generator-hops/spec.md`;
+update that spec when changing this behavior.
 
 `GET /questions` accepts optional `purpose`, `run_id`, `input_record_id`, `lang`,
 `created_from`, and `created_to`, combined with AND. Values are SQL parameters.
