@@ -15,7 +15,9 @@ default and shows three columns on wide layouts; **List** shows a compact table
 with expandable full details.
 Each question shows its answer,
 model, prompt, source record, language, and expandable reasoning and evidence.
-Check questions in either view and click **Delete** to move them to an archive.
+Check questions in either view, or use **Select All** to select the current page,
+and click **Delete** to move them to an archive. Select All shows a partial state
+when only some questions are checked; unchecking it clears the selection.
 Selections carry between tabs and clear when the results reload. Questions are
 retained in full, with who archived them and when, and disappear from active
 results. A failed archive keeps the selected questions available for retry.
