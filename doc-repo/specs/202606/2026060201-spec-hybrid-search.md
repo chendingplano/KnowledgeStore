@@ -597,8 +597,13 @@ overall and by hop type and language.
   the partition), `lexical` (BM25 or `ts_rank_cd`, merged rank + `partition_rank`), `semantic`
   (similarity = 1 − cosine distance), `fused` (RRF score, final rank, `lexical_rank`,
   `semantic_rank`). `hybrid_ms`/`effort_ms` exclude trace time. Read through
-  `GET …/results/:id/trace?limit=` (first `limit` rows per stage + the target's rows), shown in the
-  page's *Analyze* dialog. Check runs 20/21: stored ranks equal the trace ranks for every question;
+  `GET …/results/:id/trace?limit=` (the result, its run's lexical backend, and per query the first
+  `limit` rows per stage + the target's rows), shown in the *Analyze* tab (openspec
+  `hybrid-search-benchmark-analyze-page`): a new browser tab on the same development page
+  (`&analyze=<result id>`) with the question's log, a PDF panel that opens a clicked metric's
+  document at its source lines (`pdf-view-window.svelte`), and the metric in the right panel
+  (Metric Detail Visualizer, module `20261025-01`). 2026-10-25: 5,621 of 8,281 metric index rows
+  belong to 49 records with no `kb.metrics` rows (stale index entries that search still returns). Check runs 20/21: stored ranks equal the trace ranks for every question;
   ~1,000 rows per traced search, ~280 bytes per row.
 
 ### 13.3 Artifact types

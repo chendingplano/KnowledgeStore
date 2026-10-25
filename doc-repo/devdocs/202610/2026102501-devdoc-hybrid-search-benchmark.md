@@ -20,8 +20,11 @@ change folder moves to `openspec/changes/archive/<date>-<change>/` and its spec 
   the benchmark's *Effort loop* mode: same four documents, spec in
   `specs/hybrid-search-effort/spec.md`.
 - `ChenWeb/openspec/changes/hybrid-search-benchmark-trace/` — the stored candidate lists behind
-  each question and the *Analyze* dialog: same four documents, spec in
+  each question and the trace API: same four documents, spec in
   `specs/hybrid-search-benchmark-trace/spec.md`.
+- `ChenWeb/openspec/changes/hybrid-search-benchmark-analyze-page/` — the *Analyze* tab (log, PDF
+  panel, metric details), which replaced the first version's Analyze dialog: same four documents,
+  spec in `specs/hybrid-search-benchmark-analyze-page/spec.md`.
 - **Update those spec files, not just this doc, if behavior changes** — this doc explains the
   feature for people and points at code; the specs are the contract for agents.
 
@@ -103,11 +106,17 @@ attempt limit) — then:
   A red note under a question explains a failure, e.g. that keyword extraction failed and lexical
   search used the raw question instead.
 
-**Analyzing one question.** The **Analyze** button at the end of each question row opens a dialog
-that shows *why* the target landed where it did. It lists every query the question searched: the
-question as written and, for Medium/High runs, each query the effort loop wrote (with its attempt
-number). For each query it shows the BM25 keywords used and four candidate lists, with the target
-highlighted wherever it appears:
+**Analyzing one question.** The **Analyze** link at the end of each question row opens a new
+browser tab that shows *why* the target landed where it did. The tab is the same development page —
+same header and menu, with Run Benchmark selected — but its working area has two panels side by
+side (drag the bar between them to resize), and the right panel shows metric details.
+
+The left panel is the question's **log**, in the order the search happened: the question's
+target and ranks; the search of the question as written; and, for Medium/High runs, the effort
+analysis (its strategy and what it thinks the user needs) followed by every attempt — the queries
+it wrote, then the judge's verdict, its reason and the metrics it accepted — and finally the
+target's Effort loop rank. For each query the log shows the BM25 keywords used and four candidate
+lists, with the target highlighted wherever it appears:
 
 - **BM25 per partition** — what each table partition's keyword index returned (today only the
   metric partition), with the BM25 score and the rank inside that partition;
@@ -119,8 +128,14 @@ highlighted wherever it appears:
 
 Each list shows its first 20 candidates plus the target's row; a "ranks left out" line marks a
 jump. Everything shown was recorded from the actual search, not recomputed: the numbers are the
-ones that produced the question's ranks. Runs started before this feature have no trace, and the
-dialog says so.
+ones that produced the question's ranks. Runs started before tracing have no trace, and the log
+says so.
+
+**Every metric ID in the log is clickable.** Clicking one opens that metric's source document in
+the right-hand panel of the working area, at the page of its first source line, with its source
+lines (or the table rows it cites) highlighted; it also shows the metric's full details in the
+page's right panel, the same panel the Metrics page uses. The clicked metric stays marked in every
+list, so you can compare it with the target.
 
 Results are kept in the database (schema `testbed`), so runs can be compared later.
 
@@ -135,9 +150,18 @@ targets came first and the worst improved from 44 to 7.
   Admin-only, like the Question Generator.
 - **Frontend:** `web/src/lib/components/home3/hybrid-search-benchmark-view.svelte` (page),
   `hybrid-search-benchmark-questions.svelte` (Tests to run dialog),
-  `hybrid-search-benchmark-analyze.svelte` (Analyze dialog),
+  `hybrid-search-benchmark-analyze-view.svelte` (Analyze tab: panels, PDF, metric details) and
+  `hybrid-search-benchmark-trace-log.svelte` (its log),
   `web/src/lib/services/hybridSearchBenchmarkService.ts`; text in `web/messages/*.json` (`hsb_*`,
   `hsbq_*`, `hsba_*`).
+- **Analyze tab wiring:** the link is the current URL plus `analyze=<result id>`.
+  `dashboard.svelte` reads `analyze` once when the tab loads, passes it to `content-panel.svelte`
+  (which then shows the Analyze tab instead of the run page) and drops it when another page is
+  chosen in the menu. The tab reuses, unchanged, the PDF viewer `pdf-view-window.svelte`, the
+  Metric Detail Visualizer (`shared-ui/metric-detail/`, module `20261025-01`, through the
+  dashboard's `onMetricDetailsChange` right-panel hook), `listKbMetrics`, `getRawLines` and
+  `metric-ontology-explorer/metric-source-spans.ts` (record ID from the metric ID; lines and
+  pages from `source_line_spans`). A record's metrics and raw lines are loaded once per tab.
 - **Backend** (`server/api/kbhandler/`): `hybrid_search_benchmark.go` (types, settings, scoring),
   `_handler.go` (API), `_worker.go` (runs the questions, saves traces), `_questions.go` (dialog
   search, question selection), `_trace.go` (trace API); `search_run.go` (search run IDs and
@@ -206,6 +230,15 @@ targets came first and the worst improved from 44 to 7.
   `search_query_keywords`, `search_effort_analyze`, `search_effort_judge`).
 - **Selection limits.** The Tests to run dialog lists at most 2,000 matches per search, and a run
   takes at most 5,000 picked questions.
+- **Most indexed metrics have no metric record (found 2026-10-25).** 5,621 of the 8,281 rows in
+  the metric search index belong to 49 documents that have no rows in `kb.metrics` at all (for
+  example record 359: 830 indexed, 0 metrics), although the documents still exist. Search returns
+  these stale entries, so they compete with real metrics in every benchmark run, and clicking one
+  in the Analyze tab says it is not in `kb.metrics` (no document or details). Either re-extract
+  those documents' metrics or remove their stale index rows; until then, scores mix in stale
+  candidates. Check with:
+  `SELECT sa.input_record_id, count(*) FROM kb.search_artifacts_metric sa WHERE NOT EXISTS
+  (SELECT 1 FROM kb.metrics k WHERE k.metric_id = sa.artifact_id) GROUP BY 1 ORDER BY 2 DESC;`
 - **Traces take space.** Every traced search stores all its candidates, about 1,000 rows at 200
   candidates per list (~280 bytes each with the index): roughly 55 MB for a 200-question Low run,
   and several times that at High effort, where each question makes up to 16 traced searches.
@@ -244,6 +277,10 @@ targets came first and the worst improved from 44 to 7.
   in the server's environment.
 - **Analyze says "No trace was stored".** The run was started before tracing existed, or the
   server running it had not yet been rebuilt with it. Run the question again.
+- **Clicking a metric says it is in the search index but not in `kb.metrics`.** A stale index
+  entry (see Known limitations): the document's metrics were removed but its search rows were not.
+- **The Analyze tab shows the run page instead.** The URL lost its `analyze` parameter (choosing
+  another page in the tab's menu drops it). Press Analyze again on the run page.
 - **A query in Analyze says "trace differs from the search results" or "trace failed".** The
   trace statement could not read the same list the search returned (it shares the search's
   snapshot, so this should not happen) or it errored. The question's ranks are still valid; only
