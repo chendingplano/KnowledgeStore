@@ -1,14 +1,15 @@
 # Hybrid Search Benchmark — measure the live metric search with generated questions
 
-**Date:** 2026-10-25 (updated the same day: effort levels, prompt-v3 questions) \
+**Date:** 2026-10-25 (updated the same day: effort levels, prompt-v3 questions, candidate traces
+and the Analyze dialog) \
 **Scope:** What the Hybrid Search Benchmark page does, how to read its numbers, and what to check
 when a result looks wrong. Open it before changing search (keywords, weights, embeddings, indexes,
 effort levels) or before trusting a benchmark score. \
 **Code root:** `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`,
-`ChenWeb/server/api/kbhandler/search_effort.go`,
+`ChenWeb/server/api/kbhandler/search_effort.go`, `ChenWeb/server/api/kbhandler/search_trace.go`,
 `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-*.svelte`
 
-**Traceability — openspec** (both changes implemented, not yet archived; when archived, each
+**Traceability — openspec** (all three changes implemented, not yet archived; when archived, each
 change folder moves to `openspec/changes/archive/<date>-<change>/` and its spec to
 `openspec/specs/<capability>/spec.md`):
 - `ChenWeb/openspec/changes/hybrid-search-benchmark/` — the benchmark page itself:
@@ -18,6 +19,9 @@ change folder moves to `openspec/changes/archive/<date>-<change>/` and its spec 
 - `ChenWeb/openspec/changes/hybrid-search-effort-levels/` — effort levels for hybrid search and
   the benchmark's *Effort loop* mode: same four documents, spec in
   `specs/hybrid-search-effort/spec.md`.
+- `ChenWeb/openspec/changes/hybrid-search-benchmark-trace/` — the stored candidate lists behind
+  each question and the *Analyze* dialog: same four documents, spec in
+  `specs/hybrid-search-benchmark-trace/spec.md`.
 - **Update those spec files, not just this doc, if behavior changes** — this doc explains the
   feature for people and points at code; the specs are the contract for agents.
 
@@ -96,6 +100,25 @@ attempt limit) — then:
   A red note under a question explains a failure, e.g. that keyword extraction failed and lexical
   search used the raw question instead.
 
+**Analyzing one question.** The **Analyze** button at the end of each question row opens a dialog
+that shows *why* the target landed where it did. It lists every query the question searched: the
+question as written and, for Medium/High runs, each query the effort loop wrote (with its attempt
+number). For each query it shows the BM25 keywords used and four candidate lists, with the target
+highlighted wherever it appears:
+
+- **BM25 per partition** — what each table partition's keyword index returned (today only the
+  metric partition), with the BM25 score and the rank inside that partition;
+- **BM25 merged** — the keyword list after merging the partitions, with two ranks: the merged rank
+  and the rank inside the candidate's own partition;
+- **Semantic** — the closest metrics by meaning, with their similarity (1 = identical direction);
+- **Fused (RRF)** — the final list, with each candidate's RRF score and its ranks in the BM25 and
+  semantic lists, so each score can be checked by hand.
+
+Each list shows its first 20 candidates plus the target's row; a "ranks left out" line marks a
+jump. Everything shown was recorded from the actual search, not recomputed: the numbers are the
+ones that produced the question's ranks. Runs started before this feature have no trace, and the
+dialog says so.
+
 Results are kept in the database (schema `testbed`), so runs can be compared later.
 
 **First results.** On 12 prompt-v3 questions with keywords on, a single hybrid search ranked the
@@ -109,12 +132,21 @@ targets came first and the worst improved from 44 to 7.
   Admin-only, like the Question Generator.
 - **Frontend:** `web/src/lib/components/home3/hybrid-search-benchmark-view.svelte` (page),
   `hybrid-search-benchmark-questions.svelte` (Tests to run dialog),
+  `hybrid-search-benchmark-analyze.svelte` (Analyze dialog),
   `web/src/lib/services/hybridSearchBenchmarkService.ts`; text in `web/messages/*.json` (`hsb_*`,
-  `hsbq_*`).
+  `hsbq_*`, `hsba_*`).
 - **Backend** (`server/api/kbhandler/`): `hybrid_search_benchmark.go` (types, settings, scoring),
-  `_handler.go` (API), `_worker.go` (runs the questions), `_questions.go` (dialog search, question
-  selection); `search_run.go` (search run IDs and per-search keyword switch); `search_effort.go`
-  (the effort loop). API under `/api/v1/kb/hybrid-search-benchmark/`.
+  `_handler.go` (API), `_worker.go` (runs the questions, saves traces), `_questions.go` (dialog
+  search, question selection), `_trace.go` (trace API); `search_run.go` (search run IDs and
+  per-search keyword switch); `search_effort.go` (the effort loop); `search_trace.go` (trace
+  collection). API under `/api/v1/kb/hybrid-search-benchmark/`; one question's trace is
+  `GET …/results/:id/trace?limit=20`.
+- **How the trace is taken:** when a benchmark search carries a trace sink, the hybrid query runs
+  in a read-only `REPEATABLE READ` transaction and, right after the search, a second statement with
+  the same CTEs and a different final SELECT returns every candidate of every list. Live search
+  never sets a sink, and the production statement (and its plan) is unchanged. Only the question's
+  hybrid search and the effort loop's searches are traced: the lexical-only and semantic-only
+  searches build the same two lists. Stored timings exclude the trace statement.
 - **Search code it measures:** `search_registry.go` (the hybrid query), `search_embedding_query.go`,
   `search_query_keywords.go`, `search_effort.go`. The benchmark calls these directly; it has no
   copy of the search. The same effort levels are available to callers of the hybrid search API as
@@ -129,8 +161,13 @@ targets came first and the worst improved from 44 to 7.
   `HYBRID_SEARCH_EFFORT_TIMEOUT_MS` (default 20000); query keywords use `SEARCH_QUERY_KEYWORDS*`.
 - **Data:** `testbed.hybrid_search_benchmark_runs` (one row per run, with its settings),
   `testbed.hybrid_search_benchmark_results` (one row per question: ranks, keywords, timings,
-  effort loop result and trace, errors); sequence `kb.search_run_id_seq`. Migrations
-  `20261024000014`–`20261024000016`, `20261025000001`, `20261025000002`.
+  effort loop result and trace, errors); `testbed.hybrid_search_benchmark_queries` (one row per
+  query a question searched: `seq`, `source` = `question`|`effort`, `attempt`, text, keywords,
+  error) and `testbed.hybrid_search_benchmark_candidates` (one row per candidate per list:
+  `stage` = `lexical_partition`|`lexical`|`semantic`|`fused`, `partition_name`, `stage_rank`,
+  `partition_rank` on merged BM25 rows, `score`, and `lexical_rank`/`semantic_rank` on fused rows);
+  both cascade from their result. Sequence `kb.search_run_id_seq`. Migrations
+  `20261024000014`–`20261024000016`, `20261025000001`, `20261025000002`, `20261025000004`.
 
 ## Known limitations
 
@@ -166,6 +203,17 @@ targets came first and the worst improved from 44 to 7.
   `search_query_keywords`, `search_effort_analyze`, `search_effort_judge`).
 - **Selection limits.** The Tests to run dialog lists at most 2,000 matches per search, and a run
   takes at most 5,000 picked questions.
+- **Traces take space.** Every traced search stores all its candidates, about 1,000 rows at 200
+  candidates per list (~280 bytes each with the index): roughly 55 MB for a 200-question Low run,
+  and several times that at High effort, where each question makes up to 16 traced searches.
+  Deleting a run deletes its trace.
+- **Traces add database load.** Each traced search runs a second statement of about the same cost
+  as the search. Timings exclude it, but with parallel queries the other questions feel it.
+- **BM25 scores of different partitions are not comparable.** Each partition has its own keyword
+  index, so merging partitions by raw score (what live search does) can favour one partition. The
+  trace shows this; it does not correct it. Today only the metric partition is searched.
+- **No list for the effort loop's own merge.** The effort loop combines its queries' first 20
+  fused candidates; that combined list is not stored, but every input to it is.
 
 ## When something looks wrong
 
@@ -188,3 +236,34 @@ targets came first and the worst improved from 44 to 7.
 - **New questions still name the metric.** The server may be running an old prompt: check
   `PROMPT_GENERATE_METRIC_QUESTIONS` (should be `prompt-question-generator-search-metrics-v3.md`)
   in the server's environment.
+- **Analyze says "No trace was stored".** The run was started before tracing existed, or the
+  server running it had not yet been rebuilt with it. Run the question again.
+- **A query in Analyze says "trace differs from the search results" or "trace failed".** The
+  trace statement could not read the same list the search returned (it shares the search's
+  snapshot, so this should not happen) or it errored. The question's ranks are still valid; only
+  that query's lists are missing or unreliable.
+- **A query says "no trace: the search failed or fell back to lexical-only".** That search had no
+  embedding or its hybrid query errored, so live search answered with keywords only and there are
+  no hybrid lists to show.
+- **Checking a run's traces by hand.** For every question the stored lexical, semantic and hybrid
+  ranks must equal the target's `stage_rank` in the `lexical`, `semantic` and `fused` lists of its
+  `seq = 1` query; a row with `ranks_match = false` points to a bug:
+
+  ```sql
+  SELECT r.question_id, r.lexical_rank, r.semantic_rank, r.hybrid_rank,
+         (r.lexical_rank  IS NOT DISTINCT FROM t.lex
+          AND r.semantic_rank IS NOT DISTINCT FROM t.sem
+          AND r.hybrid_rank   IS NOT DISTINCT FROM t.fus) AS ranks_match
+  FROM testbed.hybrid_search_benchmark_results r
+  JOIN testbed.hybrid_search_benchmark_queries q ON q.result_id = r.id AND q.seq = 1
+  CROSS JOIN LATERAL (
+    SELECT max(stage_rank) FILTER (WHERE stage = 'lexical'  AND artifact_id = r.target_artifact_id) AS lex,
+           max(stage_rank) FILTER (WHERE stage = 'semantic' AND artifact_id = r.target_artifact_id) AS sem,
+           max(stage_rank) FILTER (WHERE stage = 'fused'    AND artifact_id = r.target_artifact_id) AS fus
+    FROM testbed.hybrid_search_benchmark_candidates WHERE query_id = q.id) t
+  WHERE r.run_id = <run id>
+  ORDER BY r.question_id;
+  ```
+
+  This held for every question of check runs 20 (Low) and 21 (High) on 2026-10-25, and every fused
+  score equalled `1/(60 + lexical_rank) + 1/(60 + semantic_rank)` at weights 1/1.

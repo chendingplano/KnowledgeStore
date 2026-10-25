@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-25 (by Claude Code; §8.3 effort levels, metric route correction)
+- **Last Updated**: 2026-10-25 (by Claude Code; §8.3 effort levels, metric route correction, §13.2 candidate traces)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -440,7 +440,7 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | BM25 index maintenance job | `ChenWeb/server/api/kbsearch/bm25_maintenance.go`, registered in `ChenWeb/server/api/kbhandler/scheduler_jobs.go`; schedule seed `ChenWeb/project_migrations/20261024000010_seed_bm25_index_maintenance_schedule.sql` |
 | Specs | `ChenWeb/openspec/specs/search-query-keywords/`, `…/search-index-maintenance/` |
 | Benchmark (category index, hybrid, keywords) | `ChenWeb/benchmark/category-index/` (README has all results) |
-| Live benchmark page (generated questions) | `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`, `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-view.svelte` |
+| Live benchmark page (generated questions) | `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`, `ChenWeb/server/api/kbhandler/search_trace.go` (candidate traces), `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-view.svelte`, `…/hybrid-search-benchmark-analyze.svelte` |
 | Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |
 | Search run IDs (usage-log correlation) | `ChenWeb/server/api/kbhandler/search_run.go` |
@@ -581,6 +581,25 @@ overall and by hop type and language.
 - The question generator writes each question from its target metric's own context, so these
   are easy known-item queries that favour vector search (as in §13.1). Only the exact target
   counts as a hit (no near-duplicate credit).
+- **Candidate traces** (openspec `hybrid-search-benchmark-trace`, migration `20261025000004`). A
+  benchmark search can carry a `searchTraceSink` (`registrySearchConfig.trace`, set only by the
+  benchmark worker). Both hybrid queries are built from shared CTEs — ParadeDB:
+  `lexical_partitions` (the per-partition BM25 branches) → `lexical` (merged by raw score) →
+  `semantic` → `fused`; tsvector: `lexical` → `semantic` → `fused` — and with a sink
+  `queryWithVectorIndexScan` runs, in the same `REPEATABLE READ, READ ONLY` transaction right after
+  the production statement, a trace statement: the same CTEs plus `hybridTraceSelect`, one row per
+  candidate per stage. The production statement's text gained the extra CTE and columns but its
+  plan is unchanged (`EXPLAIN` compared). The fused order is checked against the returned results
+  (`trace differs from the search results` otherwise); a failed trace never fails the search.
+  Traced: each question's hybrid-mode search (`seq` 1) and every effort-loop search (matched to
+  its attempt by query text). Stored in `testbed.hybrid_search_benchmark_queries` and
+  `testbed.hybrid_search_benchmark_candidates`: `lexical_partition` (BM25 `pdb.score`, rank within
+  the partition), `lexical` (BM25 or `ts_rank_cd`, merged rank + `partition_rank`), `semantic`
+  (similarity = 1 − cosine distance), `fused` (RRF score, final rank, `lexical_rank`,
+  `semantic_rank`). `hybrid_ms`/`effort_ms` exclude trace time. Read through
+  `GET …/results/:id/trace?limit=` (first `limit` rows per stage + the target's rows), shown in the
+  page's *Analyze* dialog. Check runs 20/21: stored ranks equal the trace ranks for every question;
+  ~1,000 rows per traced search, ~280 bytes per row.
 
 ### 13.3 Artifact types
 Currently, there are 11 artifact types. More types may be added in the future.
