@@ -1,8 +1,10 @@
 # Module: Name-Value Visualizer
 
+**Module ID:** `20261024-01`
+**Type:** frontend · **Language:** svelte · **Version:** 1.0.0
+**Status:** active — used by the MeSH Browser (Knowledge Base → Ontology → MeSH → MeSH Browser)
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/name-value/`
-**Status:** In use by the MeSH Browser (Knowledge Base → Ontology → MeSH → MeSH Browser)
 **Created:** 2026-10-24
 
 ## 1. What it is
