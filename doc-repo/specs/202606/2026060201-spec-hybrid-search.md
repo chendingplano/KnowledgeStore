@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-25 (by Claude Code; §13.2 benchmark parallelism, keyword failures)
+- **Last Updated**: 2026-10-25 (by Claude Code; §13.2 benchmark parallelism, keyword failures, question selection)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -504,7 +504,7 @@ its README for details and caveats.
 
 **System Admin → Benchmark → Hybrid Search Benchmark → Run Benchmark** (development page;
 openspec change `hybrid-search-benchmark`) measures the live search instead of testbed copies. A
-run takes every `testbed.generated_questions` row of a purpose (only `search_metrics` today; each
+run takes the `testbed.generated_questions` rows of a purpose — all of them, or those picked in the *Tests to run* dialog — (only `search_metrics` today; each
 question targets one metric, `metric_id` = `artifact_id`) and searches artifact type `metric`
 over the whole corpus three times with the production hybrid query
 (`queryHybridSearchResultsParadeDB`, or the tsvector variant): weights 1/0 (lexical only), 0/1
@@ -517,7 +517,13 @@ overall and by hop type and language.
   lexical backend, `SEARCH_QUERY_KEYWORDS`, `EMBEDDING_MODEL_NAME`, weights, candidate limit) and
   `testbed.hybrid_search_benchmark_results` (question snapshot, keywords, three ranks, hybrid top
   10, error, search run ID — §8.2). Migrations `20261024000014`, `20261024000015`.
-- API (admin): `POST|GET /kb/hybrid-search-benchmark/runs`, `GET …/runs/:id`.
+- API (admin): `POST|GET /kb/hybrid-search-benchmark/runs`, `GET …/runs/:id`,
+  `GET …/questions` (the dialog's search: created from/to, question-generation run, hop type,
+  language, input record, words in question, words in answer — every word must occur, as a
+  case-insensitive substring — and exact metric ID; returns every match up to 2,000). A run's
+  `question_ids` (up to 5,000) must all belong to its purpose, else HTTP 400.
+- The *Query keywords* default is the server process's `SEARCH_QUERY_KEYWORDS`. A dev server
+  started before that variable was added to `mise.local.toml` reports it off; restart `mise dev`.
 - Run options (start form; defaults = the live configuration, returned as `defaults` by the run
   list): query keywords on/off, the two RRF weights (0–100, not both 0) and candidates per list
   (1–1000, `registrySearchConfig.candidateLimit`; ranks beyond it are misses). Keywords are
