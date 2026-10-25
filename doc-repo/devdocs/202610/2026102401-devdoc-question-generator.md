@@ -71,7 +71,7 @@ administrator middleware. Its JSON body is `{"ids":[1,2]}` (1–1,000 positive
 integer IDs), and the response is `{"archived_count":2}`. Duplicate IDs and IDs
 already archived or absent do not increase the count; the request is safe to retry.
 
-Migration `20261025000001_archive_generated_questions.sql` creates
+Migration `20261025000003_archive_generated_questions.sql` creates
 `testbed.generated_questions_archive`, preserving all question columns and the
 original ID, plus `archived_at` and `archived_by`. A single PostgreSQL statement
 moves rows from the active table into the archive; any insert error rolls back
