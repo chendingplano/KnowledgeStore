@@ -75,8 +75,11 @@ Run Benchmark**. In *Start a benchmark run*:
 - Press **Run benchmark**. The run works in the background; the page refreshes every two seconds
   until it finishes.
 
-**Reading the results.** The *Runs* table lists past runs with their progress and hybrid R@10;
-**View** opens one. A run shows its settings in two groups — *Run* (purpose, progress, start and
+**Reading the results.** The *Runs* table lists past runs with their progress, hybrid R@10 and
+**Time** (total elapsed seconds from start to finish, shown with up to one decimal place).
+Time includes all work in the run, including parallel searches and trace storage; it is not the
+sum of the per-question query times. Runs without a finish timestamp show “—”. **View** opens
+one. A run shows its settings in two groups — *Run* (purpose, progress, start and
 finish time, description) and *Search settings* (lexical backend, query keywords, the keyword
 prompt and model, embedding model, weights, candidates per list, parallel queries, effort and its
 attempt limit) — then:
@@ -217,6 +220,9 @@ targets came first and the worst improved from 44 to 7.
 
 ## When something looks wrong
 
+- **Hybrid R@10 looks empty.** The numeric values are right-aligned. Previously its heading was
+  left-aligned, leaving a wide gap before values such as `1.00`; the heading now aligns with the
+  values. A genuinely blank cell means no question results have been stored for that run yet.
 - **Query keywords unchecked although `SEARCH_QUERY_KEYWORDS=on`.** The default comes from the
   running server's environment, not the config file. A `mise dev` started before the setting was
   added still reports *off*. Check which process serves port 8080 (`lsof -tiTCP:8080 -sTCP:LISTEN`,
