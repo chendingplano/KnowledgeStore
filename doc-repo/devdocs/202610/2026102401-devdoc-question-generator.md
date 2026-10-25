@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: prompt v3, indirect two/multi-hop questions) \
+**Date:** 2026-10-24 (updated 2026-10-25: List/Cards views and question archiving) \
 **Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -10,9 +10,15 @@ Question Generator creates and browses candidate questions for evaluating metric
 search. Open **System Admin → Benchmark → Question Generator** to see saved
 questions immediately. Filter by Purpose, Run ID, Record ID, Language, and creation
 time, then click **Search**. **Reset** clears the conditions and reloads all
-questions. Results are paginated, newest first, in three columns on wide layouts.
+questions. Results are paginated, newest first. The **Cards** tab is selected by
+default and shows three columns on wide layouts; **List** shows a compact table
+with expandable full details.
 Each question shows its answer,
 model, prompt, source record, language, and expandable reasoning and evidence.
+Check questions in either view and click **Delete** to move them to an archive.
+Selections carry between tabs and clear when the results reload. Questions are
+retained in full, with who archived them and when, and disappear from active
+results. A failed archive keeps the selected questions available for retry.
 The site footer is hidden on this page.
 
 Click **Generate Questions** to open the generation dialog. Enter an input record
@@ -57,6 +63,38 @@ Editing controls does not change results until Search is clicked. Pagination use
 the last applied conditions. Reset clears both draft and applied conditions and
 queries the database again. Request cancellation prevents stale searches from
 replacing newer results. The modal supports keyboard dismissal and focus return.
+
+### Archiving selected questions
+
+`POST /api/v1/kb/question-generator/questions/archive` uses the existing question
+administrator middleware. Its JSON body is `{"ids":[1,2]}` (1–1,000 positive
+integer IDs), and the response is `{"archived_count":2}`. Duplicate IDs and IDs
+already archived or absent do not increase the count; the request is safe to retry.
+
+Migration `20261025000001_archive_generated_questions.sql` creates
+`testbed.generated_questions_archive`, preserving all question columns and the
+original ID, plus `archived_at` and `archived_by`. A single PostgreSQL statement
+moves rows from the active table into the archive; any insert error rolls back
+the entire move. Archive rows have no foreign keys to live runs or inputs, so
+later deletion of those parents does not erase archived content. The server logs
+the actor, selected IDs, result count, and any failure.
+
+Active browser totals, filter choices, generation-run question lists, and new
+benchmarks read the active table. Historical generation progress counts continue
+to describe what the run generated. Existing benchmark result snapshots remain
+stored; their nullable active-question reference is cleared by its existing
+`ON DELETE SET NULL` foreign key when a question is archived.
+
+The page disables Delete until there is a selection and during loading/archiving.
+After success it refreshes results and filter choices, returning to the preceding
+page if needed. Selection is limited to the displayed page. Both views support
+English/Chinese labels, keyboard tab navigation, and selectable text.
+
+Migration rollback restores archived rows before dropping the archive table.
+If a parent input/run no longer exists, or a live uniqueness constraint would be
+violated, rollback fails without discarding the archive; resolve the conflict
+before retrying. Archive timestamps and actor metadata are removed on rollback.
+There is no archive browser or per-question restore action in this change.
 
 ### Inputs and configuration
 
