@@ -12,12 +12,12 @@ names sit in a right-aligned left column, and each field's values are stacked in
 right column. This is the layout of the MeSH Browser's **Details** tab:
 
 ```
-          MeSH Heading   130k protein, Tobacco mosaic virus
-             Unique ID   C071899
+            MeSH Heading   130k protein, Tobacco mosaic virus
+               Unique ID   C071899
    RDF Unique Identifier   https://id.nlm.nih.gov/mesh/C071899     ← external link
            Entry Term(s)   126-kDa protein, Tobacco mosaic virus
                            TMV 126-kDa protein, Tobacco mosaic virus
-          Consider Also   Tobacco Mosaic Virus                     ← in-page link
+           Consider Also   Tobacco Mosaic Virus                     ← in-page link
 ```
 
 Use it wherever a page shows the fields of a single record (a metric, a document, a

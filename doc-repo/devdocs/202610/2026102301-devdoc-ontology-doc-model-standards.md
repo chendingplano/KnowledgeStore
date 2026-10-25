@@ -335,3 +335,29 @@ concepts. A concept can be described by multiple terms. Relations are also forma
 |
 
 Treat the Standards Document Model primarily as an identity, metadata, classification, and relationship model, with links to independently extracted knowledge artifacts. This will make it reusable across standards organizations, compatible with SemOS's existing extraction pipeline, and extensible to other document types such as regulations, technical specifications, and scientific papers.
+
+A document is defined by a descriptor A descriptor has the following facets:
+- Metadata (basic information about a document)
+- Identification
+- Contributors
+- Publication lifecycle
+- Classification and subject
+- Scope and applicability
+- Normative characteristics
+- Document structure
+- Relationships
+- Document provenance and processing
+
+Documents can be generalized to anything:
+- An object is defined by a descriptor
+- A descriptor has a basic metadata component and zero or more additional facets
+  (or qualifiers)
+- A descriptor may have one or more concepts
+- A concept may have multiple terms
+
+A descriptor has the following normalized attributes (in SKOS):
+- descriptor name
+- preferred label
+- alternative labels
+
+Names are used everywhere. Most names, if not all, should not normalized.

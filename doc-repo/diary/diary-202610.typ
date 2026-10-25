@@ -1237,3 +1237,64 @@ For more information, refer to
 
 == Work
 - New (done by Codex): added 'chatgpt-decision-model'
+
+= 2026/10/24
+
+== arXiv Datasets
+url: huggingface[.]co/datasets/secemp9/arxiv-complete
+
+It contains all the arXiv papers, about 16 TB big.
+
+== Work
+- New (done by Codex): Question generation
+- New (done by Claude Code): Query benchmark
+- Improvement (done by Claude Code): hybrid search
+
+= 2026/20/25
+
+== Memory
+When I use ChatGPT (the web), it can remember me for information long time ago.
+We can create new chats, but unlike most other coding assistants, there is no
+'context full' issue. There are no sessions.
+
+This is what I can imagine: ChatGPT keeps only minimum chat history, such as 
+the turns in one chat. If one keeps on using the same chat for long, I guess
+it can extract information from the history and 'forget' it.
+
+When answering a question, such as we asked ChatGPT to summarize a paper:
+HarnessPro, it first summarizes the paper, and then it asks (I guess) whether
+this paper has anything to do with the project(s) I am working on.
+
+What happens behind the scene is that it searches my personal infor base.
+It finds that SemOS is the project I am working on. SemOS is an AI system.
+HarnessPro may be useful for SemOS. It then explores how HarnessPro can 
+influence SemOS, can be used in SemOS, what are the pros and cons of 
+HarnessPro for SemOS or for me.
+
+This means ChatGPT organizes memory in short-term and long-term.
+Short-term is chat history and long-term is stored in a database
+or file store.
+
+Key points are:
+- Keep all turns in a knowledge store
+- Build a Person Knowledge Model (PKM)
+- LLM summarizes chat history and updates my PKM
+- LLM answer questions. When needed, search my PKM
+
+In SemOS, we are going to have a PKM module. It stores personal information,
+such as who I am, my interests, projects, preferences, opinions, topics,
+rules, requirements, etc.
+
+I can talk (instruct) ChatGPT to create a rule or tell it
+my interests, the things I am working on, etc.
+
+When the harness makes a mistake, I can tell the Harness why this is an 
+error and how to avoid it in the future. 
+
+For instance, when the harness creates web pages, the text in the web
+pages is often not selectable. When I ask the harness to fix the problem,
+I can tell it: make sure make text selectable all the time unless you
+are told not to. Passwords, for instance, should not be selectable.
+
+
+

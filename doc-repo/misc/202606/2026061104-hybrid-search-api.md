@@ -22,6 +22,26 @@ Each hybrid path takes up to 200 candidates from each list, fuses them with Reci
 Rank Fusion (k = 60), and returns a page from the fused result ordered by RRF score
 descending. The `total` field is always the lexical count (see Known Limitations).
 
+**Fusion weights** (2026-10-24). The RRF score is
+`hybrid_lexical_weight / (60 + lexical rank) + hybrid_semantic_weight / (60 + semantic rank)`,
+set in `config.toml` `[artifact_search]`. Both default to 1.0; 0 drops a list.
+
+**Query keywords for BM25** (2026-10-24, openspec `search-query-keywords`). With the ParadeDB
+backend and `SEARCH_QUERY_KEYWORDS=on`, an LLM first turns `q` into 2–6 keywords, each in
+English and Chinese (`SEARCH_QUERY_KEYWORDS_MODEL_NAME`, default `deepseek-flash-processor`,
+reasoning off; `SEARCH_QUERY_KEYWORDS_PROMPT`, default `prompt-search-query-keywords-v1.md`).
+An artifact then matches BM25 when every word of at least one keyword occurs in one field
+(`&&&`, keywords OR-ed), instead of when any word of `q` occurs (`|||`). Keywords are cached
+in memory per query for 24 hours. If extraction is off, fails or exceeds
+`SEARCH_QUERY_KEYWORDS_TIMEOUT_MS` (default 3000), search uses `q` as before. The first search
+of a new query costs about 1 s more.
+
+**BM25 reads the partitions.** pg_search accepts BM25 operators only on the
+`kb.search_artifacts_<type>` partitions, not on the partitioned parent. The ParadeDB queries
+read the requested type's partition, or a `UNION ALL` over all partitions (or those in
+`artifact_types`). Before 2026-10-24 they read the parent, failed, and every search silently
+fell back to the tsvector path.
+
 **Artifact Types**
 - `topic` 
 - `inventory_item` 
