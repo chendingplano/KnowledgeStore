@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: questions/jobs tabs, question-count sampling, shortage confirmation and archiving) \
+**Date:** 2026-10-24 (updated 2026-10-25: preserve valid questions on partial failure, questions/jobs tabs and count-based sampling) \
 **Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -66,6 +66,11 @@ gently in both themes; reduced-motion settings keep the highlight steady. The
 highlight and animation stop when the run finishes or fails.
 The list and filter options refresh when the run ends,
 using the currently applied search conditions. Existing questions remain saved.
+An invalid question does not discard its valid neighbors. Successful questions are
+saved before the correction attempt, and newly corrected questions are added afterward.
+If some questions still fail, the job is marked Failed but the status panel states
+how many successful questions were saved; they remain in Generated questions and
+can be filtered by Run ID. The progress counts show actual saved questions.
 Only each sampled metric's surrounding source context is sent to the model.
 Question language is independently chosen as English or Chinese. These are
 candidates that need human review before use as a benchmark.
@@ -185,8 +190,10 @@ Batch mode samples `kb.inputs` in random order, directly filtering to documents
 that have primary `kb.metrics` rows (`ref_mention_id IS NULL`). This is equivalent
 to random draws followed by skipping metric-free inputs. Metrics are loaded for
 each selected document; a document whose metrics disappeared is skipped as well.
-Missing line files, insufficient metric grounding, or invalid model responses skip
-the candidate in batch mode and fail a specifically requested single document.
+Missing line files or insufficient metric grounding skip the candidate in batch mode
+and fail a specifically requested single document. Invalid model responses retain
+every independently validated question; a batch continues processing its other
+documents, then reports unresolved failures without discarding saved results.
 
 For a single document using Questions to generate, N is `ceil(requested / 3)` or
 the available metric count after a confirmed shortage. Sampling is without replacement;
@@ -271,7 +278,8 @@ model reference and resolved model name, prompt filename, creator, timestamps,
 `running` / `done` / `failed` status, per-document limits, total targets, generated
 counts per hop, document processing count, and expiration deadline. Batch runs
 have a null `input_record_id` in the database (returned as zero by the API).
-`documents_processed` counts successful document visits, including repeat visits.
+`documents_processed` counts document visits with saved questions, including partial
+documents and repeat visits, once per visit regardless of correction writes.
 For new runs, the three per-hop requested counts each equal the metric count,
 and their total targets each equal Total metrics. Existing run rows are unchanged.
 
@@ -293,9 +301,14 @@ union of selected context lines, not the raw file bytes. Legacy run-level source
 remain readable. Deleting an input deletes its questions and its single-document
 runs; a batch run and its other documents' questions remain.
 
-Each document's questions and progress counters commit in one transaction. The
-last successful document also marks the run done. Invalid responses save no partial
-document; a later batch failure preserves already committed documents. Single
+Each accepted batch of questions and its progress counters commit in one transaction.
+When an initial response contains invalid questions, its valid questions commit before
+the correction call. A correction appends only newly accepted slots, without replacing
+earlier valid questions or counting the document again. The run becomes Done only when
+all requested slots were accepted; unresolved questions leave it Failed with the saved
+results and diagnostics intact. In batch mode, attempted metric sets consume the planned
+budget even if some of their questions are rejected; the worker does not silently resample
+metrics to replace those questions. A later batch failure preserves committed results. Single
 document runs expire after ten minutes, batches after one hour. History reads mark
 expired runs failed, and a late worker cannot revive them. Worker contexts enforce
 the same limits. Failure details and progress appear in the run inspector.
@@ -365,8 +378,13 @@ Search Metrics prompt instructs the model to address every reported error, check
 the full array for citation alignment, blank fields, and duplicate questions,
 preserve valid questions, and return the full corrected question
 array. Both attempts use the same strict validation, input-size cap, and run
-deadline. A second invalid response fails the document without saving partial
-questions. Provider/request errors do not trigger this correction call. Each call
+deadline. Every question is decoded and validated independently; malformed or missing
+neighbors do not invalidate accepted questions. The correction can fill unresolved
+`(set_no, hop_type)` slots, but cannot replace an accepted slot. Duplicate checks use the
+questions that are actually retained, ignoring replacement candidates for accepted slots.
+A second invalid response leaves successful questions saved and reports the remaining
+failures. Provider/request errors do not trigger a further correction call or erase
+earlier accepted questions. Each call
 is recorded separately in LLM usage logs under the same run ID.
 
 Reasoning errors report the actual counts, for example two reasoning steps but
@@ -382,7 +400,14 @@ invalid questions in the correction request, as could happen in run 7 for input
 messages; duplicate errors identify the earlier question, ignoring case and
 whitespace. Metric assignment and context checks run after structural validation
 passes. A correction can still fail; this feedback does not guarantee valid model
-output.
+output. Structural/name-leak diagnostics retain the question's original position in
+the model response, so “question 57” is a response position, not a saved database ID.
+
+The run 12 diagnostic naming “保温层长度” means that a multi-hop question directly
+included the target metric name. This gives away the lookup instead of requiring the
+intended inference. The name-leak rule remains strict; the persistence change saves
+the other valid questions. This change applies to new generation attempts; it does
+not reconstruct questions discarded by already-finished runs.
 
 
 The server rejects unknown hop types, wrong per-category counts, blank questions
