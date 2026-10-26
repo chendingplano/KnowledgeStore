@@ -1,7 +1,8 @@
 # Web Page Interpreter (WPI)
 
 **Date:** 2026-10-26 \
-**Status:** Guiding design. Nothing is built yet; §8 defines the pilot. \
+**Status:** Guiding design. The pilot (§8) was built and verified on 2026-10-26; see devdoc
+[2026102603](2026102603-devdoc-wpi-pilot.md) and the ChenWeb OpenSpec change `wpi-pilot`. \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -565,8 +566,9 @@ schema, e.g. `kb.metrics`. There is no allowlist; instead, the only way to reach
 is to write a descriptor. The backend:
 
 - runs only actions that come from descriptors stored in `kb.wpi_descriptors`. The browser
-  says which stored action to run (by ID, or by its place inside a stored page) and supplies
-  the arguments. It never sends a table name, a column name or a descriptor body;
+  says which stored action to run (by ID, or by its place inside a stored page or element)
+  and supplies the arguments. It never sends a table name, a column name or a descriptor
+  body;
 - checks that the named table and columns exist, using the database catalog, and quotes
   them;
 - passes values only as query parameters, never by building SQL text;
@@ -677,7 +679,9 @@ These are about "how" and never appear in descriptors.
   registry of Svelte components.
 - `flow-layouter` maps naturally onto CSS flexbox with wrapping. An elastic width is a
   flexible width with a basis and min/max limits, so widths are recomputed on pane resize
-  without JavaScript. Resizable panes can use the existing `resizable` component.
+  without JavaScript. A resizable pane with a fixed pixel width gets a drag handle on its
+  inner edge; the existing `resizable` component sizes panes in percentages, which does not
+  fit pixel and elastic panes.
 - The interpreter's root element sets `select-text`, because the home3 dashboard shell
   sets `select-none`.
 - The interpreter's own text — the unsaved-changes dialog, error boxes — is Svelte code and
