@@ -47,6 +47,19 @@ reconciliation-enabled DeepSeek account's official balance and writes a
   respects the total_spending rule below.
 - **Archival:** the raw provider response is written under `ArchiveRoot` and
   referenced by `raw_payload_ref`.
+- **Request audit:** the provider request goes through
+  `shared/go/api/llm.DeepSeekBalanceClient.Fetch`. Every invocation, successful
+  or failed (including a revoked key returning 401), is captured through the
+  shared usage sink into `public.llm_usage_event`. These are account API reads:
+  `prompt_name` and `call_reason` are `provider_balance`, `call_loc` is
+  `LLM_BALANCE_001`, the model name is empty, and token counts are zero. The
+  sink resolves the account from the base URL and API key. Timing and the raw
+  response archive are captured; failures also retain `error_message` and
+  inline `raw_response`. Capture uses the shared bounded context so caller
+  cancellation does not discard the audit event. Background reads have no
+  initiating user or model profile; the existing sink's missing-user alarm
+  and unresolved-profile warning policies still apply. Capture failures are
+  logged and do not replace the provider result.
 - **Per-account isolation and alarming:** each account is processed by
   `Runner.processAccount`. If one account's claim/fetch/insert fails, the
   run does not abort — the failure is recorded in `RunResult.Failures`,
