@@ -14,10 +14,12 @@ the parts it knows.
 
 This document is the overall guide for WPI. The long-term goal is broad: apps, pages,
 elements, actions and eventually application behavior, all described as data. We get
-there step by step. The first step, the pilot, builds a simple menu-driven app whose pages
-are lists and forms that load and save records, with a few common actions, and nothing
-more: no page state beyond the data being edited, no conditions, no state machines. Each
-later phase adds elements, actions or other constructs when real pages need them.
+there step by step. The first step, the pilot, was built and verified on 2026-10-26: a
+simple menu-driven app whose pages are lists and forms that load and save records, with a
+few common actions, and nothing more: no page state beyond the data being edited, no
+conditions, no state machines (§8; what was built is devdoc 2026102603). Each later phase
+adds elements, actions or other constructs when real pages need them. §11 records what the
+pilot taught.
 
 ## 1. Why: separating "what" from "how"
 
@@ -171,8 +173,9 @@ unsaved-changes check (§3.9). Otherwise it would linger, hidden, with no way ba
 
 **How long hidden panels are kept.** Hidden panels are removed in two ways:
 
-- **Age-out.** The app descriptor sets how long a panel may stay hidden since it was last
-  visible; older panels are closed. A panel with unsaved changes is never aged out.
+- **Age-out** (planned; not in the pilot). The app descriptor sets how long a panel may
+  stay hidden since it was last visible; older panels are closed. A panel with unsaved
+  changes is never aged out.
 - **Manually.** The user closes the panel (`close_page`).
 
 A menu item whose panel has been removed opens its page afresh the next time it is
@@ -182,8 +185,8 @@ clicked.
 re-run their queries and its input doc is reloaded from its load action. The page
 descriptor says when (§4.2):
 
-- on a timer, every given number of seconds;
-- with that timer stopped while the page is hidden;
+- on a timer, every given number of seconds (planned; not in the pilot);
+- with that timer stopped while the page is hidden (planned; not in the pilot);
 - each time the page changes from hidden to visible.
 
 A refresh never reloads an input doc that has unsaved changes; the user's edits win.
@@ -350,7 +353,13 @@ page's save button does.
 
 ## 4. Descriptors by example
 
-The examples together make up the `customer-admin` app drawn in §3.3.
+The examples together make up the `customer-admin` app drawn in §3.3; the demo app seeded
+in ChenWeb follows them (its menu items sit in a folder, and its actions name the demo
+table `kb.wpi_demo_customers`). Every complete descriptor in this document passes the
+pilot's validator; the shorter examples in §3 and §5 leave out `schema_version`, which
+every stored descriptor needs. Attributes that are planned but not yet supported are named
+in the text, not in the JSON, because the pilot's validator rejects attributes it does not
+know.
 
 ### 4.1 App descriptor
 
@@ -364,8 +373,7 @@ The examples together make up the `customer-admin` app drawn in §3.3.
     "left": { "width": "240px", "min_width": "160px", "resizable": true, "page": "customer-nav" },
     "middle": { "width": "elastic" },
     "right": { "width": "elastic", "min_width": "400px" }
-  },
-  "panel_retention": { "max_hidden_minutes": 30 }
+  }
 }
 ```
 
@@ -373,7 +381,10 @@ The examples together make up the `customer-admin` app drawn in §3.3.
   starts. `bottom` is not mentioned, so this app has no footer.
 - The middle pane starts empty; the menu fills it (§4.2). The right pane starts empty; a
   click on a customer fills it (§5.1).
-- `panel_retention` is the age-out policy for hidden panels (§3.3).
+- `resizable` lets the user drag the pane's edge. In the pilot it works only for panes
+  with a fixed width in pixels.
+- Planned: the age-out policy for hidden panels (§3.3) will be an app attribute such as
+  `"panel_retention": {"max_hidden_minutes": 30}`.
 
 ### 4.2 Page descriptors
 
@@ -421,9 +432,10 @@ The customer list page, refreshed every time it is shown again:
 }
 ```
 
-`refresh` takes `on_show` (refresh each time the page goes from hidden to visible),
-`every_seconds` (refresh on a timer) and `while_hidden` (whether that timer keeps running
-while the page is hidden; `false` by default).
+`refresh` takes `on_show` (refresh each time the page goes from hidden to visible). Timed
+refresh is planned as `every_seconds` (refresh on a timer) and `while_hidden` (whether that
+timer keeps running while the page is hidden; `false` by default); the pilot does not
+support them yet.
 
 The customer form:
 
@@ -581,11 +593,12 @@ supports PostgreSQL only.
 ## 6. Storage
 
 Descriptors are stored in the `kb` schema of the `miner` database, versioned, following
-the workspace rule that data belongs in the database. Proposed table, to be settled in the
-OpenSpec change:
+the workspace rule that data belongs in the database. The table is created by migration
+`ChenWeb/project_migrations/20261026000001_create_kb_wpi_descriptors.sql`:
 
 ```text
 kb.wpi_descriptors
+  id              BIGSERIAL primary key
   kind            'app' | 'page' | 'element' | 'action'
   descriptor_id   e.g. 'customer-form'
   version         integer, increasing per descriptor
@@ -597,7 +610,9 @@ kb.wpi_descriptors
 ```
 
 - The interpreter uses the latest `active` version of each descriptor.
-- The table is created by a goose migration.
+- Versions are never edited in place. An admin writes a new version with
+  `PUT /api/v1/wpi/descriptors/<kind>/<descriptor-id>`, which checks it first. There is no
+  editor screen yet.
 - A WPI app reachable from ChenWeb's own menus also registers a `page_key` in
   `kb.page_def`. That table's comment currently says page structure stays in the
   frontend; it should be updated when WPI apps start registering there.
@@ -622,6 +637,11 @@ Failures are never silent. On screen, an error box replaces the element or page 
 the descriptor and the problem. On the backend, the failure is logged.
 
 ## 8. Pilot (phase 1)
+
+**Status:** built and verified on 2026-10-26 (ChenWeb OpenSpec change `wpi-pilot`). All
+four checks below passed in a browser against the real backend, database and frontend,
+with a stand-in user in place of a login (ChenWeb has no test login). Where the code lives,
+how to change an app and the pilot's limits: devdoc 2026102603.
 
 **Goal:** build a simple menu-driven app, whose pages are lists and forms, entirely from
 descriptors, with no page-specific frontend code.
@@ -651,11 +671,11 @@ paging and non-equality filters, protection against two users editing the same r
 (last save wins), loading an app inside a page, `Collapse` and other elements that hold
 panels, user-defined layout templates, LLM-generated descriptors.
 
-**Done when**, on a small demo `customers` table and using only descriptors stored in
-`kb.wpi_descriptors`, the `customer-admin` app of §4:
+**Done when**, on the demo table `kb.wpi_demo_customers` and using only descriptors stored
+in `kb.wpi_descriptors`, the `customer-admin` app of §4:
 
-1. opens from its URL with a header, a menu on the left and the customer list in the
-   middle;
+1. opens from its URL (`/wpi/customer-admin`) with a header, a menu on the left and the
+   customer list in the middle;
 2. switches between *Customers* and *New customer* in the menu without reloading either
    page: a half-filled new-customer form keeps its entries, and the customer list re-runs
    its query each time it is shown;
@@ -674,9 +694,10 @@ These are about "how" and never appear in descriptors.
   bindings read and write it by path. WPI does not add its own reactivity system.
 - A hidden panel stays mounted and is hidden with CSS, so its input doc and the state of
   its elements survive without reloading.
-- Element types form a registry that maps each `element_type` to a Svelte component,
-  wrapping the existing `components/ui` (bits-ui) parts. Layout templates are a similar
-  registry of Svelte components.
+- Element types form a registry that maps each `element_type` to a Svelte component.
+  Inputs and buttons wrap the existing `components/ui` parts; the pulldown is a native
+  `<select>` and the unsaved-changes prompt a native `<dialog>`. Layout templates and
+  layouters are similar registries.
 - `flow-layouter` maps naturally onto CSS flexbox with wrapping. An elastic width is a
   flexible width with a basis and min/max limits, so widths are recomputed on pane resize
   without JavaScript. A resizable pane with a fixed pixel width gets a drag handle on its
@@ -693,6 +714,12 @@ These are about "how" and never appear in descriptors.
 
 The likely direction, decided phase by phase:
 
+- **Updating visible pages after a save elsewhere.** The most visible gap in the pilot:
+  after a customer is saved in the right pane, the list in the middle keeps showing the
+  old values until it is shown again. A page needs a way to learn that data it shows has
+  changed, for example an event such as "record saved" that lists listen to (§11).
+- **Authoring descriptors.** The pilot has only the admin write endpoint. A way to browse,
+  edit and preview descriptors comes before anyone other than a developer writes them.
 - **i18n of descriptor text.** Labels and other text in descriptors need English and
   Chinese. ChenWeb sends all text through Paraglide, which cannot reach text stored in the
   database, so this needs its own decision, probably an ADR amending ADR 2026093001.
@@ -726,3 +753,23 @@ These rules fill gaps in the original design; all four were confirmed on 2026-10
 3. A refresh never reloads an input doc with unsaved changes, and a panel with unsaved
    changes is never aged out (§3.3).
 4. A menu names an `initial_item`, opened when the app starts (§4.2).
+
+## 11. What the pilot taught
+
+Findings from building the pilot that matter for the next phases:
+
+1. **Inline actions can live in elements as well as pages.** A stored element (a list, a
+   menu) can carry its own trigger with an inline action, so the server names an action as
+   `{kind, id, pointer}`: a stored action by ID, or the JSON Pointer of an inline action
+   inside a stored page or element (§5.2).
+2. **Strict validation keeps descriptors honest.** The validator rejects attributes it
+   does not know, so a descriptor cannot quietly depend on a feature that does not exist
+   yet (§4). The cost: each new attribute or type must be added in three places, namely
+   the Go validator, the TypeScript types and the Svelte registry. Counting such changes
+   per new page is the measure of principle 2.
+3. **Visible pages go stale.** Refresh on show covers pages that are switched back to, but
+   not two pages visible side by side (§9, first item). This is the first real need for
+   events between pages.
+4. **Dirty tracking needed content comparison.** Comparing a canonical copy of the doc,
+   rather than counting edits, makes "change it back" not dirty and survives the server
+   adding the new key after an insert.
