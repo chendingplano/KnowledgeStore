@@ -712,12 +712,11 @@ The likely direction, decided phase by phase:
 - **LLM-generated pages:** an LLM writes descriptors, which are validated before use
   (report §11).
 
-## 10. Rules to confirm
+## 10. Confirmed rules
 
-These rules fill gaps in the design and were written in without being discussed:
+These rules fill gaps in the original design; all four were confirmed on 2026-10-26:
 
-1. Menu items that open the same page with the same input share one panel (§3.3). The
-   alternative is to declare sharing explicitly in the menu.
+1. Menu items that open the same page with the same input share one panel (§3.3).
 2. A panel that no menu item is bound to is closed, not hidden, when another panel
    replaces it (§3.3).
 3. A refresh never reloads an input doc with unsaved changes, and a panel with unsaved
