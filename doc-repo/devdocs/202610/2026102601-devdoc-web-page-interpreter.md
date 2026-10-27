@@ -4,7 +4,9 @@
 **Status:** Guiding design. The pilot (§8) was built and verified on 2026-10-26; see devdoc
 [2026102603](2026102603-devdoc-wpi-pilot.md) and the ChenWeb OpenSpec change `wpi-pilot`. The
 class/instance model of §3.5 and §5 (descriptor format `0.2`) was built and verified on
-2026-10-27 (OpenSpec change `wpi-classes-and-instances`). \
+2026-10-27 (OpenSpec change `wpi-classes-and-instances`). The page design of §3.2 (no page
+classes, new page attributes and input sources, storage in `kb.frontend_pages`) dates from
+2026-10-27 and is not built yet. \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -66,7 +68,8 @@ implementing them (report §3.4).
 4. **Classes are named; instances are written where they are used.** Element and action
    classes are few and stored, and each class ID names the code that implements it
    (§3.5.1, §5). Element and action instances are written inside the page that uses them
-   and are never stored by themselves.
+   and are never stored by themselves. Pages have no classes: each page is complete, and
+   pages are reused by copying (§3.2).
 5. **Check before running; never fail silently.** Descriptors are validated before a page
    is shown. Anything that cannot be resolved shows a visible error in place and is logged
    (§7).
@@ -87,7 +90,7 @@ implementing them (report §3.4).
 | Layout template | A built-in, named way of dividing an app's viewport into panes, e.g. `single-pane`. |
 | Pane | A rectangular region of the viewport that controls geometry. Holds panels and shows at most one at a time. |
 | Panel | One open page inside a pane: a page descriptor plus its data. A pane can keep hidden panels to show again later. |
-| Page | What a panel shows: a list of elements and the layouter that arranges them. |
+| Page | What a panel shows: a list of elements, the layouter that arranges them and where its data comes from. Has no class; pages are reused by copying. |
 | Element | One visible part of a page: text, input, pulldown menu, button, list, menu. |
 | Element class | A kind of element, e.g. `input`. Its ID names the frontend code that draws it. Classes are few and stable. |
 | Element instance | One use of an element class on a page, with its own values. Lives inside the page's descriptor. |
@@ -123,7 +126,7 @@ Loading a WPI app *inside* an ordinary page may be useful later, much as an `<if
 loads a separate document into a page while a `<div>` is part of the page itself. This is
 deferred until it is needed (§9).
 
-### 3.2 Layout templates and panes
+#### 3.1.1 Layout templates and panes
 
 An app divides its browser viewport into **panes** using a **layout template**. Layout
 templates are a small, built-in set of names, like layouters; normally there are only a
@@ -143,6 +146,93 @@ no space, so an app without a footer simply omits `bottom`.
 A pane defines and controls the geometry of its region: width and height, minimum and
 maximum size, whether the user can resize it, and whether and how it scrolls. The app
 descriptor sets these for each pane.
+
+### 3.2 Pages
+
+A **page** is what a panel shows (§3.3): a list of elements, the layouter that arranges
+them, and where its data comes from. A page is defined by a page descriptor, a JSON document
+stored in the database (§6).
+
+Pages have no classes. Elements and actions come as classes and instances (§3.5.1, §5), but
+each page is complete in itself, much like an HTML file, and pages are reused by copying
+them (§3.2.3).
+
+#### 3.2.1 Page attributes
+
+| Attribute | Meaning |
+| --- | --- |
+| `descriptor_id` | The page's ID, chosen by its author, e.g. `customer-form`. Apps and actions name the page by it: an app's `panes.<pane>.page`, `open-page`'s `page`. |
+| `schema_version` | The format version of the page's descriptor (§4). |
+| `page_name` | The page's name as people see it, e.g. "Customers". |
+| `description` | What the page is for. Authors search names and descriptions when looking for a page to reuse (§3.2.3). |
+| `layouter` | The layouter that arranges the page's elements (§3.7), e.g. `flow-layouter`. |
+| `elements` | The page's element instances, in order (§3.5.2). |
+| `input` | Where the page's input doc comes from when the page is opened without being given one (§3.2.2). |
+| `save_action` | The `save` instance that saves the input doc; the close prompt and `save-page` run it (§3.9). |
+| `refresh` | When the page reloads its content, e.g. `{ "on_show": true }` (§3.3, §4.2). |
+| `page_alignment` | Where the page sits in its pane when it is narrower than the pane: `left` (default), `center` or `right`. |
+| `width`, `height` | The page's size inside its pane, as lengths such as `"800px"` or `"100%"`. By default a page is as wide as its pane and as tall as its content; when it does not fit, the pane's `scroll` setting decides (§3.1.1). |
+| `min_width`, `max_width` | Limits on the page's width as its pane is resized. A form usually sets `max_width`, so that it does not stretch across a wide pane, and `page_alignment` to place it. |
+| `binding_mode` | The default `binding_mode` of the page's elements that show data (§3.8); a viewer page sets `read-only`. An element instance's own value comes first, then the page's, then the element class's default. |
+
+`descriptor_id`, `schema_version`, `layouter` and `elements` are required; the rest are
+optional. Built so far are those four, `input` (`{}` or a `load` instance), `save_action`
+and `refresh`. The other attributes and input forms are designed but not built (§9).
+
+`page_name` and `description` hold text for people in the same two forms as an element's
+`label` (§3.5.1): a plain string, `"page_name": "Customers"`, or one text per language,
+`"page_name": { "en": "Customers", "zh-cn": "客户" }`, which falls back to `en`.
+
+#### 3.2.2 Input
+
+Most pages need data. A form for a new customer builds a JSON doc and saves it to the
+database; a `customers` page reads customer records from the database and shows them. A
+page's `input` says where its input doc (§3.8) comes from when the page is opened without
+being given one, for example from a menu. `open-page` can give it one instead, in the same
+forms (§5.1).
+
+| `input` | The page starts with |
+| --- | --- |
+| left out, or `{}` | An empty doc, which its `read-write` elements fill in (§3.8). Pages that show no data, such as a header or a menu, leave `input` out. |
+| any other object without an `action` attribute | That object, as the page's static data (§3.8). Planned. |
+| a `load` instance | Data read from a table (§5.1). |
+| a `query` instance | The result of a named SQL statement (below). Planned. |
+| a `load-file` instance | The content of a file named by its ID (below). Planned. |
+
+An object with an `action` attribute is an action instance; any other object is the doc
+itself. Static data therefore cannot have a top-level attribute named `action`.
+
+**SQL statements and file paths never appear in descriptors.** Descriptors travel over the
+network: to the browser when an app is opened, and to the server when they are saved. Some
+customers' firewalls block any traffic that carries SQL text. So an SQL statement is
+registered in the backend under a readable ID, its `sql_stmt_id`, and a `query` instance
+names only that ID. The instance's `args` reach the statement only as query parameters,
+never pasted into its text, and the registered statement says whether it returns one record
+or a list. File paths are kept out the same way: a `load-file` instance names a file only by
+its `file_id`. Where statements and file IDs are registered is decided when `query` and
+`load-file` are built. `load` and `save` are unchanged: they name tables and columns, never
+SQL (§5.2).
+
+#### 3.2.3 Reuse by copying
+
+Pages are reused by copying them, not through classes. To build a page that views and edits
+customers, an author first searches the stored pages, by name and description, for one
+that fits:
+
+- If one fits exactly, it is used as it is: whatever needs it names its ID.
+- If one is close, the author copies it, changes the copy and saves it under a new ID.
+- If none is close, the author writes a new page.
+
+Page classes, with pages as their instances, were considered and rejected on 2026-10-27.
+Someone would first have to write a class before others could make pages from it, which is
+harder to understand than one kind of page, stored and shown as it is. Copying has two
+known costs, accepted as not critical:
+
+- It is hard to tell whether two pages were copied from the same page.
+- A change meant for every page of one kind, such as adding a `fax_number` field to every
+  customer page, has to be made in each page.
+
+Opening a page loads the latest active version of its descriptor (§6).
 
 ### 3.3 Panels
 
@@ -218,8 +308,8 @@ descriptors.
 
 An element's attributes are split into *class attributes*, which all its instances share,
 and *instance attributes*, which each instance may set (§3.5.1). Actions are split the
-same way (§5); both are built (descriptor format `0.2`, 2026-10-27). Whether pages are too
-is not decided yet.
+same way (§5); both are built (descriptor format `0.2`, 2026-10-27). Pages are not: a page
+has no class, and pages are reused by copying (§3.2.3).
 
 ### 3.5 Elements
 
@@ -412,8 +502,11 @@ Style presets (named sets of appearance attributes) come later (§9).
 ### 3.8 Input doc and data binding
 
 Each panel has an **input doc**: a JSON document holding the data the page shows and
-edits. A page descriptor contains no data. It only assumes data of a certain shape, so the
-same page can show any data of that shape — any customer, for example.
+edits. Pages are static or dynamic, much like HTML pages. A dynamic page contains no data:
+it only assumes data of a certain shape and is given its input doc when it is opened, so
+the same page can show any data of that shape — any customer, for example. A static page
+carries its data in its own descriptor, as its `input` (§3.2.2), like a page of help text.
+That data is only a default: `open-page` can open the page with other data.
 
 An element binds to one attribute of the input doc through `data_binding`, written as a
 path from the doc's root: `$input_doc.user_name`, `$input_doc.address.city`.
@@ -437,7 +530,8 @@ first written. The `save` action then says how that shape maps to table columns 
 ### 3.9 Input doc lifecycle
 
 1. **Load.** A requester — an action, an API or application code — retrieves data from the
-   database and converts it into a JSON input doc. For a new record, the doc is `{}`.
+   database and converts it into a JSON input doc. For a new record, the doc is `{}`; for
+   a static page, it is the page's own data.
 2. **Open.** A panel is created from a page descriptor and the input doc. The interpreter
    keeps a copy of the doc as it was opened.
 3. **Edit.** `read-write` elements change the doc as the user works.
@@ -452,8 +546,7 @@ Dirty means the content differs, so changing a field and changing it back is not
 Hiding a panel is not closing it, so hiding never asks. Leaving the browser page checks
 every panel, hidden ones included.
 
-A page descriptor may name a default `input`: `{}` or a `load` instance. It is used when
-the page is opened without being given an input doc, for example from a menu. A page
+A page descriptor may name a default `input` (§3.2.2). It is used when the page is opened without being given an input doc, for example from a menu. A page
 descriptor also holds its `save_action`, a `save` instance. The close prompt runs it, and
 so does the page's save button through `save-page` (§5.1), so both save the same way.
 
@@ -661,6 +754,8 @@ them on 2026-10-27.
 | --- | --- |
 | `load` | Reads one record, or a list of records, from a table and returns them as JSON. |
 | `save` | Sends the panel's input doc to the backend, which validates it and writes it to a table. |
+| `query` | Planned. Runs an SQL statement registered in the backend, named by its `sql_stmt_id` (§3.2.2). |
+| `load-file` | Planned. Reads a file named by its `file_id` (§3.2.2). |
 | `open-page` | Opens a page in a pane with an input doc, either empty or produced by a `load` instance. |
 | `close-page` | Closes the panel that triggered it, after the unsaved-changes check. |
 | `save-page` | Runs the `save_action` of the panel that triggered it (§3.9). |
@@ -727,8 +822,9 @@ runs as its `source` (§3.6). `where` supports equality only in the pilot.
 
 In `open-page`:
 
-- `input` is `{}` for a new, empty doc, or a `load` instance that produces the doc.
-  Without it, the page's default `input` is used.
+- `input` takes the same forms as a page's `input` (§3.2.2); built so far are `{}` for a
+  new, empty doc and a `load` instance that produces the doc. Without it, the page's
+  default `input` is used.
 - `pane` names a pane of the app's layout template. An unknown pane is an error.
 - The pane hides its current panel and shows the new one. Whether the hidden panel is kept
   or closed follows §3.3.
@@ -740,7 +836,7 @@ In `open-page`:
 schema, e.g. `kb.metrics`. There is no allowlist; instead, the only way to reach a table
 is to write a descriptor. The backend:
 
-- runs only action instances written in pages stored in `kb.wpi_descriptors`. The browser
+- runs only action instances written in stored pages (§6). The browser
   names the instance by its place, the page's ID and the instance's JSON Pointer inside
   the page, and supplies the arguments. It never sends a table name, a column name or a
   descriptor body;
@@ -787,6 +883,10 @@ kb.wpi_descriptors
   frontend; it should be updated when WPI apps start registering there.
 - Copying descriptors from staging to production needs an export/import path. Not in the
   pilot.
+- **Pages move to their own table, `kb.frontend_pages`** (§3.2; not built yet). It has the
+  same columns as `kb.wpi_descriptors` except `kind`, and holds every page;
+  `kb.wpi_descriptors` then keeps apps and the element and action classes. Until the move,
+  pages are the `page` rows of `kb.wpi_descriptors`.
 
 ## 7. Validation and errors
 
@@ -893,13 +993,21 @@ The likely direction, decided phase by phase:
   changed, for example an event such as "record saved" that lists listen to (§11).
 - **Authoring descriptors.** The pilot has only the admin write endpoint. A way to browse,
   edit and preview descriptors comes before anyone other than a developer writes them.
+  Since pages are reused by copying (§3.2.3), it needs a search over page names and
+  descriptions and a way to copy a page under a new ID.
 - **Classes and instances.** Built for elements and actions on 2026-10-27 (OpenSpec change
-  `wpi-classes-and-instances`). Still open: whether pages get the split too (§3.4);
-  later, *extended attributes*: attributes a single instance adds that its class does not
-  name, so that instances of one class can differ in more than their values.
+  `wpi-classes-and-instances`). Pages have no classes; they are reused by copying (decided
+  2026-10-27, §3.2.3). Later, *extended attributes*: attributes a single instance adds that
+  its class does not name, so that instances of one class can differ in more than their
+  values.
+- **Pages (§3.2).** Designed on 2026-10-27, not built: `page_name`, `description`,
+  `page_alignment`, page sizes and a page-wide `binding_mode`; static input; the `query`
+  and `load-file` action classes, with a backend registry of SQL statements and file IDs;
+  storage in `kb.frontend_pages`.
 - **i18n of descriptor text.** Labels and other text in descriptors need English and
   Chinese. Element labels and descriptions take a plain string or one text per language,
-  falling back to `en` (§3.5.1); the same forms should cover the other text in
+  falling back to `en` (§3.5.1), and page names and descriptions will too (§3.2.1); the
+  same forms should cover the other text in
   descriptors, such as list column labels, menu item labels and select options. ChenWeb sends all text through Paraglide, which cannot
   reach text stored in the database, so this still needs its own decision, probably an ADR
   amending ADR 2026093001.
