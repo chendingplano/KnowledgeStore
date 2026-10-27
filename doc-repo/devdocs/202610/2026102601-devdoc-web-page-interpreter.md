@@ -4,9 +4,9 @@
 **Status:** Guiding design. The pilot (§8) was built and verified on 2026-10-26; see devdoc
 [2026102603](2026102603-devdoc-wpi-pilot.md) and the ChenWeb OpenSpec change `wpi-pilot`. The
 class/instance model of §3.5 and §5 (descriptor format `0.2`) was built and verified on
-2026-10-27 (OpenSpec change `wpi-classes-and-instances`). The page design of §3.2 (no page
-classes, new page attributes and input sources, storage in `kb.frontend_pages`) dates from
-2026-10-27 and is not built yet. \
+2026-10-27 (OpenSpec change `wpi-classes-and-instances`), and so was the page design of
+§3.2: no page classes, page attributes and input sources, storage in `kb.frontend_pages`
+(OpenSpec change `wpi-pages`). \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -176,8 +176,8 @@ them (§3.2.3).
 | `binding_mode` | The default `binding_mode` of the page's elements that show data (§3.8); a viewer page sets `read-only`. An element instance's own value comes first, then the page's, then the element class's default. |
 
 `descriptor_id`, `schema_version`, `layouter` and `elements` are required; the rest are
-optional. Built so far are those four, `input` (`{}` or a `load` instance), `save_action`
-and `refresh`. The other attributes and input forms are designed but not built (§9).
+optional. The interpreter does not show `page_name` or `description`; they are what authors
+search when they look for a page to reuse (§3.2.3).
 
 `page_name` and `description` hold text for people in the same two forms as an element's
 `label` (§3.5.1): a plain string, `"page_name": "Customers"`, or one text per language,
@@ -194,24 +194,36 @@ forms (§5.1).
 | `input` | The page starts with |
 | --- | --- |
 | left out, or `{}` | An empty doc, which its `read-write` elements fill in (§3.8). Pages that show no data, such as a header or a menu, leave `input` out. |
-| any other object without an `action` attribute | That object, as the page's static data (§3.8). Planned. |
+| any other object without an `action` attribute | That object, as the page's static data (§3.8). |
 | a `load` instance | Data read from a table (§5.1). |
-| a `query` instance | The result of a named SQL statement (below). Planned. |
-| a `load-file` instance | The content of a file named by its ID (below). Planned. |
+| a `query` instance | The result of a named SQL statement (below). |
+| a `load-file` instance | The content of a file named by its ID (below). |
 
 An object with an `action` attribute is an action instance; any other object is the doc
 itself. Static data therefore cannot have a top-level attribute named `action`.
 
-**SQL statements and file paths never appear in descriptors.** Descriptors travel over the
-network: to the browser when an app is opened, and to the server when they are saved. Some
-customers' firewalls block any traffic that carries SQL text. So an SQL statement is
-registered in the backend under a readable ID, its `sql_stmt_id`, and a `query` instance
-names only that ID. The instance's `args` reach the statement only as query parameters,
-never pasted into its text, and the registered statement says whether it returns one record
-or a list. File paths are kept out the same way: a `load-file` instance names a file only by
-its `file_id`. Where statements and file IDs are registered is decided when `query` and
-`load-file` are built. `load` and `save` are unchanged: they name tables and columns, never
-SQL (§5.2).
+**SQL statements and file contents never appear in descriptors.** Descriptors travel over
+the network: to the browser when an app is opened, and to the server when they are saved.
+Some customers' firewalls block any traffic that carries SQL text. So an SQL statement is
+stored on the server under a readable name, and a `query` instance names only that name, its
+`sql_stmt_id`. Files are kept out the same way: a `load-file` instance names a stored file
+by its `file_id`. Two tables hold them, and neither can be written through the WPI API, so
+rows come from migrations or `psql`:
+
+```text
+kb.stored_stmts   stmt_name, sql_stmt, description, creator, access_controls
+kb.stored_files   file_name, file_content (a JSON object), description, creator, access_controls
+```
+
+`access_controls` lists the user roles that may use a row; none, an empty list, or one
+containing `all` lets every logged-in user use it, and an admin counts as having the role
+`admin`. A `query` instance sets `result` (`record` or `list`) and may set `params`, values
+bound in order to the statement's `$1`, `$2`, … as query parameters, never pasted into its
+text; `$args.<name>` works in them as in `load`'s `where`. The statement runs in a
+read-only transaction with a 10-second limit; each row comes back as a JSON object keyed
+by the statement's column names, and a list returns at most 1000 rows. `query` also works as a
+list's `source`; `load-file` does not, since a file is one doc. `load` and `save` are
+unchanged: they name tables and columns, never SQL (§5.2).
 
 #### 3.2.3 Reuse by copying
 
@@ -232,7 +244,10 @@ known costs, accepted as not critical:
 - A change meant for every page of one kind, such as adding a `fax_number` field to every
   customer page, has to be made in each page.
 
-Opening a page loads the latest active version of its descriptor (§6).
+Authors find pages with `GET /api/v1/wpi/pages?q=<text>`, which matches the ID, name and
+description in any language, and read one with `GET /api/v1/wpi/pages/<id>`. The copy is
+saved with the admin write of §6 under its new ID. Opening a page loads the latest active
+version of its descriptor (§6).
 
 ### 3.3 Panels
 
@@ -555,7 +570,10 @@ so does the page's save button through `save-page` (§5.1), so both save the sam
 The examples together make up the `customer-admin` app drawn in §3.3. The demo app seeded
 in ChenWeb (migration `20261027000002_seed_wpi_classes_and_instances.sql`) follows them;
 its menu items sit in a folder, and its actions name the demo table
-`kb.wpi_demo_customers`. Every complete descriptor in this document passes the
+`kb.wpi_demo_customers`. Migration `20261027000005_seed_wpi_pages_demo.sql` adds the parts
+of §3.2: every page has a name and description, the header shows its title from static
+data, *Directory* lists customers through `query` and opens one through another, with a
+parameter, and *About* reads a stored file, read-only page-wide and centred. Every complete descriptor in this document passes the
 interpreter's validator; the shorter examples in §3 and §5 leave out `schema_version`,
 which every stored descriptor needs. Attributes that are planned but not yet supported are
 named in the text, not in the JSON, because the validator rejects attributes it does not
@@ -718,8 +736,8 @@ An action is an operation the interpreter performs. Actions come as classes and 
 exactly as elements do (§3.5.1):
 
 - An **action class** is a kind of action, such as `load`, `save` or `open-page`. Its
-  class ID is the name of the code that performs it: in the backend for `load` and `save`,
-  in the frontend for `open-page`, `close-page` and `save-page`. Like element classes,
+  class ID is the name of the code that performs it: in the backend for `load`, `save`,
+  `query` and `load-file`, in the frontend for `open-page`, `close-page` and `save-page`. Like element classes,
   action classes are few and stable, and a class is added only together with its code.
 - An **action instance** is one use of a class, with its own values. It is written where
   it is used: in an element's trigger, in a list's `source`, in a page's `save_action`, or
@@ -754,8 +772,8 @@ them on 2026-10-27.
 | --- | --- |
 | `load` | Reads one record, or a list of records, from a table and returns them as JSON. |
 | `save` | Sends the panel's input doc to the backend, which validates it and writes it to a table. |
-| `query` | Planned. Runs an SQL statement registered in the backend, named by its `sql_stmt_id` (§3.2.2). |
-| `load-file` | Planned. Reads a file named by its `file_id` (§3.2.2). |
+| `query` | Runs an SQL statement stored in `kb.stored_stmts`, named by its `sql_stmt_id`, read-only (§3.2.2). |
+| `load-file` | Returns a JSON file stored in `kb.stored_files`, named by its `file_id` (§3.2.2). |
 | `open-page` | Opens a page in a pane with an input doc, either empty or produced by a `load` instance. |
 | `close-page` | Closes the panel that triggered it, after the unsaved-changes check. |
 | `save-page` | Runs the `save_action` of the panel that triggered it (§3.9). |
@@ -822,9 +840,9 @@ runs as its `source` (§3.6). `where` supports equality only in the pilot.
 
 In `open-page`:
 
-- `input` takes the same forms as a page's `input` (§3.2.2); built so far are `{}` for a
-  new, empty doc and a `load` instance that produces the doc. Without it, the page's
-  default `input` is used.
+- `input` takes the same forms as a page's `input` (§3.2.2): `{}` for a new, empty doc,
+  static data, or a `load`, `query` or `load-file` instance that produces the doc. Without
+  it, the page's default `input` is used.
 - `pane` names a pane of the app's layout template. An unknown pane is an error.
 - The pane hides its current panel and shows the new one. Whether the hidden panel is kept
   or closed follows §3.3.
@@ -846,6 +864,9 @@ is to write a descriptor. The backend:
 - requires a logged-in user;
 - logs every action execution.
 
+`query` runs only statements stored in `kb.stored_stmts`, read-only, and both `query` and
+`load-file` refuse users whose roles the row's `access_controls` do not list (§3.2.2).
+
 Database access goes through an adapter, so the database can be switched later. The pilot
 supports PostgreSQL only.
 
@@ -858,7 +879,7 @@ the workspace rule that data belongs in the database. The table is created by mi
 ```text
 kb.wpi_descriptors
   id              BIGSERIAL primary key
-  kind            'app' | 'page' | 'element' | 'action'
+  kind            'app' | 'element' | 'action'
   descriptor_id   e.g. 'customer-form'
   version         integer, increasing per descriptor
   schema_version  descriptor format version
@@ -883,10 +904,12 @@ kb.wpi_descriptors
   frontend; it should be updated when WPI apps start registering there.
 - Copying descriptors from staging to production needs an export/import path. Not in the
   pilot.
-- **Pages move to their own table, `kb.frontend_pages`** (§3.2; not built yet). It has the
-  same columns as `kb.wpi_descriptors` except `kind`, and holds every page;
-  `kb.wpi_descriptors` then keeps apps and the element and action classes. Until the move,
-  pages are the `page` rows of `kb.wpi_descriptors`.
+- **Pages have their own table, `kb.frontend_pages`** (§3.2), with the same columns as
+  `kb.wpi_descriptors` except `kind`. Migration `20261027000003_create_kb_frontend_pages.sql`
+  moved every page version there, and `kb.wpi_descriptors` no longer accepts pages. The
+  admin write above still takes `page` as its kind and writes to the new table.
+- Stored SQL statements and files are in `kb.stored_stmts` and `kb.stored_files` (§3.2.2),
+  created by migration `20261027000004_create_kb_stored_stmts_and_files.sql`.
 
 ## 7. Validation and errors
 
@@ -896,7 +919,7 @@ page is shown:
 | Check | Example |
 | --- | --- |
 | Structure | Valid JSON; only attributes known to the app or page format, or named by the element or action class |
-| References | Every referenced app, page, element and action exists; every pane exists in the app's layout template |
+| References | Every referenced app, page, element and action exists; every pane exists in the app's layout template; every statement a `query` names and every file a `load-file` names is stored |
 | Tables | Every table and column named in a `load` or `save` action exists |
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
@@ -993,20 +1016,19 @@ The likely direction, decided phase by phase:
   changed, for example an event such as "record saved" that lists listen to (§11).
 - **Authoring descriptors.** The pilot has only the admin write endpoint. A way to browse,
   edit and preview descriptors comes before anyone other than a developer writes them.
-  Since pages are reused by copying (§3.2.3), it needs a search over page names and
-  descriptions and a way to copy a page under a new ID.
+  Since pages are reused by copying, the backend can search pages and read one to copy
+  (§3.2.3); the editor still has to use them.
 - **Classes and instances.** Built for elements and actions on 2026-10-27 (OpenSpec change
   `wpi-classes-and-instances`). Pages have no classes; they are reused by copying (decided
   2026-10-27, §3.2.3). Later, *extended attributes*: attributes a single instance adds that
   its class does not name, so that instances of one class can differ in more than their
   values.
-- **Pages (§3.2).** Designed on 2026-10-27, not built: `page_name`, `description`,
-  `page_alignment`, page sizes and a page-wide `binding_mode`; static input; the `query`
-  and `load-file` action classes, with a backend registry of SQL statements and file IDs;
-  storage in `kb.frontend_pages`.
+- **Pages (§3.2).** Built on 2026-10-27 (OpenSpec change `wpi-pages`). Still open: a way
+  to add stored statements and files other than migrations or `psql`, and versions for
+  them.
 - **i18n of descriptor text.** Labels and other text in descriptors need English and
   Chinese. Element labels and descriptions take a plain string or one text per language,
-  falling back to `en` (§3.5.1), and page names and descriptions will too (§3.2.1); the
+  falling back to `en` (§3.5.1), and so do page names and descriptions (§3.2.1); the
   same forms should cover the other text in
   descriptors, such as list column labels, menu item labels and select options. ChenWeb sends all text through Paraglide, which cannot
   reach text stored in the database, so this still needs its own decision, probably an ADR

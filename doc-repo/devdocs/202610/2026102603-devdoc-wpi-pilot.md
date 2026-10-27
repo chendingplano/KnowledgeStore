@@ -1,6 +1,6 @@
 # Web Page Interpreter pilot — pages drawn from descriptors stored in the database
 
-**Date:** 2026-10-26, updated 2026-10-27 for classes and instances \
+**Date:** 2026-10-26, updated 2026-10-27 for classes and instances, and for pages \
 **Scope:** What the WPI pilot built in ChenWeb, how to open and change a WPI app, and its
 limits. The overall design and later phases are in devdoc
 [2026102601](2026102601-devdoc-web-page-interpreter.md). \
@@ -21,6 +21,10 @@ limits. The overall design and later phases are in devdoc
   replaced stored per-field elements and actions with classes and instances (descriptor
   format `0.2`); its `design.md` has the decisions, and its specs add capability
   `wpi-classes` and modify three of the four above.
+- `ChenWeb/openspec/changes/wpi-pages/` — the change of 2026-10-27 that gave pages their own
+  table, names, descriptions, size and alignment, and new sources of data (static data,
+  stored SQL statements, stored files); its specs add capabilities `wpi-pages` and
+  `wpi-stored-sources`.
 
 ## Summary
 
@@ -33,7 +37,8 @@ descriptors; no frontend code changes.
 Since 2026-10-27, fields, buttons, lists and actions are written inside the page that uses
 them, as *instances* of a few *classes* such as "input", "list" or "open page". A class is
 stored once, carries the defaults its instances share, and is tied to the program code that
-draws or runs it.
+draws or runs it. Pages have no classes: a page is complete in itself, has a name and a
+description so that authors can find it, and is reused by copying it.
 
 The pilot proves this with a demo app, **customer admin**, opened at
 `/wpi/customer-admin`. It has a header, a menu on the left, a list of customers in the
@@ -46,7 +51,10 @@ middle and a customer form on the right. A user can:
   email) appear next to the field concerned;
 - click a customer to open it on the right, edit it and save it;
 - be asked before unsaved changes are thrown away, whether by opening another customer,
-  closing a page or leaving the browser page.
+  closing a page or leaving the browser page;
+- open *Directory*, a customer list read through a SQL statement stored on the server, and
+  *About*, a read-only page whose text comes from a file stored in the database. The header's
+  title is data written in the page itself.
 
 The interpreter's own messages (the unsaved-changes question, error messages) appear in
 English or Chinese, and so do the customer form's labels, which the descriptors give in
@@ -56,25 +64,31 @@ both languages; other text written inside descriptors is shown as written.
 
 - **Open an app:** `/wpi/<app-id>` in a logged-in browser. The URL holds only the app's ID;
   everything else comes from its descriptors. WPI apps have no entry in ChenWeb's menus.
-- **Descriptors:** table `kb.wpi_descriptors`, one row per version. The interpreter uses
-  the newest active version of each descriptor. The classes and the demo app's current
-  descriptors (format `0.2`) were seeded by migration
-  `ChenWeb/project_migrations/20261027000002_seed_wpi_classes_and_instances.sql`; the
-  pilot's original seed, `20261026000003_seed_wpi_customer_admin.sql`, is superseded and
-  its stored elements and actions are retired. The demo data is in `kb.wpi_demo_customers`.
+- **Descriptors:** pages in table `kb.frontend_pages`, apps and classes in
+  `kb.wpi_descriptors`, one row per version. The interpreter uses the newest active version
+  of each descriptor. The classes and the demo app (format `0.2`) were seeded by migration
+  `ChenWeb/project_migrations/20261027000002_seed_wpi_classes_and_instances.sql`, and the
+  demo's current pages by `20261027000005_seed_wpi_pages_demo.sql`; the pilot's original
+  seed, `20261026000003_seed_wpi_customer_admin.sql`, is superseded and its stored elements
+  and actions are retired. The demo data is in `kb.wpi_demo_customers`.
+- **Stored SQL statements and files:** tables `kb.stored_stmts` and `kb.stored_files`,
+  written only by migrations or `psql`; each row lists the user roles that may use it.
 - **Changing a descriptor:** an admin sends the new body with
   `PUT /api/v1/wpi/descriptors/<kind>/<descriptor-id>`, which checks it and stores it as a
   new version. Nothing edits rows in place, and there is no editor screen yet. The format
-  is described in devdoc 2026102601 §3.5 and §5, with complete examples in its §4.
+  is described in devdoc 2026102601 §3.2, §3.5 and §5, with complete examples in its §4.
+- **Finding a page to copy:** `GET /api/v1/wpi/pages?q=<text>` searches page IDs, names and
+  descriptions; `GET /api/v1/wpi/pages/<page-id>` returns a page's newest version.
 - **Backend** (`ChenWeb/server/api/wpi/`): validation of single descriptors
-  (`validate.go`) and of everything an app reaches (`bundle.go`); the three endpoints
-  (`handler.go`, `actions.go`); SQL building and save rules (`sqlbuild.go`, `rules.go`).
+  (`validate.go`) and of everything an app reaches (`bundle.go`); the endpoints
+  (`handler.go`, `actions.go`); storage (`store.go`); SQL building and save rules
+  (`sqlbuild.go`, `rules.go`).
   Routes are registered in `server/api/routes.go`.
 - **Frontend** (`ChenWeb/web/src/lib/wpi/`): the running app (`runtime.svelte.ts`), pane and
   panel bookkeeping (`panels.ts`), layout templates (`templates/`), the flow layouter
   (`layouters/`), element classes (`elements/`, registered by class ID). The page is
   `web/src/routes/wpi/[appId]/+page.svelte`.
-- **Tests:** `go test ./server/api/wpi/` (includes a test that the seeded demo app is
+- **Tests:** `go test ./server/api/wpi/` (includes tests that the seeded demo app is
   valid) and `bun test src/lib/wpi` from `web/`.
 
 ## Known limitations
@@ -86,7 +100,8 @@ both languages; other text written inside descriptors is shown as written.
 - **Any logged-in user can run any load or save written in a stored page, on any table.**
   This was decided on purpose for the pilot. The only safeguards are that only stored
   descriptors run (the browser cannot name tables or columns), only admins can write
-  descriptors, and every run is logged.
+  descriptors, and every run is logged. Stored SQL statements and files are stricter: each
+  lists the roles that may use it, and statements run read-only.
 - **The last save wins.** Two people editing the same record do not see each other's
   changes, and nothing warns them.
 - **A list does not update while it is visible.** After a customer is saved on the right,
@@ -96,8 +111,8 @@ both languages; other text written inside descriptors is shown as written.
   timed refresh.
 - **Small vocabulary:** two layout templates (`single-pane`,
   `top-left-middle-right-bottom`), one layouter (`flow-layouter`), six element classes
-  (text, input, select, button, list, menu), five action classes (load, save, open page,
-  close page, save page).
+  (text, input, select, button, list, menu), seven action classes (load, save, query, load
+  file, open page, close page, save page).
   Lists are read-only, show at most 1000 rows and filter by equality only; pulldown options
   are written in the descriptor.
 - **Only panes with a fixed width in pixels can be resized** by dragging.
@@ -106,4 +121,5 @@ both languages; other text written inside descriptors is shown as written.
 - **How it was verified:** the four checks of devdoc 2026102601 §8 passed in a browser on
   2026-10-26, and again on 2026-10-27 in format `0.2` together with the Chinese labels,
   using the real backend code, database and frontend, but with a stand-in user in place of
-  a login, because ChenWeb has no test login.
+  a login, because ChenWeb has no test login. The pages features (header from static data,
+  *Directory*, *About* centred and read-only) were checked the same way on 2026-10-27.

@@ -1,9 +1,10 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 2.0.0
-**Status:** under-dev — pilot, now with element and action classes (descriptor format `0.2`,
-2026-10-27); used by the `customer-admin` demo app
+**Type:** frontend · **Language:** svelte · **Version:** 2.1.0
+**Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`) and
+page sizes, alignment, page-wide binding mode and static input (2026-10-27); used by the
+`customer-admin` demo app
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/wpi`
 **Created:** 2026-10-26
@@ -19,7 +20,9 @@ and save records. A new screen therefore needs new descriptors, not new Svelte c
 Each element and action on a page is an *instance* of a *class* such as `input`, `list` or
 `open-page`. The class ID is the name the code that implements it is registered under, so
 the interpreter draws an instance with its class's component and merges in the class's
-defaults.
+defaults. Pages have no classes. A page places itself in its pane (width, maximum width,
+alignment), may make all its fields read-only at once (`binding_mode`), and may carry its
+own data as its input instead of loading it.
 
 It is not a general page builder or a form library to embed in hand-written pages: it runs
 whole WPI apps, opened at `/wpi/<app-id>`. The design is devdoc
@@ -40,15 +43,15 @@ pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half is modul
 | `ChenWeb/web/src/lib/wpi/dirty.test.ts` | Tests for `dirty.ts` |
 | `ChenWeb/web/src/lib/wpi/panels.ts` | Pane/panel bookkeeping: menu bindings, panel sharing, hide-or-close decision |
 | `ChenWeb/web/src/lib/wpi/panels.test.ts` | Tests for `panels.ts` |
-| `ChenWeb/web/src/lib/wpi/layout.ts` | Size attributes (fixed / elastic / auto) to CSS for elements and panes |
+| `ChenWeb/web/src/lib/wpi/layout.ts` | Size attributes (fixed / elastic / auto) to CSS for elements and panes; a page's box in its pane (`pageStyle`) |
 | `ChenWeb/web/src/lib/wpi/layout.test.ts` | Tests for `layout.ts` |
-| `ChenWeb/web/src/lib/wpi/entries.ts` | Merges instances with their class rows (`mergeInstance`, `resolveEntry`); names action instances by page and pointer (`actionRef`); text by language (`textIn`) |
+| `ChenWeb/web/src/lib/wpi/entries.ts` | Merges instances with their page's `binding_mode` and their class rows (`mergeInstance`, `resolveEntry`); names action instances by page and pointer (`actionRef`); text by language (`textIn`); static data versus action instances as input (`isAction`, `staticInput`) |
 | `ChenWeb/web/src/lib/wpi/entries.test.ts` | Tests for `entries.ts` |
-| `ChenWeb/web/src/lib/wpi/runtime.svelte.ts` | `AppRuntime`: panes, panels, input docs, saves, action instances by class, the unsaved-changes prompt |
+| `ChenWeb/web/src/lib/wpi/runtime.svelte.ts` | `AppRuntime`: panes, panels, input docs (static or loaded), saves, action instances by class, the unsaved-changes prompt |
 | `ChenWeb/web/src/lib/wpi/text.ts` | Translated messages for save error codes; `localized` text from descriptors |
 | `ChenWeb/web/src/lib/wpi/WpiApp.svelte` | Root component: creates the runtime, picks the layout template, leave warning |
 | `ChenWeb/web/src/lib/wpi/Pane.svelte` | One pane: geometry, its panels (hidden ones stay mounted), drag-resize handle |
-| `ChenWeb/web/src/lib/wpi/Panel.svelte` | One open page: loading/error state and its layouter |
+| `ChenWeb/web/src/lib/wpi/Panel.svelte` | One open page: its box in the pane, loading/error state and its layouter |
 | `ChenWeb/web/src/lib/wpi/ErrorBox.svelte` | Visible error for anything that cannot be drawn or run |
 | `ChenWeb/web/src/lib/wpi/UnsavedDialog.svelte` | Save / discard / keep editing prompt (native `<dialog>`) |
 | `ChenWeb/web/src/lib/wpi/templates/index.ts` | Layout template registry |
@@ -120,12 +123,17 @@ Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<
   bound field.
 - A hidden panel stays mounted (hidden with CSS), keeping its input doc and unsaved
   changes. Leaving the page while any panel is dirty triggers the browser's warning.
+- A page's or `open-page`'s `input` without an `action` attribute is static data: the panel
+  starts with a copy of it (`$state.snapshot`, since the bundle is held in `$state`) and
+  never reloads it. Inputs with an action (`load`, `query`, `load-file`) run on the server.
 
 ## 7. Scope and limits
 
 - Small vocabulary: two templates, one layouter, six element classes, action classes
-  `load`, `save`, `open-page`, `close-page`, `save-page`. No page state, conditions, timed
-  refresh or panel age-out; lists are read-only.
+  `load`, `save`, `query`, `load-file`, `open-page`, `close-page`, `save-page`. No page
+  state, conditions, timed refresh or panel age-out; lists are read-only.
+- The interpreter does not show `page_name` or a page's `description`; they are for authors
+  searching pages (backend `GET /api/v1/wpi/pages`).
 - Only labels can be given per language; menu items, list columns, select options and text
   elements are shown as written, so WPI apps are not linked from ChenWeb menus.
 - Only fixed-pixel panes can be resized.
