@@ -952,7 +952,8 @@ kb.wpi_descriptors
 - **Element class drafts** (§3.5.1) are `draft` rows written by
   `POST /api/v1/wpi/classes/element` (admins only). It needs no code but refuses a class ID
   that has any row, with 409. `GET /api/v1/wpi/classes/element` lists the latest draft or
-  active version of every element class for the editor's palette.
+  active version of every element class, with its instance attributes, for the editor's
+  palette and Properties panel.
 - A WPI app reachable from ChenWeb's own menus also registers a `page_key` in
   `kb.page_def`. That table's comment currently says page structure stays in the
   frontend; it should be updated when WPI apps start registering there.

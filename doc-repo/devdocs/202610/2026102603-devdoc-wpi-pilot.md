@@ -89,7 +89,12 @@ both languages; other text written inside descriptors is shown as written.
   a default; double-click a value to edit it, or an instance attribute's name to rename
   it; the form resizes from its corner), and stores the class as a draft through `POST /api/v1/wpi/classes/element`
   (admins). An ID that already exists is refused. The palette's ELEMENTS folder lists the
-  classes from `GET /api/v1/wpi/classes/element`. A draft is not used until a developer
+  classes from `GET /api/v1/wpi/classes/element`. Dropping a class on the canvas adds an
+  element node, selected and resizable, with no connection points (elements are placed on
+  pages, not wired). The Properties panel lists the class's instance attributes with their
+  help tips and defaults, and edits the node's values (kept in the node's `data.attrs`;
+  typed text is JSON when it parses, otherwise text; empty text falls back to the default).
+  A draft is not used until a developer
   registers its code and PUTs the class row, which stores it as active (devdoc 2026102601
   §3.5.1). The form is `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte`.
 - **Backend** (`ChenWeb/server/api/wpi/`): validation of single descriptors
