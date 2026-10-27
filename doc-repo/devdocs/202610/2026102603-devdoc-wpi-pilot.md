@@ -94,6 +94,9 @@ both languages; other text written inside descriptors is shown as written.
   pages, not wired). The Properties panel lists the class's instance attributes with their
   help tips and defaults, and edits the node's values (kept in the node's `data.attrs`;
   typed text is JSON when it parses, otherwise text; empty text falls back to the default).
+  *View JSON* on the tool bar shows the selected node as the element instance a page holds,
+  or, with nothing selected, the canvas as a page descriptor (element instances in reading
+  order, flow-layouter, no `descriptor_id` yet) — `canvas/wpi-json.ts`.
   A draft is not used until a developer
   registers its code and PUTs the class row, which stores it as active (devdoc 2026102601
   §3.5.1). The form is `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte`.
