@@ -32,7 +32,8 @@ page.
   below). The canvas has zoom controls at the bottom left, an overview map at the bottom
   right, and a gear button at the top right for line style and grid settings.
 - **Right — properties.** When exactly one box is selected, its name and settings can be
-  edited here.
+  edited here. Drag the panel's left edge to make it wider or narrower (200–640 px; it
+  starts at 240 px).
 
 ### Tool bar
 
@@ -62,6 +63,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/align-nodes.ts` | Pure align/distribute functions; tests in `align-nodes.test.ts` (`bun test`) |
 | `web/src/lib/components/shared-ui/canvas/nodes/WpiNode.svelte` | Renders the three WPI node types; icon chosen by node type |
 | `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
+| `web/src/lib/components/shared-ui/canvas/canvas-theme.ts` | Dark and light colours of the canvas editors, as `--cv-*` CSS variables |
 | `web/src/lib/services/flowService.ts` | Client for `/api/v1/flows*` and `/api/v1/flow-node-types` |
 | `server/api/flowhandler/` | Server handlers for those endpoints — **stubs** (below) |
 
@@ -72,8 +74,18 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   height of the sticky site header (`routes/semos/components/SiteHeader.svelte`,
   `h-[4.25rem]` plus a 1px border, `z-50`). **If the site header's height changes, change
   this offset**, or the header will cover the tool bar again (it did until 2026-10-27).
-- Built on Svelte Flow (`@xyflow/svelte` 1.5.1). The editor is always dark; it does not
-  follow the site's light/dark theme.
+- Built on Svelte Flow (`@xyflow/svelte` 1.5.1).
+- **Light and dark.** The editor follows the site theme through its `darkMode` prop. Its
+  root sets the colours from `canvas-theme.ts` as `--cv-*` CSS variables
+  (`canvasThemeVars(darkMode)`), and the palette, tool bar, properties panel and nodes read
+  them with `var(--cv-…)` — **use these variables, not hex colours, in anything inside
+  the editor**. Two exceptions: the Create Element dialog and the flow picker render
+  outside the root, so each sets the variables on its own backdrop; and the Create Nodes
+  menu opens in a portal, so it keeps the site theme's own menu colours. Svelte Flow's
+  zoom controls, overview map and lines follow its `colorMode` prop.
+- The Flow page shares the palette, properties panel, picker and nodes but has no light
+  theme yet, so it passes the dark colours (`canvasThemeVars(true)`, `darkMode={true}` to
+  the picker).
 
 ### Node types
 
@@ -179,5 +191,5 @@ the Flow page components.
   the editor does not turn selection back on with `select-text` at its root, as the
   workspace rules require for each page inside that shell.
 - **Fixed to the site header's height.** The top offset is a constant (see Where it lives).
-- **Always dark.** The editor ignores the site theme, while Svelte Flow's zoom controls
-  and overview map still draw in light colours.
+- **The properties panel's width is not remembered.** It returns to 240 px each time the
+  editor opens, and the resize handle works with the mouse only, not the keyboard.
