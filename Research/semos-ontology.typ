@@ -84,14 +84,10 @@
   "https://github.com/H2020-OpenModel/OntoFlow"
 )[#text(fill: blue)[OntoFlow]]
 
-#let ref_ontology_vs_semantic_layer = link(
-  "https://lowhangingdata.com/article/ontology-vs-semantic-layer/"
-)[#text(fill:blue)[Ontology vs Semantic Layer]]
-
 = Ontology
 
 == Ontology vs Semantic Layer
-#ref_ontology_vs_semantic_layer is a good article. It explains what ontology and semantic
+@ref-ontology-vs-semantic-layer is a good article. It explains what ontology and semantic
 layer are; their differences; and how they work together.
 
 https://lowhangingdata.com/ focuses on data analysis. Read its introduction and the 'about' page
@@ -421,7 +417,7 @@ Palantir Foundry Ontology 的核心竞争力不是"大数据平台"，而是在�
 
 == Open-Source: OntoFlow
 
-#a_001 \
+@ref-OntoFlow \
 Date: 2026/04/27
 
 === OLOGS: A Categorical Framework for Knowledge Representation
@@ -433,8 +429,8 @@ Date: 2026/04/27
 Source: WeChat
 
 == Semantica and OntoFlow
-Link: https://mp.weixin.qq.com/s/xrD3N1rpD4-2YQw3Q4XPxg
 
+@ref-企业金字塔
 *Summary*
 
 Semantica 与 OntoFlow 都在解决“让 AI 不再只面对非结构化文本和向量，而能够
@@ -524,14 +520,4 @@ OntoFlow 的核心思路不是：
 运行时和应用围绕 Ontology 组织。这也是 OntoFlow 所强调的“本体原生”真正有
 意义的地方。
 
-= References
-[1] #a_001
-
-[2] #ref_ontology_vs_semantic_layer
-
-[3] 标签 vs 分类法 vs 本体 vs 知识图谱：企业知识组织四层金字塔,
-https://mp.weixin.qq.com/s/YSJFvt-J9DHbF5JzFlXTZg 
-
-```text
 #bibliography("../references/references.bib")
-```

@@ -1296,5 +1296,49 @@ pages is often not selectable. When I ask the harness to fix the problem,
 I can tell it: make sure make text selectable all the time unless you
 are told not to. Passwords, for instance, should not be selectable.
 
+= 2026/10/26
 
+== Pure Rust PDF Parser
+url: https://github.com/KrushnaVardhanReddy/PaperPilot
 
+This is a pure Rust PDF parser, Apache 2.0. The underline engine is 
+PaddleOCR. It can do more than extracting content.
+
+== Hyper-Extract
+url: https://mp.weixin.qq.com/s/yS3XzSVPGWVYOgbQxdrF9A?poc_token=HMUU32qjFnNzKI4M91TQH1yoIyBsrIpgtMOQEn_y
+
+- 8 knowledge structure
+- 10+ extraction engine
+- 80+ templates
+
+=== Templates
+It includes:
+- Finance
+- Legal
+- Medical
+- TCM (herbs)
+- General 
+- Industry
+- And so on
+
+=== Knowledge Structure
+There are 8 knowledge structures:
+```text
+| Type | Relation | Typical output |
+|------|----------|----------------|
+| AutoModel               | 固定字段       | Pydantic 模型 |
+| AutoList                | 有序条目       | 实体或事实列表 |
+| AutoSet                 | 去重条目       | 唯一术语集合 |
+| AutoGraph               | 二元关系       | 节点与普通边 |
+| AutoHypergraph          | 多实体共同关系 | 节点与超边 |
+| AutoTemporalGraph       | 时间关系       | 带时间戳的图 |
+| AutoSpatialGraph        | 空间关系       | 带位置属性的图 |
+| AutoSpatioTemporalGraph | 时空联合关系   | 同时包含时间和空间上下文的图 |
+```
+
+= 2026/10/28
+
+== SceREX
+This is an open-source dataset for extrcting information from documents.
+It is installed in ThirdParty-2/SceREX. We may use this to build out
+benchmark.

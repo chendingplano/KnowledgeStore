@@ -8,7 +8,7 @@
 
 ## 1. Motivation
 
-We want an internal, commercially-distributable managed-agent platform: a Linear/Jira-style board where humans and coding agents share a queue of issues. Issues can be assigned to a human *or* an agent; when assigned to an agent, ChenWeb's backend executes the work in a server-side sandbox, streams progress to the board in real time, and captures the resulting artifacts (diffs, logs, artifacts) back into the issue.
+We want an internal, commercially-distributable managed-agent platform: a Linear/Jira-style board where humans and coding agents share a queue of issues. Issues can be assigned to a human *or* an agent; when assigned to an agent, SemOS's backend executes the work in a server-side sandbox, streams progress to the board in real time, and captures the resulting artifacts (diffs, logs, artifacts) back into the issue.
 
 Multica is an excellent reference for the product shape (workspaces → agents → issues → kanban → skills → runtimes), but its *modified* Apache-2.0 license forbids embedding or redistributing the code in a commercial product. We therefore build a concept-equivalent, native to our stack (Go + shared/go + Kratos + goose + SvelteKit), not a fork.
 
@@ -39,28 +39,28 @@ We read Multica's README and license, but we do **not** copy code, schema SQL, m
 ## 2. High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SvelteKit  (ChenWeb/web)                      │
-│  home3/+page.svelte  → home3 rail routes kanban/agents/settings  │
+┌───────────────────────────────────────────────────────────────────┐
+│                    SvelteKit  (SemOS/web)                         │
+│  home3/+page.svelte  → home3 rail routes kanban/agents/settings   │
 │         │                                                         │
 │         ├── REST (fetch)  ─┐                                      │
 │         └── WebSocket      │                                      │
 └────────────────────────────┼──────────────────────────────────────┘
                              │
 ┌────────────────────────────▼──────────────────────────────────────┐
-│                    Go Backend  (ChenWeb/server)                   │
+│                    Go Backend  (SemOS/server)                     │
 │  routes/agentplatform → handlers → services → stores → PG         │
-│         │                                                          │
-│         ├── auth: shared/go/authmiddleware  (Kratos session)       │
-│         ├── db:   shared/go/api/databaseutil (PG_DB_Project pool)  │
-│         ├── log:  shared/go/api/loggerutil                         │
-│         ├── llm:  shared/go/api/llm (+ new agentrun sub-pkg)       │
-│         └── migrations: project_migrations/*_agent_platform_*.sql  │
-│                                                                    │
-│    agentrun worker pool ──► sandbox executor ──► CLI runtime       │
-│            ▲                     (docker run)         │            │
-│            └── pubsub/WS ◄────── progress stream  ◄───┘            │
-└────────────────────────────────────────────────────────────────────┘
+│         │                                                         │
+│         ├── auth: shared/go/authmiddleware  (Kratos session)      │
+│         ├── db:   shared/go/api/databaseutil (PG_DB_Project pool) │
+│         ├── log:  shared/go/api/loggerutil                        │
+│         ├── llm:  shared/go/api/llm (+ new agentrun sub-pkg)      │
+│         └── migrations: project_migrations/*_agent_platform_*.sql │
+│                                                                   │
+│    agentrun worker pool ──► sandbox executor ──► CLI runtime      │
+│            ▲                     (docker run)         │           │
+│            └── pubsub/WS ◄────── progress stream  ◄───┘           │
+└───────────────────────────────────────────────────────────────────┘
                              │
                              ▼
               ┌──────────────────────────────┐
@@ -74,16 +74,16 @@ We read Multica's README and license, but we do **not** copy code, schema SQL, m
 
 Key decisions:
 
-- **Single backend process.** No sidecar daemon. The worker pool runs inside the existing ChenWeb Go server.
+- **Single backend process.** No sidecar daemon. The worker pool runs inside the existing SemOS Go server.
 - **Docker-based sandboxing.** Each task run spawns a container with a per-issue working directory mounted. No user code runs in-process with our server.
 - **LLM utility is Go.** Per your preference. New package: `shared/go/api/llm/agentrun/` providing `Runner` abstraction (see §7).
-- **WebSocket over existing Echo server.** We add one endpoint `/ws/agent-platform` that fan-outs per-workspace task events. If ChenWeb already has a WS framework, we reuse it.
+- **WebSocket over existing Echo server.** We add one endpoint `/ws/agent-platform` that fan-outs per-workspace task events. If SemOS already has a WS framework, we reuse it.
 
 ---
 
 ## 3. Data Model
 
-All tables live in `project_migrations/` and are owned by ChenWeb (per CLAUDE.md: project-level tables go in `database.CreateTables(...)`). Naming prefix: `ap_` (agent platform) to avoid collisions.
+All tables live in `project_migrations/` and are owned by SemOS (per CLAUDE.md: project-level tables go in `database.CreateTables(...)`). Naming prefix: `ap_` (agent platform) to avoid collisions.
 
 ### 3.1 Tables
 
@@ -158,7 +158,7 @@ All migrations run from `database.CreateTables(...)` on server start (CLAUDE.md 
 ### 4.1 Module Layout
 
 ```
-ChenWeb/server/
+SemOS/server/
 ├── api/
 │   └── agentplatform/            # new
 │       ├── handler_workspace.go
@@ -353,7 +353,7 @@ We reuse existing styles/tokens from `+page.svelte` and the existing rail/shelf 
 
 ### 6.4 Drag-drop on kanban
 
-- Use **`@dnd-kit-svelte`** — already present in [web/package.json](../../../ChenWeb/web/package.json) as a devDependency (`@dnd-kit-svelte/svelte`, `@dnd-kit/abstract`, `@dnd-kit/helpers`). No new package needed.
+- Use **`@dnd-kit-svelte`** — already present in [web/package.json](../../../SemOS/web/package.json) as a devDependency (`@dnd-kit-svelte/svelte`, `@dnd-kit/abstract`, `@dnd-kit/helpers`). No new package needed.
 - Optimistic update: move card in local state, POST `/issues/bulk-move`, revert on error.
 - `@dnd-kit-svelte` handles keyboard accessibility, touch, and cross-column drop zones out of the box — better than rolling our own over native HTML5 drag events.
 
@@ -377,7 +377,7 @@ We reuse existing styles/tokens from `+page.svelte` and the existing rail/shelf 
 ## 8. Deployment & Operations
 
 - **Prereq:** host runs Docker (for sandbox). `mise.toml` task gains a `docker-pull-runners` step.
-- **Runner images:** built and pushed by a CI job in ChenWeb. Tagged by `agentrun-<kind>-<semver>`.
+- **Runner images:** built and pushed by a CI job in SemOS. Tagged by `agentrun-<kind>-<semver>`.
 - **Workdirs:** on-host at `/srv/agentplatform/workdirs/<run_id>`. Retention policy: purge on success after 72h, on failure after 7d.
 - **Feature flag:** home3 agent platform views are gated by config flag `AGENT_PLATFORM_ENABLED=true` during rollout.
 - **Observability:** a new Grafana panel (or the existing one) reads from `ap_task_event` for runtime latency and success rate.
@@ -388,11 +388,11 @@ We reuse existing styles/tokens from `+page.svelte` and the existing rail/shelf 
 
 *(Previously "Open Questions"; decided 2026-04-22.)*
 
-1. **WebSocket framework.** ChenWeb does not have one. We build a thin WS layer at `ChenWeb/server/api/ws/` using `nhooyr.io/websocket` (or `gorilla/websocket` — whichever `shared/go` already pulls in; check before adding). The `/ws/agent-platform` handler from §4.3 registers against it. This is new scope added to **M2** (budget: +~1 day).
+1. **WebSocket framework.** SemOS does not have one. We build a thin WS layer at `SemOS/server/api/ws/` using `nhooyr.io/websocket` (or `gorilla/websocket` — whichever `shared/go` already pulls in; check before adding). The `/ws/agent-platform` handler from §4.3 registers against it. This is new scope added to **M2** (budget: +~1 day).
 2. **Sandbox runtime.** Production will have Docker. No fallback needed for v1. We require Docker at server start (fail fast with a clear error if the socket is unreachable).
 3. **Workspace bootstrap.** On first login we auto-create a workspace named **"Personal"** with slug `personal-<userid-suffix>`. The user becomes its `owner`. An idempotent service call `services/agentplatform/bootstrap.EnsurePersonalWorkspace(ctx, userID)` runs from the auth middleware's post-login hook. **This gets added to M0 scope.**
 4. **Issue numbering.** Per-workspace sequential integer, no project prefix (e.g. `#17` in the UI; internally `workspace_id + issue_number`). Allocation uses `SELECT … FOR UPDATE` on an `ap_workspace_counter` row to stay race-free; a per-workspace advisory lock is a cheaper alternative if contention shows up. The schema already has `unique (workspace_id, issue_number)` — unchanged.
-5. **Kanban library.** Use `@dnd-kit-svelte` — already a devDependency in [web/package.json](../../../ChenWeb/web/package.json). See §6.4.
+5. **Kanban library.** Use `@dnd-kit-svelte` — already a devDependency in [web/package.json](../../../SemOS/web/package.json). See §6.4.
 
 ---
 
@@ -405,16 +405,25 @@ Rough sequencing. Each milestone is independently shippable behind the feature f
 | **M0** | Migrations, stores, workspace + membership REST + `/agents` + `/issues` CRUD (no runner yet). Auto-create "Personal" workspace on first login (§9.3). Per-workspace `issue_number` allocator (§9.4). Basic kanban board UI reading/writing REST, no realtime. | ~4-6 days |
 | **M1** | `Runner` interface + Claude Code runner only + sandbox + worker pool + `ap_task_run`/`ap_task_event`. Assigning issue to agent produces a real run. Post-hoc log view. Server fails fast if Docker socket is missing (§9.2). | ~4-6 days |
 | **M2** | Build WS layer at `server/api/ws/` (§9.1) + `/ws/agent-platform` endpoint + live log stream in shelf + realtime kanban updates + cancel action. | ~3-4 days |
-| **M1c** | ✅ Shipped 2026-04-23. `ClaudeCodeRunner` at `shared/go/api/llm/agentrun/runner_claude.go` using `DockerSandbox`; image spec at `ChenWeb/docker/agentrun-claude/` (Dockerfile + entrypoint.sh + README). `factory.go` maps `claude_code` → the real runner; worker persists the image tag as `runner_version` via an optional `Versioned` type assertion. Image must be built manually (`docker build -t chenweb/agentrun-claude:v1 .`); `AGENT_PLATFORM_CLAUDE_IMAGE` overrides the tag. | done |
-| **M3** | ✅ Shipped 2026-04-23. Added `CodexRunner` / `OpenClawRunner` / `OpenCodeRunner` at `shared/go/api/llm/agentrun/runner_{codex,openclaw,opencode}.go`, all driven through a new shared `DockerRunnerConfig` + `prepareWithIssueMarkdown` + `collectWorkdirArtifacts` in `runner_base.go` (runner_claude.go refactored onto the same helpers). Image specs at `ChenWeb/docker/agentrun-{codex,openclaw,opencode}/` (Dockerfile + entrypoint.sh + README each). `factory.go` now resolves `codex` / `openclaw` / `opencode` to real runners; env overrides per kind: `AGENT_PLATFORM_CODEX_IMAGE`, `AGENT_PLATFORM_OPENCLAW_IMAGE`, `AGENT_PLATFORM_OPENCODE_IMAGE`. Images must be built manually. | done |
+| **M1c** | ✅ Shipped 2026-04-23. `ClaudeCodeRunner` at `shared/go/api/llm/agentrun/runner_claude.go` using `DockerSandbox`; image spec at `SemOS/docker/agentrun-claude/` (Dockerfile + entrypoint.sh + README). `factory.go` maps `claude_code` → the real runner; worker persists the image tag as `runner_version` via an optional `Versioned` type assertion. Image must be built manually (`docker build -t chenweb/agentrun-claude:v1 .`); `AGENT_PLATFORM_CLAUDE_IMAGE` overrides the tag. | done |
+| **M3** | ✅ Shipped 2026-04-23. Added `CodexRunner` / `OpenClawRunner` / `OpenCodeRunner` at `shared/go/api/llm/agentrun/runner_{codex,openclaw,opencode}.go`, all driven through a new shared `DockerRunnerConfig` + `prepareWithIssueMarkdown` + `collectWorkdirArtifacts` in `runner_base.go` (runner_claude.go refactored onto the same helpers). Image specs at `SemOS/docker/agentrun-{codex,openclaw,opencode}/` (Dockerfile + entrypoint.sh + README each). `factory.go` now resolves `codex` / `openclaw` / `opencode` to real runners; env overrides per kind: `AGENT_PLATFORM_CODEX_IMAGE`, `AGENT_PLATFORM_OPENCLAW_IMAGE`, `AGENT_PLATFORM_OPENCODE_IMAGE`. Images must be built manually. | done |
 | **M4** | ✅ Shipped 2026-04-24. `projects-view.svelte` (list/create/inline-edit/delete projects). `nav-rail.svelte` gained `ap-projects` child; `content-panel.svelte` dispatches to it. `kanban-board-view.svelte` gained project filter pills (All + per-project) wired to `apStore.setProjectFilter` — `grouped` derived filters by `activeProjectFilterID`. `agents-view.svelte` gained per-card inline edit form calling `apStore.updateAgent` (name, emoji, model, instructions, enabled). | done |
 | **M5 (deferred)** | Autopilots, skills library, external daemon support, inbox, email. Separate design doc. | — |
 
 Total to a usable internal MVP (M0–M2): roughly two weeks of focused work.
 
----
+## 11. Environment Variables
+**AGENT_PLATFORM_FORCE_DRYRUN**
 
-## 11. Appendix: What we are NOT copying from Multica
+When AGENT_PLATFORM_FORCE_DRYRUN=true: 
+- Dry run simulates task execution, rather than running a real agent in a simulated environment
+- Docker’s availability check is skipped.
+- Every agent task uses DryRunRunner, regardless of the configured agent type.
+- Tasks write an ISSUE.md scaffold, emit simulated logs, and report success without executing a real agent.
+
+This is used for testing the task pipeline. For real execution, set AGENT_PLATFORM_FORCE_DRYRUN=false (or unset it), ensure Docker and the selected agent runtime are configured, and restart the API.
+
+## 12. Appendix: What we are NOT copying from Multica
 
 For the record — these concepts exist in Multica but we either skip, redesign, or implement independently:
 
@@ -425,7 +434,5 @@ For the record — these concepts exist in Multica but we either skip, redesign,
 - No derivative CLI (`cmd/multica` analogue is out of scope in v1).
 
 The product surface (workspaces, kanban, agent assignment, task runs, skills) is a generic pattern that predates Multica and is not theirs to license.
-
----
 
 *End of document. Next step: review this doc, answer §9 open questions, then begin M0.*

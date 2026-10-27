@@ -5,7 +5,7 @@ For SemOS, I think the most useful approach is to establish a taxonomy of Knowle
 
 # 1. Taxonomy of Knowledge Models
 
-I propose 10 major types. This is a practical architectural taxonomy, not a universally established academic classification. The types overlap, and a single knowledge model can combine several of them.
+Below is a practical architectural taxonomy, not a universally established academic classification. The types overlap, and a single knowledge model can combine several of them.
 
 | Knowledge Model             | Central question             | Typical content                            |
 | --------------------------- | ---------------------------- | ------------------------------------------ |
@@ -19,6 +19,7 @@ I propose 10 major types. This is a practical architectural taxonomy, not a univ
 | 8. Functional               | What does X do?              | Functions, inputs, outputs, behavior       |
 | 9. Decision-oriented        | What should we do?           | Alternatives, trade-offs, risks            |
 | 10. System-oriented         | How do components interact?  | Architecture, interfaces, dependencies     |
+| 11. Experiment-oriented     | How do experiments?          | Design, optimize experiments               |
 
 The distinctions become clearer with concrete examples.
 
@@ -268,6 +269,44 @@ A system model captures components, interfaces, dependencies, feedback loops, an
 It differs from an entity model because the emphasis is on interactions and emergent behavior, not merely on describing individual entities.
 
 SemOS application: Systems engineering, failure propagation, architecture analysis, and complex technical specifications.
+
+## 11. Experiment-oriented Knowledge Model
+`review-rag-MatSeek.md` uses LLM to extract knowledge, use a DNN (Deep Neural Network) to train 
+a machine-learning model and then use the trained model to predict the outputs for given inputs.
+
+For example, MatSeek uses literature-derived knowledge to generate a machine-readable
+design-space specification. The specification includes:
+- Allowable chemical elements
+- Lower and uppper composition bounds
+- Hard constraints governing permissible compositions
+
+```
+{
+  "elements": ["Al", "Cr", "Fe", "Ni"],
+  "bounds": {
+    "Al": [0.05, 0.25],
+    "Cr": [0.10, 0.35],
+    "Fe": [0.20, 0.50],
+    "Ni": [0.10, 0.40]
+  },
+  "constraints": [
+    "sum(compositions) == 1.0"
+  ]
+}
+```
+This is a model, an experiment-oriented model. MatSeek does not stop here. It uses the extracted
+knowledge from literature, such as:
+- certain elements improve stength
+- some elements increase density
+- particular composition ranges are favorable
+
+It uses the knowledge to guide and contrain the search. For example, if one wants to find
+an optimal composition with given strength, density and pressure, it then find the
+model, which tells what elements it should have, the ranges of their percentage, 
+constraints, possibly steps, and other parameters. 
+
+It then uses the learned knowledge to guide the search. Here 'search' means to find
+candidates that meet the given expectation or goal.
 
 # 3. These models are not mutually exclusive
 

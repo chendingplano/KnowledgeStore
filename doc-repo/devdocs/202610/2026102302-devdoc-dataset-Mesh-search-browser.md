@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-23 \
 **Scope:** ChenWeb Knowledge → Ontology → MeSH navigation and record search. \
-**Code root:** `ChenWeb/server/api/meshbrowser/`, `ChenWeb/web/src/lib/components/home3/`
+**Code root:** `ChenWeb/server/api/meshbrowser/`, `ChenWeb/web/src/lib/components/home3/` \
+**Source URL:** `https://meshb.nlm.nih.gov/search?_gl=1*1lu8gjl*_ga*MTkxMDY5NTM4My4xNzkyNjY5NTUx*_ga_7147EPK006*czE3OTI3NDcxMTQkbzMkZzEkdDE3OTI3NDkwMTUkajUxJGwwJGgw*_ga_P1FPTH9PL4*czE3OTI3NDcxMTQkbzMkZzEkdDE3OTI3NDkwMTUkajUxJGwwJGgw`
 
 ## Summary
 
