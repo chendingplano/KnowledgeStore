@@ -420,9 +420,10 @@ new class in three steps (decided 2026-10-27):
 
 1. The author describes the class in a form that lists its attributes. The list starts
    with the class attributes `descriptor_id`, `schema_version` and `description`, which
-   cannot be removed; double-clicking an attribute edits its value. Each instance attribute
-   is entered as a name and either a default or *every instance must set it* (`null`), and
-   added to the list with *Add Attribute*.
+   cannot be removed or renamed. Each instance attribute is entered as a name and either a
+   default or *every instance must set it* (`null`), and added to the list with *Add
+   Attribute*. Double-clicking a value edits it; double-clicking an instance attribute's
+   name renames it.
 2. *Create Element* stores the descriptor as version 1 of the class, with status `draft`.
    If a row with that class ID already exists, whatever its status, nothing is stored and
    the error is reported.
