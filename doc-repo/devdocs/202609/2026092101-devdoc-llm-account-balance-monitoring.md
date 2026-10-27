@@ -56,9 +56,14 @@ reconciliation-enabled DeepSeek account's official balance and writes a
   sink resolves the account from the base URL and API key. Timing and the raw
   response archive are captured; failures also retain `error_message` and
   inline `raw_response`. Capture uses the shared bounded context so caller
-  cancellation does not discard the audit event. Background reads have no
-  initiating user or model profile; the existing sink's missing-user alarm
-  and unresolved-profile warning policies still apply. Capture failures are
+  cancellation does not discard the audit event. Balance reads are attributed to the active internal Kratos username
+  `scheduler`. The adapter resolves its identity through `credentials_identifier`
+  before each read and supplies its ID through `RequestCapture.UserID`, including
+  for failed provider calls. A missing, inactive or unavailable scheduler identity
+  fails the read before contacting the provider, so no unattributed event is
+  generated. This applies to hourly jobs and manual reconciliation, which share
+  the adapter. No model profile is assigned; unresolved-profile warning policies
+  still apply. Capture failures are
   logged and do not replace the provider result.
 - **Per-account isolation and alarming:** each account is processed by
   `Runner.processAccount`. If one account's claim/fetch/insert fails, the
