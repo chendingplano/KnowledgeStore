@@ -31,9 +31,10 @@ page.
 - **Middle — tool bar and canvas.** The tool bar runs along the top of the canvas (table
   below). The canvas has zoom controls at the bottom left, an overview map at the bottom
   right, and a gear button at the top right for line style and grid settings.
-- **Right — properties.** When exactly one box is selected, its name and settings can be
-  edited here. Drag the panel's left edge to make it wider or narrower (200–640 px; it
-  starts at 240 px).
+- **Right — properties.** When exactly one box is selected, it is edited here on two tabs:
+  **Properties** (its name and settings) and **Node** (its descriptor, the JSON *View JSON*
+  shows, as name/value rows to add, rename, change and remove). Drag the panel's left edge
+  to make it wider or narrower (200–640 px; it starts at 390 px).
 
 ### Tool bar
 
@@ -63,6 +64,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/align-nodes.ts` | Pure align/distribute functions; tests in `align-nodes.test.ts` (`bun test`) |
 | `web/src/lib/components/shared-ui/canvas/nodes/WpiNode.svelte` | Renders the three WPI node types; icon chosen by node type |
 | `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
+| `web/src/lib/components/shared-ui/canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts` | The properties panel's Node tab; only the WPI editor turns it on (`nodeTab`), so the Flow page's panel has no tabs |
 | `web/src/lib/components/shared-ui/canvas/canvas-theme.ts` | Dark and light colours of the canvas editors, as `--cv-*` CSS variables |
 | `web/src/lib/services/flowService.ts` | Client for `/api/v1/flows*` and `/api/v1/flow-node-types` |
 | `server/api/flowhandler/` | Server handlers for those endpoints — **stubs** (below) |
@@ -194,5 +196,5 @@ the Flow page components.
   the editor does not turn selection back on with `select-text` at its root, as the
   workspace rules require for each page inside that shell.
 - **Fixed to the site header's height.** The top offset is a constant (see Where it lives).
-- **The properties panel's width is not remembered.** It returns to 240 px each time the
+- **The properties panel's width is not remembered.** It returns to 390 px each time the
   editor opens, and the resize handle works with the mouse only, not the keyboard.

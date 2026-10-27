@@ -96,7 +96,10 @@ both languages; other text written inside descriptors is shown as written.
   typed text is JSON when it parses, otherwise text; empty text falls back to the default).
   *View JSON* on the tool bar shows the selected node as the element instance a page holds,
   or, with nothing selected, the canvas as a page descriptor (element instances in reading
-  order, flow-layouter, no `descriptor_id` yet) — `canvas/wpi-json.ts`.
+  order, flow-layouter, no `descriptor_id` yet) — `canvas/wpi-json.ts`. The properties
+  panel's *Node* tab edits that same node JSON as name/value rows (add, rename, change,
+  remove; `element` stays) and writes it back into `data.element` and `data.attrs`
+  (`canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts`).
   A draft is not used until a developer
   registers its code and PUTs the class row, which stores it as active (devdoc 2026102601
   §3.5.1). The form is `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte`.
