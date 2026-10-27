@@ -103,6 +103,10 @@ both languages; other text written inside descriptors is shown as written.
   A draft is not used until a developer
   registers its code and PUTs the class row, which stores it as active (devdoc 2026102601
   §3.5.1). The form is `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte`.
+  A selected node's tool bar has *Duplicate* and *Delete* (undoable; `canvas/node-actions.ts`)
+  and, on an element node, *Edit class*, which opens the same form on the class's latest row
+  (`GET /api/v1/wpi/classes/element/<class-id>`) and saves its next version, keeping its
+  status, through `PUT` on that path (admins); an active class must still match its code.
 - **Backend** (`ChenWeb/server/api/wpi/`): validation of single descriptors
   (`validate.go`) and of everything an app reaches (`bundle.go`); the endpoints
   (`handler.go`, `actions.go`); storage (`store.go`); SQL building and save rules

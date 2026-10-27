@@ -454,10 +454,16 @@ A draft is never run. The interpreter uses only active rows, and a page that nam
 class fails validation as if the class did not exist. When a draft is created, the server
 checks only what it can check without code: the ID, a required description, the attribute
 names, that attributes holding actions have no default, and the defaults of attributes all
-classes share (sizes, `label`, `data_binding`, `binding_mode`). A draft cannot express an
-attribute that is optional with no default; the code adds such attributes when the class is
-implemented. The editor's palette lists every element class in its ELEMENTS folder, drafts
-marked as such.
+classes share (sizes, `label`, `data_binding`, `binding_mode`). An attribute that is
+optional with no default is written without a `default_value` (format `0.3`). The editor's
+palette lists every element class in its ELEMENTS folder, drafts marked as such.
+
+**Editing an element class** (2026-10-27). An element node's *Edit class* button, in the
+small tool bar above a selected node, opens the same form on the class's latest draft or
+active row, with the class ID fixed. Saving stores the next version of the class with the
+same status: a draft stays a draft and is checked as one; an active class is checked
+against its code, as the admin write checks it, so an attribute the code does not define is
+refused and nothing is stored. Making a draft active is still the developer's step 3.
 
 **History.** The pilot (format `0.1`, 2026-10-26) had no stored element classes. Its kinds
 of element were hard-coded and named in `element_type`, and its stored elements, such as
@@ -953,7 +959,9 @@ kb.wpi_descriptors
   `POST /api/v1/wpi/classes/element` (admins only). It needs no code but refuses a class ID
   that has any row, with 409. `GET /api/v1/wpi/classes/element` lists the latest draft or
   active version of every element class, with its instance attributes, for the editor's
-  palette and Properties panel.
+  palette and Properties panel. `GET /api/v1/wpi/classes/element/<class-id>` returns one
+  class's latest draft or active row whole, and `PUT` on that path (admins only) stores an
+  edited row as the class's next version with the same status (§3.5.1).
 - A WPI app reachable from ChenWeb's own menus also registers a `page_key` in
   `kb.page_def`. That table's comment currently says page structure stays in the
   frontend; it should be updated when WPI apps start registering there.
@@ -1073,8 +1081,8 @@ The likely direction, decided phase by phase:
   edit and preview descriptors comes before anyone other than a developer writes them.
   Since pages are reused by copying, the backend can search pages and read one to copy
   (§3.2.3); the editor still has to use them. The WPI editor creates element classes as
-  drafts (§3.5.1, 2026-10-27); editing or retiring a draft, and creating pages and action
-  classes there, are still open.
+  drafts and edits element classes from their nodes (§3.5.1, 2026-10-27); retiring a
+  draft, and creating pages and action classes there, are still open.
 - **Classes and instances.** Built for elements and actions on 2026-10-27 (OpenSpec change
   `wpi-classes-and-instances`). Pages have no classes; they are reused by copying (decided
   2026-10-27, §3.2.3). Later, *extended attributes*: attributes a single instance adds that

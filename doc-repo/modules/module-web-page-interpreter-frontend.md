@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 2.4.0
+**Type:** frontend · **Language:** svelte · **Version:** 2.5.0
 **Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`) and
 page sizes, alignment, page-wide binding mode and static input (2026-10-27); used by the
 `customer-admin` demo app
@@ -35,7 +35,7 @@ pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half is modul
 | File | Purpose |
 |---|---|
 | `ChenWeb/web/src/lib/wpi/types.ts` | Descriptor, class, instance, bundle and action-reference types (schema_version `0.2`) |
-| `ChenWeb/web/src/lib/wpi/api.ts` | Client for the app bundle and action endpoints, and for listing element classes with their instance attributes and creating them (used by the WPI editor); `WpiError` |
+| `ChenWeb/web/src/lib/wpi/api.ts` | Client for the app bundle and action endpoints, and for listing element classes with their instance attributes, creating them, and reading and updating one class (`getElementClass`, `updateElementClass`; used by the WPI editor); `WpiError` |
 | `ChenWeb/web/src/lib/wpi/api.test.ts` | Tests for `api.ts` |
 | `ChenWeb/web/src/lib/wpi/refs.ts` | `$input_doc` / `$record` / `$args` references; safe path get/set |
 | `ChenWeb/web/src/lib/wpi/refs.test.ts` | Tests for `refs.ts` |

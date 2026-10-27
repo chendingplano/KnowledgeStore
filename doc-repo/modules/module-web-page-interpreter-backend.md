@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 2.4.0
+**Type:** backend · **Language:** go · **Version:** 2.5.0
 **Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`;
 element class rows `0.3`, each instance attribute an object with a help tip and a default) and
 pages in their own table with stored SQL statements and files, and element classes created as
@@ -81,9 +81,12 @@ Routes (registered on the authenticated `/api/v1` group in `server/api/routes.go
 | `GET /api/v1/wpi/pages/:pageId` | logged-in | — | 200 `{version, page}` (newest active version); 404 |
 | `POST /api/v1/wpi/classes/element` | admin | element class row (`descriptor_id`, `schema_version`, required `description`, attributes with defaults or `null`) | 201 `{descriptor_id, version: 1, status: "draft"}`; 400 `{errors}`; 403; 409 when any row of the class ID exists |
 | `GET /api/v1/wpi/classes/element` | logged-in | — | 200 `{classes: [{descriptor_id, version, status, description, attributes}]}`: the latest draft or active version of each element class, by ID; `attributes` holds the row's instance attributes, each `{help_tip, default_value}` |
+| `GET /api/v1/wpi/classes/element/:classId` | logged-in | — | 200 `{version, status, class}`: the class's latest draft or active row, whole; 404 |
+| `PUT /api/v1/wpi/classes/element/:classId` | admin | the edited class row (same `descriptor_id`) | 200 `{descriptor_id, version, status}`: stored as the next version with the latest row's status, a draft checked as a draft, an active class against its code; 400 `{errors}` or a changed `descriptor_id`; 403; 404 when the class has no draft or active row |
 
 Go API: `wpi.New(db *sql.DB) *Handler` (methods `GetApp`, `PutDescriptor`, `RunAction`,
-`SearchPages`, `GetPage`, `CreateElementClass`, `ListElementClasses`); `Handler{DB, User}`
+`SearchPages`, `GetPage`, `CreateElementClass`, `ListElementClasses`, `GetElementClass`,
+`UpdateElementClass`); `Handler{DB, User}`
 with an injectable user lookup for tests; `ValidateDescriptor(kind, id, body) []Issue`;
 `ValidateDraftClass(body) []Issue`; `BuildBundle(ctx, appID, Loader, Columns,
 Registered) (*BundleResult, error)`, where a `Loader` called with `ids == nil` returns every
@@ -115,6 +118,8 @@ or a seed migration). An element class row is format `0.3`: each instance attrib
 prompt. An action class row stays `0.2`, with the default or `null` itself. An element
 class may be defined first as a draft, from the WPI editor's *Create Element* or with
 `POST /api/v1/wpi/classes/element`; the PUT then makes it active once the code exists.
+The editor's *Edit class* changes a class through `PUT /api/v1/wpi/classes/element/:classId`,
+which keeps its status.
 
 Registering the routes in another Echo group:
 
@@ -127,6 +132,8 @@ group.GET("/wpi/pages", h.SearchPages)
 group.GET("/wpi/pages/:pageId", h.GetPage)
 group.GET("/wpi/classes/element", h.ListElementClasses)
 group.POST("/wpi/classes/element", h.CreateElementClass)
+group.GET("/wpi/classes/element/:classId", h.GetElementClass)
+group.PUT("/wpi/classes/element/:classId", h.UpdateElementClass)
 ```
 
 Adding a stored statement for `query` (no API writes these tables; use a migration or

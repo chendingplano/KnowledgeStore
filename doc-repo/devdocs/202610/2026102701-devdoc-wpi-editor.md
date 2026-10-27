@@ -35,6 +35,11 @@ page.
   **Properties** (its name and settings) and **Node** (its descriptor, the JSON *View JSON*
   shows, as name/value rows to add, rename, change and remove). Drag the panel's left edge
   to make it wider or narrower (200–640 px; it starts at 390 px).
+- **Above a selected box — its tool bar.** **Duplicate** adds a copy one grid cell down and
+  right (further while another box sits there), with the same data and size, and selects
+  it; lines are not copied. **Delete** removes the box and every line attached to it. Both
+  can be undone. An element box also has **Edit class** (pencil), which opens the Create
+  Element form on the box's class (below).
 
 ### Tool bar
 
@@ -65,6 +70,8 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/nodes/WpiNode.svelte` | Renders the three WPI node types; icon chosen by node type |
 | `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
 | `web/src/lib/components/shared-ui/canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts` | The properties panel's Node tab; only the WPI editor turns it on (`nodeTab`), so the Flow page's panel has no tabs |
+| `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
+| `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element, and, given a `classId`, Edit class: loads the class's latest row, keeps its ID, saves its next version |
 | `web/src/lib/components/shared-ui/canvas/canvas-theme.ts` | Dark and light colours of the canvas editors, as `--cv-*` CSS variables |
 | `web/src/lib/services/flowService.ts` | Client for `/api/v1/flows*` and `/api/v1/flow-node-types` |
 | `server/api/flowhandler/` | Server handlers for those endpoints — **stubs** (below) |
@@ -118,11 +125,13 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   undo centre alignment. Distribute orders nodes by their left (or top) edge, keeps the
   first and last in place, and sets equal gaps; overlapping nodes give a negative gap.
 - **Undo / redo:** full snapshots of nodes and edges, at most 50 undo steps. One step is
-  recorded before: create, palette drop, new edge, align, distribute and edge-style change.
+  recorded before: create, palette drop, duplicate, delete from the box tool bar, new edge,
+  align, distribute and edge-style change.
   Not recorded: edits in the properties panel, and renames. Two handlers record *after* the
   change, so the step is wrong: `onnodedragstop` (undo after a drag restores the
   dragged-to position, so the drag itself cannot be undone) and `ondelete` (undo after a
-  delete restores the state without the deleted nodes). Both were verified in the browser
+  Backspace delete restores the state without the deleted nodes; the tool bar's Delete
+  records its step first). Both were verified in the browser
   on 2026-10-27. A second undo then steps back past the change.
 - **Keyboard:** ⌘/Ctrl+Z undo; ⌘/Ctrl+Y or ⌘/Ctrl+Shift+Z redo; ⌘/Ctrl+S save;
   Backspace deletes the selection (Svelte Flow default).
@@ -167,12 +176,25 @@ with an empty canvas.
 
 ### Relationship to WPI
 
-The editor does not call `/api/v1/wpi/*` and does not read or write `kb.wpi_descriptors`.
-Page, element and action nodes are not linked to the WPI element classes (`text`, `input`,
-`select`, `button`, `list`, `menu`) or action classes (`load`, `save`, `open-page`,
-`close-page`, `save-page`) of descriptor format `0.2`. The WPI design (devdoc 2026102601,
+The editor reads and writes element classes in `kb.wpi_descriptors` through
+`/api/v1/wpi/classes/element*` (Create Element, the ELEMENTS folder, the Properties panel,
+Edit class). Page and action nodes are not linked to WPI pages or to the action classes
+(`load`, `save`, `open-page`, `close-page`, `save-page`). The WPI design (devdoc 2026102601,
 §3.2.3) expects the editor to create page instances from page classes. That work, and
 whatever **Load Page** should open, has not been decided or built.
+
+### Editing an element class
+
+**Edit class** on an element box reads the class's latest draft or active row
+(`GET /api/v1/wpi/classes/element/<class-id>`) into the Create Element form: the class
+attributes first, then the instance attributes, with `descriptor_id` read-only. The form
+says whether the class is a draft or implemented. **Save** sends the row to
+`PUT /api/v1/wpi/classes/element/<class-id>` (admins only), which stores the class's next
+version with the same status: a draft is checked by the draft rules, an implemented class
+against its code, so an attribute its code does not define is refused with the server's
+issues shown in the form, and nothing is stored. After a save the palette and the
+properties panel reload the class list. A class's edits reach every box of that class; a
+box's own values (Properties tab) are not part of the class.
 
 ### Text and languages
 
@@ -186,12 +208,10 @@ the Flow page components.
   every canvas as temporary until a real flow store exists.
 - **No connection to WPI descriptors.** The editor cannot open, create or change a real
   WPI page; **Load Page** is a placeholder.
-- **WPI boxes carry only a name.** They have no class (for example `input` or `save`) and
-  no attributes yet.
-- **The small buttons above a selected box (configure, duplicate, delete) do nothing.** The
-  node components pass empty callbacks to the shared `BaseNode`. Use Backspace to delete.
-- **Deleting or dragging a box cannot be undone**, and properties-panel edits and renames
-  are not recorded at all (see Editing behaviour).
+- **Page and action boxes carry only a name.** Element boxes have a class and attributes;
+  page and action boxes have no class or attributes yet.
+- **Dragging a box, or deleting it with Backspace, cannot be undone**, and properties-panel
+  edits and renames are not recorded at all (see Editing behaviour).
 - **Text in the editor cannot be selected.** The dashboard shell sets `select-none`, and
   the editor does not turn selection back on with `select-text` at its root, as the
   workspace rules require for each page inside that shell.
