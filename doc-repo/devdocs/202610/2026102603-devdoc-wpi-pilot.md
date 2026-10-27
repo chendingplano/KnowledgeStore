@@ -75,10 +75,18 @@ both languages; other text written inside descriptors is shown as written.
   written only by migrations or `psql`; each row lists the user roles that may use it.
 - **Changing a descriptor:** an admin sends the new body with
   `PUT /api/v1/wpi/descriptors/<kind>/<descriptor-id>`, which checks it and stores it as a
-  new version. Nothing edits rows in place, and there is no editor screen yet. The format
+  new version. Nothing edits rows in place, and apart from creating element classes (below)
+  there is no editor screen yet. The format
   is described in devdoc 2026102601 §3.2, §3.5 and §5, with complete examples in its §4.
 - **Finding a page to copy:** `GET /api/v1/wpi/pages?q=<text>` searches page IDs, names and
   descriptions; `GET /api/v1/wpi/pages/<page-id>` returns a page's newest version.
+- **Creating an element class:** in the WPI editor (Development → Tools → WPI Editor),
+  *Create Nodes → Create Element* opens a form for the class ID, description and
+  attributes, and stores the class as a draft through `POST /api/v1/wpi/classes/element`
+  (admins). An ID that already exists is refused. The palette's ELEMENTS folder lists the
+  classes from `GET /api/v1/wpi/classes/element`. A draft is not used until a developer
+  registers its code and PUTs the class row, which stores it as active (devdoc 2026102601
+  §3.5.1). The form is `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte`.
 - **Backend** (`ChenWeb/server/api/wpi/`): validation of single descriptors
   (`validate.go`) and of everything an app reaches (`bundle.go`); the endpoints
   (`handler.go`, `actions.go`); storage (`store.go`); SQL building and save rules
