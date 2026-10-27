@@ -1,8 +1,9 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 2.2.0
-**Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`) and
+**Type:** backend · **Language:** go · **Version:** 2.3.0
+**Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`;
+element class rows `0.3`, each instance attribute an object with a help tip and a default) and
 pages in their own table with stored SQL statements and files, and element classes created as
 drafts by the WPI editor (2026-10-27); serves the WPI frontend (module `20261026-01`)
 **Project:** ChenWeb (server)
@@ -41,7 +42,7 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/server/api/wpi/types.go` | Kinds, descriptor format `0.2`, templates and layouters, bundle and action types |
 | `ChenWeb/server/api/wpi/refs.go` | Reference parsing and rules; `$args` substitution |
 | `ChenWeb/server/api/wpi/refs_test.go` | Tests for `refs.go` |
-| `ChenWeb/server/api/wpi/validate.go` | What each class's code accepts (`elementAttrs`, `actionAttrs`, keyed by class ID); checks of one descriptor (`ValidateDescriptor`), class rows, instances against their class (`pageInstances`, `mergeInstance`); where action instances sit in a page (`actionPositions`); element class drafts (`ValidateDraftClass`) |
+| `ChenWeb/server/api/wpi/validate.go` | What each class's code accepts (`elementAttrs`, `actionAttrs`, keyed by class ID); checks of one descriptor (`ValidateDescriptor`), class rows, instances against their class (`pageInstances`, `classDefaults`, `mergeInstance`); where action instances sit in a page (`actionPositions`); element class rows in format 0.3 (`elementClassAttrs`) and drafts (`ValidateDraftClass`) |
 | `ChenWeb/server/api/wpi/validate_test.go` | Tests for `validate.go` |
 | `ChenWeb/server/api/wpi/bundle.go` | Loads an app, the pages it reaches and all classes, and validates the whole set, including that named statements and files are stored (`BuildBundle`) |
 | `ChenWeb/server/api/wpi/bundle_test.go` | Tests for `bundle.go` |
@@ -65,6 +66,7 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/project_migrations/20261027000003_create_kb_frontend_pages.sql` | Table `kb.frontend_pages`; moves every page row out of `kb.wpi_descriptors` |
 | `ChenWeb/project_migrations/20261027000004_create_kb_stored_stmts_and_files.sql` | Tables `kb.stored_stmts` and `kb.stored_files` |
 | `ChenWeb/project_migrations/20261027000005_seed_wpi_pages_demo.sql` | `query` and `load-file` classes; demo statements and file; demo pages with names, static data, directory and About |
+| `ChenWeb/project_migrations/20261027000006_wpi_element_classes_0_3.sql` | The six element classes again (version 2) in format `0.3`, with help tips in English and Chinese |
 
 ## 3. Interface
 
@@ -106,8 +108,11 @@ curl -X PUT http://localhost:8080/api/v1/wpi/descriptors/page/customers \
 
 Adding a class, for example `checkbox`: add its attributes to `elementAttrs` in
 `validate.go` (or `actionAttrs` for an action), register its frontend code under the same
-ID (module `20261026-01`), and store its class row with defaults or `null` per instance
-attribute (`PUT /api/v1/wpi/descriptors/element/checkbox`, or a seed migration). An element
+ID (module `20261026-01`), and store its class row (`PUT /api/v1/wpi/descriptors/element/checkbox`,
+or a seed migration). An element class row is format `0.3`: each instance attribute is
+`{"help_tip": …, "default_value": …}`, where `null` means every instance must set it and no
+`default_value` means optional; an optional `implement_notes` holds the implementation
+prompt. An action class row stays `0.2`, with the default or `null` itself. An element
 class may be defined first as a draft, from the WPI editor's *Create Element* or with
 `POST /api/v1/wpi/classes/element`; the PUT then makes it active once the code exists.
 

@@ -8,7 +8,8 @@ class/instance model of §3.5 and §5 (descriptor format `0.2`) was built and ve
 §3.2: no page classes, page attributes and input sources, storage in `kb.frontend_pages`
 (OpenSpec change `wpi-pages`). The editor's *Create Element*, which defines an element
 class as a draft before its code exists (§3.5.1), was built on 2026-10-27 (OpenSpec change
-`wpi-create-element-class`). \
+`wpi-create-element-class`), together with element class format `0.3`, in which each
+instance attribute is an object with a help tip and a default. \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -325,7 +326,8 @@ descriptors.
 
 An element's attributes are split into *class attributes*, which all its instances share,
 and *instance attributes*, which each instance may set (§3.5.1). Actions are split the
-same way (§5); both are built (descriptor format `0.2`, 2026-10-27). Pages are not: a page
+same way (§5); both are built (descriptor format `0.2`, 2026-10-27; element class rows
+moved to format `0.3` the same day, §3.5.1). Pages are not: a page
 has no class, and pages are reused by copying (§3.2.3).
 
 ### 3.5 Elements
@@ -361,33 +363,37 @@ An element's attributes are of two kinds:
 
 - **Class attributes** are shared by all instances of the class and cannot be changed by
   an instance, like static member data in C++. This document defines them, and every
-  class has the same ones: `descriptor_id`, `schema_version` and `description`. More may
-  be added, but rarely.
+  class has the same ones: `descriptor_id`, `schema_version`, `description` and
+  `implement_notes`. More may be added, but rarely.
 - **Instance attributes** belong to every instance, but each instance may give them its
   own value, like ordinary member data. The class's code defines which instance
   attributes exist: the ones many classes share (table below) and its own, such as a
-  pulldown menu's `options`, a button's `on_click` or a list's `columns` (§3.6). The
-  class row gives each a default value, or `null`, meaning every instance must set it; a
-  page with an instance that does not fails validation (§7). Instance attributes the row
-  leaves out are optional and have no default, such as a list's `on_row_click`. An
+  pulldown menu's `options`, a button's `on_click` or a list's `columns` (§3.6). In the
+  class row each instance attribute is an object with two optional parts: `help_tip`,
+  text that tells authors what the attribute is for, and `default_value`, the default. A
+  `default_value` of `null` means every instance must set the attribute; a page with an
+  instance that does not fails validation (§7). An attribute without `default_value`, or
+  left out of the row, is optional and has no default, such as a list's `on_row_click`. An
   instance that does not set an attribute uses the class's default.
 
 Attributes that hold actions (`on_click`, `on_row_click`, `source` and a menu's `items`)
-never have defaults: the class row gives them `null` or leaves them out. So every action
-instance is written in a page (§5).
+never have defaults: their `default_value` is `null` or left out. So every action instance
+is written in a page (§5).
 
 | Attribute | Kind | Meaning |
 | --- | --- | --- |
 | `descriptor_id` | class | The class ID, e.g. `input`; also the name of the frontend code that draws the class. |
 | `schema_version` | class | The format version of the class's descriptor (§4.2). |
 | `description` | class | What the class is for, so that authors can choose among classes. |
+| `implement_notes` | class | Optional. The prompt for implementing the class's code, which also helps authors understand the element. |
 | `label` | instance | The text shown with the element, such as an input's caption or a button's text. |
 | `data_binding` | instance | For elements that show data: the attribute of the input doc they show, e.g. `$input_doc.email` (§3.8). |
 | `binding_mode` | instance | For elements that show data: `read-only` or `read-write` (§3.8). |
 | `width`, `height` | instance | A length such as `"240px"`, `"elastic"` or `"auto"` (§3.7). |
 | `min_width`, `max_width` | instance | The limits of an elastic width, as lengths (§3.7). |
 
-`label` and `description` hold text for people, in one of two forms:
+`label`, `description`, `implement_notes` and an attribute's `help_tip` hold text for
+people, in one of two forms:
 
 - a plain string, `"label": "Email"`, shown the same in every language;
 - one text per language, keyed by the language codes ChenWeb uses:
@@ -397,31 +403,43 @@ instance is written in a page (§5).
 For now, a binding reaches only the panel's input doc, `$input_doc`. Bindings to other,
 named docs may come later (§9).
 
-The `input` class. Every instance must set `label` and `data_binding`; the other instance
-attributes have defaults:
+The `input` class, shortened to three of its attributes. Every instance must set `label`
+and `data_binding`; the other instance attributes have defaults:
 
 ```json
 {
   "descriptor_id": "input",
-  "schema_version": "0.2",
+  "schema_version": "0.3",
   "description": { "en": "A one-line field for typing text", "zh-cn": "单行文本输入框" },
-  "label": null,
-  "data_binding": null,
-  "binding_mode": "read-write",
-  "input_type": "text",
-  "width": "elastic",
-  "min_width": "200px",
-  "max_width": "400px"
+  "label": {
+    "help_tip": { "en": "The caption shown with the field.", "zh-cn": "字段旁显示的标题。" },
+    "default_value": null
+  },
+  "data_binding": {
+    "help_tip": { "en": "The input doc attribute the field shows and edits, such as $input_doc.email." },
+    "default_value": null
+  },
+  "binding_mode": {
+    "help_tip": { "en": "read-write lets the user edit the value; read-only only shows it." },
+    "default_value": "read-write"
+  }
 }
 ```
+
+Element class rows are written in descriptor format `0.3`; apps, pages and action classes
+stay in `0.2`, where an action class row still gives each instance attribute its default
+directly (`"mode": "upsert"`) or `null` (§5). Each kind's `schema_version` is checked
+against the format this interpreter supports for that kind.
 
 **Creating an element class.** The WPI editor's *Create Nodes → Create Element* defines a
 new class in three steps (decided 2026-10-27):
 
 1. The author describes the class in a form that lists its attributes. The list starts
-   with the class attributes `descriptor_id`, `schema_version` and `description`, which
-   cannot be removed or renamed. Each instance attribute is entered as a name and either a
-   default or *every instance must set it* (`null`), and added to the list with *Add
+   with the class attributes `descriptor_id`, `schema_version`, `description` and
+   `implement_notes`, which cannot be removed or renamed; `implement_notes`, the prompt for
+   the implementation, is written in a multi-line editor. Each instance attribute is
+   entered as a name, a default (empty for none) or *every instance must set it* (`null`),
+   and a help tip in English and optionally Chinese, and added to the list with *Add
    Attribute*. Double-clicking a value edits it; double-clicking an instance attribute's
    name renames it.
 2. *Create Element* stores the descriptor as version 1 of the class, with status `draft`.
@@ -444,7 +462,10 @@ marked as such.
 **History.** The pilot (format `0.1`, 2026-10-26) had no stored element classes. Its kinds
 of element were hard-coded and named in `element_type`, and its stored elements, such as
 `customer-user-name`, were really instances stored by themselves. Format `0.2` replaced
-them on 2026-10-27; the pilot's rows are retired.
+them on 2026-10-27; the pilot's rows are retired. Element class rows moved to format `0.3`
+the same day, when instance attributes became objects with a help tip and a default and
+`implement_notes` was added; migration `20261027000006_wpi_element_classes_0_3.sql` stored
+the six classes again in that format, with help tips.
 
 #### 3.5.2 Elements and pages
 
@@ -956,7 +977,7 @@ page is shown:
 | Tables | Every table and column named in a `load` or `save` action exists |
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
-| Instances | An element or action instance sets only instance attributes its class names, and sets every one whose class value is `null` (§3.5.1, §5) |
+| Instances | An element or action instance sets only instance attributes its class names, and sets every one whose default in the class row is `null` (§3.5.1, §5) |
 | Capabilities | Every layout template and layouter is supported by this interpreter, and every active element and action class has code registered under its class ID (an element class draft is checked only for structure, §3.5.1) |
 
 Failures are never silent. On screen, an error box replaces the element or page and names

@@ -67,8 +67,10 @@ both languages; other text written inside descriptors is shown as written.
 - **Descriptors:** pages in table `kb.frontend_pages`, apps and classes in
   `kb.wpi_descriptors`, one row per version. The interpreter uses the newest active version
   of each descriptor. The classes and the demo app (format `0.2`) were seeded by migration
-  `ChenWeb/project_migrations/20261027000002_seed_wpi_classes_and_instances.sql`, and the
-  demo's current pages by `20261027000005_seed_wpi_pages_demo.sql`; the pilot's original
+  `ChenWeb/project_migrations/20261027000002_seed_wpi_classes_and_instances.sql`, the
+  element classes again in format `0.3` (each attribute an object with a help tip and a
+  default) by `20261027000006_wpi_element_classes_0_3.sql`, and the demo's current pages by
+  `20261027000005_seed_wpi_pages_demo.sql`; the pilot's original
   seed, `20261026000003_seed_wpi_customer_admin.sql`, is superseded and its stored elements
   and actions are retired. The demo data is in `kb.wpi_demo_customers`.
 - **Stored SQL statements and files:** tables `kb.stored_stmts` and `kb.stored_files`,
@@ -82,8 +84,9 @@ both languages; other text written inside descriptors is shown as written.
   descriptions; `GET /api/v1/wpi/pages/<page-id>` returns a page's newest version.
 - **Creating an element class:** in the WPI editor (Development → Tools → WPI Editor),
   *Create Nodes → Create Element* opens a form listing the class's attributes, starting
-  with `descriptor_id`, `schema_version` and `description` (*Add Attribute* adds instance
-  attributes; double-click a value to edit it, or an instance attribute's name to rename
+  with `descriptor_id`, `schema_version`, `description` and `implement_notes` (the prompt
+  for implementing it); *Add Attribute* adds instance attributes, each with a help tip and
+  a default; double-click a value to edit it, or an instance attribute's name to rename
   it; the form resizes from its corner), and stores the class as a draft through `POST /api/v1/wpi/classes/element`
   (admins). An ID that already exists is refused. The palette's ELEMENTS folder lists the
   classes from `GET /api/v1/wpi/classes/element`. A draft is not used until a developer

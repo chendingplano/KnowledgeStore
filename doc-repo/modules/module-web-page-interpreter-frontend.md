@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 2.2.0
+**Type:** frontend · **Language:** svelte · **Version:** 2.3.0
 **Status:** under-dev — pilot, with element and action classes (descriptor format `0.2`) and
 page sizes, alignment, page-wide binding mode and static input (2026-10-27); used by the
 `customer-admin` demo app
@@ -45,7 +45,7 @@ pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half is modul
 | `ChenWeb/web/src/lib/wpi/panels.test.ts` | Tests for `panels.ts` |
 | `ChenWeb/web/src/lib/wpi/layout.ts` | Size attributes (fixed / elastic / auto) to CSS for elements and panes; a page's box in its pane (`pageStyle`) |
 | `ChenWeb/web/src/lib/wpi/layout.test.ts` | Tests for `layout.ts` |
-| `ChenWeb/web/src/lib/wpi/entries.ts` | Merges instances with their page's `binding_mode` and their class rows (`mergeInstance`, `resolveEntry`); names action instances by page and pointer (`actionRef`); text by language (`textIn`); static data versus action instances as input (`isAction`, `staticInput`) |
+| `ChenWeb/web/src/lib/wpi/entries.ts` | Merges instances with their page's `binding_mode` and their class rows (`mergeElement` for element rows in format `0.3`, `mergeInstance` for action rows, `resolveEntry`); names action instances by page and pointer (`actionRef`); text by language (`textIn`); static data versus action instances as input (`isAction`, `staticInput`) |
 | `ChenWeb/web/src/lib/wpi/entries.test.ts` | Tests for `entries.ts` |
 | `ChenWeb/web/src/lib/wpi/runtime.svelte.ts` | `AppRuntime`: panes, panels, input docs (static or loaded), saves, action instances by class, the unsaved-changes prompt |
 | `ChenWeb/web/src/lib/wpi/text.ts` | Translated messages for save error codes; `localized` text from descriptors |
@@ -104,7 +104,8 @@ Adding an element class, for example a checkbox:
 import CheckboxElement from './CheckboxElement.svelte';
 export const elementClasses = { /* … */ checkbox: CheckboxElement };
 // server/api/wpi/validate.go: add "checkbox" to elementAttrs with its attributes,
-// then store the class row "checkbox" with a default or null per instance attribute.
+// then store the class row "checkbox" (format 0.3): per instance attribute
+// {"help_tip": …, "default_value": …}, default_value null when every instance must set it.
 ```
 
 Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<id>`
