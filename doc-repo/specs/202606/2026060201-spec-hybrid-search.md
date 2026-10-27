@@ -439,7 +439,6 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | Query keyword extraction + cache | `ChenWeb/server/api/kbhandler/search_query_keywords.go`, `ChenWeb/prompts/prompt-search-query-keywords-v1.md` |
 | BM25 index maintenance job | `ChenWeb/server/api/kbsearch/bm25_maintenance.go`, registered in `ChenWeb/server/api/kbhandler/scheduler_jobs.go`; schedule seed `ChenWeb/project_migrations/20261024000010_seed_bm25_index_maintenance_schedule.sql` |
 | Specs | `ChenWeb/openspec/specs/search-query-keywords/`, `…/search-index-maintenance/` |
-| Benchmark (category index, hybrid, keywords) | `ChenWeb/benchmark/category-index/` (README has all results) |
 | Live benchmark page (generated questions) | `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`, `ChenWeb/server/api/kbhandler/search_trace.go` (candidate traces), `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-view.svelte`, `…/hybrid-search-benchmark-analyze.svelte` |
 | Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |
@@ -521,14 +520,16 @@ Deferred from the design in `KnowledgeStore/Research/PostgreSQLIndex.typ`:
 
 ### 13.1 Evaluation
 
-`ChenWeb/benchmark/category-index/` measures search on 212 LLM-paraphrased known-item queries
+The retired offline category-index experiment measured search on 212 LLM-paraphrased known-item queries
 (half English, half Chinese) over the 2,660 metrics in `kb.metrics`, against testbed copies
 of the search rows. Main results (R@10): vector alone 0.95; raw-query BM25 0.47; BM25 with
 query keywords 0.80; hybrid at weights 1.0/1.0 0.85 with the raw query and 0.90 with
 keywords. Adding `kb.metrics.metric_categories` keys to the search document changed nothing.
 The benchmark also tested a category index (ICS domain × metric facet) as a replacement for
 vector search: at the same share of the corpus scanned, k-means IVF found more targets. See
-its README for details and caveats.
+the historical experiment in ChenWeb Git history for details and caveats. The experiment code,
+dedicated prompts, datasets and results were removed on 2026-10-27. Use the live benchmark
+page below for current evaluations.
 
 ### 13.2 Live benchmark page
 
