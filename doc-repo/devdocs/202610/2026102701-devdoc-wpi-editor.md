@@ -82,10 +82,13 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   the editor**. Two exceptions: the Create Element dialog and the flow picker render
   outside the root, so each sets the variables on its own backdrop; and the Create Nodes
   menu opens in a portal, so it keeps the site theme's own menu colours. Svelte Flow's
-  zoom controls, overview map and lines follow its `colorMode` prop.
+  zoom controls, overview map and lines follow its `colorMode` prop. Text is black in light
+  mode and white in dark mode at every level (`--cv-text`, `-text-2`, `-text-muted`,
+  `-text-faint`); size and weight set the levels apart. Headings in the accent colour
+  (NODE PALETTE, PROPERTIES) and red delete/error text are the exceptions.
 - The Flow page shares the palette, properties panel, picker and nodes but has no light
   theme yet, so it passes the dark colours (`canvasThemeVars(true)`, `darkMode={true}` to
-  the picker).
+  the picker); its text is white too.
 
 ### Node types
 
