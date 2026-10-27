@@ -81,8 +81,9 @@ both languages; other text written inside descriptors is shown as written.
 - **Finding a page to copy:** `GET /api/v1/wpi/pages?q=<text>` searches page IDs, names and
   descriptions; `GET /api/v1/wpi/pages/<page-id>` returns a page's newest version.
 - **Creating an element class:** in the WPI editor (Development → Tools → WPI Editor),
-  *Create Nodes → Create Element* opens a form for the class ID, description and
-  attributes, and stores the class as a draft through `POST /api/v1/wpi/classes/element`
+  *Create Nodes → Create Element* opens a form listing the class's attributes, starting
+  with `descriptor_id`, `schema_version` and `description` (double-click one to edit its
+  value; *Add Attribute* adds instance attributes), and stores the class as a draft through `POST /api/v1/wpi/classes/element`
   (admins). An ID that already exists is refused. The palette's ELEMENTS folder lists the
   classes from `GET /api/v1/wpi/classes/element`. A draft is not used until a developer
   registers its code and PUTs the class row, which stores it as active (devdoc 2026102601

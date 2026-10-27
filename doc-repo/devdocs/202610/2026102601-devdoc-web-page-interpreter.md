@@ -418,10 +418,11 @@ attributes have defaults:
 **Creating an element class.** The WPI editor's *Create Nodes → Create Element* defines a
 new class in three steps (decided 2026-10-27):
 
-1. The author describes the class in a form: its ID, a description in English and
-   optionally Chinese, and its instance attributes. Each attribute is entered as a name and
-   either a default or *every instance must set it* (`null`), and added with *Add
-   Attribute*. The form lists the attributes added so far.
+1. The author describes the class in a form that lists its attributes. The list starts
+   with the class attributes `descriptor_id`, `schema_version` and `description`, which
+   cannot be removed; double-clicking an attribute edits its value. Each instance attribute
+   is entered as a name and either a default or *every instance must set it* (`null`), and
+   added to the list with *Add Attribute*.
 2. *Create Element* stores the descriptor as version 1 of the class, with status `draft`.
    If a row with that class ID already exists, whatever its status, nothing is stored and
    the error is reported.
