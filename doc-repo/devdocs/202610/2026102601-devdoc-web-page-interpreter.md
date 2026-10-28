@@ -9,7 +9,9 @@ class/instance model of §3.5 and §5 (descriptor format `0.2`) was built and ve
 (OpenSpec change `wpi-pages`). The editor's *Create Element*, which defines an element
 class as a draft before its code exists (§3.5.1), was built on 2026-10-27 (OpenSpec change
 `wpi-create-element-class`), together with element class format `0.3`, in which each
-instance attribute is an object with a help tip and a default. \
+instance attribute is an object with a help tip and a default. On 2026-10-28 it was decided
+that an element class names its code in `interpreter_id`, so that several classes can share
+one piece of code (§3.5.2); this is not built yet. \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -69,9 +71,10 @@ implementing them (report §3.4).
    fall over time.
 3. **Definitions have descriptor IDs; running copies have instance IDs** (§3.4).
 4. **Classes are named; instances are written where they are used.** Element and action
-   classes are few and stored, and each class ID names the code that implements it
-   (§3.5.1, §5). Element and action instances are written inside the page that uses them
-   and are never stored by themselves. Pages have no classes: each page is complete, and
+   classes are few and stored, and each names the code that implements it: an element
+   class in `interpreter_id`, so that several classes can share one piece of code
+   (§3.5.2), an action class by its class ID (§5). Element and action instances are
+   written inside the page that uses them and are never stored by themselves. Pages have no classes: each page is complete, and
    pages are reused by copying (§3.2).
 5. **Check before running; never fail silently.** Descriptors are validated before a page
    is shown. Anything that cannot be resolved shows a visible error in place and is logged
@@ -95,7 +98,8 @@ implementing them (report §3.4).
 | Panel | One open page inside a pane: a page descriptor plus its data. A pane can keep hidden panels to show again later. |
 | Page | What a panel shows: a list of elements, the layouter that arranges them and where its data comes from. Has no class; pages are reused by copying. |
 | Element | One visible part of a page: text, input, pulldown menu, button, list, menu. |
-| Element class | A kind of element, e.g. `input`. Its ID names the frontend code that draws it. Classes are few and stable. |
+| Element class | A kind of element, e.g. `input`. Its `interpreter_id` names the frontend code that draws it (§3.5.2). Classes are few and stable. |
+| Element interpreter | The frontend code that draws elements, e.g. `button`. One element interpreter may draw several classes, such as `simple-button` and `fancy-button` (§3.5.2). |
 | Element instance | One use of an element class on a page, with its own values. Lives inside the page's descriptor. |
 | Layouter | Arranges a page's elements in one specific way. |
 | Action | An operation the interpreter performs, e.g. load data, save data, open a page. |
@@ -169,7 +173,7 @@ them (§3.2.3).
 | `page_name` | The page's name as people see it, e.g. "Customers". |
 | `description` | What the page is for. Authors search names and descriptions when looking for a page to reuse (§3.2.3). |
 | `layouter` | The layouter that arranges the page's elements (§3.7), e.g. `flow-layouter`. |
-| `elements` | The page's element instances, in order (§3.5.2). |
+| `elements` | The page's element instances, in order (§3.5.3). |
 | `input` | Where the page's input doc comes from when the page is opened without being given one (§3.2.2). |
 | `save_action` | The `save` instance that saves the input doc; the close prompt and `save-page` run it (§3.9). |
 | `refresh` | When the page reloads its content, e.g. `{ "on_show": true }` (§3.3, §4.2). |
@@ -342,14 +346,13 @@ objects do in C++:
   elements of a class behave exactly the same; only their values differ. A class is
   stored as an element descriptor whose `descriptor_id` is the class ID.
 
-**A class ID names its code.** The frontend keeps a registry of element code keyed by
-class ID, so the class `input` is drawn by the code registered as `input`. There is no
-separate element type: the class is the type. A class and its code are added, renamed and
-removed together, and the validator reports a class that has no code in this interpreter
-(§7).
+**A class names its code.** Each class names the frontend code that draws it, its element
+interpreter, in `interpreter_id`, and several classes may share one element interpreter
+(§3.5.2). The class ID identifies the descriptor, not the code. The validator reports a
+class whose code does not exist (§7).
 - An **element instance** is one use of a class on a page, with its own values: for
   example, an `input` labelled "Phone" and bound to `$input_doc.phone_number`. Instances
-  live inside their page's descriptor (§3.5.2) and are never stored by themselves. An
+  live inside their page's descriptor (§3.5.3) and are never stored by themselves. An
   instance's ID is generated by the system each time its panel is drawn, so it never
   appears in a descriptor.
 
@@ -363,8 +366,8 @@ An element's attributes are of two kinds:
 
 - **Class attributes** are shared by all instances of the class and cannot be changed by
   an instance, like static member data in C++. This document defines them, and every
-  class has the same ones: `descriptor_id`, `schema_version`, `description` and
-  `implement_notes`. More may be added, but rarely.
+  class has the same ones: `descriptor_id`, `schema_version`, `interpreter_id` (§3.5.2),
+  `description` and `implement_notes`. More may be added, but rarely.
 - **Instance attributes** belong to every instance, but each instance may give them its
   own value, like ordinary member data. The class's code defines which instance
   attributes exist: the ones many classes share (table below) and its own, such as a
@@ -382,8 +385,9 @@ is written in a page (§5).
 
 | Attribute | Kind | Meaning |
 | --- | --- | --- |
-| `descriptor_id` | class | The class ID, e.g. `input`; also the name of the frontend code that draws the class. |
+| `descriptor_id` | class | The class ID, e.g. `input`. |
 | `schema_version` | class | The format version of the class's descriptor (§4.2). |
+| `interpreter_id` | class | The element interpreter that draws the class, e.g. `button` for `fancy-button` (§3.5.2). Planned. |
 | `description` | class | What the class is for, so that authors can choose among classes. |
 | `implement_notes` | class | Optional. The prompt for implementing the class's code, which also helps authors understand the element. |
 | `label` | instance | The text shown with the element, such as an input's caption or a button's text. |
@@ -473,7 +477,44 @@ the same day, when instance attributes became objects with a help tip and a defa
 `implement_notes` was added; migration `20261027000006_wpi_element_classes_0_3.sql` stored
 the six classes again in that format, with help tips.
 
-#### 3.5.2 Elements and pages
+#### 3.5.2 Element implementation
+
+**Planned** (decided 2026-10-28; not built yet). An element class names the frontend code
+that draws it, its *element interpreter*, in the class attribute `interpreter_id`. The class
+ID identifies the descriptor; `interpreter_id` identifies the code. Until this is built the
+two are the same: the class `input` is drawn by the code registered as `input`.
+
+They are kept apart because one piece of code can draw many classes. Buttons, for example,
+can look and behave in many ways. A single `button` class covering every variant would need
+a large, complicated descriptor. Instead there can be several small classes, such as
+`simple-button`, `fancy-button` and `animated-button`, all drawn by the `button` element
+interpreter, each with its own description, help tips and defaults. The element interpreter
+defines which instance attributes exist; each class names the ones its instances may set
+and gives their defaults (§3.5.1).
+
+- Every active class must set `interpreter_id`, and it must name element code that exists:
+  a component in the frontend registry and, in the backend validator, the instance
+  attributes that code accepts. The admin write and *Edit class* check a class row against
+  the code its `interpreter_id` names, not against its class ID.
+- A draft may leave `interpreter_id` out, because its code may not exist yet (§3.5.1).
+- A new class drawn by an element interpreter that already exists needs no new code: step 3
+  of *Create Element* is then only the admin write that makes it active.
+- Like every class attribute, `interpreter_id` cannot be set by an instance. An instance
+  still names only its class, in `element`.
+- Action classes have no `interpreter_id`: an action class ID still names the code that
+  performs it (§5).
+
+The pilot's `element_type` (History, above) also named code, but it was set in each stored
+element, which was really an instance. `interpreter_id` is set once, in the class.
+
+Building it needs element class format `0.4`, with a migration that stores the six classes
+again with `interpreter_id` equal to their class ID; the frontend registry `elementClasses`
+and the validator's `elementAttrs` keyed by element interpreter instead of class ID (§8.1);
+`interpreter_id` among the fixed class attributes of the *Create Element* form, chosen from
+the registered element interpreters; and the capability check of §7 looking code up by
+`interpreter_id`.
+
+#### 3.5.3 Elements and pages
 
 A page lists its element instances, in order, in `elements`. Each instance names its class
 in `element` and sets the instance attributes it needs; the rest come from the class's
@@ -776,7 +817,7 @@ The customer form:
 }
 ```
 
-The fields and buttons are instances of `input` and `button` (§3.5.2), with labels in
+The fields and buttons are instances of `input` and `button` (§3.5.3), with labels in
 English and Chinese; the inputs take their sizes and `binding_mode` from the class. The
 Save button runs the page's `save_action` through `save-page`, and the Close button runs
 `close-page`, which needs no attributes. `app-header` is a page with a single `text`
@@ -791,7 +832,8 @@ An action is an operation the interpreter performs. Actions come as classes and 
 exactly as elements do (§3.5.1):
 
 - An **action class** is a kind of action, such as `load`, `save` or `open-page`. Its
-  class ID is the name of the code that performs it: in the backend for `load`, `save`,
+  class ID is the name of the code that performs it (element classes name theirs in
+  `interpreter_id` instead, §3.5.2): in the backend for `load`, `save`,
   `query` and `load-file`, in the frontend for `open-page`, `close-page` and `save-page`. Like element classes,
   action classes are few and stable, and a class is added only together with its code (only
   element classes can be drafted first, §3.5.1).
@@ -800,8 +842,8 @@ exactly as elements do (§3.5.1):
   inside another instance, as with `open-page`'s `input`. Instances are never stored by
   themselves. Each run of an instance gets an execution ID (§3.4).
 
-Action classes have the same class attributes as element classes: `descriptor_id`,
-`schema_version` and `description`. Every action instance may set `args` (below); its
+Action classes have the class attributes `descriptor_id`, `schema_version` and
+`description`, but no `interpreter_id`, since an action class ID names its own code. Every action instance may set `args` (below); its
 class's code defines the other instance attributes, and the class row gives each a default
 or `null` (§3.5.1). An instance names its class in `action`:
 
