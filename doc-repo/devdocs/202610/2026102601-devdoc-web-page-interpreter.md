@@ -618,6 +618,17 @@ several layouters and each page names the one it uses. The pilot has one:
 
 Vertical stacks, label/field grids and others come later.
 
+Pages can optionally set `layouter_config` for `flow-layouter` to choose column and
+row gaps, horizontal alignment within each row, vertical alignment of unequal-height
+elements, and placement of all rows in a definite page height. Defaults preserve the
+original `0.75rem` gaps and start/top alignment. Invalid settings are rejected; rows
+that overflow a definite height stay at the top so their beginning remains reachable.
+The built-in layouter is registered as an active `layouter` in `kb.code_modules` under
+`flow-layouter`. See [Flow Layouter](../../code_modules/interpreter-layouter-flow.md)
+for configuration and examples; the
+[page-rendering specification](../../../../ChenWeb/openspec/specs/wpi-page-rendering/spec.md)
+is the behavioral contract.
+
 Size attributes (`width`, `height`) take one of three kinds of value:
 
 - **A fixed length** such as `"240px"`. The layouter uses it as given.
