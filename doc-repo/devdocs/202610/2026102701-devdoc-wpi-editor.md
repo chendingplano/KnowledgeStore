@@ -71,7 +71,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
 | `web/src/lib/components/shared-ui/canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts` | The properties panel's Node tab; only the WPI editor turns it on (`nodeTab`), so the Flow page's panel has no tabs |
 | `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
-| `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element, and, given a `classId`, Edit class: loads the class's latest row, keeps its ID, saves its next version |
+| `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element, and, given a `classId`, Edit class: loads the class's latest row, keeps its ID, updates its existing row in place |
 | `web/src/lib/components/shared-ui/canvas/canvas-theme.ts` | Dark and light colours of the canvas editors, as `--cv-*` CSS variables |
 | `web/src/lib/services/flowService.ts` | Client for `/api/v1/flows*` and `/api/v1/flow-node-types` |
 | `server/api/flowhandler/` | Server handlers for those endpoints — **stubs** (below) |
@@ -189,10 +189,12 @@ whatever **Load Page** should open, has not been decided or built.
 (`GET /api/v1/wpi/classes/element/<class-id>`) into the Create Element form: the class
 attributes first, then the instance attributes, with `descriptor_id` read-only. The form
 says whether the class is a draft or implemented. **Save** sends the row to
-`PUT /api/v1/wpi/classes/element/<class-id>` (admins only), which stores the class's next
-version with the same status: a draft is checked by the draft rules, an implemented class
-against its code, so an attribute its code does not define is refused with the server's
-issues shown in the form, and nothing is stored. After a save the palette and the
+`PUT /api/v1/wpi/classes/element/<class-id>` (admins only), which updates the latest draft or active record in place, keeping its version, status
+and creation details. It updates the descriptor body and the last-updated user and time.
+A missing record returns 404, including if it disappears before the update; saving never
+creates a replacement. Drafts use the draft rules; active classes must name a registered
+code module. Attribute edits use structural validation, and unsupported attributes return
+warnings. Invalid edits show the server's issues in the form without changing the record. After a save the palette and the
 properties panel reload the class list. A class's edits reach every box of that class; a
 box's own values (Properties tab) are not part of the class.
 
