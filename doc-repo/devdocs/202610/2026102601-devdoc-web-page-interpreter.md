@@ -9,11 +9,12 @@ class/instance model of §3.5 and §5 (descriptor format `0.2`) was built and ve
 (OpenSpec change `wpi-pages`). The editor's *Create Element*, which defines an element
 class as a draft before its code exists (§3.5.1), was built on 2026-10-27 (OpenSpec change
 `wpi-create-element-class`), together with element class format `0.3`, in which each
-instance attribute is an object with a help tip and a default. On 2026-10-28 it was decided
-that an element class names its code module in `code_module_id`, so that several classes can
-share one piece of code, and that a class may fix attributes for all its instances (§3.5.1,
-§3.5.2); neither is built yet. The code modules are documented in
-`KnowledgeStore/doc-repo/code_modules/`. \
+instance attribute is an object with a help tip and a default. Code modules were built on
+2026-10-28 (OpenSpec change `wpi-code-modules`): an element class names its code module in
+`code_module_id` (element class format `0.4`), so that several classes can share one piece of
+code; a class may fix attributes for all its instances; attributes a module does not support
+are stored with a warning; and the code modules are listed in `kb.code_modules` and
+documented in `KnowledgeStore/doc-repo/code_modules/` (§3.5.1, §3.5.2). \
 **Background:** research report [2026102602](2026102602-devdoc-web-page-interpreter-research-report.md)
 
 ## Summary
@@ -101,7 +102,7 @@ implementing them (report §3.4).
 | Page | What a panel shows: a list of elements, the layouter that arranges them and where its data comes from. Has no class; pages are reused by copying. |
 | Element | One visible part of a page: text, input, pulldown menu, button, list, menu. |
 | Element class | A kind of element, e.g. `input`. Its `code_module_id` names the frontend code that draws it (§3.5.2). Classes are few and stable. |
-| Code module | The frontend code that draws elements, e.g. `button`, documented in `KnowledgeStore/doc-repo/code_modules/`. One code module may draw several classes, such as `simple-button` and `fancy-button` (§3.5.2). |
+| Code module | The frontend code that draws elements, e.g. `button`, listed in `kb.code_modules` and documented in `KnowledgeStore/doc-repo/code_modules/`. One code module may draw several classes, such as `simple-button` and `fancy-button` (§3.5.2). |
 | Element instance | One use of an element class on a page, with its own values. Lives inside the page's descriptor. |
 | Layouter | Arranges a page's elements in one specific way. |
 | Action | An operation the interpreter performs, e.g. load data, save data, open a page. |
@@ -253,10 +254,33 @@ known costs, accepted as not critical:
 - A change meant for every page of one kind, such as adding a `fax_number` field to every
   customer page, has to be made in each page.
 
+The WPI editor's **Load Page** button opens a searchable dialog with 20 pages per
+screen. It lists each page's latest active version from `kb.frontend_pages`, with its
+ID, localized name and description, and creation/update times. Authors can filter by
+ID, description text in any stored language, and created/updated date ranges (inclusive
+local calendar days). Previous and Next navigate results. Loading fetches the complete
+descriptor into memory and shows the page in a resizable canvas surface (initially
+1000 × 650, centered and scaled to fit) using
+the interpreter’s layout and element components. Transparent overlays select each element
+for editing; repeated classes and all instance attributes are kept. A movable frame in the canvas opens page configuration and layouter properties in
+the Properties panel. The frame starts aligned with the canvas settings button.
+The page preview can be resized with its corner handle or keyboard; this changes the
+editor surface rather than the descriptor’s dimensions. Edits and resizing can be undone. The flow data includes
+the loaded descriptor; the current flow backend is a stub and
+does not persist it across reloads. A nonempty canvas asks
+before replacement, and Undo restores the previous canvas and descriptor. View JSON
+keeps the loaded page's metadata. Loading does not write a page version to the database;
+the existing Save button still saves the canvas flow.
+
 Authors find pages with `GET /api/v1/wpi/pages?q=<text>`, which matches the ID, name and
 description in any language, and read one with `GET /api/v1/wpi/pages/<id>`. The copy is
 saved with the admin write of §6 under its new ID. Opening a page loads the latest active
-version of its descriptor (§6).
+version of its descriptor (§6). The search endpoint also accepts `descriptor_id`,
+`description`, `limit` (default 50, maximum 200), `offset` (default 0), and inclusive
+`created_from`/`updated_from` and exclusive `created_to`/`updated_to` RFC3339 timestamps.
+It returns `pages` and `has_more`. Filters and pagination run in PostgreSQL after
+choosing each ID's latest active version. The behavior contract is
+[WPI pages](../../../../ChenWeb/openspec/specs/wpi-pages/spec.md).
 
 ### 3.3 Panels
 
@@ -333,7 +357,7 @@ descriptors.
 An element's attributes are split into *class attributes*, which all its instances share,
 and *instance attributes*, which each instance may set (§3.5.1). Actions are split the
 same way (§5); both are built (descriptor format `0.2`, 2026-10-27; element class rows
-moved to format `0.3` the same day, §3.5.1). Pages are not: a page
+moved to format `0.3` the same day and to `0.4` on 2026-10-28, §3.5.1). Pages are not: a page
 has no class, and pages are reused by copying (§3.2.3).
 
 ### 3.5 Elements
@@ -351,7 +375,8 @@ objects do in C++:
 **A class names its code.** Each class names the frontend code that draws it, its code
 module, in `code_module_id`, and several classes may share one code module (§3.5.2). The
 class ID identifies the descriptor, not the code. The validator reports a class whose code
-does not exist (§7).
+module is not an active element module in `kb.code_modules`, or, for an active class, has no
+code (§7).
 - An **element instance** is one use of a class on a page, with its own values: for
   example, an `input` labelled "Phone" and bound to `$input_doc.phone_number`. Instances
   live inside their page's descriptor (§3.5.3) and are never stored by themselves. An
@@ -369,22 +394,26 @@ An element's attributes are of two kinds:
 - **Class attributes** are shared by all instances of the class and cannot be changed by
   an instance, like static member data in C++. Every class has the ones this document
   defines: `descriptor_id`, `schema_version`, `code_module_id` (§3.5.2), `description` and
-  `implement_notes`. Planned (decided 2026-10-28): whoever creates or edits a class may
-  make any other attribute a class attribute too, by setting
+  `implement_notes`. Whoever creates or edits a class may also make any other attribute a
+  class attribute (2026-10-28), by setting
   `"instance_modifiable": false` in its object (below). Its `default_value` is then the
   value every instance has and may not be `null`, and an instance that sets the attribute
   fails validation (§7). For example, `fancy-button` could fix a `style` attribute to
   `fancy` and `simple-button` fix it to `simple` (the `button` code module has no `style`
   attribute yet).
 - **Instance attributes** belong to every instance, but each instance may give them its
-  own value, like ordinary member data. The class's code defines which instance
-  attributes exist: the ones many classes share (table below) and its own, such as a
-  pulldown menu's `options`, a button's `on_click` or a list's `columns` (§3.6). In the
-  class row each instance attribute is an object with two optional parts: `help_tip`,
-  text that tells authors what the attribute is for, and `default_value`, the default. A
-  `default_value` of `null` means every instance must set the attribute; a page with an
-  instance that does not fails validation (§7). An attribute without `default_value`, or
-  left out of the row, is optional and has no default, such as a list's `on_row_click`. An
+  own value, like ordinary member data. The class row names them: the ones many classes
+  share (table below) and the ones its code module draws with, such as a pulldown menu's
+  `options`, a button's `on_click` or a list's `columns` (§3.6). The code module's
+  document lists what the module supports; an attribute it does not support may still be
+  named, but has no effect (§3.5.2). An instance may set only the attributes its class
+  names, plus the sizes (`width`, `height`, `min_width`, `max_width`), which every element
+  has. In the class row each instance attribute is an object with three optional parts:
+  `help_tip`, text that tells authors what the attribute is for; `default_value`, the
+  default; and `instance_modifiable`, which `false` turns into a fixed class attribute
+  (above). A `default_value` of `null` means every instance must set the attribute; a page
+  with an instance that does not fails validation (§7). An attribute without
+  `default_value` is optional and has no default, such as a list's `on_row_click`. An
   instance that does not set an attribute uses the class's default.
 
 Attributes that hold actions (`on_click`, `on_row_click`, `source` and a menu's `items`)
@@ -395,7 +424,7 @@ or left out. So every action instance is written in a page (§5).
 | --- | --- | --- |
 | `descriptor_id` | class | The class ID, e.g. `input`. |
 | `schema_version` | class | The format version of the class's descriptor (§4.2). |
-| `code_module_id` | class | The code module that draws the class, e.g. `button` for `fancy-button` (§3.5.2). Planned. |
+| `code_module_id` | class | The code module that draws the class, e.g. `button` for `fancy-button` (§3.5.2). Required in an active class. |
 | `description` | class | What the class is for, so that authors can choose among classes. |
 | `implement_notes` | class | Optional. The prompt for implementing the class's code, which also helps authors understand the element. |
 | `label` | instance | The text shown with the element, such as an input's caption or a button's text. |
@@ -421,7 +450,8 @@ and `data_binding`; the other instance attributes have defaults:
 ```json
 {
   "descriptor_id": "input",
-  "schema_version": "0.3",
+  "schema_version": "0.4",
+  "code_module_id": "input",
   "description": { "en": "A one-line field for typing text", "zh-cn": "单行文本输入框" },
   "label": {
     "help_tip": { "en": "The caption shown with the field.", "zh-cn": "字段旁显示的标题。" },
@@ -438,7 +468,7 @@ and `data_binding`; the other instance attributes have defaults:
 }
 ```
 
-Element class rows are written in descriptor format `0.3`; apps, pages and action classes
+Element class rows are written in descriptor format `0.4`; apps, pages and action classes
 stay in `0.2`, where an action class row still gives each instance attribute its default
 directly (`"mode": "upsert"`) or `null` (§5). Each kind's `schema_version` is checked
 against the format this interpreter supports for that kind.
@@ -447,35 +477,40 @@ against the format this interpreter supports for that kind.
 new class in three steps (decided 2026-10-27):
 
 1. The author describes the class in a form that lists its attributes. The list starts
-   with the class attributes `descriptor_id`, `schema_version`, `description` and
-   `implement_notes`, which cannot be removed or renamed; `implement_notes`, the prompt for
-   the implementation, is written in a multi-line editor. Each instance attribute is
-   entered as a name, a default (empty for none) or *every instance must set it* (`null`),
-   and a help tip in English and optionally Chinese, and added to the list with *Add
-   Attribute*. Double-clicking a value edits it; double-clicking an instance attribute's
-   name renames it.
+   with the class attributes `descriptor_id`, `schema_version`, `code_module_id`,
+   `description` and `implement_notes`, which cannot be renamed; while `code_module_id` is
+   edited, the form lists the active element modules of `kb.code_modules` (§3.5.2).
+   `implement_notes`, the prompt for the implementation, is written in a multi-line
+   editor. Each instance attribute is entered as a name, a default (empty for none) or
+   *every instance must set it* (`null`), optionally *fixed by the class*
+   (`"instance_modifiable": false`, which needs a default), and a help tip in English and
+   optionally Chinese, and added to the list with *Add Attribute*. Double-clicking an
+   attribute loads it into the fields to be modified.
 2. *Create Element* stores the descriptor as version 1 of the class, with status `draft`.
    If a row with that class ID already exists, whatever its status, nothing is stored and
-   the error is reported.
-3. A developer then implements the class: registers its frontend code under the class ID
-   and the attributes the code accepts in the backend validator, and stores the class row
-   again with the admin write (§6). That write checks the row against the code and stores
-   it as `active`.
+   the error is reported. Attributes the class's code module does not support are listed
+   as warnings before the form closes.
+3. An admin makes the class active by storing the class row again with the admin write
+   (§6), which checks the row against its code module and stores it as `active`. If the
+   class names a module that already has code, such as `button`, nothing else is needed.
+   If the module is new, a developer first writes its code (§3.5.2).
 
 A draft is never run. The interpreter uses only active rows, and a page that names a draft
 class fails validation as if the class did not exist. When a draft is created, the server
-checks only what it can check without code: the ID, a required description, the attribute
-names, that attributes holding actions have no default, and the defaults of attributes all
-classes share (sizes, `label`, `data_binding`, `binding_mode`). An attribute that is
-optional with no default is written without a `default_value` (format `0.3`). The editor's
-palette lists every element class in its ELEMENTS folder, drafts marked as such.
+checks what it can check without code: the ID, a required description, the attribute
+names, fixed attributes, that attributes holding actions have no default, the defaults of
+attributes all classes share (sizes, `label`, `data_binding`, `binding_mode`), and that a
+`code_module_id` it names is an active element module in `kb.code_modules`. An attribute
+that is optional with no default is written without a `default_value` (format `0.4`). The
+editor's palette lists every element class in its ELEMENTS folder, drafts marked as such.
 
-**Editing an element class** (2026-10-27). An element node's *Edit class* button, in the
-small tool bar above a selected node, opens the same form on the class's latest draft or
-active row, with the class ID fixed. Saving stores the next version of the class with the
-same status: a draft stays a draft and is checked as one; an active class is checked
-against its code, as the admin write checks it, so an attribute the code does not define is
-refused and nothing is stored. Making a draft active is still the developer's step 3.
+**Editing an element class** (2026-10-27, updated 2026-10-28). An element node's *Edit
+class* button, in the small tool bar above a selected node, opens the same form on the
+class's latest draft or active row, with the class ID fixed. Saving updates that row in
+place, keeping its version and status. A draft is checked as one. An active class is
+checked for structure, must name a code module that has code, and may name attributes its
+module does not support, which are listed as warnings. Either way a `code_module_id` must
+be an active element module in `kb.code_modules`. Making a draft active is still step 3.
 
 **History.** The pilot (format `0.1`, 2026-10-26) had no stored element classes. Its kinds
 of element were hard-coded and named in `element_type`, and its stored elements, such as
@@ -483,61 +518,15 @@ of element were hard-coded and named in `element_type`, and its stored elements,
 them on 2026-10-27; the pilot's rows are retired. Element class rows moved to format `0.3`
 the same day, when instance attributes became objects with a help tip and a default and
 `implement_notes` was added; migration `20261027000006_wpi_element_classes_0_3.sql` stored
-the six classes again in that format, with help tips.
+the six classes again in that format, with help tips. They moved to format `0.4` on
+2026-10-28, when classes began to name their code module: migration
+`20261028000001_wpi_element_classes_0_4.sql` stored the latest row of every class again in
+that format, keeping attributes authors had added, with `code_module_id` equal to the class
+ID for active classes.
 
-#### 3.5.2 Element implementation
+#### 3.5.2 Elements and pages
 
-**Planned** (decided 2026-10-28; not built yet). An element class names the frontend code
-that draws it, its *code module*, in the class attribute `code_module_id`. The class ID
-identifies the descriptor; `code_module_id` identifies the code. Until this is built the two
-are the same: the class `input` is drawn by the code registered as `input`.
-
-They are kept apart because one piece of code can draw many classes. Buttons, for example,
-can look and behave in many ways. A single `button` class covering every variant would need
-a large, complicated descriptor. Instead there can be several small classes, such as
-`simple-button`, `fancy-button` and `animated-button`, all drawn by the `button` code
-module, each with its own description, help tips, defaults and fixed attributes (§3.5.1).
-
-**Each code module has a document**, `KnowledgeStore/doc-repo/code_modules/<code_module_id>.md`.
-It says what the module draws, lists every attribute its code supports and says what the
-code does with each. Authors read it to choose a module; a developer, or a coding assistant
-such as Claude Code, implements the module from it.
-
-- `code_module_id` must always name a code module that exists. A module exists once its
-  document does, so a draft may name a module whose code is not written yet (§3.5.1); an
-  active class needs the module's code as well. The server cannot see KnowledgeStore, so
-  for a draft it checks only that the ID is well formed, and for an active class that the
-  code is registered.
-- `code_module_id` can be changed when a class is edited, but this should be rare: the
-  instances on existing pages were written for the old module.
-- Like every class attribute, `code_module_id` cannot be set by an instance. An instance
-  still names only its class, in `element`.
-- Action classes have no `code_module_id`: an action class ID still names the code that
-  performs it (§5).
-
-**New attributes.** Whoever creates or edits a class may give it attributes its code module
-does not support yet. When an attribute needs new code, the module is changed by hand, in
-two steps: the attribute is added to the module's document, and a coding assistant such as
-Claude Code reviews the code and changes it to match. Until both are done the attribute is
-stored but has no effect. The validator reports it as a warning instead of refusing the
-class row, so the gap is visible without blocking the author (principle 5).
-
-The pilot's `element_type` (History, above) also named code, but it was set in each stored
-element, which was really an instance. `code_module_id` is set once, in the class.
-
-Building it needs:
-
-- element class format `0.4`, and a migration that stores the six classes again with
-  `code_module_id` equal to their class ID (their module documents were written on
-  2026-10-28);
-- the frontend registry `elementClasses` and the validator's `elementAttrs` keyed by code
-  module instead of class ID (§8.1);
-- `code_module_id` and `instance_modifiable` in the *Create Element* and *Edit class* form;
-- the admin write and *Edit class* checking a class row against the module it names, with
-  unsupported attributes reported as warnings instead of refused as they are today
-  (§3.5.1), and the validator refusing instances that set a fixed attribute (§7).
-
-#### 3.5.3 Elements and pages
+A page is defined by a Page Descriptor (refer to the Page Descriptor section).
 
 A page lists its element instances, in order, in `elements`. Each instance names its class
 in `element` and sets the instance attributes it needs; the rest come from the class's
@@ -566,6 +555,88 @@ The [Ant Design component overview](https://ant.design/components/overview) is a
 catalogue of element classes worth adding over time. It is a reference for *which*
 classes to offer, not an implementation: WPI element classes are built with ChenWeb's own
 Svelte components.
+
+**Default Page**
+
+A single element can be treated as a page by associating a default page to it.
+
+#### 3.5.3 Elements and Page Styles
+Page styles define the default look and feel of a page and its elements. A project can 
+use one Page Style across its pages so that buttons, fields, text, lists and other elements 
+look consistent without repeating appearance attributes on every instance.
+
+The 
+
+#### 3.5.4 Element implementation
+
+An element class names the frontend code that draws it, its *code module*, in the class
+attribute `code_module_id` (built 2026-10-28, OpenSpec change `wpi-code-modules`). The
+class ID identifies the descriptor; `code_module_id` identifies the code. Each of the six
+classes stored so far is drawn by the module of the same name: the class `input` by the
+module `input`.
+
+They are kept apart because one piece of code can draw many classes. Buttons, for example,
+can look and behave in many ways. A single `button` class covering every variant would need
+a large, complicated descriptor. Instead there can be several small classes, such as
+`simple-button`, `fancy-button` and `animated-button`, all drawn by the `button` code
+module, each with its own description, help tips, defaults and fixed attributes (§3.5.1).
+
+**The table `kb.code_modules` lists the code modules**, one row each:
+
+| Column | Meaning |
+| --- | --- |
+| `code_module_id` | The module's ID, e.g. `button`. Unique and not null. |
+| `module_name` | Its name for people, e.g. "Button". Unique and not null. |
+| `description` | What the module does. |
+| `module_type` | What it implements: `element`, `action`, `page` or `layouter`. |
+| `module_doc` | The file name of its document in `KnowledgeStore/doc-repo/code_modules`, e.g. `button.md`. |
+| `notes` | Additional notes. |
+| `status` | `active` or `suspended`. |
+
+Rows come from migrations or `psql`; there is no write API, as for `kb.stored_stmts`.
+Migration `20261028000002_create_kb_code_modules.sql` created the table with the six element
+modules. Only element modules have rows so far: action classes still name their code by
+their class ID (§5), and the layouter is built in. The editor reads the table through
+`GET /api/v1/wpi/code-modules`.
+
+**Each code module has a document**, the file `module_doc` names in
+`KnowledgeStore/doc-repo/code_modules/`. It says what the module draws, lists every
+attribute its code supports and says what the code does with each. Authors read it to
+choose a module; a developer, or a coding assistant such as Claude Code, implements the
+module from it.
+
+- A `code_module_id` must name an active element module in `kb.code_modules`. The server
+  checks this whenever a class is written and whenever an app is loaded.
+- A draft may leave `code_module_id` out, and may name a module whose code is not written
+  yet: a new module starts with its row and its document. An active class must name a
+  module whose code exists in this interpreter, both in the frontend registry and, with the
+  attributes it supports, in the backend validator (§8.1).
+- A `suspended` module can no longer be named, and an app that uses a class drawn by it does
+  not load until the module is active again.
+- `code_module_id` can be changed when a class is edited, but this should be rare: the
+  instances on existing pages were written for the old module.
+- Like every class attribute, `code_module_id` cannot be set by an instance. An instance
+  still names only its class, in `element`.
+- Action classes have no `code_module_id`: an action class ID still names the code that
+  performs it (§5).
+
+**New attributes.** Whoever creates or edits a class may give it attributes its code module
+does not support yet. When an attribute needs new code, the module is changed by hand, in
+two steps: the attribute is added to the module's document, and a coding assistant such as
+Claude Code reviews the code and changes it to match. Until both are done the attribute is
+stored but has no effect. The class writes and the app bundle report it as a warning
+instead of refusing the class row, so the gap is visible without blocking the author
+(principle 5). The editor shows these warnings when a class is saved.
+
+**Adding a code module.** A new module gets its row in `kb.code_modules` (through a
+migration) and its document first; drafts can name it from then on. A developer then writes
+its code: a component registered under the module ID in `codeModules`
+(`web/src/lib/wpi/elements/index.ts`), and the attributes it supports, with the checks of
+their values, under the same ID in `codeModules` (`server/api/wpi/validate.go`). Only then
+can a class that names it become active.
+
+The pilot's `element_type` (History, above) also named code, but it was set in each stored
+element, which was really an instance. `code_module_id` is set once, in the class.
 
 ### 3.6 Lists
 
@@ -736,126 +807,30 @@ know.
 
 ### 4.2 Page descriptors
 
-The menu page in the left pane:
+Pages are defined by page descriptors, which are JSON documents.
 
+Below is the page descriptor shape:
 ```json
 {
-  "descriptor_id": "customer-nav",
-  "schema_version": "0.2",
-  "layouter": "flow-layouter",
+  "descriptor_id": "identify this descriptor",
+  "schema_version": "version",
+  "layouter": "the name of its layouter",
+  "page_style": "the name of the page style",
+  "width": "page width",
+  "height": "page height",
+  "hori_align": the page horizontal alignment",
+  "vert_align": the page veritcal alignment",
+  "hori_scrollbar": the page horizontal scroll bar",
+  "vert_scrollbar": the page vertical scroll bar",
+  "background_color": the page background color",
   "elements": [
     {
-      "element": "menu",
-      "initial_item": "customers",
-      "items": [
-        {
-          "item_id": "customers",
-          "label": "Customers",
-          "on_click": { "action": "open-page", "page": "customers", "pane": "middle" }
-        },
-        {
-          "item_id": "new-customer",
-          "label": "New customer",
-          "on_click": { "action": "open-page", "page": "customer-form", "pane": "middle", "input": {} }
-        }
-      ]
-    }
+      <an element>
+    },
+    ...
   ]
 }
 ```
-
-`initial_item` is the item the menu opens when the app starts. An item with `children`
-instead of `on_click` is a folder.
-
-The customer list page, refreshed every time it is shown again. Its list is the one of
-§3.6, and its row click the `open-page` of §5.1:
-
-```json
-{
-  "descriptor_id": "customers",
-  "schema_version": "0.2",
-  "layouter": "flow-layouter",
-  "refresh": { "on_show": true },
-  "elements": [
-    { "element": "text", "text": "Customers", "width": "100%" },
-    {
-      "element": "list",
-      "source": {
-        "action": "load",
-        "table": "customers",
-        "result": "list",
-        "fields": [
-          { "column": "id", "attribute": "id" },
-          { "column": "user_name", "attribute": "user_name" },
-          { "column": "email", "attribute": "email" },
-          { "column": "phone_number", "attribute": "phone_number" }
-        ]
-      },
-      "columns": [
-        { "field": "user_name", "label": "User name", "width": "elastic" },
-        { "field": "email", "label": "Email", "width": "elastic" },
-        { "field": "phone_number", "label": "Phone", "width": "160px" }
-      ],
-      "on_row_click": {
-        "action": "open-page",
-        "page": "customer-form",
-        "pane": "right",
-        "args": { "id": "$record.id" },
-        "input": {
-          "action": "load",
-          "table": "customers",
-          "result": "record",
-          "where": { "id": "$args.id" },
-          "fields": [
-            { "column": "id", "attribute": "id" },
-            { "column": "user_name", "attribute": "user_name" },
-            { "column": "phone_number", "attribute": "phone_number" },
-            { "column": "email", "attribute": "email" }
-          ]
-        }
-      }
-    }
-  ]
-}
-```
-
-`refresh` takes `on_show` (refresh each time the page goes from hidden to visible). Timed
-refresh is planned as `every_seconds` (refresh on a timer) and `while_hidden` (whether that
-timer keeps running while the page is hidden; `false` by default); the pilot does not
-support them yet.
-
-The customer form:
-
-```json
-{
-  "descriptor_id": "customer-form",
-  "schema_version": "0.2",
-  "layouter": "flow-layouter",
-  "input": {},
-  "save_action": {
-    "action": "save",
-    "table": "customers",
-    "fields": [
-      { "attribute": "user_name", "column": "user_name", "required": true, "rules": { "max_length": 64 } },
-      { "attribute": "phone_number", "column": "phone_number", "rules": { "pattern": "^[0-9+ -]{6,20}$" } },
-      { "attribute": "email", "column": "email", "required": true, "rules": { "format": "email" } }
-    ]
-  },
-  "elements": [
-    { "element": "input", "label": { "en": "User name", "zh-cn": "用户名" }, "data_binding": "$input_doc.user_name" },
-    { "element": "input", "label": { "en": "Phone", "zh-cn": "电话" }, "data_binding": "$input_doc.phone_number" },
-    { "element": "input", "label": { "en": "Email", "zh-cn": "电子邮箱" }, "input_type": "email", "data_binding": "$input_doc.email" },
-    { "element": "button", "label": { "en": "Save", "zh-cn": "保存" }, "on_click": { "action": "save-page" } },
-    { "element": "button", "label": { "en": "Close", "zh-cn": "关闭" }, "on_click": { "action": "close-page" } }
-  ]
-}
-```
-
-The fields and buttons are instances of `input` and `button` (§3.5.3), with labels in
-English and Chinese; the inputs take their sizes and `binding_mode` from the class. The
-Save button runs the page's `save_action` through `save-page`, and the Close button runs
-`close-page`, which needs no attributes. `app-header` is a page with a single `text`
-instance.
 
 Every descriptor carries `schema_version`, so an interpreter can reject a descriptor
 written for a format it does not understand rather than misread it.
@@ -1036,8 +1011,15 @@ kb.wpi_descriptors
   that has any row, with 409. `GET /api/v1/wpi/classes/element` lists the latest draft or
   active version of every element class, with its instance attributes, for the editor's
   palette and Properties panel. `GET /api/v1/wpi/classes/element/<class-id>` returns one
-  class's latest draft or active row whole, and `PUT` on that path (admins only) stores an
-  edited row as the class's next version with the same status (§3.5.1).
+  class's latest draft or active row whole, and `PUT` on that path (admins only) updates
+  that row in place, keeping its version and status (§3.5.1); this is the one exception to
+  "versions are never edited in place". All three class writes (the admin write of an
+  element class, the draft create and the class edit) return `warnings` for attributes the
+  class's code module does not support, and refuse a `code_module_id` that is not an
+  active element module in `kb.code_modules`.
+- **Code modules** are listed in `kb.code_modules` (§3.5.2), created by migration
+  `20261028000002_create_kb_code_modules.sql`, and read by the editor through
+  `GET /api/v1/wpi/code-modules`.
 - A WPI app reachable from ChenWeb's own menus also registers a `page_key` in
   `kb.page_def`. That table's comment currently says page structure stays in the
   frontend; it should be updated when WPI apps start registering there.
@@ -1050,6 +1032,8 @@ kb.wpi_descriptors
 - Stored SQL statements and files are in `kb.stored_stmts` and `kb.stored_files` (§3.2.2),
   created by migration `20261027000004_create_kb_stored_stmts_and_files.sql`.
 
+Page descriptors are stored in 'kb.frontend_pages'. Other descriptors are stored in 'kb.wpi_descriptors'.
+
 ## 7. Validation and errors
 
 Descriptors are checked when they are saved to the database and again before an app or
@@ -1057,13 +1041,13 @@ page is shown:
 
 | Check | Example |
 | --- | --- |
-| Structure | Valid JSON; only attributes known to the app or page format, or named by the element or action class |
+| Structure | Valid JSON; only attributes known to the app or page format, or named by the element or action class; an attribute an element class names that its code module does not support is a warning (§3.5.2) |
 | References | Every referenced app, page, element and action exists; every pane exists in the app's layout template; every statement a `query` names and every file a `load-file` names is stored |
 | Tables | Every table and column named in a `load` or `save` action exists |
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
-| Instances | An element or action instance sets only instance attributes its class names, and sets every one whose default in the class row is `null` (§3.5.1, §5) |
-| Capabilities | Every layout template and layouter is supported by this interpreter, and every active element and action class has code registered under its class ID (an element class draft is checked only for structure, §3.5.1) |
+| Instances | An element or action instance sets only instance attributes its class names (an element also its sizes), none its class fixes, and every one whose default in the class row is `null` (§3.5.1, §5). Checked when a page is written and when an app is loaded |
+| Capabilities | Every layout template and layouter is supported by this interpreter; every active action class has code registered under its class ID; every active element class names a code module that has code and is an active element module in `kb.code_modules` (an element class draft is checked for structure and against `kb.code_modules`, §3.5.1, §3.5.2) |
 
 Failures are never silent. On screen, an error box replaces the element or page and names
 the descriptor and the problem. On the backend, the failure is logged.
@@ -1099,7 +1083,7 @@ conditions, action sequences, expressions, appearance attributes and style prese
 split between class and instance attributes (§3.5.1, §5), i18n of descriptor text (§9), editable lists, lists that receive records instead of
 querying them, refreshing a visible list after a save in another pane, timed refresh,
 panel age-out (in the pilot a hidden panel lives until it is closed or the app is closed),
-paging and non-equality filters, protection against two users editing the same record
+server-side paging and non-equality filters, protection against two users editing the same record
 (last save wins), loading an app inside a page, `Collapse` and other elements that hold
 panels, user-defined layout templates, LLM-generated descriptors.
 
@@ -1126,10 +1110,12 @@ These are about "how" and never appear in descriptors.
   bindings read and write it by path. WPI does not add its own reactivity system.
 - A hidden panel stays mounted and is hidden with CSS, so its input doc and the state of
   its elements survive without reloading.
-- Element classes form a registry, `elementClasses` in `web/src/lib/wpi/elements/index.ts`,
-  that maps each class ID to a Svelte component (§3.5.1); the backend validator keys what
-  each class's code accepts the same way (`elementAttrs` and `actionAttrs` in
-  `server/api/wpi/validate.go`). In the pilot the key was `element_type`.
+- Element code modules form a registry, `codeModules` in
+  `web/src/lib/wpi/elements/index.ts`, that maps each code module ID to a Svelte component
+  (§3.5.2); the backend validator keys what each module accepts the same way (`codeModules`
+  in `server/api/wpi/validate.go`), and keys action code by action class ID (`actionAttrs`).
+  Until 2026-10-28 these were `elementClasses` and `elementAttrs`, keyed by class ID; in the
+  pilot the key was `element_type`.
   Inputs and buttons wrap the existing `components/ui` parts; the pulldown is a native
   `<select>` and the unsaved-changes prompt a native `<dialog>`. Layout templates and
   layouters are similar registries.
@@ -1156,7 +1142,7 @@ The likely direction, decided phase by phase:
 - **Authoring descriptors.** The pilot has only the admin write endpoint. A way to browse,
   edit and preview descriptors comes before anyone other than a developer writes them.
   Since pages are reused by copying, the backend can search pages and read one to copy
-  (§3.2.3); the editor still has to use them. The WPI editor creates element classes as
+  (§3.2.3); the editor uses them through Load Page. The WPI editor creates element classes as
   drafts and edits element classes from their nodes (§3.5.1, 2026-10-27); retiring a
   draft, and creating pages and action classes there, are still open.
 - **Classes and instances.** Built for elements and actions on 2026-10-27 (OpenSpec change
@@ -1178,7 +1164,7 @@ The likely direction, decided phase by phase:
   and should not be shown to end users.
 - **More elements and presentation:** textarea, checkbox, date and number inputs, tabs;
   card presentation and editable lists; lists that receive their records from outside;
-  paging and filters; appearance attributes and style presets; more layouters.
+  server-side paging and filters; appearance attributes and style presets; more layouters.
 - **Elements that hold panels**, such as a `Collapse` whose folders each open a page.
   How this fits the pane and panel model is not worked out yet.
 - **Timed refresh and panel age-out** (§3.3).

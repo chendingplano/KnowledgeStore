@@ -2,10 +2,11 @@
 
 **Code module ID:** `select` \
 **Status:** implemented \
+**Row in `kb.code_modules`:** `select`, `module_type` `element`, `module_doc` `select.md`, `status` `active` \
 **Classes using it:** `select` \
 **Frontend code:** `ChenWeb/web/src/lib/wpi/elements/SelectElement.svelte`, registered as
-`select` in `elementClasses` (`ChenWeb/web/src/lib/wpi/elements/index.ts`) \
-**Backend checks:** `elementAttrs["select"]`, the `select` case of `element()` and `options()`
+`select` in `codeModules` (`ChenWeb/web/src/lib/wpi/elements/index.ts`) \
+**Backend checks:** `codeModules["select"]`, the `select` case of `element()` and `options()`
 in `ChenWeb/server/api/wpi/validate.go` \
 **Part of:** reusable module `20261026-01`, Web Page Interpreter frontend
 (`doc-repo/modules/module-web-page-interpreter-frontend.md`) \
@@ -48,6 +49,5 @@ read them.
    above, the module's entries in `validate.go`, and the `ElementInstance` type in
    `ChenWeb/web/src/lib/wpi/types.ts`.
 
-Until both are done, a class may carry the attribute but it has no effect (devdoc
-2026102601 §3.5.2). Until `code_module_id` is built, the server instead refuses, in an
-active class, an attribute this code does not support.
+Until both are done, a class may carry the attribute but it has no effect; saving the
+class, and loading an app that uses it, reports a warning (devdoc 2026102601 §3.5.2).

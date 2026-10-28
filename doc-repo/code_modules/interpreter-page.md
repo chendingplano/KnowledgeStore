@@ -5,7 +5,7 @@
 **Scope:** How a stored page becomes an open, editable page, and how this relates to the revised descriptor shape and storage rules. \
 **Code roots:** `ChenWeb/web/src/lib/wpi/`, `ChenWeb/server/api/wpi/`
 
-## Summary
+## 1. Summary
 
 The Page Interpreter displays a page from its stored description. That description says
 which elements to show, how to arrange them, and where the page's data comes from. The
@@ -22,7 +22,7 @@ The current interpreter supports page sizes, horizontal placement, data binding 
 Flow Layouter. Page styles, independent page scrollbars and page background colours in the
 revised design need further implementation; storing those attributes today fails validation.
 
-## Design and behavioral contracts
+## 2. Design and behavioral contracts
 
 The overall design is [Web Page Interpreter](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md),
 especially §3.2, §3.3, §3.8–§3.9, §4.2 and §6. This document describes the code present on
@@ -45,7 +45,7 @@ The archived [class/instance change](../../../ChenWeb/openspec/changes/archive/2
 explains the class merge. The current [code-module change](../../../ChenWeb/openspec/changes/wpi-code-modules/design.md)
 adds module selection and attributes fixed by an element class.
 
-## Review of the revised guide
+## 3. Review of the revised guide
 
 The §6 clarification is consistent with `store.go` and migration
 `20261027000003_create_kb_frontend_pages.sql`: that migration moves every page version to
@@ -75,7 +75,7 @@ Two nearby guide sections also need reconciliation: §3.5.3 ends with an unfinis
 and §3.5.2's “Default Page” association has no corresponding runtime behavior. Neither is
 an implemented page facility.
 
-## A descriptor the current interpreter accepts
+## 4. A descriptor the current interpreter accepts
 
 This is a complete read-only page, assuming the active `text` class is installed. It can
 be named by an app pane or an `open-page` action.
@@ -114,7 +114,7 @@ They accept a string or language-keyed strings including `en`.
 contract is in the page-rendering specification; implementation is `flowStyle()` and
 `FlowLayouter.svelte`. These settings arrange the elements inside the page box.
 
-## Example: Customers
+## 5. Example: Customers
 
 This page shows a title followed by customer records from `kb.wpi_demo_customers`.
 The `text` and `list` elements each occupy the full row, so the Flow Layouter places
@@ -172,7 +172,7 @@ app pane or an `open-page` action. Writing it under this ID creates a new versio
 demo's `customers` page already exists. The title and column labels are plain strings,
 as required by their current element formats.
 
-## From stored description to running page
+## 6. From stored description to running page
 
 1. A user opens `/wpi/<app-id>`. `GET /api/v1/wpi/apps/<app-id>` calls `BuildBundle()`,
    which loads the app, its initial pages, pages reached through `open-page` actions, and
@@ -201,7 +201,7 @@ rendering components. There is no separately selected page code module and no pa
 migrations do not register a Page Interpreter row. This document does not create one or
 change catalogue document paths.
 
-## Input, edits, saving and panel lifetime
+## 7. Input, edits, saving and panel lifetime
 
 An omitted `input` or `{}` starts an empty input doc. Any other object without `action`
 is static data, copied into the panel so edits do not mutate the descriptor. An action
@@ -238,7 +238,7 @@ table definitions or executable descriptor bodies to this endpoint. Actions requ
 stored statements/files additionally enforce their role controls. Handlers log operations
 through `CreateDefaultLogger("20261026-418")`.
 
-## Storage and authoring
+## 8. Storage and authoring
 
 | Data | Storage and identity |
 | --- | --- |
@@ -265,7 +265,7 @@ it does not fetch a fresh page descriptor. In contrast, server actions resolve t
 active page on each request. Descriptor versions are not pinned across a running session,
 so changing action locations while an app is open can affect its next action request.
 
-## Where to change the implementation
+## 9. Where to change the implementation
 
 | Responsibility | Files relative to `ChenWeb/` |
 | --- | --- |
@@ -296,7 +296,7 @@ For this documentation review, `go test ./server/api/wpi/` passed (cached), and
 `bun test src/lib/wpi` passed all 39 tests. The document's relative links and JSON example
 were checked locally. No new live-backend or browser verification was performed.
 
-## Known limitations and documentation impact
+## 10. Known limitations and documentation impact
 
 - Only Flow layout is implemented. Page styles, page-box vertical alignment, independent
   page scrollbar controls and background overrides remain proposed.

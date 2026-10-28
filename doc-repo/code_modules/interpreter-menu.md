@@ -2,10 +2,11 @@
 
 **Code module ID:** `menu` \
 **Status:** implemented \
+**Row in `kb.code_modules`:** `menu`, `module_type` `element`, `module_doc` `menu.md`, `status` `active` \
 **Classes using it:** `menu` \
 **Frontend code:** `ChenWeb/web/src/lib/wpi/elements/MenuElement.svelte`, registered as `menu`
-in `elementClasses` (`ChenWeb/web/src/lib/wpi/elements/index.ts`) \
-**Backend checks:** `elementAttrs["menu"]`, the `menu` cases of `element()` and
+in `codeModules` (`ChenWeb/web/src/lib/wpi/elements/index.ts`) \
+**Backend checks:** `codeModules["menu"]`, the `menu` cases of `element()` and
 `elementComplete()`, and `menuItems()` in `ChenWeb/server/api/wpi/validate.go` \
 **Part of:** reusable module `20261026-01`, Web Page Interpreter frontend
 (`doc-repo/modules/module-web-page-interpreter-frontend.md`) \
@@ -47,6 +48,5 @@ read them.
    above, the module's entries in `validate.go`, and the `ElementInstance` and `MenuItem`
    types in `ChenWeb/web/src/lib/wpi/types.ts`.
 
-Until both are done, a class may carry the attribute but it has no effect (devdoc
-2026102601 §3.5.2). Until `code_module_id` is built, the server instead refuses, in an
-active class, an attribute this code does not support.
+Until both are done, a class may carry the attribute but it has no effect; saving the
+class, and loading an app that uses it, reports a warning (devdoc 2026102601 §3.5.2).
