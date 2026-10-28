@@ -114,6 +114,64 @@ They accept a string or language-keyed strings including `en`.
 contract is in the page-rendering specification; implementation is `flowStyle()` and
 `FlowLayouter.svelte`. These settings arrange the elements inside the page box.
 
+## Example: Customers
+
+This page shows a title followed by customer records from `kb.wpi_demo_customers`.
+The `text` and `list` elements each occupy the full row, so the Flow Layouter places
+the list below the title. The list retrieves and displays the three customer attributes:
+`user_name`, `phone_number` and `email`.
+
+```json
+{
+  "descriptor_id": "customers",
+  "schema_version": "0.2",
+  "page_name": { "en": "Customers", "zh-cn": "客户" },
+  "description": "Lists demo customers with their phone numbers and email addresses",
+  "layouter": "flow-layouter",
+  "refresh": { "on_show": true },
+  "elements": [
+    {
+      "element": "text",
+      "text": "Demo - Customers",
+      "width": "100%"
+    },
+    {
+      "element": "list",
+      "width": "100%",
+      "source": {
+        "action": "load",
+        "table": "kb.wpi_demo_customers",
+        "result": "list",
+        "fields": [
+          { "column": "user_name", "attribute": "user_name" },
+          { "column": "phone_number", "attribute": "phone_number" },
+          { "column": "email", "attribute": "email" }
+        ],
+        "order_by": [ { "column": "user_name", "direction": "asc" } ],
+        "limit": 200
+      },
+      "presentation": "rows",
+      "columns": [
+        { "field": "user_name", "label": "User name", "width": "elastic" },
+        { "field": "phone_number", "label": "Phone number", "width": "160px" },
+        { "field": "email", "label": "Email", "width": "elastic" }
+      ]
+    }
+  ]
+}
+```
+
+The list loads its own records when first drawn and reloads when its hidden panel is
+shown again, because `refresh.on_show` is enabled. It displays up to 200 records ordered
+by user name. The page does not need an `input`: its title is fixed text, and the list
+uses its own `source`. No record ID is needed because this example only displays records.
+
+This requires active `text`, `list` and `load` classes and the demo table. Store the body
+through `PUT /api/v1/wpi/descriptors/page/customers`, then reference `customers` from an
+app pane or an `open-page` action. Writing it under this ID creates a new version if the
+demo's `customers` page already exists. The title and column labels are plain strings,
+as required by their current element formats.
+
 ## From stored description to running page
 
 1. A user opens `/wpi/<app-id>`. `GET /api/v1/wpi/apps/<app-id>` calls `BuildBundle()`,
