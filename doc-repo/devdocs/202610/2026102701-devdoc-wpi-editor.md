@@ -17,11 +17,11 @@ an early shell. You can add boxes for pages, elements and actions, draw lines be
 boxes, line boxes up with alignment tools, and undo or redo your changes. It also still
 offers the general building blocks it inherited from the Flow page it was copied from.
 
-Two things it cannot do yet matter most. First, it does not read or write real WPI pages:
-the boxes are drawings only, and **Load Page** just says it is not available. Second,
-**Save does not keep anything**. The server side behind it is a placeholder that answers
-"saved" but stores nothing, so everything on the canvas is lost when you reload or leave the
-page.
+The editor loads stored WPI pages into separate tabs. Save writes the current page and its
+updated element instances as a new active descriptor version. Only administrators can save;
+server validation errors are shown to the author. Empty canvases and canvases containing
+non-element nodes or connections cannot yet be saved. Flow management and template saving
+still use placeholder endpoints.
 
 ## What is on the screen
 
@@ -48,12 +48,12 @@ page.
 | Flow name | Click to rename the current canvas; a yellow dot means unsaved changes | Always |
 | ▾ next to the name | Opens the picker of saved canvases (My Flows / Shared Flows / Templates); asks first if there are unsaved changes | Always |
 | **Create Nodes ▾** | Menu: **Create Page**, **Create Element**, **Create Action** — adds that kind of box in the middle of the visible canvas | Always |
-| **Load Page** | Placeholder: shows "Loading a page is not available yet" | Always |
+| **Load Page** | Searches stored pages and opens one in a new tab | Always |
 | Undo / Redo | Steps back or forward through changes | When there is something to undo / redo |
 | Align left / horizontal centres / right | Lines the selected boxes up on that edge or centre line | Two or more boxes selected |
 | Align top / vertical centres / bottom | Same, vertically | Two or more boxes selected |
 | Distribute horizontally / vertically | Keeps the outermost selected boxes in place and spaces the ones between them evenly | Three or more boxes selected |
-| Save | Saves the canvas — **currently stores nothing** (see Details) | Always |
+| Save | Saves the loaded page as a new active descriptor version (admin only) | Always |
 | Save as template | Saves the canvas as a template — **currently stores nothing** | Always |
 
 To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
@@ -143,36 +143,22 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 - **Zoom:** on load the canvas fits all nodes, but never zooms in past 100%
   (`fitViewOptions={{ maxZoom: 1 }}`). Without that cap, an empty canvas waits for its
   first node and then zooms to 200%.
-- **Unsaved changes:** "dirty" means nodes or edges differ from the last saved snapshot; a
-  rename does not count. Only opening the picker asks for confirmation. Leaving the page,
-  switching menus and reloading do not ask.
+- **Unsaved changes:** "dirty" means the canvas, page configuration, preview size or flow name differs from
+  its saved baseline. Closing a dirty tab asks for confirmation; switching tabs preserves it.
 - **Size warnings:** a one-time message above 500 nodes or 1000 edges.
 
-### Storage: the flow endpoints are stubs
+### Storage
 
-The editor stores a canvas as a *flow* through `flowService`:
+For a loaded WPI page, Save sends the page descriptor and the current element instances
+to `PUT /api/v1/wpi/descriptors/page/:descriptorId`. The server validates the descriptor
+and its instances and stores a new active version in `kb.frontend_pages`. The dirty marker
+clears only after a successful response. Page configuration is preserved, and element order
+follows canvas order. Canvas viewport, preview size, and flow-only nodes and connections
+are not part of the page descriptor; saving a canvas with non-element nodes or connections
+is rejected. An empty canvas without a page descriptor cannot yet be saved.
 
-| Call | Endpoint | What the server actually does |
-|---|---|---|
-| load on open | `GET /api/v1/flows/default` | Returns a fixed flow `{flow_id: 1, flow_name: "My First Flow", nodes: [], edges: []}` |
-| picker list | `GET /api/v1/flows?scope=mine\|shared\|templates` | Returns that same single flow for every scope |
-| new empty | `POST /api/v1/flows` | Returns that same flow |
-| Save | `PUT /api/v1/flows/:id` | Returns that same flow with a new `updated_at`; the request body is ignored |
-| Save as template | `POST /api/v1/flows/:id/template` | Returns a copy of that flow; nothing stored |
-
-Every handler in `server/api/flowhandler/` says "All handlers return placeholder data" and
-has no database table behind it. As a result:
-
-- Save shows "Saved" and clears the unsaved-changes dot, but nothing is stored. Reloading
-  the page shows an empty "My First Flow".
-- After Save the editor takes the server's reply as the current flow, so **a renamed canvas
-  goes back to "My First Flow"** when saved.
-- The nodes stay on screen after Save, because the editor keeps its own copy; this makes it
-  look as if saving worked.
-- The Flow page (`canvas-01.svelte`) uses the same endpoints and has the same problem.
-
-All endpoints require a logged-in user; logged out, they return 401 and the editor opens
-with an empty canvas.
+Flow picker, new-flow and template endpoints under `server/api/flowhandler/` remain stubs;
+they do not persist canvases. The separate Flow page still uses those endpoints.
 
 ### Relationship to WPI
 
