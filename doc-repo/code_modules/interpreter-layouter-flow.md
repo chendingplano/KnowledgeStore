@@ -1,0 +1,191 @@
+# Flow Layouter
+
+**Layouter ID:** `flow-layouter` \
+**Date:** 2026-10-28 \
+**Status:** wrapping and element sizing implemented; configurable spacing and alignment proposed \
+**Frontend code:** `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte`, registered in
+`ChenWeb/web/src/lib/wpi/layouters/index.ts`; sizing in `ChenWeb/web/src/lib/wpi/layout.ts` \
+**Backend checks:** page validation in `ChenWeb/server/api/wpi/validate.go` \
+**Catalogue:** built into the interpreter; no layouter row in `kb.code_modules` currently \
+**Design:** [Web Page Interpreter §3.7](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md#37-layouters)
+
+## 1. What it does
+
+The Flow Layouter arranges a collection of elements in rows. It puts as many elements
+as fit in the current row, then continues on the next row. When the available width
+changes, it lays them out again automatically. The elements keep their original order.
+
+A typical use is a collection of cards. A wide page may show four cards per row, a
+narrower page two, and a small page one. Authors choose card sizes and spacing rather
+than a fixed number of columns. Horizontal alignment positions cards within each row;
+vertical alignment positions cards of different heights within that row. The proposed
+configuration below makes both choices explicit.
+
+The same layouter can arrange buttons, fields or other page elements. It controls their
+outer boxes, not the text alignment, padding or arrangement of content inside them.
+
+## 2. Current behavior
+
+A page selects this layouter with `"layouter": "flow-layouter"`. Its `elements` array
+supplies the elements in display order, after their classes and instance attributes
+have been resolved by the interpreter.
+
+The current component uses a wrapping horizontal CSS flex container with
+`items-start gap-3`. In the standard theme this gives a `0.75rem` gap between elements
+and between rows, normally `12px`. Rows start at the horizontal start edge, and each
+element aligns to the top of its row. There are no descriptor settings for these
+choices yet.
+
+Each row is as tall as its tallest element. The following row begins after that height
+and the row gap. Shorter elements leave space beneath them; later elements do not move
+up into those holes. Flow layout therefore does not produce masonry columns or a grid
+with shared column boundaries across rows.
+
+### 2.1 Element sizes
+
+The layouter applies these attributes to each element's wrapper:
+
+| Attribute | Current behavior |
+| --- | --- |
+| `width`: a length, such as `240px` or `100%` | Uses that width without flex growth or shrinkage, subject to width limits. A percentage is relative to the containing layout width. |
+| `width`: `auto`, or omitted | Uses content sizing, without flex growth or shrinkage. |
+| `width`: `elastic` | Uses `min_width`, or `0px` when omitted, as its flex basis and shares remaining row width with other elastic elements, subject to width limits. |
+| `min_width`, `max_width` | Constrain the element's width. An elastic card should normally have a meaningful minimum so wrapping preserves a usable card width. |
+| `height`: a length | Sets the wrapper height. It does not automatically make the element's inner component fill that height. |
+| `height`: `auto`, omitted, or `elastic` | Sets no wrapper height. The current code does not distribute spare vertical space for elastic height. |
+
+Wrapping takes the gaps and width constraints into account. Elastic growth happens
+within each row after its elements have been placed. A last row with one elastic card
+can therefore grow wider than the cards above it; use `max_width` to limit that growth.
+
+A fixed-width element wider than the available area occupies a row by itself and can
+still overflow. The current layouter does not silently shrink it to fit. The containing
+pane's scrolling policy determines whether overflow remains reachable.
+
+The current `auto` behavior is content sizing. The handoff from layout to a Page Style
+fallback described in [Page Styles](interpreter-page-styles.md) is proposed and is not
+implemented here.
+
+## 3. Proposed configuration
+
+Keep the existing layouter name and add an optional page attribute, `layouter_config`.
+This section defines a proposed interface; the current page validator rejects that
+attribute. Omission should preserve the current layout.
+
+| Setting | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `column_gap` | Nonnegative length in `px` or `rem` | `0.75rem` | Minimum space between adjacent elements in a row. |
+| `row_gap` | Nonnegative length in `px` or `rem` | `0.75rem` | Minimum space between adjacent rows. |
+| `horizontal_alignment` | `start`, `center`, `end`, `space-between` | `start` | Distribution of unused horizontal space in each row. |
+| `vertical_alignment` | `top`, `center`, `bottom`, `stretch` | `top` | Placement of elements within their row's height. |
+| `rows_alignment` | `top`, `center`, `bottom`, `space-between` | `top` | Placement of the complete set of rows when the layout area has spare vertical space. |
+
+Use logical `start` and `end` for horizontal alignment: in English and Chinese these
+normally mean left and right. Configuration belongs to the page's layouter, while each
+element retains its own size attributes. Unknown settings, unsupported values and
+negative gaps should be validation errors rather than silently ignored instructions.
+
+### 3.1 Horizontal alignment
+
+Resolve element widths, including elastic growth and maximum widths, before distributing
+any space left in the row:
+
+- `start`: pack elements at the start edge.
+- `center`: centre the row's elements as a group.
+- `end`: pack elements at the end edge.
+- `space-between`: put the first and last elements at the row's edges and distribute
+  extra space between them, in addition to `column_gap`. A row with one element uses
+  start alignment.
+
+Apply the rule independently to every row, including the last. If elastic elements
+consume all available width, there is no spare space for horizontal alignment to move
+them. Alignment never changes element order or chooses different row breaks merely to
+balance the last row.
+
+### 3.2 Vertical alignment within a row
+
+For a row containing cards of different heights:
+
+- `top`: align their top edges.
+- `center`: centre each card vertically within the row.
+- `bottom`: align their bottom edges.
+- `stretch`: make cards with auto height fill the row height. Retain explicit heights.
+
+Stretching requires the element component to support filling its wrapper. It does not
+stretch text or images, align internal footers, or make cards in different rows equal
+in height. A label inside a card still follows that card's own content layout.
+
+### 3.3 Vertical alignment of all rows
+
+`rows_alignment` is separate from alignment within a row. With a definite layout-area
+height larger than the rows need, `top`, `center` and `bottom` place the rows as a group.
+`space-between` distributes additional vertical space between rows; a single row stays
+at the top. The configured `row_gap` remains the minimum separation.
+
+With content height, there is no extra height to distribute. If the rows exceed the
+available height, retain top placement and normal overflow so the beginning of the
+content remains reachable. Setting a page height alone is insufficient in the current
+renderer: implementation must give the inner flow container that definite height too.
+
+## 4. Card example
+
+Suppose there are seven cards, each `240px` wide, with `16px` column and row gaps. The
+following widths are the usable layout width after surrounding padding:
+
+| Available width | Cards per full row | Rows, in source order |
+| --- | --- | --- |
+| `1008px` | 4 (`4 × 240 + 3 × 16`) | A B C D / E F G |
+| `752px` | 3 (`3 × 240 + 2 × 16`) | A B C / D E F / G |
+| `496px` | 2 (`2 × 240 + 16`) | A B / C D / E F / G |
+| `240px` | 1 | A / B / C / D / E / F / G |
+
+At `1008px`, the last row occupies `752px`. With horizontal `center`, it has `128px`
+of unused space on either side. With `start`, all `256px` is after the last card.
+If cards A and B are `180px` and `120px` tall, their row is `180px` high. Vertical
+`center` puts B `30px` below the top; `bottom` puts it `60px` below the top.
+
+This **proposed page fragment** selects centred rows with top-aligned cards:
+
+```json
+{
+  "layouter": "flow-layouter",
+  "layouter_config": {
+    "column_gap": "16px",
+    "row_gap": "16px",
+    "horizontal_alignment": "center",
+    "vertical_alignment": "top",
+    "rows_alignment": "top"
+  }
+}
+```
+
+It is not a complete or currently accepted page descriptor. Card elements would supply
+their own widths and content. For flexible cards, use `width: elastic` with, for
+example, `min_width: 240px` and `max_width: 320px` instead of a fixed width.
+
+The current interpreter has no card element module, and its `list` module supports only
+row presentation. These examples describe layout geometry; selecting Flow Layouter
+does not create cards or turn list records into card elements. A future collection
+renderer must explicitly supply its repeated items to a flow container.
+
+## 5. Boundaries and implementation work
+
+Page `width`, `max_width` and `page_alignment` determine the page box within its pane.
+Flow layout then arranges elements inside that box. Centring the page in a pane is
+different from centring the cards within each row. Card appearance and internal padding
+belong to the card component or a supported Page Style; gaps belong to the layouter.
+Text remains selectable, and wrapping must preserve reading and keyboard focus order.
+
+The implemented contract remains in the
+[page-rendering specification](../../../ChenWeb/openspec/specs/wpi-page-rendering/spec.md).
+Before implementing §3, capture configuration validation, alignment, height propagation
+and overflow rules in OpenSpec. Update the page types, Go validator, flow renderer and
+sizing helpers together. Verify exact-fit and just-too-narrow rows, unequal heights,
+single-item last rows, elastic widths reaching their limits, and resized panes. Check
+English and Chinese content, text selection and keyboard order in the rendered page.
+
+This document records existing behavior and proposes configurable alignment. It adds
+no runtime support, catalogue row or schema change. Existing element documents and the
+interpreter overview continue to describe current behavior; no changes to those
+contracts are required for this documentation-only addition. Card composition, a card
+data source and an alignment authoring UI are left to their implementation designs.
