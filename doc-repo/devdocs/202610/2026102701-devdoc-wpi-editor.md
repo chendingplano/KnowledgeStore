@@ -198,6 +198,11 @@ warnings. Invalid edits show the server's issues in the form without changing th
 properties panel reload the class list. A class's edits reach every box of that class; a
 box's own values (Properties tab) are not part of the class.
 
+Save stays disabled until the descriptor changes. Opening an attribute without editing
+it leaves Save disabled; restoring the original values disables it again. Pending edits
+to an existing attribute enable Save and use the existing Apply/Abandon prompt. Save is
+also disabled while loading or saving, and unchanged descriptors do not send an update.
+
 ### Text and languages
 
 All interface text goes through Paraglide. The editor's own keys are `wpi_toolbar_*` and
