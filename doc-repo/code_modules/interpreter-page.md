@@ -31,8 +31,8 @@ the date above, including where the revised design goes beyond it.
 The OpenSpec specifications are the behavioral contracts. If behavior changes, update the
 applicable specification as well as this document:
 
-- [Pages](../../../ChenWeb/openspec/specs/wpi-pages/spec.md): page identity, storage, attributes, static input and discovery.
-- [Page rendering](../../../ChenWeb/openspec/specs/wpi-page-rendering/spec.md): layout, bindings, dirty tracking and save feedback.
+- [Pages](../../../ChenWeb/openspec/specs/wpi-pages/spec.md): page identity, storage, attributes, access, static input and discovery.
+- [Page rendering](../../../ChenWeb/openspec/specs/wpi-page-rendering/spec.md): layout, the page box (margins, size, placement, scrolling, colors), bindings, dirty tracking and save feedback.
 - [App shell](../../../ChenWeb/openspec/specs/wpi-app-shell/spec.md): panes, panels, sharing and refresh.
 - [Descriptor store](../../../ChenWeb/openspec/specs/wpi-descriptor-store/spec.md): descriptor writes and bundle loading.
 - [Stored sources](../../../ChenWeb/openspec/specs/wpi-stored-sources/spec.md) and [data actions](../../../ChenWeb/openspec/specs/wpi-data-actions/spec.md): server-side data access.
@@ -348,8 +348,7 @@ On 2026-10-29, `go test ./server/api/wpi/` and `bun test src/lib/wpi` (48 tests)
 
 Changed on 2026-10-29: the page attributes in §4.1, with `page_alignment` renamed `hori_align`
 (migration `20261029000001_rename_wpi_page_alignment.sql`) and the specifications
-`wpi-pages` (attributes, access, page box). The `wpi-page-rendering` specification is
-unchanged, and the guiding design's page-style and default-page text is still open.
+`wpi-pages` (attributes, access) and `wpi-page-rendering` (page box). The guiding design's page-style and default-page text is still open.
 No module catalogue entry changes. Individual
 element attribute contracts and the full Flow configuration remain in their existing
 documents/specifications rather than being repeated here.
