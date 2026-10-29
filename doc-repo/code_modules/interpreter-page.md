@@ -1,7 +1,7 @@
 # Page Interpreter — running a page descriptor inside a pane
 
-**Date:** 2026-10-28 \
-**Status:** implemented in ChenWeb; the additional page appearance fields proposed in the guiding design are not implemented. \
+**Date:** 2026-10-29 \
+**Status:** implemented in ChenWeb, including the page appearance attributes (margins, alignment, scrolling, colors). `page_policy` and `page_style` are accepted but not yet acted on. \
 **Scope:** How a stored page becomes an open, editable page, and how this relates to the revised descriptor shape and storage rules. \
 **Code roots:** `ChenWeb/web/src/lib/wpi/`, `ChenWeb/server/api/wpi/`
 
@@ -18,9 +18,9 @@ copying their descriptors under new IDs. Page descriptions are stored in
 `kb.frontend_pages`; app descriptions and element and action classes are stored in
 `kb.wpi_descriptors`. A page's element and action instances remain inside its description.
 
-The current interpreter supports page sizes, horizontal placement, data binding and the
-Flow Layouter. Page styles, independent page scrollbars and page background colours in the
-revised design need further implementation; storing those attributes today fails validation.
+The interpreter supports page sizes, margins, horizontal and vertical placement, scrolling
+under a maximum size, background and foreground colors, data binding and the Flow Layouter.
+`page_policy` and `page_style` are reserved for later phases: they are accepted and ignored.
 
 ## 2. Design and behavioral contracts
 
@@ -45,36 +45,6 @@ The archived [class/instance change](../../../ChenWeb/openspec/changes/archive/2
 explains the class merge. The current [code-module change](../../../ChenWeb/openspec/changes/wpi-code-modules/design.md)
 adds module selection and attributes fixed by an element class.
 
-## 3. Review of the revised guide
-
-The §6 clarification is consistent with `store.go` and migration
-`20261027000003_create_kb_frontend_pages.sql`: that migration moves every page version to
-`kb.frontend_pages` and removes `page` from the permitted kinds in `kb.wpi_descriptors`.
-“Other descriptors” means app descriptors and element/action class descriptors; code-module
-catalogue rows, stored statements and stored files each have their own tables.
-
-The new §4.2 shape introduces fields beyond the current page format:
-
-| Revised field | Current implementation |
-| --- | --- |
-| `descriptor_id`, `schema_version`, `layouter`, `elements` | Supported and required. Page format is `0.2`. |
-| `width`, `height` | Supported, with `min_width` and `max_width` also available. |
-| `page_style` | Unsupported. No page-style resolver exists. |
-| `hori_align` | Unsupported. `page_alignment` places the page box left, centre or right in its pane. Flow's `horizontal_alignment` instead places elements within rows. |
-| `vert_align` | Unsupported. Flow's `vertical_alignment` aligns elements within a row, and `rows_alignment` places rows in a definite page height; neither places the page box vertically in its pane. |
-| `hori_scrollbar`, `vert_scrollbar` | Unsupported. The pane's `scroll` sets both axes together: `auto` by default, or `none`. |
-| `background_color` | Unsupported. Appearance currently follows the application's theme. |
-
-The §4.2 block is an outline rather than valid JSON: several values have no opening quote,
-and `<an element>` and `...` are placeholders. It also omits supported data/lifecycle fields
-listed in §3.2.1 and `layouter_config` from §3.7. Until those differences are resolved, use
-the example below for the running interpreter. The new names are not aliases for existing
-fields and are rejected as unknown page attributes.
-
-Two nearby guide sections also need reconciliation: §3.5.3 ends with an unfinished “The”,
-and §3.5.2's “Default Page” association has no corresponding runtime behavior. Neither is
-an implemented page facility.
-
 ## 4. A descriptor the current interpreter accepts
 
 This is a complete read-only page, assuming the active `text` class is installed. It can
@@ -88,7 +58,7 @@ be named by an app pane or an `open-page` action.
   "description": "A static page displayed by the Page Interpreter",
   "layouter": "flow-layouter",
   "max_width": "640px",
-  "page_alignment": "center",
+  "hori_align": "center",
   "binding_mode": "read-only",
   "input": { "title": "Page Interpreter" },
   "elements": [
@@ -97,18 +67,89 @@ be named by an app pane or an `open-page` action.
 }
 ```
 
-Optional page fields are `page_name`, `description`, `input`, `save_action`, `refresh`,
-`page_alignment`, `width`, `height`, `min_width`, `max_width`, `binding_mode` and
-`layouter_config`. The authoritative checks are in `validator.page()` in
-[`validate.go`](../../../ChenWeb/server/api/wpi/validate.go), with the browser shape in
-[`types.ts`](../../../ChenWeb/web/src/lib/wpi/types.ts).
+### 4.1 Page attributes
 
-Page sizes accept `auto` or non-negative lengths in `px`, `rem`, `em` or `%`; they do not
-accept `elastic`, although element and pane widths can. With no width, the page fills its
-available pane content area; with no height, its height follows its content.
-`page_alignment` defaults to left and becomes visible when width or maximum width leaves
-space. `page_name` and `description` are searchable author metadata, not rendered headings.
-They accept a string or language-keyed strings including `en`.
+There are no page classes, but the attributes below are the ones every page has. Each has a
+default, and a descriptor may override it. The authoritative checks are in `validator.page()`
+in [`validate.go`](../../../ChenWeb/server/api/wpi/validate.go), with the browser shape in
+[`types.ts`](../../../ChenWeb/web/src/lib/wpi/types.ts). `descriptor_id`, `schema_version`
+and `elements` are required; `layouter` is required and normally `flow-layouter`. A page's
+status is the `status` column of `kb.frontend_pages` (§8), not a body attribute; the former
+`page_alignment` and any other unlisted attribute fail validation.
+
+| Attribute | Data type | Default | Explanation | Validation |
+|-----------|-----------|---------|-------------|------------|
+| `descriptor_id` | string | none | Identifies a page | Unique together with the version; max length 100 |
+| `schema_version` | string | none | Descriptor format version (not the page's revision) | Not null |
+| `page_name` | string or language map | null | Page name; when absent the UI shows `descriptor_id` | Multilingual; max length 100 |
+| `description` | string or language map | null | Page description | Multilingual; max length 1000 |
+| `access_controls` | array of roles | null | Roles permitted to access the page; null or empty means public | Non-empty strings |
+| `keywords` | array of strings | null | For search; normally derived from the meaning of the page | Max items 200 |
+| `page_tags` | array of strings | null | For search; normally used to categorize pages | Max items 200 |
+| `page_policy` | string | null | Names the page policy; accepted, ignored for now | None |
+| `page_style` | string | null | Names the page style; accepted, ignored for now | None |
+| `input` | JSON | null | The page's input | See below and §7 |
+| `layouter` | string | none | The layouter that arranges the elements | A registered layouter |
+| `layouter_config` | JSON | null | Layouter settings (Flow: gaps, alignment within rows, row placement) | See below |
+| `binding_mode` | string | class default | Page-level default binding mode of its elements | Precedence in §7 |
+| `save_action` | action | null | Run by `save-page` and by the close prompt | An action allowed here |
+| `refresh` | JSON | null | Refresh behavior, e.g. `{ "on_show": true }` | `on_show` boolean |
+| `width`, `height` | string | `auto` | Page size | Length (below), or `auto` |
+| `min_width`, `min_height` | string | `50px` | Minimum size | Length |
+| `max_width`, `max_height` | string | null | Maximum size | Length |
+| `hori_align` | `left`, `center`, `right` | `center` | Horizontal placement | Listed value |
+| `vert_align` | `top`, `center`, `bottom` | `top` | Vertical placement | Listed value |
+| `left_margin`, `right_margin`, `top_margin`, `bottom_margin` | string | `30px` | Space between the pane edge and the page edge | Length |
+| `bkgd_color`, `frgd_color` | color | `auto` | Background and foreground color | `auto` or a CSS color |
+
+**Length.** A non-negative number, optionally followed by a unit `px`, `rem`, `em` or `%`.
+Spaces may separate the number and the unit; a value without a unit is in `px`; decimals are
+allowed. `auto` is accepted for `width` and `height` only, and `elastic` is not accepted for
+pages (it is for panes and elements). A `%` value must be within 0 to 100.
+
+**Size and scrolling.** With no width the page fills the pane's content width inside its
+margins; with no height its height follows its content. Percentages refer to the pane
+content area *excluding* the margins. When `max_height` is set and the content is taller, the
+page shows a vertical scroll bar; likewise `max_width` and a horizontal scroll bar.
+`hori_align` and `vert_align` matter only when the page is narrower or shorter than the space
+inside the margins (for example because `width` or `max_width` is set).
+
+**Colors.** `auto` inherits the application theme's background and foreground, so the page
+follows light and dark mode. An explicit color is fixed and does not follow the mode; set
+`bkgd_color` and `frgd_color` together so the text stays readable. A color is a CSS color:
+`#rgb`, `#rrggbb` (with optional alpha), `rgb()`/`rgba()`/`hsl()`/`hsla()` or a named color.
+
+**Access.** `access_controls` uses the same role rule as stored statements: absent or empty
+means public (every logged-in user), and an admin holds the role `admin`. A page the user may
+not use is left out of the app bundle, and reading it or running an action written in it is
+refused with 403.
+
+**Policy and style.** `page_policy` will name rules shared by all pages (some overridable by a
+page, some not; several policies may exist, with a system default that WPI may mandate for
+every page). `page_style` will name shared styles for consistent look and behavior, such as
+one scroll bar design, and text that is always selectable unless explicitly prohibited (such as
+passwords). Both are reserved for later phases.
+
+**`input`.** Not every page needs an input; lists, for instance, retrieve their own data. It is
+one of:
+
+1. *Static data*: any JSON object without an `action` key, copied into the panel so edits do
+   not change the descriptor.
+2. *An action instance* that retrieves the data when the page opens:
+
+| `action` | Meaning | Attributes |
+|----------|---------|------------|
+| `load` | Reads rows from one table, a record or a list; `where`, `order_by` and `limit` narrow it | `table`, `result` (`record` or `list`), `fields`; optional `where`, `order_by`, `limit` |
+| `query` | Runs a stored SQL statement from `kb.stored_stmts`; authors never write SQL in a page | `sql_stmt_id`, `result`; optional `params` |
+| `load-file` | Reads a stored JSON file from `kb.stored_files` | `file_id` |
+
+```json
+{ "action": "query", "sql_stmt_id": "customer-by-id", "result": "record", "params": ["$args.customer_id"] }
+```
+
+`page_name` and `description` are searchable author metadata, not rendered headings.
+
+### 4.2 Flow configuration
 
 `layouter_config` controls Flow's gaps, alignment within rows and placement of rows. Its
 contract is in the page-rendering specification; implementation is `flowStyle()` and
@@ -248,7 +289,7 @@ through `CreateDefaultLogger("20261026-418")`.
 | Module catalogue, named SQL, named JSON file | `kb.code_modules`, `kb.stored_stmts`, `kb.stored_files`, respectively. |
 | Running panel and its edited doc | Browser state; saving the doc changes application records, not its page descriptor. |
 
-Page rows also carry `schema_version`, `status`, `created_by`, `updated_by`, `created_at`
+Page rows also carry `schema_version`, `status` (the page's status: `active`, `draft` or `retired`), `created_by`, `updated_by`, `created_at`
 and `updated_at`. Reads choose the highest active version. A higher draft or retired
 version does not supersede an older active version. The row's integer `version` records
 descriptor revisions; `schema_version` identifies the descriptor format.
@@ -292,14 +333,12 @@ Browser-side helpers are covered by the tests alongside `entries.ts`, `layout.ts
 Rendering or interaction changes also need `bun run check` and a browser check; helper
 tests alone do not exercise Svelte's full panel lifecycle.
 
-For this documentation review, `go test ./server/api/wpi/` passed (cached), and
-`bun test src/lib/wpi` passed all 39 tests. The document's relative links and JSON example
-were checked locally. No new live-backend or browser verification was performed.
+On 2026-10-29, `go test ./server/api/wpi/` and `bun test src/lib/wpi` (48 tests) passed, and
+`bun run check` reported no errors. No live-backend or browser verification was performed.
 
 ## 10. Known limitations and documentation impact
 
-- Only Flow layout is implemented. Page styles, page-box vertical alignment, independent
-  page scrollbar controls and background overrides remain proposed.
+- Only Flow layout is implemented. `page_policy` and `page_style` are accepted and ignored.
 - There is no automatic default-page wrapper for a standalone element, timed refresh,
   panel age-out or automatic update of a visible list after a save elsewhere.
 - Concurrent record edits use last-save-wins. Open apps do not subscribe to descriptor changes.
@@ -307,9 +346,10 @@ were checked locally. No new live-backend or browser verification was performed.
   partly localized. Element labels support language maps, but menu labels, column labels,
   option labels and text content do not. Text remains selectable.
 
-This document adds an implementation reference and records the review findings. The guiding
-design is left unchanged; its new §4.2 fields and unfinished page-style/default-page text
-still need specification and implementation work. No code, database schema, existing
-specification or module catalogue entry changes with this documentation task. Individual
+Changed on 2026-10-29: the page attributes in §4.1, with `page_alignment` renamed `hori_align`
+(migration `20261029000001_rename_wpi_page_alignment.sql`) and the specifications
+`wpi-pages` (attributes, access, page box). The `wpi-page-rendering` specification is
+unchanged, and the guiding design's page-style and default-page text is still open.
+No module catalogue entry changes. Individual
 element attribute contracts and the full Flow configuration remain in their existing
 documents/specifications rather than being repeated here.
