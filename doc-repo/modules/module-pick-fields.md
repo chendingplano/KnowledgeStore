@@ -1,7 +1,7 @@
 # Module: Pick Fields
 
 **Module ID:** `20261029-02`
-**Type:** frontend · **Language:** svelte · **Version:** 1.1.0
+**Type:** frontend · **Language:** svelte · **Version:** 1.2.0
 **Status:** active — used by the WPI editor
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/database-picker`
@@ -9,7 +9,7 @@
 
 ## 1. What it is
 
-Pick Fields lists the columns of a chosen database table. Users check the fields to include and may edit both the column and attribute names in a resizable dialog. It is useful wherever a ChenWeb form builds WPI-style column mappings.
+Pick Fields lists the columns of a chosen database table. Users check the fields to include and may edit both the column and attribute names in a movable, resizable dialog. It is useful wherever a ChenWeb form builds WPI-style column mappings.
 
 ## 2. Files
 
@@ -45,7 +45,7 @@ Pick Fields lists the columns of a chosen database table. Users check the fields
 
 ## 6. Behaviour and conventions
 
-The authenticated `/api/v1/wpi/table-columns` endpoint returns columns in database order. Requests are asynchronous, time out after 20 seconds, and offer retry on failure. Labels use Paraglide and the control uses canvas theme variables. Previously selected columns missing from the current table remain visible so the user can remove them. The dialog can be resized by dragging its lower-right handle or using arrow keys on that handle.
+The authenticated `/api/v1/wpi/table-columns` endpoint returns columns in database order. Requests are asynchronous, time out after 20 seconds, and offer retry on failure. Labels use Paraglide and the control uses canvas theme variables. Previously selected columns missing from the current table remain visible so the user can remove them. The dialog can be moved using its top handle and resized using its lower-right handle. Both handles support pointer dragging and arrow keys.
 
 ## 7. Scope and limits
 
