@@ -967,7 +967,9 @@ project database. Within an allowed database there is no table allowlist; the ba
 - runs only action instances written in stored pages (§6). The browser
   names the instance by its place, the page's ID and the instance's JSON Pointer inside
   the page, and supplies the arguments. It never sends a table name, a column name or a
-  descriptor body;
+  descriptor body. An administrator editing a page can also preview its current list-load
+  source through a separate read-only endpoint, without saving the page. That endpoint
+  validates the source, permits only list loads and applies the same database checks;
 - checks that the named table and columns exist, using the database catalog, and quotes
   them;
 - passes values only as query parameters, never by building SQL text;
