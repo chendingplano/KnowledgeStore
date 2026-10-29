@@ -957,9 +957,12 @@ In `open-page`:
 
 ### 5.2 Which tables actions may touch
 
-`load` and `save` may read and write any table in the database. `table` may include its
-schema, e.g. `kb.metrics`. There is no allowlist; instead, the only way to reach a table
-is to write a descriptor. The backend:
+`load` and `save` may read and write tables in the project database using `table` values
+such as `kb.metrics`. The editor also offers databases listed in `[wpi].databases_to_show`
+in `config.local.toml`, then their schemas and tables. It stores a selection as
+`database.schema.table`; the backend resolves it to that configured database's connection.
+An unlisted database is rejected. Existing unqualified references continue to use the
+project database. Within an allowed database there is no table allowlist; the backend:
 
 - runs only action instances written in stored pages (§6). The browser
   names the instance by its place, the page's ID and the instance's JSON Pointer inside
