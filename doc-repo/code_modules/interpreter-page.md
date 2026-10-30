@@ -344,8 +344,11 @@ storage setting; non-positive or invalid values use the 10-second default.
 
 When the editor loads a page that has an auto-save record, it loads that recovery copy and
 marks the page dirty. This is separate from saving a running page's input doc (§7). Recovery
-records belong to the author. Unnamed pages use temporary IDs and reopen as dirty tabs when
-the editor starts. The first interval starts when a tab opens. An auto-save against an obsolete
+records belong to the author. Unnamed pages use temporary IDs of the form
+`unnamed-yyyymmdd-hhmmss` in browser local time and reopen as dirty tabs when
+the editor starts. The author chooses the permanent descriptor ID on the first ordinary save.
+If a temporary ID is already in use, auto-save retries with another timestamp. The first
+interval starts when a tab opens. An auto-save against an obsolete
 page version is rejected; a recovery copy already stored before another author saves remains
 available to its owner. A version check and per-page lock prevent an in-flight auto-save from
 recreating stale recovery after an ordinary save.
