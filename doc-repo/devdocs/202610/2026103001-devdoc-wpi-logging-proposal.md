@@ -37,6 +37,20 @@ These records do not establish that a served page rendered or was used, and they
 
 Add an append-only `kb.wpi_events` table for the WPI activity timeline. Keep the shared application logger for operational diagnostics and the existing alert table for warnings and errors. Link to LLM usage, agent traces, and other specialized records rather than copying them into the WPI log. Event names and fields below are proposed and require an OpenSpec contract before implementation.
 
+### Open observability and existing telemetry
+
+Use open observability standards, principally OpenTelemetry, so WPI signals can be collected and investigated with different compatible tools. ChenWeb already has shared OpenTelemetry initialization and HTTP middleware, and a local ClickStack configuration with ClickHouse and HyperDX. Their presence does not establish that collection is enabled or healthy. The broader [ChenWeb telemetry proposal](2026102002-devdoc-telemetry.md) describes this foundation and the intended investigation workflow. Reuse it rather than creating a separate WPI telemetry stack.
+
+WPI's durable activity and audit history and operational telemetry serve different needs. `kb.wpi_events` is the proposed authoritative record for its defined audit-critical events; traces, metrics, and operational logs help investigate behavior and performance. OpenTelemetry export, sampling, and collector availability do not by themselves guarantee a complete or transactional audit record. Conversely, an event row may link to a trace that was sampled out or has expired; the activity view must show when supporting telemetry is unavailable.
+
+Instrument server operations using the existing OpenTelemetry request context. Create spans for action execution and significant work such as validation, database operations, and downstream calls where useful; record safe outcomes and duration. Emit structured logs with trace and span IDs where context is available. Export signals through the existing collector using OTLP, subject to verifying the deployed configuration. Use standard OpenTelemetry semantic conventions where applicable and a documented `wpi.*` namespace for domain-specific attributes. Include service, environment, and release identity consistently.
+
+Propagate W3C Trace Context across browser requests, backend calls, and background work where supported; validate incoming context and never treat it as authentication or authorization. Store the actual trace ID and span ID with a WPI event when present, separately from the event, request, session, action-instance, and execution IDs. Do not invent a trace ID when no trace exists. A browser event may have no span; asynchronous operations should retain context or use a trace link when a parent-child relationship is inappropriate. See [OpenTelemetry context propagation](https://opentelemetry.io/docs/concepts/context-propagation/).
+
+Collect low-cardinality counters and duration histograms for page and action outcomes, errors, event delivery, and reconciliation. Keep user IDs, session IDs, page instance IDs, execution IDs, and trace IDs out of metric labels; use trace-linked exemplars where supported. Define trace sampling separately from audit retention, and monitor exporter drops, queue pressure, collector outages, and ingestion lag. Apply the same redaction rules before data reaches any exporter or collector.
+
+Browser OpenTelemetry instrumentation is [documented as experimental](https://opentelemetry.io/docs/languages/js/). Evaluate its maturity, bundle cost, privacy, and deployment constraints before selecting it. The authenticated WPI event endpoint can provide page-use coverage independently; browser tracing should complement it rather than become a prerequisite for the audit history. Verify propagation, including cross-origin policy if applicable, in the deployed application.
+
 ### Common event envelope
 
 | Field | Purpose |
@@ -45,7 +59,7 @@ Add an append-only `kb.wpi_events` table for the WPI activity timeline. Keep the
 | `occurred_at`, `received_at` | Time of activity and time received by the server. |
 | `source` | Browser, server, or worker; indicates the origin of the observation. |
 | `actor_id`, `session_id` | Authenticated actor and a non-secret WPI session identifier. |
-| `trace_id`, `request_id`, `parent_event_id` | Correlation across interaction, request, execution, and downstream activity. |
+| `trace_id`, `span_id`, `request_id`, `parent_event_id` | Correlation across interaction, request, execution, and downstream activity; trace context is nullable. |
 | `app_id`, `page_id`, `page_version`, `panel_id`, `element_id` | WPI context when available. Use stable identifiers and version provenance. |
 | `action_class`, `action_pointer`, `action_instance_id`, `execution_id` | Saved action location, runtime instance, and invocation identity when applicable. |
 | `outcome`, `error_code`, `duration_ms` | Searchable outcome, safe failure category, and duration. |
@@ -88,11 +102,11 @@ An initial proposal is 90 days of searchable activity and one year for audit-cri
 
 ## Implementation path
 
-1. Write an OpenSpec change defining event names, field schemas, actor and correlation identities, authorization, retention, failure behavior, and audit-critical operations. The resulting specifications will be the implementation contract.
+1. Write an OpenSpec change defining event names, field schemas, actor and correlation identities, OpenTelemetry mappings, authorization, retention, failure behavior, and audit-critical operations. The resulting specifications will be the implementation contract.
 2. Add the event store through a goose migration and a WPI event writer; instrument existing server actions and descriptor writes first.
 3. Add browser lifecycle and meaningful interaction events, batching, deduplication, and correlation with server requests.
 4. Link downstream usage and task records; add supported cross-database outbox and reconciliation, a searchable view, and health alerts.
-5. Verify success, rejection, failure, cancellation, uncertain commit, duplicate delivery, browser disconnect, logging outage, access controls, and exclusion of submitted values and secrets. Update this document to describe shipped behavior and link the resulting OpenSpec contract.
+5. Verify success, rejection, failure, cancellation, uncertain commit, duplicate delivery, browser disconnect, logging outage, trace propagation and sampling, collector outage, access controls, and exclusion of submitted values and secrets across all sinks. Update this document to describe shipped behavior and link the resulting OpenSpec contract.
 
 ## Current limitations
 
