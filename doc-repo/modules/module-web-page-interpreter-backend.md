@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.1.0
+**Type:** backend · **Language:** go · **Version:** 3.2.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -69,6 +69,9 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/server/api/wpi/input_rules.go` | Validates input element values against stored page class copies before saving |
 | `ChenWeb/server/api/wpi/input_rules_test.go` | Input rules and descriptor migration tests |
 | `ChenWeb/project_migrations/20261030000003_wpi_input_attributes.sql` | Adds the expanded input class version |
+| `ChenWeb/server/api/wpi/chat_attributes.go` | `chat-composer` and `chat-panel` attribute checks, one composer per page, pairing warnings at app load |
+| `ChenWeb/server/api/wpi/chat_attributes_test.go` | Chat element and chat migration tests |
+| `ChenWeb/project_migrations/20261030000005_wpi_chat_elements.sql` | Registers the `chat-composer` and `chat-panel` modules and stores their active classes |
 | `ChenWeb/server/api/wpi/actions_test.go` | Tests for `actions.go` |
 | `ChenWeb/server/api/wpi/preview.go` | Admin preview of an unsaved list source (given a copy of the active `load` class when it has none) |
 | `ChenWeb/server/api/wpi/preview_test.go` | Tests for `preview.go` |
@@ -108,7 +111,7 @@ Routes (registered on the authenticated `/api/v1` group in `server/api/routes.go
 | `GET /api/v1/wpi/pages?q=&limit=` | logged-in | — | 200 `{pages: [{descriptor_id, version, page_name, description, updated_at}]}`, matching ID, name or description in any language; 400 |
 | `GET /api/v1/wpi/pages/:pageId` | logged-in | — | 200 `{version, page}` (newest active version); 404 |
 | `POST /api/v1/wpi/classes/element` | admin | element class row (`descriptor_id`, `schema_version` `0.4`, required `description`, optional `code_module_id`, attribute objects) | 201 `{descriptor_id, version: 1, status: "draft", warnings}`; 400 `{errors}`, including a `code_module_id` that is not an active element module in `kb.code_modules`; 403; 409 when any row of the class ID exists |
-| `GET /api/v1/wpi/classes/element` | logged-in | — | 200 `{classes: [{descriptor_id, version, status, description, attributes}]}`: the latest draft or active version of each element class, by ID; `attributes` holds the row's instance attributes, each `{help_tip, default_value, instance_modifiable}` |
+| `GET /api/v1/wpi/classes/element` | logged-in | — | 200 `{classes: [{descriptor_id, version, status, description, code_module_id, attributes}]}`: the latest draft or active version of each element class, by ID; `code_module_id` is left out when the row has none; `attributes` holds the row's instance attributes, each `{help_tip, default_value, instance_modifiable}` |
 | `GET /api/v1/wpi/classes/element/:classId` | logged-in | — | 200 `{version, status, class}`: the class's latest draft or active row, whole; 404 |
 | `PUT /api/v1/wpi/classes/element/:classId` | admin | the edited class row (same `descriptor_id`) | 200 `{descriptor_id, version, status, warnings}`: the latest draft or active row updated in place, keeping its version and status; a draft checked as a draft, an active class for structure and a code module that has code; 400 `{errors}` or a changed `descriptor_id`; 403; 404 when the class has no draft or active row |
 | `GET /api/v1/wpi/code-modules` | logged-in | — | 200 `{code_modules: [{code_module_id, module_name, description, module_type, module_doc, notes, status}]}`, by type and ID |

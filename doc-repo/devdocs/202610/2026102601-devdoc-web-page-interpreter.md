@@ -1064,9 +1064,8 @@ has no appearance attributes, and the `page_style` attribute of a page is accept
 
 An element class names the frontend code that draws it, its *code module*, in the class
 attribute `code_module_id` (built 2026-10-28, OpenSpec change `wpi-code-modules`). The
-class ID identifies the descriptor; `code_module_id` identifies the code. Each of the six
-classes stored so far is drawn by the module of the same name: the class `input` by the
-module `input`.
+class ID identifies the descriptor; `code_module_id` identifies the code. Each class stored
+so far is drawn by the module of the same name: the class `input` by the module `input`.
 
 They are kept apart because one piece of code can draw many classes. Buttons, for example,
 can look and behave in many ways. A single `button` class covering every variant would need
@@ -1088,7 +1087,11 @@ module, each with its own description, help tips, defaults and fixed attributes 
 
 Rows come from migrations or `psql`; there is no write API, as for `kb.stored_stmts`.
 Migration `20261028000002_create_kb_code_modules.sql` created the table with the six element
-modules. Besides them only the `flow-layouter` element layouter has a row (migration
+modules. Migration `20261030000005_wpi_chat_elements.sql` added the element modules
+`chat-composer` and `chat-panel` and their active classes (2026-10-30, ChenWeb OpenSpec change
+`wpi-chat-elements`): a message box and a Chat/Dialog panel that share the chat of their page
+instance, converted from ChenWeb's Chat page ([Chat Composer](../../code_modules/interpreter-chat-composer.md),
+[Chat Panel](../../code_modules/interpreter-chat-panel.md)). Besides them only the `flow-layouter` element layouter has a row (migration
 `20261028000003_register_flow_layouter.sql`): action classes still name their code by
 their class ID ([Actions](#actions)), and the code of page layouters is not registered yet. The editor reads the table through
 `GET /api/v1/wpi/code-modules`.

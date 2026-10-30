@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.1.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.2.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -74,6 +74,11 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/lib/wpi/elements/ButtonElement.svelte` | `button`: runs its `on_click` trigger |
 | `ChenWeb/web/src/lib/wpi/elements/ListElement.svelte` | `list`: queries its records, rows, row click, re-query on show |
 | `ChenWeb/web/src/lib/wpi/elements/MenuElement.svelte` | `menu`: tree with folders, `initial_item`, current item from the pane it opens pages in |
+| `ChenWeb/web/src/lib/wpi/elements/ChatComposerElement.svelte` | `chat-composer`: message box and tool bar for a harness-backed assistant ([doc](../code_modules/interpreter-chat-composer.md)) |
+| `ChenWeb/web/src/lib/wpi/elements/ChatPanelElement.svelte` | `chat-panel`: Chat and Dialog tabs of the page's chat ([doc](../code_modules/interpreter-chat-panel.md)) |
+| `ChenWeb/web/src/lib/wpi/chat-session.svelte.ts` | The chat of one page instance, shared by its chat elements; reference-counted per runtime and page instance |
+| `ChenWeb/web/src/lib/wpi/chat-agents.ts` | The four harness-backed assistants and the assistant and model selection |
+| `ChenWeb/web/src/lib/wpi/chat-agents.test.ts` | Assistant selection tests |
 | `ChenWeb/web/src/routes/wpi/[appId]/+page.ts` | Route load (`ssr = false`) |
 | `ChenWeb/web/src/routes/wpi/[appId]/+page.svelte` | Route page: fetches the bundle, shows validation errors or the app |
 
@@ -156,8 +161,8 @@ Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<
 ## 7. Scope and limits
 
 - Small vocabulary: one page layouter code module (`page-layouter`, classes `single-pane`
-  and `top-left-middle-right-bottom`), one element layouter (`flow-layouter`), six element
-  code modules, action classes `load`, `save`, `query`, `load-file`, `open-page`,
+  and `top-left-middle-right-bottom`), one element layouter (`flow-layouter`), eight element
+  code modules (the six first ones, `chat-composer` and `chat-panel`), action classes `load`, `save`, `query`, `load-file`, `open-page`,
   `close-page`, `save-page`. No page state, conditions, timed refresh or age-out; lists are
   read-only; `open-page` opens pages in panes only (no tab, new tab or iframe yet).
 - The interpreter does not show `page_name` or a page's `description`; they are for authors
