@@ -531,10 +531,9 @@ for editing; repeated classes and all instance attributes are kept. A movable fr
 the Properties panel (today the Flow layouter's `layouter_config`, which the revised design
 moves to each panel's element layouter). The frame starts aligned with the canvas settings button.
 The page preview can be resized with its corner handle or keyboard; this changes the
-editor surface rather than the descriptor’s dimensions. Edits and resizing can be undone. The flow data includes
+editor surface rather than the descriptor’s dimensions. Each editor tab keeps up to 50 undo steps for canvas and descriptor edits, including node properties, dragging, deletion, pane changes, and preview resizing. Undo and Redo are available in the toolbar and with Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y). A new edit after Undo clears the redo history. The flow data includes
 the loaded descriptor; the current flow backend is a stub and
-does not persist it across reloads. A nonempty canvas asks
-before replacement, and Undo restores the previous canvas and descriptor. View JSON
+does not persist it across reloads. Loading a page opens a separate editor tab, with its own history. View JSON
 keeps the loaded page's metadata. Loading does not write a page version to the database;
 the existing Save button still saves the canvas flow.
 
