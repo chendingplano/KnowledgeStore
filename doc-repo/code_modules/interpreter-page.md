@@ -347,6 +347,8 @@ marks the page dirty. This is separate from saving a running page's input doc (Â
 records belong to the author. Unnamed pages use temporary IDs of the form
 `unnamed-yyyymmdd-hhmmss` in browser local time and reopen as dirty tabs when
 the editor starts. The author chooses the permanent descriptor ID on the first ordinary save.
+When unnamed recoveries are restored, the editor does not create an empty default Unnamed
+tab; a tab containing a page or edits is preserved.
 If a temporary ID is already in use, auto-save retries with another timestamp. The first
 interval starts when a tab opens. An auto-save against an obsolete
 page version is rejected; a recovery copy already stored before another author saves remains
