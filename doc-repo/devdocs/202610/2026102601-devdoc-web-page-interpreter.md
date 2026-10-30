@@ -360,9 +360,9 @@ a pane that is `resizable`. A panel's geometry is different: it comes from the p
 content alone ([Panels](#panels)).
 
 Panes have the following attributes. A pane is either a *leaf* or *split* into child panes
-([Page layouters](#page-layouters)). Only a leaf pane holds a panel, so the margins, `hori_align`,
-`vert_align`, `hori_scrollbar` and `vert_scrollbar`, which concern what the pane shows, apply to
-leaf panes only.
+([Page layouters](#page-layouters)). All panes may set margins: a split pane places its children inside them, and a leaf pane places
+its content inside them. Only a leaf pane holds a panel, so `hori_align`, `vert_align`,
+`hori_scrollbar` and `vert_scrollbar` apply to leaf panes only.
 
 | Attribute | Data Type | Default | Explanation | Validation |
 |-----------|-----------|---------|-------------|------------|
@@ -374,7 +374,7 @@ leaf panes only.
 | max_width | string | null | the greatest width the pane may have; null means no limit | a length or a percentage |
 | max_height | string | null | the greatest height the pane may have; null means no limit | a length or a percentage |
 | resizable | boolean | false | whether the user can drag the pane's edge to change its size | true or false |
-| left_margin, right_margin, top_margin, bottom_margin | string | "0px" | the space between the pane's edges and what it shows; counted when deciding whether it fits (below) | a length |
+| left_margin, right_margin, top_margin, bottom_margin | string | "0px" | the space between the pane's edges and its content or children; counted when deciding whether they fit (below) | a length |
 | hori_align | string | "center" | where the panel sits in the pane when it is narrower than the space inside the margins | "left", "center" or "right" |
 | vert_align | string | "top" | where the panel sits in the pane when it is shorter than the space inside the margins | "top", "center" or "bottom" |
 | hori_scrollbar | string | "auto" | what happens when the panel and the left and right margins are wider than the pane | "auto" or "hide" |
