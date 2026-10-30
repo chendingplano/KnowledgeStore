@@ -303,7 +303,7 @@ controls. Handlers log operations through `CreateDefaultLogger("20261026-418")`.
 
 | Data | Storage and identity |
 | --- | --- |
-| Complete page descriptor, with class copies | `kb.frontend_pages`, unique `(descriptor_id, version)`, body in `body` JSONB. |
+| Current page descriptor, with class copies | `kb.frontend_pages`, body in `body` JSONB; earlier versions and recovery copies are in `archive.frontend_pages`. |
 | App, element class, action class, page layouter class, element layouter class | `kb.wpi_descriptors`, unique `(kind, descriptor_id, version)`. |
 | Element/action instances, layouter copies | Inline in their page; no independent rows. |
 | Module catalogue, named SQL, named JSON file | `kb.code_modules`, `kb.stored_stmts`, `kb.stored_files`, respectively. |
@@ -322,31 +322,33 @@ the response returns the stored page. To copy a page, change its body ID and PUT
 new ID; its copies come along. The WPI editor loads pages with their panes, edits pane trees
 and panels, and adopts the stored page after saving.
 
-### Page versions (proposed)
+### Page versions
 
 A new page starts at version 1. When an existing page is modified and saved, copy its current
 record to `archive.frontend_pages`, then update the current record with the new page and
 increase its version by one. The archive copy and current-record update must succeed or fail
 together. The archive preserves the previous version for later reference.
 
-This is a proposed change to the current version storage described above, not implemented
-behavior. The design must define how existing versions are migrated and how active, draft and
-retired versions are selected when historical records move to the archive. Concurrent saves
-also need a conflict rule so that one author's update does not silently overwrite another's.
+Saves of the same page are serialized; concurrent ordinary saves use last-save-wins. Existing
+historical rows in `kb.frontend_pages` are left in place; reads continue to select the highest
+active version. New saves archive and update the highest-version row.
 
-### Auto Saving (proposed)
+### Auto Saving
 
 In the WPI Editor, each dirty page is automatically saved every N seconds since its last save
 or auto-save; N defaults to 10. An auto-save stores a recovery copy of the editor's page
-descriptor and does not make it the saved page version or mark the page clean. A successful
-ordinary save removes the page's auto-save record if one exists.
+descriptor in `archive.frontend_pages` and does not make it the saved page version or mark
+the page clean. A successful ordinary save removes the author's auto-save record in the same
+transaction. The interval can be changed per browser with the `wpi.autoSaveSeconds` local
+storage setting; non-positive or invalid values use the 10-second default.
 
 When the editor loads a page that has an auto-save record, it loads that recovery copy and
-marks the page dirty. This behavior is proposed and is separate from saving a running page's
-input doc (§7). The design still needs to define the auto-save record's storage and ownership,
-how the first timer starts, and how recovery handles a saved page changed since the recovery
-copy was made. It should also ensure an in-flight auto-save cannot recreate a stale recovery
-copy after an ordinary save.
+marks the page dirty. This is separate from saving a running page's input doc (§7). Recovery
+records belong to the author. Unnamed pages use temporary IDs and reopen as dirty tabs when
+the editor starts. The first interval starts when a tab opens. An auto-save against an obsolete
+page version is rejected; a recovery copy already stored before another author saves remains
+available to its owner. A version check and per-page lock prevent an in-flight auto-save from
+recreating stale recovery after an ordinary save.
 
 An already open app retains its downloaded bundle. Opening another page uses that bundle; it
 does not fetch a fresh page descriptor. In contrast, server actions resolve the latest active
@@ -357,7 +359,7 @@ changing action locations while an app is open can affect its next action reques
 
 | Responsibility | Files relative to `ChenWeb/` |
 | --- | --- |
-| Page storage, discovery, writes, class copies | `server/api/wpi/store.go`, `handler.go`, `copies.go` |
+| Page storage, discovery, writes, recovery, class copies | `server/api/wpi/store.go`, `handler.go`, `recovery.go`, `copies.go` |
 | Bundle traversal, pane lookup and validation | `server/api/wpi/bundle.go`, `validate.go`, `types.go` |
 | Server-side action resolution | `server/api/wpi/actions.go` |
 | Runtime data, page instances, Panel Cache | `web/src/lib/wpi/runtime.svelte.ts`, `panel-cache.ts`, `dirty.ts`, `refs.ts` |
@@ -372,6 +374,7 @@ change. Merely adding attributes to a descriptor cannot activate behavior.
 
 Backend checks live in `validate_test.go`, `bundle_test.go`, `flow_test.go`, `handler_test.go`,
 `store_test.go`, `actions_test.go`, `stored_test.go`, `preview_test.go` and `seed_test.go`;
+`recovery_test.go` and `recovery_integration_test.go` cover recovery and page version storage;
 `customers_demo_integration_test.go` checks the migrated database with `WPI_TEST_DB=1`.
 Browser-side helpers are covered by the tests alongside `entries.ts`, `layout.ts`,
 `panel-cache.ts`, `dirty.ts`, `refs.ts`, `canvas/wpi-json.ts` and `canvas/pane-edit.ts`.
