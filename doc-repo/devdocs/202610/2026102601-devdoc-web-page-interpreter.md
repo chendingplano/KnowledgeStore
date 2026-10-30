@@ -819,8 +819,8 @@ An element's attributes are of two kinds:
   has. In the class row each instance attribute is an object with three optional parts:
   `help_tip`, text that tells authors what the attribute is for; `default_value`, the
   default; and `instance_modifiable`, which `false` turns into a fixed class attribute
-  (above). A `default_value` of `null` means every instance must set the attribute; a page
-  with an instance that does not fails validation ([Validation and errors](#validation-and-errors)). An attribute without
+  (above). A `default_value` of `null` means every instance must set the attribute before the page can
+  run. An incomplete page can still be saved and reopened for editing ([Validation and errors](#validation-and-errors)). An attribute without
   `default_value` is optional and has no default, such as a list's `on_row_click`. An
   instance that does not set an attribute uses the default in its class copy (below).
 
@@ -1723,7 +1723,16 @@ kb.wpi_descriptors
 ## 7. Validation and errors
 
 Descriptors are checked when they are saved to the database and again before an app or
-page is shown:
+page is shown. A page may be saved while an element or action is missing required instance
+attributes, so an author can return to configure it later. For example, a new list can be
+saved before its `source` and `columns` are set. The save still checks the page structure,
+class copies and supplied values. Before the page runs, validation requires the missing
+attributes and reports them. Each save creates the latest active page version, even when
+incomplete, so that version cannot run until it has been completed and saved again.
+The contract is in ChenWeb `openspec/specs/wpi-descriptor-store/spec.md`; update that spec
+when this behavior changes.
+
+The checks include:
 
 | Check | Example |
 | --- | --- |
@@ -1733,7 +1742,7 @@ page is shown:
 | Tables | Every table and column named in a `load` or `save` action exists |
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
-| Instances | An element or action instance is checked against the class copy it holds, not against the stored class ([Element classes and instances](#element-classes-and-instances), [Actions](#actions)): `element` or `action` equals the copy's `descriptor_id`; the instance sets only instance attributes the copy names (an element also its sizes), none the copy fixes, and every one whose default in the copy is `null`. The code today (format `0.4`) checks the same against the stored class. Checked when a page is written and when an app is loaded |
+| Instances | An element or action instance is checked against the class copy it holds, not against the stored class ([Element classes and instances](#element-classes-and-instances), [Actions](#actions)): `element` or `action` equals the copy's `descriptor_id`; the instance sets only instance attributes the copy names (an element also its sizes), none the copy fixes. Before a page runs, it must also set every attribute whose default in the copy is `null`. Missing values are allowed when the page is saved |
 | Capabilities | The `code_module_id` in the class copy of every page layouter and element layouter is an active code module of its own type (`page-layouter` or `element-layouter`) that has code in this interpreter; the `code_module_id` in every element instance's class copy is an active element module that has code, and every action instance's `action` has code registered under that ID; every active action class has code registered under its class ID; every active element class names a code module that has code and is an active element module in `kb.code_modules` (an element class draft is checked for structure and against `kb.code_modules`, [Element classes and instances](#element-classes-and-instances), [Code modules](#code-modules)) |
 
 Failures are never silent. On screen, an error box replaces the element or page and names
