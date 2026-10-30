@@ -1,14 +1,16 @@
 # Flow Layouter
 
 **Layouter ID:** `flow-layouter` \
-**Date:** 2026-10-28 \
+**Date:** 2026-10-28, revised 2026-10-30 (configured per panel; OpenSpec change `wpi-pages-own-panes`) \
 **Status:** implemented and active \
 **Frontend code:** `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte`, registered in
 `ChenWeb/web/src/lib/wpi/layouters/index.ts`; sizing in `ChenWeb/web/src/lib/wpi/layout.ts` \
 **Backend checks:** page validation in `ChenWeb/server/api/wpi/validate.go` \
-**Catalogue:** `kb.code_modules.code_module_id = flow-layouter`, type `layouter`, status `active`;
-registered by `ChenWeb/project_migrations/20261028000003_register_flow_layouter.sql` \
-**Design:** [Web Page Interpreter §3.7](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md#37-layouters)
+**Catalogue:** `kb.code_modules.code_module_id = flow-layouter`, type `element-layouter`, status `active`;
+registered by `ChenWeb/project_migrations/20261028000003_register_flow_layouter.sql`, moved to type
+`element-layouter` by `20261030000001_wpi_pages_own_panes.sql`. Its class, also `flow-layouter`, is a
+row of `kb.wpi_descriptors` with kind `element-layouter` whose `config` holds every parameter's default \
+**Design:** [Web Page Interpreter, Element layouters](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md#element-layouters)
 
 ## 1. What it does
 
@@ -27,15 +29,17 @@ outer boxes, not the text alignment, padding or arrangement of content inside th
 
 ## 2. Current behavior
 
-A page selects this layouter with `"layouter": "flow-layouter"`. Its `elements` array
-supplies the elements in display order, after their classes and instance attributes
-have been resolved by the interpreter.
+A panel selects this layouter with a copy of the `flow-layouter` class in its
+`elem_layouter`: `{"layouter": "flow-layouter", "class": {…}, "config"?: {…}}`. The panel's
+`elem_list` supplies the elements in display order, after each instance has been merged with
+its class copy by the interpreter. The code that draws the panel is the copy's
+`code_module_id`.
 
 The component uses a wrapping horizontal CSS flex container. By default it leaves a
 `0.75rem` gap between elements and rows, normally `12px`. Rows start at the horizontal
-start edge, and each element aligns to the top of its row. The optional
-`layouter_config` settings below control spacing and alignment. Omitted settings keep
-these defaults.
+start edge, and each element aligns to the top of its row. The settings below control
+spacing and alignment. A setting missing from the panel's `config`, or from its class copy's
+when the panel has none, keeps its default.
 
 Each row is as tall as its tallest element. The following row begins after that height
 and the row gap. Shorter elements leave space beneath them; later elements do not move
@@ -69,10 +73,11 @@ implemented here.
 
 ## 3. Configuration
 
-Select `flow-layouter` and optionally set the page attribute `layouter_config`.
-Omitting it or using an empty object preserves the default layout. The validator
-rejects non-object configuration, unknown settings and unsupported values at their
-descriptor paths.
+A panel's own `config` replaces its class copy's `config` whole; without one, the copy's
+applies. The class row of `flow-layouter` gives every setting its default, so a panel that
+changes one setting lists all of them. The validator rejects non-object configuration,
+unknown settings and unsupported values at their descriptor paths, in the panel and in the
+copy.
 
 | Setting | Values | Default | Meaning |
 | --- | --- | --- | --- |
@@ -125,11 +130,12 @@ height larger than the rows need, `top`, `center` and `bottom` place the rows as
 `space-between` distributes additional vertical space between rows; a single row stays
 at the top. The configured `row_gap` remains the minimum separation.
 
-With content height, there is no extra height to distribute. If the rows exceed the
-available height, retain top placement and normal overflow so the beginning of the
-content remains reachable. A definite page height is propagated to the inner flow
-container as `height: 100%`.
-Percentage heights still depend on a definite containing height, following CSS rules.
+With content height, there is no extra height to distribute. A panel's height comes from
+its content (devdoc 2026102601, Panels), so in a panel `rows_alignment` has no effect: the
+pane's `vert_align` places the panel as a whole instead. If the rows exceed the available
+height, retain top placement and normal overflow so the beginning of the content remains
+reachable. Percentage heights still depend on a definite containing height, following CSS
+rules.
 
 ## 4. Card example
 
@@ -148,12 +154,13 @@ of unused space on either side. With `start`, all `256px` is after the last card
 If cards A and B are `180px` and `120px` tall, their row is `180px` high. Vertical
 `center` puts B `30px` below the top; `bottom` puts it `60px` below the top.
 
-This **page fragment** selects centred rows with top-aligned cards:
+This **panel fragment** selects centred rows with top-aligned cards (the class copy in
+`class` is left out):
 
 ```json
-{
+"elem_layouter": {
   "layouter": "flow-layouter",
-  "layouter_config": {
+  "config": {
     "column_gap": "16px",
     "row_gap": "16px",
     "horizontal_alignment": "center",
@@ -163,8 +170,8 @@ This **page fragment** selects centred rows with top-aligned cards:
 }
 ```
 
-This fragment is accepted as part of a complete page descriptor; it still needs
-`descriptor_id`, `schema_version` and `elements`. Card elements would supply
+This fragment is accepted as part of a panel of a complete page descriptor; the panel's
+`elem_list` holds the elements, and writing the page adds the class copy. Card elements would supply
 their own widths and content. For flexible cards, use `width: elastic` with, for
 example, `min_width: 240px` and `max_width: 320px` instead of a fixed width.
 
@@ -175,15 +182,17 @@ renderer must explicitly supply its repeated items to a flow container.
 
 ## 5. Boundaries and verification
 
-Page `width`, `max_width` and `page_alignment` determine the page box within its pane.
-Flow layout then arranges elements inside that box. Centring the page in a pane is
-different from centring the cards within each row. Card appearance and internal padding
+A page's `width` and `max_width` determine its box within its page area, and a pane's
+margins, `hori_align` and `vert_align` place the panel within the pane. Flow layout then
+arranges elements inside the panel. Centring a panel in a pane is different from centring
+the cards within each row. Elastic and percentage element widths make the panel as wide as
+the pane's content area, inside its margins. Card appearance and internal padding
 belong to the card component or a supported Page Style; gaps belong to the layouter.
 Text remains selectable, and wrapping must preserve reading and keyboard focus order.
 
 The implemented contract remains in the
 [page-rendering specification](../../../ChenWeb/openspec/specs/wpi-page-rendering/spec.md).
-The page types, Go validator, flow renderer and sizing helpers implement the same
+The panel types, Go validator, flow renderer and sizing helpers implement the same
 configuration. Go tests check accepted configurations and invalid values; frontend
 unit tests cover defaults and CSS generation. Browser verification of the real Panel
 and FlowLayouter covered exact-fit and just-too-narrow rows, pane-width changes,
@@ -192,8 +201,7 @@ explicit heights retained, definite page height, overflow fallback, elastic maxi
 widths, oversized fixed items, selectable English and Chinese text, and keyboard
 focus order across wrapped input fields.
 
-No schema change is needed: the catalogue migration inserts a layouter row into the
-existing `kb.code_modules` table. This row records the built-in code; pages continue
-to select it through `layouter`, without adding element classes. Page Style fallback,
+The catalogue row records the built-in code and the class row its defaults; panels select
+it through their `elem_layouter` copy, without adding element classes. Page Style fallback,
 card composition, a card data source and an alignment authoring UI remain outside
 this implementation.

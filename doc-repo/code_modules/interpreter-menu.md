@@ -16,10 +16,11 @@ in `codeModules` (`ChenWeb/web/src/lib/wpi/elements/index.ts`) \
 
 A tree of menu items. A folder shows a folder icon and opens or closes when clicked; every
 folder starts open. An item shows a file icon, and clicking it runs its `on_click`, usually
-an `open-page`. The item whose panel is being shown is highlighted. When the menu is first
-drawn, normally when the app starts, it clicks its `initial_item`. The menu keeps the
-bindings between its items and their panels (devdoc §3.3), separately for each menu
-instance.
+an `open-page`. An item is highlighted while the pane its `open-page` opens a page in shows
+that page with the item's input. When the menu is first drawn, which is when the page
+holding it is opened, it clicks its `initial_item`. Clicking an item again shows the page
+instance the Panel Cache kept for that pane, without reloading it (devdoc 2026102601, Panel
+Cache); the menu keeps no bindings of its own.
 
 ## Attributes
 
