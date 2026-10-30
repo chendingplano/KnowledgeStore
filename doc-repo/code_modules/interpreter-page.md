@@ -322,6 +322,32 @@ the response returns the stored page. To copy a page, change its body ID and PUT
 new ID; its copies come along. The WPI editor loads pages with their panes, edits pane trees
 and panels, and adopts the stored page after saving.
 
+### Page versions (proposed)
+
+A new page starts at version 1. When an existing page is modified and saved, copy its current
+record to `archive.frontend_pages`, then update the current record with the new page and
+increase its version by one. The archive copy and current-record update must succeed or fail
+together. The archive preserves the previous version for later reference.
+
+This is a proposed change to the current version storage described above, not implemented
+behavior. The design must define how existing versions are migrated and how active, draft and
+retired versions are selected when historical records move to the archive. Concurrent saves
+also need a conflict rule so that one author's update does not silently overwrite another's.
+
+### Auto Saving (proposed)
+
+In the WPI Editor, each dirty page is automatically saved every N seconds since its last save
+or auto-save; N defaults to 10. An auto-save stores a recovery copy of the editor's page
+descriptor and does not make it the saved page version or mark the page clean. A successful
+ordinary save removes the page's auto-save record if one exists.
+
+When the editor loads a page that has an auto-save record, it loads that recovery copy and
+marks the page dirty. This behavior is proposed and is separate from saving a running page's
+input doc (§7). The design still needs to define the auto-save record's storage and ownership,
+how the first timer starts, and how recovery handles a saved page changed since the recovery
+copy was made. It should also ensure an in-flight auto-save cannot recreate a stale recovery
+copy after an ordinary save.
+
 An already open app retains its downloaded bundle. Opening another page uses that bundle; it
 does not fetch a fresh page descriptor. In contrast, server actions resolve the latest active
 page on each request. Descriptor versions are not pinned across a running session, so
