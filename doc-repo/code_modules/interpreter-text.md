@@ -1,22 +1,21 @@
 # Code module: `text`
 
 **Code module ID / existing class ID:** `text` / `text` \
-**Implementation:** baseline implemented; R2 extension proposed \
-**Design revision:** R2, 2026-10-30 — **Awaiting human design review** \
-**Approval:** none; R2 incorporates the user's three R1 revisions \
+**Implementation:** R2 implemented; text class version 5 active \
+**Design revision:** R2, 2026-10-30 — **Approved by the user** \
+**Approval:** the user explicitly approved R2 in this conversation on 2026-10-30; the attribute contract is unchanged by implementation \
 **Descriptor record:** existing `kb.wpi_descriptors`, `kind: element`, `descriptor_id: text`.
-Version 3 is active; the explicitly requested R2 update is a new draft version, not a new
-identity or an in-place replacement. Write/read-back evidence appears below. \
-**Code module row:** existing `kb.code_modules.text`, type `element`, seeded active with
-`module_doc: text.md`. Canonical document is `interpreter-text.md`; that catalogue filename
-correction remains pending implementation. \
+Version 5 is active; version 3 and draft version 4 are retained. No identity or stored
+version was replaced in place. Write/read-back evidence appears below. \
+**Code module row:** existing `kb.code_modules.text`, type `element`, active with `module_doc: interpreter-text.md`, verified after migration. The canonical
+document remains `interpreter-text.md`. \
 **Frontend:** `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte`, registered in `elements/index.ts` \
 **Backend:** `codeModules["text"]`, `element()` and `elementComplete()` in `ChenWeb/server/api/wpi/validate.go` \
 **Part of:** reusable module `20261026-01`, [WPI frontend](../modules/module-web-page-interpreter-frontend.md) \
 **References:** [WPI design](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md)
 §3.5–3.8, §5 and §7; [input](interpreter-input.md); [future Page Styles](interpreter-page-styles.md).
 
-## Purpose and implemented boundary
+## Purpose and implementation
 
 Display a selectable paragraph containing literal text or a value from the page instance's
 input doc. It follows changes from other fields/actions without writing, dirtying, loading
@@ -24,12 +23,11 @@ or saving the doc. R2 adds an optional caption, decorative icon and supplementar
 These parts belong to one element and share its layout box. The caption is not a form label
 for an editable control; the body keeps paragraph semantics.
 
-The implemented renderer only accepts string `text` or `data_binding`, plus common sizes.
-It renders `<p class="py-1 text-sm break-words">`, collapses whitespace, and converts bound
-values through JavaScript `String(value)` (null/missing becomes empty). Localization,
-caption, icon, tooltip, appearance controls and element-local overflow below are proposed.
-Unsupported class attributes produce visible warnings; a localized `text` map currently
-fails the supported string-only type check. The R2 draft does not activate these features.
+R2 implements localized static text, caption, icon, tooltip, appearance controls and local
+scrolling. Before R2, the renderer accepted only string `text` or `data_binding` plus sizes
+and rendered `<p class="py-1 text-sm break-words">`. Old copies keep that small-text/normal-
+whitespace appearance. Bound conversion still uses JavaScript `String(value)` (null/missing
+becomes empty). Unsupported class attributes remain visible warnings.
 
 Rich text, Markdown, HTML interpretation, semantic headings, links, inline child elements,
 data formatting, action triggers, editing and record operations are outside this module.
@@ -55,7 +53,7 @@ attributes are modifiable; specialized classes may fix supported non-action valu
 
 Resolution is fixed class value, otherwise instance value, otherwise saved-copy default,
 otherwise the module fallback documented below. A prohibited override is an error, not
-an alternative precedence choice. Explicit `inherit` is a supported proposed token that
+an alternative precedence choice. Explicit `inherit` is a supported token that
 resolves from the surrounding theme/page or the specified parent below; it is a concrete
 class default, not an unspecified value. Page Styles is not a resolution layer.
 
@@ -86,7 +84,7 @@ Unsupported declarations remain warnings.
 
 ## Attribute contract
 
-Defaults below are both proposed base-class `default_value` and module fallback, except
+Defaults below are both base-class `default_value` and module fallback, except
 explicitly marked omitted. All controls are optional unless a specialized class requires
 one. Supported invalid values and fixed overrides are errors.
 
@@ -94,7 +92,7 @@ one. Supported invalid values and fixed overrides are errors.
 
 | Exact path | Type / allowed values | Default and behavior |
 | --- | --- | --- |
-| `E.text` | String, proposed localized map | Omitted; exactly one source after merging. Empty string is valid. Literal content, no reference interpolation. |
+| `E.text` | String, localized map | Omitted; exactly one source after merging. Empty string is valid. Literal content, no reference interpolation. |
 | `E.data_binding` | String `$input_doc.<segment>[.<segment>...]` | Omitted; exactly one source. Segments match `[A-Za-z_][A-Za-z0-9_]*`; reject `__proto__`, `constructor`, `prototype`, empty segments, bracket/index syntax and other roots. |
 | `E.label` | Nonempty string or localized map | Omitted: no caption. Page-specific content; independent of body source. |
 | `E.help_tip` | String or localized map | `""`: no tooltip trigger/popup. Supplementary runtime help, not the author help at `E.class.<attribute>.help_tip`. |
@@ -121,7 +119,7 @@ Missing/non-object intermediate values yield empty display; arrays cannot be tra
 All text is escaped. Empty body does not remove a configured caption/icon/tooltip.
 Formatting, empty replacements and locale-aware date/number conversion are deferred.
 
-### Caption and icon layout — proposed
+### Caption and icon layout — implemented R2
 
 Lengths here are nonnegative decimal pixel strings, including `0px`; `icon_size` and
 `label_max_width` must be positive. Caption text wraps fully without a line limit or ellipsis, so it needs no separate
@@ -150,7 +148,7 @@ HTML `<label>` aimed at a non-control; associate the content region with its uni
 No caption means no caption box or caption gap. Hidden layout settings retain their values.
 The decorative icon is `aria-hidden`, never a focusable button or the sole status cue.
 
-### Typography and surface — proposed
+### Typography and surface — implemented R2
 
 | Exact path | Type / allowed values | Default and meaning |
 | --- | --- | --- |
@@ -172,7 +170,7 @@ channels 0–255 and alpha 0–1. `inherit` is only valid where explicitly liste
 and range checks; browser CSS acceptance alone is insufficient. Explicit colors stay literal
 in both themes. Border, radius, shadow, decoration, per-state colors and animation are deferred.
 
-### Size and layout — implemented grammar, proposed explicit defaults
+### Size and layout — implemented grammar and R2 defaults
 
 | Exact path | Type / accepted values | R2 default and behavior |
 | --- | --- | --- |
@@ -185,11 +183,11 @@ Sizes apply to the whole element, caption/icon/help included; text does not acce
 module's numeric JSON pixel sizes. Existing validation checks syntax, not cross-unit bound
 ordering; authors choose consistent limits. R2 does not introduce unit conversion.
 
-Proposed border-box sizing includes padding in assigned dimensions. Prefer auto height.
+Border-box sizing includes padding in assigned dimensions. Prefer auto height.
 Complete text remains copyable with no clamp/ellipsis. Too-small explicit dimensions require
 reachable scrolling inside the element without covering siblings; focusable overflow regions
-need a visible focus indicator and keyboard/touch scrolling. Current code has no text-specific
-overflow handling, so these guarantees require implementation and browser checks.
+need a visible focus indicator and keyboard/touch scrolling. The text renderer observes overflow and makes only overflowing regions keyboard focusable;
+fixed-height wrappers use their assigned height and scroll locally.
 
 ## Tooltip interactions, states and accessibility
 
@@ -233,7 +231,7 @@ Backend errors use WPI's descriptor/path error contract and existing logger conv
 No content/value logging is added. Retrieval authorization belongs to backend actions;
 caption/icon/tooltip choices grant no permission. No text-specific input validation rules.
 
-## Properties panel — proposed
+## Properties panel — implemented R2
 
 Groups are display-only; attributes remain flat. Localize every label/help through Paraglide.
 Show available class-copy fields plus common sizes. Unknown fields stay under Other / 其他
@@ -286,10 +284,10 @@ Complete class JSON with optional alternative sources; this does not create a ne
 }
 ```
 
-### Complete R2 class — proposed, stored as draft
+### Complete R2 class — implemented R2, stored as draft
 
 Each definition includes its actual default or a documented exception. Compact formatting
-does not omit fields. This is JSON data, not a runnable class until implementation.
+does not omit fields. The active version 5 record carries this descriptor; its attribute definitions match approved R2.
 
 ```json
 {
@@ -297,7 +295,7 @@ does not omit fields. This is JSON data, not a runnable class until implementati
   "schema_version": "0.4",
   "code_module_id": "text",
   "description": {"en": "Static or bound paragraph with optional caption, icon and tooltip", "zh-cn": "支持可选标题、图标和提示的静态或绑定段落"},
-  "implement_notes": {"en": "R2 draft: expanded attributes require renderer, validator and editor implementation before activation.", "zh-cn": "R2 草稿：扩展属性需完成渲染器、验证器和编辑器实现后方可启用。"},
+  "implement_notes": {"en": "Approved R2: localized read-only paragraph, optional caption/icon/tooltip and configurable appearance.", "zh-cn": "已批准的 R2：本地化只读段落、可选标题/图标/提示及可配置外观。"},
   "text": {"help_tip": {"en": "Literal content; set text or data_binding, not both.", "zh-cn": "静态内容；文本和数据绑定只能设置其一。"}},
   "data_binding": {"help_tip": {"en": "Input doc path; set text or data_binding, not both.", "zh-cn": "输入文档路径；文本和数据绑定只能设置其一。"}},
   "label": {"help_tip": {"en": "Optional caption; omit when no caption is needed.", "zh-cn": "可选标题；无需标题时请省略。"}},
@@ -331,13 +329,13 @@ does not omit fields. This is JSON data, not a runnable class until implementati
 }
 ```
 
-### Complete proposed page with full class copy
+### Complete page with full class copy
 
 The page and layout copies use format `0.5`. Its element copy equals the R2 class above;
 layout classes must already be registered. This is a complete page, not an app bundle.
 The configured static source is bilingual. For a bound instance, remove its `text` and
 set `data_binding: "$input_doc.customer.name"`; the same copy supports both alternatives.
-The page is not runnable by the baseline renderer/validator.
+The page uses the implemented R2 renderer/validator and the registered layout classes.
 
 ```json
 {
@@ -389,38 +387,220 @@ The page is not runnable by the baseline renderer/validator.
             "descriptor_id": "text",
             "schema_version": "0.4",
             "code_module_id": "text",
-            "description": {"en": "Static or bound paragraph with optional caption, icon and tooltip", "zh-cn": "支持可选标题、图标和提示的静态或绑定段落"},
-            "implement_notes": {"en": "R2 draft: expanded attributes require renderer, validator and editor implementation before activation.", "zh-cn": "R2 草稿：扩展属性需完成渲染器、验证器和编辑器实现后方可启用。"},
-            "text": {"help_tip": {"en": "Literal content; set text or data_binding, not both.", "zh-cn": "静态内容；文本和数据绑定只能设置其一。"}},
-            "data_binding": {"help_tip": {"en": "Input doc path; set text or data_binding, not both.", "zh-cn": "输入文档路径；文本和数据绑定只能设置其一。"}},
-            "label": {"help_tip": {"en": "Optional caption; omit when no caption is needed.", "zh-cn": "可选标题；无需标题时请省略。"}},
-            "help_tip": {"help_tip": {"en": "Optional tooltip; empty means no tooltip.", "zh-cn": "可选提示；空字符串表示不显示提示。"}, "default_value": ""},
-            "icon": {"help_tip": {"en": "Decorative icon identifier; empty means no icon.", "zh-cn": "装饰图标标识；空字符串表示不显示图标。"}, "default_value": ""},
-            "label_placement": {"help_tip": {"en": "Caption position relative to the content row.", "zh-cn": "标题相对于内容行的位置。"}, "default_value": "top"},
-            "label_horizontal_gap": {"help_tip": {"en": "Caption gap for left/right placement.", "zh-cn": "标题位于左右时的间距。"}, "default_value": "8px"},
-            "label_vertical_gap": {"help_tip": {"en": "Caption gap for top/bottom placement.", "zh-cn": "标题位于上下时的间距。"}, "default_value": "4px"},
-            "label_horizontal_align": {"help_tip": {"en": "Caption text alignment.", "zh-cn": "标题文字对齐方式。"}, "default_value": "start"},
-            "label_vertical_align": {"help_tip": {"en": "Caption alignment beside the content row.", "zh-cn": "标题在内容行旁的垂直对齐方式。"}, "default_value": "top"},
-            "label_max_width": {"help_tip": {"en": "Maximum caption width; all caption text remains available.", "zh-cn": "标题最大宽度；保留完整标题文字。"}, "default_value": "160px"},
-            "label_font_weight": {"help_tip": {"en": "Caption font weight.", "zh-cn": "标题字重。"}, "default_value": 500},
-            "icon_placement": {"help_tip": {"en": "Icon position relative to paragraph text.", "zh-cn": "图标相对于段落文字的位置。"}, "default_value": "start"},
-            "icon_size": {"help_tip": {"en": "Decorative icon size.", "zh-cn": "装饰图标尺寸。"}, "default_value": "16px"},
-            "icon_gap": {"help_tip": {"en": "Gap between icon and paragraph.", "zh-cn": "图标与段落的间距。"}, "default_value": "8px"},
-            "icon_color": {"help_tip": {"en": "Icon color; inherit follows content foreground.", "zh-cn": "图标颜色；inherit 跟随内容前景色。"}, "default_value": "inherit"},
-            "font_family": {"help_tip": {"en": "Content font family; inherit uses surrounding font.", "zh-cn": "内容字体；inherit 使用周围字体。"}, "default_value": "inherit"},
-            "font_size": {"help_tip": {"en": "Content font size.", "zh-cn": "内容字号。"}, "default_value": "0.875rem"},
-            "font_weight": {"help_tip": {"en": "Content font weight; inherit uses surrounding weight.", "zh-cn": "内容字重；inherit 使用周围字重。"}, "default_value": "inherit"},
-            "font_style": {"help_tip": {"en": "Content font style.", "zh-cn": "内容字体样式。"}, "default_value": "normal"},
-            "line_height": {"help_tip": {"en": "Line height; normal preserves module small-text line height.", "zh-cn": "行高；normal 保留模块的小号文本行高。"}, "default_value": "normal"},
-            "color": {"help_tip": {"en": "Content foreground; inherit follows page/theme.", "zh-cn": "内容前景色；inherit 跟随页面或主题。"}, "default_value": "inherit"},
-            "background_color": {"help_tip": {"en": "Whole element background.", "zh-cn": "整个元素的背景颜色。"}, "default_value": "transparent"},
-            "text_align": {"help_tip": {"en": "Paragraph alignment within its box.", "zh-cn": "段落在自身区域中的对齐方式。"}, "default_value": "start"},
-            "white_space": {"help_tip": {"en": "Whitespace handling; pre-wrap preserves line breaks.", "zh-cn": "空白处理；pre-wrap 保留换行。"}, "default_value": "normal"},
-            "padding": {"help_tip": {"en": "Whole element padding.", "zh-cn": "整个元素的内边距。"}, "default_value": "0.25rem 0px"},
-            "width": {"help_tip": {"en": "Whole element width.", "zh-cn": "整个元素的宽度。"}, "default_value": "auto"},
-            "height": {"help_tip": {"en": "Whole element height; prefer auto for prose.", "zh-cn": "整个元素的高度；段落建议使用 auto。"}, "default_value": "auto"},
-            "min_width": {"help_tip": {"en": "Minimum whole element width.", "zh-cn": "整个元素的最小宽度。"}, "default_value": "0px"},
-            "max_width": {"help_tip": {"en": "Optional maximum width; omit for no author-imposed cap.", "zh-cn": "可选最大宽度；省略表示不设置作者指定的上限。"}}
+            "description": {
+              "en": "Static or bound paragraph with optional caption, icon and tooltip",
+              "zh-cn": "支持可选标题、图标和提示的静态或绑定段落"
+            },
+            "implement_notes": {
+              "en": "Approved R2: localized read-only paragraph, optional caption/icon/tooltip and configurable appearance.",
+              "zh-cn": "已批准的 R2：本地化只读段落、可选标题/图标/提示及可配置外观。"
+            },
+            "text": {
+              "help_tip": {
+                "en": "Literal content; set text or data_binding, not both.",
+                "zh-cn": "静态内容；文本和数据绑定只能设置其一。"
+              }
+            },
+            "data_binding": {
+              "help_tip": {
+                "en": "Input doc path; set text or data_binding, not both.",
+                "zh-cn": "输入文档路径；文本和数据绑定只能设置其一。"
+              }
+            },
+            "label": {
+              "help_tip": {
+                "en": "Optional caption; omit when no caption is needed.",
+                "zh-cn": "可选标题；无需标题时请省略。"
+              }
+            },
+            "help_tip": {
+              "help_tip": {
+                "en": "Optional tooltip; empty means no tooltip.",
+                "zh-cn": "可选提示；空字符串表示不显示提示。"
+              },
+              "default_value": ""
+            },
+            "icon": {
+              "help_tip": {
+                "en": "Decorative icon identifier; empty means no icon.",
+                "zh-cn": "装饰图标标识；空字符串表示不显示图标。"
+              },
+              "default_value": ""
+            },
+            "label_placement": {
+              "help_tip": {
+                "en": "Caption position relative to the content row.",
+                "zh-cn": "标题相对于内容行的位置。"
+              },
+              "default_value": "top"
+            },
+            "label_horizontal_gap": {
+              "help_tip": {
+                "en": "Caption gap for left/right placement.",
+                "zh-cn": "标题位于左右时的间距。"
+              },
+              "default_value": "8px"
+            },
+            "label_vertical_gap": {
+              "help_tip": {
+                "en": "Caption gap for top/bottom placement.",
+                "zh-cn": "标题位于上下时的间距。"
+              },
+              "default_value": "4px"
+            },
+            "label_horizontal_align": {
+              "help_tip": {
+                "en": "Caption text alignment.",
+                "zh-cn": "标题文字对齐方式。"
+              },
+              "default_value": "start"
+            },
+            "label_vertical_align": {
+              "help_tip": {
+                "en": "Caption alignment beside the content row.",
+                "zh-cn": "标题在内容行旁的垂直对齐方式。"
+              },
+              "default_value": "top"
+            },
+            "label_max_width": {
+              "help_tip": {
+                "en": "Maximum caption width; all caption text remains available.",
+                "zh-cn": "标题最大宽度；保留完整标题文字。"
+              },
+              "default_value": "160px"
+            },
+            "label_font_weight": {
+              "help_tip": {
+                "en": "Caption font weight.",
+                "zh-cn": "标题字重。"
+              },
+              "default_value": 500
+            },
+            "icon_placement": {
+              "help_tip": {
+                "en": "Icon position relative to paragraph text.",
+                "zh-cn": "图标相对于段落文字的位置。"
+              },
+              "default_value": "start"
+            },
+            "icon_size": {
+              "help_tip": {
+                "en": "Decorative icon size.",
+                "zh-cn": "装饰图标尺寸。"
+              },
+              "default_value": "16px"
+            },
+            "icon_gap": {
+              "help_tip": {
+                "en": "Gap between icon and paragraph.",
+                "zh-cn": "图标与段落的间距。"
+              },
+              "default_value": "8px"
+            },
+            "icon_color": {
+              "help_tip": {
+                "en": "Icon color; inherit follows content foreground.",
+                "zh-cn": "图标颜色；inherit 跟随内容前景色。"
+              },
+              "default_value": "inherit"
+            },
+            "font_family": {
+              "help_tip": {
+                "en": "Content font family; inherit uses surrounding font.",
+                "zh-cn": "内容字体；inherit 使用周围字体。"
+              },
+              "default_value": "inherit"
+            },
+            "font_size": {
+              "help_tip": {
+                "en": "Content font size.",
+                "zh-cn": "内容字号。"
+              },
+              "default_value": "0.875rem"
+            },
+            "font_weight": {
+              "help_tip": {
+                "en": "Content font weight; inherit uses surrounding weight.",
+                "zh-cn": "内容字重；inherit 使用周围字重。"
+              },
+              "default_value": "inherit"
+            },
+            "font_style": {
+              "help_tip": {
+                "en": "Content font style.",
+                "zh-cn": "内容字体样式。"
+              },
+              "default_value": "normal"
+            },
+            "line_height": {
+              "help_tip": {
+                "en": "Line height; normal preserves module small-text line height.",
+                "zh-cn": "行高；normal 保留模块的小号文本行高。"
+              },
+              "default_value": "normal"
+            },
+            "color": {
+              "help_tip": {
+                "en": "Content foreground; inherit follows page/theme.",
+                "zh-cn": "内容前景色；inherit 跟随页面或主题。"
+              },
+              "default_value": "inherit"
+            },
+            "background_color": {
+              "help_tip": {
+                "en": "Whole element background.",
+                "zh-cn": "整个元素的背景颜色。"
+              },
+              "default_value": "transparent"
+            },
+            "text_align": {
+              "help_tip": {
+                "en": "Paragraph alignment within its box.",
+                "zh-cn": "段落在自身区域中的对齐方式。"
+              },
+              "default_value": "start"
+            },
+            "white_space": {
+              "help_tip": {
+                "en": "Whitespace handling; pre-wrap preserves line breaks.",
+                "zh-cn": "空白处理；pre-wrap 保留换行。"
+              },
+              "default_value": "normal"
+            },
+            "padding": {
+              "help_tip": {
+                "en": "Whole element padding.",
+                "zh-cn": "整个元素的内边距。"
+              },
+              "default_value": "0.25rem 0px"
+            },
+            "width": {
+              "help_tip": {
+                "en": "Whole element width.",
+                "zh-cn": "整个元素的宽度。"
+              },
+              "default_value": "auto"
+            },
+            "height": {
+              "help_tip": {
+                "en": "Whole element height; prefer auto for prose.",
+                "zh-cn": "整个元素的高度；段落建议使用 auto。"
+              },
+              "default_value": "auto"
+            },
+            "min_width": {
+              "help_tip": {
+                "en": "Minimum whole element width.",
+                "zh-cn": "整个元素的最小宽度。"
+              },
+              "default_value": "0px"
+            },
+            "max_width": {
+              "help_tip": {
+                "en": "Optional maximum width; omit for no author-imposed cap.",
+                "zh-cn": "可选最大宽度；省略表示不设置作者指定的上限。"
+              }
+            }
           },
           "text": {
             "en": "Review the customer details.\nSave after making changes.",
@@ -450,59 +630,73 @@ must be written in pages, with no concrete class default or class-fixed action.
 
 ## Review record
 
-R1 documented the baseline and proposed a paragraph-only configurable extension. On
-2026-10-30 the user requested (1) updating existing descriptor records, (2) reasonable
-attribute defaults and (3) optional caption, icon and tooltip. R2 incorporates all three.
-It replaces R1's exclusion of caption/icon/tooltip, retains meaningful source/default
-exceptions and adds a complete proposed descriptor. No human approval of R2 is recorded.
-
-Remaining review scope: optional parts and their defaults, finite icon choices, top caption
-placement with narrow fallback, supplementary accessible tooltip, and preserved baseline
-appearance. Material changes require a new review revision.
+R1 proposed paragraph configuration. On 2026-10-30 the user requested updating the existing
+record, reasonable defaults, and optional caption/icon/tooltip. R2 incorporated these changes
+and the user explicitly replied **Approved**. Approval covers the R2 attribute/default and
+interaction contract above. The implementation and catalogue facts added here do not change
+that contract. Later material contract changes still require human review.
 
 ## Registration, implementation and verification
 
-The live database was read on 2026-10-30: `kind=element`, `descriptor_id=text`, version 3,
-schema `0.4`, status `active`. Its two source definitions have no defaults. The user's
-explicit request authorizes saving the revised record as a new draft before renderer
-approval. This is a limited exception to the skill's usual document-only review stage;
-activation and frontend implementation remain pending human approval.
+The existing `text` identity remains in both catalogues. Goose migration
+`ChenWeb/project_migrations/20261030000004_wpi_text_r2_draft.sql` saved draft version 4.
+After approval and implementation, migration
+`ChenWeb/project_migrations/20261030000006_wpi_text_r2_active.sql` saved **version 5, active**,
+schema **0.4**, module **text**. Read-back on 2026-10-30 matched all 30 definitions,
+including the 26 defaults and four justified exceptions. Version 3 and draft 4 remain
+unchanged. The code-module document path reads `interpreter-text.md`; no module identity or
+saved page copy was replaced. Both migration Up paths were tested for idempotence and
+rollback in transactions. The active class passes the actual backend descriptor validator.
 
-**Draft write/read-back:** completed on 2026-10-30. Goose applied
-`20261030000004_wpi_text_r2_draft.sql`; read-back confirmed version **4**, schema **0.4**,
-status **draft**, `code_module_id: text`, and equality of all 30 attribute definitions
-against this R2 contract (26 concrete defaults and four documented exceptions). Version
-3 remains active. The existing shared draft validator accepts the proposed class. The
-migration's Up was exercised twice and Down once inside a rolled-back transaction,
-confirming idempotence, removal of only the new draft, and preservation of active version 3.
-The version number is allocated as max existing version plus one at write time, with an
-idempotent seed marker. Existing stored versions, custom attributes and all page copies
-are preserved. The existing active module row is not duplicated or suspended.
+Implemented files:
 
-Draft migration: `ChenWeb/project_migrations/20261030000004_wpi_text_r2_draft.sql`.
-It updates identity `text` through a new draft version with the defaults and bilingual help
-above. No new class identity is needed for instructions. The shared draft validator must
-accept this body; unsupported runtime capabilities remain pending. Read-back must compare
-all reviewed fields/defaults and verify status before reporting success.
+- Renderer: `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte`, still registered under
+  `text` in `elements/index.ts`; public interface remains `{ instanceId, element }`.
+- Descriptor types and pure client validation/defaults: `types.ts`, `text-attributes.ts`
+  and `text-attributes.test.ts` under `ChenWeb/web/src/lib/wpi/`.
+- Properties: `TextProperties.svelte`, `text-property-labels.ts` and the text-module
+  integration in `PropertiesPanel.svelte`, under `web/src/lib/components/shared-ui/canvas/`.
+- Backend: `text_attributes.go`, `text_attributes_test.go`, shared `text-values.json` and
+  `text-attribute-cases.json`, plus `validate.go` registration under `server/api/wpi/`.
+- Reproducible real-component browser checks: `ChenWeb/web/tests/wpi-text/test_text.py`
+  and its local Vite harness. Run `python3 web/tests/wpi-text/test_text.py --start-server`
+  from ChenWeb, with Python Playwright/Chromium and project Bun dependencies installed.
+- English/Chinese authoring and help-control messages: `ChenWeb/web/messages/en.json`
+  and `zh-cn.json`. The existing reactive locale bridge is reused.
 
-After human approval, implement renderer/types, supported-attribute/value validation,
-local icon registry, tooltip lifecycle and localized Properties controls together. Only then
-activate a new implemented class version, correct the existing `kb.code_modules.module_doc`
-filename via goose, and update the parent reusable-module record/document `20261026-01`,
-WPI OpenSpec requirements and devdoc capability notes. Do not rewrite existing page copies.
+Tooltip rendering uses a native manual popover in the top layer, constrained to the viewport.
+Resize observers update popup position after translated text changes and close it when its
+cached ancestor becomes hidden. Cleanup removes popup/listeners/timers on unmount. An
+oversized popup is itself keyboard scrollable. The outer text region uses a resize observer
+for the 250px caption fallback without collapsing the intrinsic width of auto-sized elements.
 
-Verification must cover source exclusivity on save/run; default-only instances; every
-missing-default exception; fixed attributes; invalid values and icons; old copies; null,
-zero, false and structured bound values; localization; caption placements and narrow fallback;
-decorative icon semantics; tooltip focus/hover/tap/Escape/outside close/cleanup; reset and
-hidden-field preservation; text selection, zoom, both themes and fixed-size scrolling.
-Document checks confirm all three JSON examples parse, the page's full element copy equals
-the proposed class, all contract paths are represented in that class, and relative links
-resolve. Whitespace checks pass in both changed repositories.
-Runtime/browser checks are pending implementation; database checks do not establish that
-these proposed interactions work.
+Verification evidence:
 
-Knowledge changed: this document now covers optional supporting content and a fully defaulted
-class contract, and a draft record update is explicitly tracked. Baseline runtime descriptions
-remain accurate; implementation specs/module docs will need updating when R2 ships. Page
-Styles integration, rich text, actions and detailed renderer implementation remain deferred.
+- Full `go test ./server/api/wpi` passes, including invalid styles/locales/icons, shared
+  client/server vectors, default-only instances, source conflicts, incomplete saves, fixed
+  overrides and old-copy compatibility. Go vet is included in final checks.
+- Bun WPI and element-attribute tests pass, including the 26-default comparison with the
+  reviewed descriptor and unchanged string conversion. Final totals are recorded in the
+  completion report rather than tied to concurrent unrelated test additions.
+- `bun run check` passes type/i18n validation. Existing unrelated accessibility warnings
+  remain outside this change.
+- Headless Chromium checks the real renderer, flow layouter and text Properties component:
+  live binding/locale changes, escaped HTML, all caption orientations/narrow fallback,
+  decorative icons, keyboard/hover/hover-transfer/touch tooltip access, Escape/outside close,
+  hidden-page and unmount cleanup, selectable content, fixed-height keyboard scrolling,
+  typed invalid/reset/fixed/unsupported fields, bilingual editing and both themes.
+- An independent read-only review found the tooltip-clear and translation-resize cases;
+  both were fixed and included in browser verification. No human approval was substituted
+  by that review.
+
+A signed-in editor session was not used: authenticated editor/API integration remains
+unverified by these browser checks. The harness exercises the shipped components without
+changing authentication. Native popover/ResizeObserver support is required in target browsers;
+Chromium was exercised. Rich text, formatting, actions and Page Styles remain outside R2.
+
+Knowledge changed: this canonical contract now describes the shipped renderer and version 5.
+The parent frontend/backend module documents and catalogue rows are updated to 3.2.0, keeping
+identities `20261026-01` / `20261026-02` and their existing `under-dev` module status. Formal
+requirements are in OpenSpec change `wpi-text-r2`; WPI design notes now distinguish implemented
+local text controls from future Page Styles. Detailed future rich-text/action/style contracts
+remain intentionally undocumented here. No known text-specific document remains stale.

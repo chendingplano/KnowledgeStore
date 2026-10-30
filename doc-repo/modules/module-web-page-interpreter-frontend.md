@@ -66,7 +66,7 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte` | `flow-layouter`: wrapping left-to-right flow, configured by the panel's or the copy's `config` |
 | `ChenWeb/web/src/lib/wpi/elements/index.ts` | Code module registry `codeModules`, keyed by code module ID |
 | `ChenWeb/web/src/lib/wpi/elements/Element.svelte` | Draws one element instance with its class copy's code module, or an error box naming the module |
-| `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte` | `text`: static text or a bound value |
+| `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte` | `text`: localized static/bound text with optional caption/icon/tooltip and configurable appearance |
 | `ChenWeb/web/src/lib/wpi/elements/InputElement.svelte` | `input`: configurable caption, single-line field, help and validation errors |
 | `ChenWeb/web/src/lib/wpi/input-validation.ts` | Client-side input rules and error codes |
 | `ChenWeb/web/src/lib/wpi/input-validation.test.ts` | Input rule tests |
@@ -81,6 +81,20 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/lib/wpi/chat-agents.test.ts` | Assistant selection tests |
 | `ChenWeb/web/src/routes/wpi/[appId]/+page.ts` | Route load (`ssr = false`) |
 | `ChenWeb/web/src/routes/wpi/[appId]/+page.svelte` | Route page: fetches the bundle, shows validation errors or the app |
+| `ChenWeb/web/src/lib/wpi/text-attributes.ts` | Text R2 defaults, value checks and literal/bound conversion |
+| `ChenWeb/web/src/lib/wpi/text-attributes.test.ts` | Text defaults, conversion, shared value vectors and old-copy tests |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/PropertiesPanel.svelte` | Dispatches text module properties using the saved class copy |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/TextProperties.svelte` | Six bilingual text Properties groups, typed controls, reset and fixed display |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/text-property-labels.ts` | Paraglide labels/help for text attributes, groups and choices |
+| `ChenWeb/server/api/wpi/text-values.json` | Shared finite CSS-color and icon vocabulary used by client/server |
+| `ChenWeb/server/api/wpi/text-attribute-cases.json` | Shared valid/invalid client/server text-value cases |
+| `ChenWeb/web/tests/wpi-text/Harness.svelte` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/bundle.json` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/index.html` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/main.ts` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/test.css` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/test_text.py` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/tests/wpi-text/vite.config.ts` | Real-component Chromium harness and interaction checks |
 
 ## 3. Interface
 
@@ -138,12 +152,20 @@ Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<
 
 ## 6. Behaviour and conventions
 
+Text R2 is implemented in the existing `text` module/class (active class version 5). Its
+30 flat attributes have 26 concrete defaults, with deliberate omissions for content,
+binding, caption and maximum width. See [text contract](../code_modules/interpreter-text.md).
+Text remains read-only and selectable. Its caption wraps, icons are decorative, tooltips
+support keyboard/touch and close on hide/unmount, and explicit dimensions scroll locally.
+No Page Styles integration is implied. Browser checks run with
+`python3 web/tests/wpi-text/test_text.py --start-server` from ChenWeb.
+
 - Input controls validate on blur and before save, and the server validates the stored page rules; see `doc-repo/code_modules/interpreter-input.md`.
 - The route's root sets `select-text`; only the pane resize handle is `select-none`.
 - All of the interpreter's own text goes through Paraglide (`wpi_*` keys in English and
   Chinese). A `label` (and a class's `description`) may hold one text per language and is
-  shown in the current locale, falling back to `en`; other text inside descriptors is shown
-  as written.
+  shown in the current locale, falling back to `en`. The text module also localizes static
+  content, captions and tooltips; plain strings are shown as written.
 - Colours come from theme tokens, so WPI pages follow light and dark mode; split panes are
   separated by the theme's border colour.
 - Nothing fails silently: unknown page or element layouters, code modules, panes an
@@ -167,8 +189,8 @@ Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<
   read-only; `open-page` opens pages in panes only (no tab, new tab or iframe yet).
 - The interpreter does not show `page_name` or a page's `description`; they are for authors
   searching pages (backend `GET /api/v1/wpi/pages`).
-- Only labels can be given per language; menu items, list columns, select options and text
-  elements are shown as written, so WPI apps are not linked from ChenWeb menus.
+- Text content/captions/tooltips and field labels can be localized. Menu items, list columns
+  and select options still use plain strings, so complete descriptor-wide localization remains future work.
 - Only panes with a pixel size can be resized by dragging; the dragged size lasts until the
   app is reloaded.
 - Until age-out is built, a pane keeps every page opened in it.

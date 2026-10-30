@@ -96,8 +96,21 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/project_migrations/20261028000005_isolate_wpi_customers_demo.sql` | The demo's own page `demo-customers` |
 | `ChenWeb/project_migrations/20261029000001_rename_wpi_page_alignment.sql` | Page attribute `page_alignment` renamed `hori_align` |
 | `ChenWeb/project_migrations/20261030000001_wpi_pages_own_panes.sql` | Layouter kinds, module types and classes; every page converted to format `0.5` with class copies; `customer-admin-home`; both demo apps naming their initial page |
+| `ChenWeb/server/api/wpi/text_attributes.go` | R2 text attribute grammar, ranges and localized content validation |
+| `ChenWeb/server/api/wpi/text_attributes_test.go` | Text values, defaults, copies, fixed values, incomplete saves and shared vectors |
+| `ChenWeb/server/api/wpi/text-values.json` | Finite color/icon vocabulary embedded by Go and imported by the client |
+| `ChenWeb/server/api/wpi/text-attribute-cases.json` | Shared client/server value-validation cases |
+| `ChenWeb/project_migrations/20261030000004_wpi_text_r2_draft.sql` | Preserves existing text identity in draft version 4 |
+| `ChenWeb/project_migrations/20261030000006_wpi_text_r2_active.sql` | Activates approved implemented text version 5 without rewriting copies |
 
 ## 3. Interface
+
+Text R2 registers all 30 approved attributes under the existing `text` module. It checks
+localized content, finite icon/color vocabulary, typography and size grammars, while
+preserving source exclusivity, incomplete saves, fixed values and old class copies.
+Migration `20261030000006` creates active text class version 5; prior versions and pages
+remain intact. See [text contract](../code_modules/interpreter-text.md) and OpenSpec change
+`wpi-text-r2`. The frontend imports the same color/icon JSON vocabulary used by this validator.
 
 Routes (registered on the authenticated `/api/v1` group in `server/api/routes.go`):
 

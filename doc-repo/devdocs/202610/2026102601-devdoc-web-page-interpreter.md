@@ -1055,8 +1055,9 @@ Page styles define the default look and feel of a page and its elements. A proje
 use one Page Style across its pages so that buttons, fields, text, lists and other elements 
 look consistent without repeating appearance attributes on every instance.
 
-**Page styles are a later phase.** Nothing in this section is supported now: the interpreter
-has no appearance attributes, and the `page_style` attribute of a page is accepted and ignored.
+**Page styles are a later phase.** The page's `page_style` attribute is accepted and ignored.
+Element-local appearance controls do exist for implemented modules, including input and
+[text R2](../../code_modules/interpreter-text.md); they do not implement Page Styles.
 
 <a id="code-modules"></a>
 
@@ -1865,8 +1866,9 @@ The likely direction, decided phase by phase:
 - **i18n of descriptor text.** Labels and other text in descriptors need English and
   Chinese. Element labels and descriptions take a plain string or one text per language,
   falling back to `en` ([Element classes and instances](#element-classes-and-instances)), and so do page names and descriptions ([Page attributes](#page-attributes)); the
-  same forms should cover the other text in
-  descriptors, such as list column labels, menu item labels and select options. ChenWeb sends all text through Paraglide, which cannot
+  text module R2 now also supports these forms for static text, captions and tooltips
+  (implemented 2026-10-30, OpenSpec `wpi-text-r2`). The same forms should later cover list
+  column labels, menu item labels and select options. ChenWeb sends all text through Paraglide, which cannot
   reach text stored in the database, so this still needs its own decision, probably an ADR
   amending ADR 2026093001.
   Until then, WPI apps are an exception to the "every page in English and Chinese" rule
