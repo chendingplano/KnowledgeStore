@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.0.0
+**Type:** backend · **Language:** go · **Version:** 3.1.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -66,6 +66,9 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/server/api/wpi/handler.go` | `Handler`, `New`; app bundle, page preview bundle, descriptor write (pages get their class copies and are returned), page search and page read, element class create, list, read and edit, and code module list endpoints; the code module check of element and layouter class writes (`checkModule`) |
 | `ChenWeb/server/api/wpi/handler_test.go` | Tests for `handler.go` |
 | `ChenWeb/server/api/wpi/actions.go` | Action run endpoint: find the instance by page and pointer, check and merge it with its class copy, then load, save, query (read-only) or load-file, with the stored rows' access controls |
+| `ChenWeb/server/api/wpi/input_rules.go` | Validates input element values against stored page class copies before saving |
+| `ChenWeb/server/api/wpi/input_rules_test.go` | Input rules and descriptor migration tests |
+| `ChenWeb/project_migrations/20261030000003_wpi_input_attributes.sql` | Adds the expanded input class version |
 | `ChenWeb/server/api/wpi/actions_test.go` | Tests for `actions.go` |
 | `ChenWeb/server/api/wpi/preview.go` | Admin preview of an unsaved list source (given a copy of the active `load` class when it has none) |
 | `ChenWeb/server/api/wpi/preview_test.go` | Tests for `preview.go` |

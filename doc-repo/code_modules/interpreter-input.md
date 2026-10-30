@@ -1,7 +1,7 @@
 # Code module: `input`
 
 **Code module ID:** `input` \
-**Status:** implemented with the limited behavior described below; the expanded contract is proposed \
+**Status:** implemented; input class version 4 provides the expanded attributes \
 **Row in `kb.code_modules`:** `input`, `module_type` `element`, `module_doc` `input.md`, `status` `active` \
 **Classes using it:** `input` \
 **Frontend:** `ChenWeb/web/src/lib/wpi/elements/InputElement.svelte`, registered in `elements/index.ts` \
@@ -9,33 +9,26 @@
 **Part of:** reusable module `20261026-01`, Web Page Interpreter frontend \
 **Related design:** devdoc 2026102601 §3.5.1–§3.5.2, §3.8; [Page Styles](interpreter-page-styles.md)
 
-## Purpose and current behavior
+## Purpose and behavior
 
-An input displays and optionally edits one attribute of the panel's input doc. The current
-implementation displays a localized caption above a single-line control, writes edits to the
-bound attribute, and displays server save errors for that path below the control. Read-only
-text remains selectable. It accepts:
+An input displays and optionally edits one attribute of the panel's input doc. It uses a
+localized caption and single-line control, writes edits to the bound attribute, and displays
+client and server errors beside it. Read-only text remains selectable. The attributes below
+are available on input class version 4. Pages retain copies of their classes: previously saved
+pages must be saved with the updated class copy before they can set newly added attributes.
+Existing pages without placement attributes use the new `left` component default.
 
-| Attribute | Required | Implemented behavior |
-| --- | --- | --- |
-| `label` | yes | String or language map; caption in the user's language. |
-| `data_binding` | yes | Path such as `$input_doc.email`; reads and writes the attribute and matches save errors. |
-| `binding_mode` | yes | `read-only` or `read-write`; may be supplied by the page or class default. |
-| `input_type` | no | `text` (default), `number`, or `email`. Number input writes `null` for empty, a JSON number for a valid number, and otherwise the typed string. |
+`label` and `data_binding` are required; `binding_mode` defaults to `read-write` in the
+class and may be supplied by the page. `input_type` defaults to `text`. The layouter handles
+`width`, `height`, `min_width`, and `max_width` for the whole element. Attributes not listed
+in a saved class copy cannot be set on that instance.
 
-The layouter handles `width`, `height`, `min_width`, and `max_width` for the whole element.
-The current component has no placeholder, help text, client validation, or configurable
-caption layout. Its errors come from the server on save. The requirements below are a
-proposed extension; their attributes and defaults do **not** describe existing behavior.
+## Attribute contract
 
-## Proposed expanded contract
-
-The following names and defaults are proposed for implementation and review. Required
-attributes must have a value after class defaults, instance values and applicable page
-settings are resolved. Existing class/instance precedence and fixed-attribute rules still
-apply. Unknown or invalid attributes should be reported by descriptor validation, not
-silently ignored. Existing instances need a compatibility or migration decision before
-these new defaults replace their current appearance.
+The names and defaults below describe the input module. Required attributes must have a value
+after class defaults, instance values and applicable page settings are resolved. Existing
+class/instance precedence and fixed-attribute rules apply. Descriptor validation checks the
+attribute values. Unknown attributes in a class are reported as unsupported.
 
 ### Caption and layout
 
@@ -45,7 +38,7 @@ All lengths below are non-negative CSS pixel lengths expressed as strings (for e
 field block, not just the control. Help and errors are placed below the control regardless
 of caption placement and contribute to the block's height.
 
-| Proposed attribute | Values | Default and behavior |
+| Attribute | Values | Default and behavior |
 | --- | --- | --- |
 | `label_placement` | `left`, `top`, `right`, `bottom` | `left`. Position the caption relative to the control; `left` and `right` create a horizontal pair, `top` and `bottom` a vertical pair. |
 | `label_horizontal_gap` | length | `10px`; space between caption and control for left/right placement. |
@@ -73,13 +66,12 @@ At narrow widths, constrain the caption and keep the control usable; if a horizo
 cannot fit, stack the caption above the control and retain the configured vertical gap.
 Do not clip help, errors, focus indicators, or the control. An explicitly fixed block height
 must not hide this content; allow overflow and document it in the layout implementation.
-The proposed 10px gap overrides the generic Page Styles field `label_gap` default of 6px
-for this module when no explicit module value is supplied; reconcile the style catalog when
-implementing precedence rather than assuming the existing style system supports these keys.
+The module uses a 10px gap by default. The Page Styles catalog describes a generic 6px
+field gap; input-specific style integration and precedence remain to be reconciled.
 
 ### Control and content
 
-| Proposed attribute | Values | Default and behavior |
+| Attribute | Values | Default and behavior |
 | --- | --- | --- |
 | `input_type` | `text`, `password`, `email`, `number`, `tel`, `url`, `search` | `text`. Single-line control; other HTML types require an explicit contract before adding them. |
 | `placeholder` | localized text | absent; example: “Please enter the password”. Shown only when empty, never used as the accessible label or as an initial value. |
@@ -111,7 +103,7 @@ Validation rules supplement, not replace, server-side save validation. Their def
 must be shared or mapped explicitly to the save action's existing rules; a client-side rule
 alone is not a security or data-integrity guarantee. Server rules remain authoritative.
 
-| Proposed `validation` member | Meaning |
+| `validation` member | Meaning |
 | --- | --- |
 | `min_length` | Non-negative integer; minimum Unicode code points for nonempty text-like values, using the same counting as `max_length`. Must not exceed `max_length` when both exist. |
 | `pattern` | Optional regular expression for the entire nonempty string; define a common client/server regex dialect and reject unsupported expressions at descriptor validation. |
@@ -146,7 +138,7 @@ control and any help or disclosure controls; reordering captions must not reorde
 Do not use placeholder text in place of a caption or help. The field accepts one line only;
 use a separate multiline component for long text.
 
-Example target descriptor (proposed, not accepted by the current implementation):
+Example descriptor:
 
 ```json
 {
@@ -182,21 +174,24 @@ attribute. The pane selector is editor context and is not an input attribute.
 | Validation | `required`, `max_length`, `validation.min_length`, `validation.pattern`, `validation.min`, `validation.max`, `validation.step` | Boolean and typed rule controls; show text or number rules as appropriate and preserve hidden values. Edit members of the single `validation` object. |
 | Size | `width`, `height`, `min_width`, `max_width` | These size the whole element through the layouter. |
 
-The Properties panel currently renders a flat attribute list and does not implement this
-grouping. The group list is the intended editor contract, not a claim that the UI already
-supports it. Any class attributes not listed above should remain accessible in an Other
-group, so future or custom attributes are not silently lost.
+The Properties panel groups the `input` class this way. Unlisted class attributes appear in
+Other. Text and localized values may be edited as JSON in the generic property control;
+validation members have individual controls.
 
 ## Implementation and verification
 
-Implementing this proposal requires coordinated changes to the component, descriptor
-validation and types, save validation/error handling, localization, and any style resolution.
-Align the Page Styles document and devdoc with the chosen contract, and update this document's
-status only after implementation. Verify default and all four placements, alignment, gaps,
-truncation and keyboard/touch disclosure, narrow layouts, both languages, read-only and
-required states, type conversions, Unicode and IME input, every validation rule, save failures
-and stale responses. Test keyboard and screen-reader associations, focus, and selection. Check
-existing classes and migrate or preserve their appearance deliberately.
+The input class is stored in `kb.wpi_descriptors`; migration
+`ChenWeb/project_migrations/20261030000003_wpi_input_attributes.sql` adds version 4 without
+altering saved page copies. Frontend validation blocks a save for invalid mounted fields; the
+server also checks input rules against the stored page's class copies before the save action.
+Save-action field rules and database constraints still apply. Client errors revalidate after
+blur or a save attempt; server errors are discarded when the document has changed since the
+request. Client and server support the numeric bounds, step, text length, pattern and format
+checks described above.
 
-Until implementation, a class may carry an unsupported attribute but it has no effect;
-saving the class or loading an app that uses it reports a warning (devdoc §3.5.2).
+The narrow-layout fallback uses a 250px container breakpoint. Client maximum-length handling
+limits newly typed or pasted text by Unicode code point and waits for IME composition to
+finish; an already overlength bound value is preserved and reported. The current Properties
+panel uses generic text/JSON controls for localized values and lengths; a dedicated bilingual
+text editor is not yet available. Browser-based verification of the signed-in editor requires
+an authenticated session.

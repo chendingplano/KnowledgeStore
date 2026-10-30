@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.0.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.1.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -67,7 +67,9 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/lib/wpi/elements/index.ts` | Code module registry `codeModules`, keyed by code module ID |
 | `ChenWeb/web/src/lib/wpi/elements/Element.svelte` | Draws one element instance with its class copy's code module, or an error box naming the module |
 | `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte` | `text`: static text or a bound value |
-| `ChenWeb/web/src/lib/wpi/elements/InputElement.svelte` | `input`: text, number or email field with field errors |
+| `ChenWeb/web/src/lib/wpi/elements/InputElement.svelte` | `input`: configurable caption, single-line field, help and validation errors |
+| `ChenWeb/web/src/lib/wpi/input-validation.ts` | Client-side input rules and error codes |
+| `ChenWeb/web/src/lib/wpi/input-validation.test.ts` | Input rule tests |
 | `ChenWeb/web/src/lib/wpi/elements/SelectElement.svelte` | `select`: pulldown with options from the instance |
 | `ChenWeb/web/src/lib/wpi/elements/ButtonElement.svelte` | `button`: runs its `on_click` trigger |
 | `ChenWeb/web/src/lib/wpi/elements/ListElement.svelte` | `list`: queries its records, rows, row click, re-query on show |
@@ -131,6 +133,7 @@ Opening an app: write its descriptors with `PUT /api/v1/wpi/descriptors/<kind>/<
 
 ## 6. Behaviour and conventions
 
+- Input controls validate on blur and before save, and the server validates the stored page rules; see `doc-repo/code_modules/interpreter-input.md`.
 - The route's root sets `select-text`; only the pane resize handle is `select-none`.
 - All of the interpreter's own text goes through Paraglide (`wpi_*` keys in English and
   Chinese). A `label` (and a class's `description`) may hold one text per language and is
