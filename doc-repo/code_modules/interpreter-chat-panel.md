@@ -276,16 +276,15 @@ has been recorded. The user's decision of 2026-10-30 (two elements; the conversa
 Chat tab) and assumptions A1–A3, A5 and A7 of the
 [composer's review record](interpreter-chat-composer.md#review-record) apply here too.
 
-Open questions:
+Feedback from the user, 2026-10-30, on R1:
 
-- **Q2 Height.** The panel cannot fill its pane's height today, so R1 gives it a fixed
-  default height of 640px. Accept that, or first extend the layout so an element can fill its
-  pane's height (a flow-layouter change, with its own review)?
-- **Q4 Session header.** The screenshot leaves out chatter-01's session tabs and Sessions
-  menu, but without them earlier sessions cannot be reached. R1 puts a session select,
-  History menu and close button in the Chat tab's header. Keep that, move them elsewhere, or
-  drop session switching?
+- **Q2 Height:** keep the fixed default height of 640px. Letting an element fill its pane's
+  height ("stretch") will be addressed later, as a separate layout change; until then this is
+  a known limit of the panel.
+- **Q4 Session header:** keep the session select, History menu and close button in the Chat
+  tab's header.
 - Q1 and Q3 concern the composer; see its [review record](interpreter-chat-composer.md#review-record).
+  Q3 is still open.
 
 Approval must name R1 or a later revision. A material change returns to review. Automated
 checks do not replace human approval.

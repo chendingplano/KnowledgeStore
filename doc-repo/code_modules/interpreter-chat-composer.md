@@ -88,7 +88,7 @@ An unsent draft is lost when the page closes ([A5](#review-record)).
 
 | Agent | Service | Behavior today |
 | --- | --- | --- |
-| `Claude Code`, `Codex`, `DeepSeek Harness`, `pi` | `/api/v1/harness-frontend/<harness>/…`: models, sessions, streamed turns, interrupt, permission decisions | Real assistants. **Admin-only** on the server. |
+| `Claude Code`, `Codex`, `DeepSeek Harness`, `pi` | `/api/v1/harness-frontend/<harness>/…`: models, sessions, streamed turns, interrupt, permission decisions | Real assistants, each available only when the server has its gateway configured (`CLAUDE_CODE_`, `CODEX_`, `DEEPSEEK_HARNESS_`, `PI_HARNESS_` + `GATEWAY_URL` and `GATEWAY_SECRET`). **Admin-only** on the server. |
 | any other name, e.g. `OpenClaw` | `/api/v1/chatter/…` | **A stub**: fixed settings, prompts and sessions; every reply is canned; saved settings are not kept ([Q3](#review-record)). |
 
 The mapping from agent names to harnesses is fixed in code (`HARNESS_BY_AGENT` in
@@ -442,14 +442,19 @@ Assumptions for review:
 7. **A7 Theme colours** replace chatter-01's palette; appearance attributes wait for Page Styles.
 8. **A8 A failed send shows an error**, not a made-up reply.
 
-Open questions:
+Feedback from the user, 2026-10-30, on R1:
 
-- **Q1 Attach and Dictate** draw in chatter-01 but do nothing. R1 leaves them out. Should they
-  be designed now (what does Attach send, and where does dictation run?), or added once they work?
+- **Q1 Attach and Dictate:** leave them out for now. R1 already does; no contract change.
+- Q2 and Q4 concern the panel; both keep R1 (see its [review record](interpreter-chat-panel.md#review-record)).
+- Q3: the user asked which four assistants are real. Answer: `Claude Code`, `Codex`,
+  `DeepSeek Harness` and `pi`, the harness-backed agents, each available only when its gateway
+  is configured on the server. Decision pending.
+
+Open question:
+
 - **Q3 Stub assistants.** Agents other than the four harnesses get canned replies, and
   settings are not saved, because `/api/v1/chatter` is a stub. Keep offering them by default,
   as chatter-01 does, or make the default agent list the four harness agents?
-- Q2 and Q4 concern the panel; see its [review record](interpreter-chat-panel.md#review-record).
 
 Approval must name R1 or a later revision. A material change returns to review. Automated
 checks do not replace human approval.
