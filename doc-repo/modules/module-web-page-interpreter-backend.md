@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.3.0
+**Type:** backend · **Language:** go · **Version:** 3.4.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -10,6 +10,8 @@ serves the WPI frontend (module `20261026-01`)
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/wpi`
 **Created:** 2026-10-26
+
+Panes and panels support optional fixed or light/dark background and foreground colors; pane backgrounds take precedence over panel backgrounds.
 
 ## 1. What it is
 
