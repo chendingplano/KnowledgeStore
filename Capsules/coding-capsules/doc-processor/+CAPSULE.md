@@ -177,6 +177,7 @@ Currently, it has the following doc processors:
 |3 | chunking | mandatory | 0 | No | `structure_analyzer` | Chunking Processor. Refer to [2]|
 |4 | extract_metadata | mandatory | 1 | Yes | `chunking` | Extract Doc Metadata Processor. Refer to [3] for its spec |
 |5 | extract_metrics | configurable | 2 | Yes | `chunking` | Extract Metrics Processor. Refer to [4] for its spec. Save to `kb.metrics` |
+|26 | extract_metrics_simple | configurable | 2 | Yes | `chunking` | Cheaper variant of `extract_metrics`: one LLM call per chunk, same tables and post-LLM steps. Opt-in only (never in `default_processors`); a run may not select both metric processors. Refer to [23] |
 |6 | extract_provisions | configurable | 2 | Yes | `chunking` | Extract provisions. Refer to [5]. Set EXTRACT_PROVISIONS_INPUT == "blocks" to change it to be block-based processing |
 |7 | extract_semantic_projections | configurable | 2 | Yes | `chunking` | Extract semantic projections. Refer to [11] |
 |8 | generate_summaries | configurable | 2 | Yes | `chunking` | Generate summaries. Refer to [7] |
@@ -238,7 +239,7 @@ About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
 
-**Configurable processors** (`extract_metrics`, `extract_provisions`, `extract_references`, `extract_summaries`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
+**Configurable processors** (`extract_metrics`, `extract_metrics_simple`, `extract_provisions`, `extract_references`, `extract_summaries`, `generate_summaries`, `generate_topics`, `generate_scene_blocks`, `extract_semantic_projections`, `extract_entity_relation`, `extract_inventory_items`) must be listed in `config.toml` under `[doc-processing].required_processors` to be available. For normal JetStream events without an explicit processor override, `[doc-processing].default_processors` selects which available configurable processors run. If `default_processors` is absent or empty, it falls back to all configured required processors for backward compatibility. Routed processors (`extract_metric_definitions`, `extract_test_methods`, `extract_product_structure`, and the Phase D trio `normalize_assertions`/`associate_semantics`/`project_semantics`) additionally require a resolved pipeline policy to select them; undetermined routing skips them. `extract_metric_definitions` is not present in any active `kb.pipelines` row's `processors[]` and has `OnUndetermined: "skip"` (`processor_plan.go`), so it does not run by default as of 2026-08-12 (ADR 2026081201) — still selectable via explicit `operation`/Dev Mode. The Phase D trio also self-gate on `SEMANTIC_ASSOCIATION_ENABLED`, which defaults to `true` as of 2026-08-13 (previously `false`) — set it to `false` to disable them. `classify_document` (row 20) is also `routed`, but is not selected through this `filterProcessors`/pipeline-allowlist mechanism at all — it has its own gate check inside the resolver itself; see §7.6. Example:
 
 ```toml
 [doc-processing]
@@ -984,6 +985,9 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 
 [22] Extract References Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-references-spec.md`
   (contract: `ChenWeb/openspec/changes/extract-references-processor/specs/`; devdoc 2026101002)
+
+[23] Extract Metrics Simple Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-simple-spec.md`
+  (contract: `ChenWeb/openspec/changes/extract-metrics-simple/`)
 
 [21] Extract Product Relations Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-spec.md`
   (implementation notes: `extract-products-impl.md` — that file still has the

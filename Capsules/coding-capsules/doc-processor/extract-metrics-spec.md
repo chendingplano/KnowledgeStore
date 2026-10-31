@@ -35,7 +35,9 @@ a row. It stays a metric when the resource is the document's specified object (a
 standard's 含量). `uses` (role, name, spec) and `method` are part of a metric's identity;
 `procedure` is not.
 
-This processor uses a multi-pass extraction strategy.
+This processor uses a multi-pass extraction strategy. A cheaper variant, `extract_metrics_simple`, makes
+one call per chunk and shares everything after its LLM calls (`finishMetricRows`, saving, merging,
+indexing) with this processor; see [16]. Changes to the post-LLM steps apply to both.
 
 ## 1. Input
 
@@ -1499,4 +1501,6 @@ Refer to [3], [4], [5] and [6].
  \
 [15] ChenWeb/openspec/changes/semantic-metric-values/ (specs `metric-value-structure`,
 `metric-row-granularity`, `metric-value-notation`); devdoc
-`KnowledgeStore/doc-repo/devdocs/202610/2026101804-devdoc-metric-value-structure.md`
+`KnowledgeStore/doc-repo/devdocs/202610/2026101804-devdoc-metric-value-structure.md` \
+[16] KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-simple-spec.md (openspec change
+`extract-metrics-simple`)
