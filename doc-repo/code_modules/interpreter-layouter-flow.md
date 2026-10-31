@@ -255,3 +255,7 @@ The sizing, row count and separator additions are registered in class version 2 
 cover the new parameters; `web/tests/wpi-flow/test_flow.py` exercises browser row geometry,
 resizing, row spacing and text truncation using a test fixture. It does not replace an
 end-to-end test of a complete authenticated WPI page.
+
+The WPI editor canvas applies the same item constraints and geometry action as the runtime,
+including row limits, separators and text truncation. Its browser test in
+`web/tests/wpi-flow-editor/test_editor.py` checks configuration changes against the canvas.
