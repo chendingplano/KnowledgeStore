@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-27 \
 **Scope:** What the WPI Editor in ChenWeb is today, what each control does, how it stores
-its work (it does not, yet), and what is missing. Read this before extending the editor or
+its work, and what is missing. Read this before extending the editor or
 connecting it to WPI descriptors. The Web Page Interpreter itself is described in devdoc
 [2026102601](2026102601-devdoc-web-page-interpreter.md) (design) and
 [2026102603](2026102603-devdoc-wpi-pilot.md) (what was built). \
@@ -160,6 +160,32 @@ is rejected. An empty canvas without a page descriptor cannot yet be saved.
 Flow picker, new-flow and template endpoints under `server/api/flowhandler/` remain stubs;
 they do not persist canvases. The separate Flow page still uses those endpoints.
 
+### Automatic recovery saves
+
+The editor keeps a private recovery copy of an unsaved page so the author can resume work
+later. This is separate from **Save**: a recovery copy does not create an active version or
+clear the unsaved marker. Only administrators can use the recovery endpoints.
+
+Once per second the editor checks each tab. A dirty tab with a page descriptor is eligible
+when at least N seconds have elapsed since its last ordinary save or recovery attempt; N
+comes from browser local storage `wpi.autoSaveSeconds` when it is a positive number, and
+otherwise defaults to 10 seconds. It writes only if the page descriptor assembled from the
+canvas differs from the last successfully written or restored recovery copy. An unchanged
+page is not written repeatedly. The timer is measured from the last save, rather than from
+the last keystroke. Changes made during a write are picked up at a later check; failed writes
+show a message and are retried after the interval. A recovery already in progress or an
+ordinary save blocks another recovery write for that tab.
+
+`PUT /api/v1/wpi/pages/:pageId/recovery` writes the descriptor to the author's recovery row
+in `archive.frontend_pages`; it checks the page version and rejects a stale version. Loading
+a saved page also loads the author's recovery copy if present, leaving the tab dirty. New
+unnamed pages use temporary `unnamed-yyyymmdd-hhmmss` IDs and their recovery tabs are
+restored when the editor opens. Closing an unnamed recovery tab discards its recovery copy;
+a successful ordinary save removes the recovery in the same transaction as the page save. Recovery stores
+the page descriptor and element instances, not flow-only edges, viewport or preview size.
+The formal contract is in `ChenWeb/openspec/specs/wpi-pages/spec.md` and must be updated if
+this behavior changes.
+
 ### Relationship to WPI
 
 The editor reads and writes element classes in `kb.wpi_descriptors` through
@@ -197,10 +223,8 @@ the Flow page components.
 
 ## Known limitations
 
-- **Nothing is saved.** The flow server endpoints are placeholders (see Storage). Treat
-  every canvas as temporary until a real flow store exists.
-- **No connection to WPI descriptors.** The editor cannot open, create or change a real
-  WPI page; **Load Page** is a placeholder.
+- **Flow storage is incomplete.** The flow server endpoints are placeholders (see Storage);
+  ordinary page saves persist WPI descriptors, not arbitrary flow canvases.
 - **Page and action boxes carry only a name.** Element boxes have a class and attributes;
   page and action boxes have no class or attributes yet.
 - **Dragging a box, or deleting it with Backspace, cannot be undone**, and properties-panel
