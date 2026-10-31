@@ -245,9 +245,10 @@ widths, oversized fixed items, selectable English and Chinese text, and keyboard
 focus order across wrapped input fields.
 
 The catalogue row records the built-in code and the class row its defaults; panels select
-it through their `elem_layouter` copy, without adding element classes. Page Style fallback,
-card composition, a card data source and an alignment authoring UI remain outside
-this implementation.
+it through their `elem_layouter` copy, without adding element classes. The panel properties
+editor exposes the flow settings with localized labels, choice controls and validation for
+lengths and counts. Page Style fallback, card composition and a card data source remain
+outside this implementation.
 
 The sizing, row count and separator additions are registered in class version 2 by
 `20261031000001_flow_layouter_constraints.sql`. Go validator and layout helper tests
