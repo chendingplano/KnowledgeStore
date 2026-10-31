@@ -23,6 +23,10 @@ class and may be supplied by the page. `input_type` defaults to `text`. The layo
 `width`, `height`, `min_width`, and `max_width` for the whole element. Attributes not listed
 in a saved class copy cannot be set on that instance.
 
+For an explicit height, the field block fills the height assigned by the layouter and
+the input control takes the remaining space after its caption and help content. The
+layouter's minimum and maximum row heights still constrain the assigned height.
+
 ## Attribute contract
 
 The names and defaults below describe the input module. Required attributes must have a value
