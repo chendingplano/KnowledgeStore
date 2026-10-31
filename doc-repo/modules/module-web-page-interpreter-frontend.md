@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.2.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.3.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -64,6 +64,8 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/lib/wpi/UnsavedDialog.svelte` | Save / discard / keep editing prompt (native `<dialog>`) |
 | `ChenWeb/web/src/lib/wpi/layouters/index.ts` | Element layouter registry `elementLayouters`, keyed by code module ID |
 | `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte` | `flow-layouter`: wrapping left-to-right flow, configured by the panel's or the copy's `config` |
+| `ChenWeb/web/src/lib/wpi/layouters/flow-geometry.ts` | Row-count breaks, overflow text, and separator geometry |
+| `ChenWeb/web/tests/wpi-flow/test_flow.py` | Browser checks for flow wrapping, count limits, alignment and text overflow |
 | `ChenWeb/web/src/lib/wpi/elements/index.ts` | Code module registry `codeModules`, keyed by code module ID |
 | `ChenWeb/web/src/lib/wpi/elements/Element.svelte` | Draws one element instance with its class copy's code module, or an error box naming the module |
 | `ChenWeb/web/src/lib/wpi/elements/TextElement.svelte` | `text`: localized static/bound text with optional caption/icon/tooltip and configurable appearance |

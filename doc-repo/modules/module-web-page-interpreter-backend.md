@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.2.0
+**Type:** backend · **Language:** go · **Version:** 3.3.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -92,6 +92,7 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/project_migrations/20261028000001_wpi_element_classes_0_4.sql` | The latest row of every element class again in format `0.4`, keeping authors' attributes; active classes get `code_module_id` equal to their ID |
 | `ChenWeb/project_migrations/20261028000002_create_kb_code_modules.sql` | Table `kb.code_modules`, seeded with the six element modules |
 | `ChenWeb/project_migrations/20261028000003_register_flow_layouter.sql` | The `flow-layouter` code module |
+| `ChenWeb/project_migrations/20261031000001_flow_layouter_constraints.sql` | New version of the flow class with sizing and separator defaults |
 | `ChenWeb/project_migrations/20261028000004_seed_wpi_customers_demo.sql` | The Development menu's Customers demo app and page |
 | `ChenWeb/project_migrations/20261028000005_isolate_wpi_customers_demo.sql` | The demo's own page `demo-customers` |
 | `ChenWeb/project_migrations/20261029000001_rename_wpi_page_alignment.sql` | Page attribute `page_alignment` renamed `hori_align` |

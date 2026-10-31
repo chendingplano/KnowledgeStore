@@ -3,7 +3,7 @@
 **Layouter ID:** `flow-layouter` \
 **Date:** 2026-10-28, revised 2026-10-30 (configured per panel; OpenSpec change `wpi-pages-own-panes`) \
 **Status:** implemented and active \
-**Frontend code:** `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte`, registered in
+**Frontend code:** `ChenWeb/web/src/lib/wpi/layouters/FlowLayouter.svelte` and `flow-geometry.ts`, registered in
 `ChenWeb/web/src/lib/wpi/layouters/index.ts`; sizing in `ChenWeb/web/src/lib/wpi/layout.ts` \
 **Backend checks:** page validation in `ChenWeb/server/api/wpi/validate.go` \
 **Catalogue:** `kb.code_modules.code_module_id = flow-layouter`, type `element-layouter`, status `active`;
@@ -52,10 +52,10 @@ The layouter applies these attributes to each element's wrapper:
 
 | Attribute | Current behavior |
 | --- | --- |
-| `width`: a length, such as `240px` or `100%` | Uses that width without flex growth or shrinkage, subject to width limits. A percentage is relative to the containing layout width. |
+| `width`: a length, such as `240px` or `100%` | Uses that width without flex growth or shrinkage, subject to element and layouter width limits. A percentage is relative to the containing layout width. |
 | `width`: `auto`, or omitted | Uses content sizing, without flex growth or shrinkage. |
 | `width`: `elastic` | Uses `min_width`, or `0px` when omitted, as its flex basis and shares remaining row width with other elastic elements, subject to width limits. |
-| `min_width`, `max_width` | Constrain the element's width. An elastic card should normally have a meaningful minimum so wrapping preserves a usable card width. |
+| `min_width`, `max_width` | Constrain the element's width along with the layouter limits. The larger minimum and smaller maximum apply; if they conflict, CSS gives the minimum precedence. |
 | `height`: a length | Sets the wrapper height. It does not automatically make the element's inner component fill that height. |
 | `height`: `auto`, omitted, or `elastic` | Sets no wrapper height. The current code does not distribute spare vertical space for elastic height. |
 
@@ -64,8 +64,8 @@ within each row after its elements have been placed. A last row with one elastic
 can therefore grow wider than the cards above it; use `max_width` to limit that growth.
 
 A fixed-width element wider than the available area occupies a row by itself and can
-still overflow. The current layouter does not silently shrink it to fit. The containing
-pane's scrolling policy determines whether overflow remains reachable.
+still overflow after the configured limits are applied. The containing pane's scrolling
+policy determines whether overflow remains reachable.
 
 The current `auto` behavior is content sizing. The handoff from layout to a Page Style
 fallback described in [Page Styles](interpreter-page-styles.md) is proposed and is not
@@ -74,8 +74,8 @@ implemented here.
 ## 3. Configuration
 
 A panel's own `config` replaces its class copy's `config` whole; without one, the copy's
-applies. The class row of `flow-layouter` gives every setting its default, so a panel that
-changes one setting lists all of them. The validator rejects non-object configuration,
+applies. The class row of `flow-layouter` gives every setting its default; omitted settings
+in a panel configuration receive the renderer's defaults. The validator rejects non-object configuration,
 unknown settings and unsupported values at their descriptor paths, in the panel and in the
 copy.
 
@@ -86,6 +86,13 @@ copy.
 | `horizontal_alignment` | `start`, `center`, `end`, `space-between` | `start` | Distribution of unused horizontal space in each row. |
 | `vertical_alignment` | `top`, `center`, `bottom`, `stretch` | `top` | Placement of elements within their row's height. |
 | `rows_alignment` | `top`, `center`, `bottom`, `space-between` | `top` | Placement of the complete set of rows when the layout area has spare vertical space. |
+| `max_row_height` | Nonnegative value in `px` or `rem` | `200px` | Max row height.|
+| `min_row_height` | Nonnegative value in `px` or `rem` | `30px` | Min row height.|
+| `max_elem_width` | Nonnegative value in `px` or `rem` | `300px` | Element max width. |
+| `min_elem_width` | Nonnegative value in `px` or `rem` | `20px` | Element min width. |
+| `max_num_elems` | Nonnegative integer | `50` | The maximum number of elements per row; `0` means unlimited. |
+| `row_separator` | `thin_solid_line`, `norm_solid_line`, `bold_solid_line`, `thin_dash_line`, `norm_dash_line`, `bold_dash_line`, `none` | `none` | The separator between rows. |
+| `elem_separator` | `thin_solid_line`, `norm_solid_line`, `bold_solid_line`, `thin_dash_line`, `norm_dash_line`, `bold_dash_line`, `none` | `none` | The separator between elements. |
 
 Use logical `start` and `end` for horizontal alignment: in English and Chinese these
 normally mean left and right. Configuration belongs to the page's layouter, while each
@@ -136,6 +143,42 @@ pane's `vert_align` places the panel as a whole instead. If the rows exceed the 
 height, retain top placement and normal overflow so the beginning of the content remains
 reachable. Percentage heights still depend on a definite containing height, following CSS
 rules.
+
+### 3.4 Max/min row height
+
+When an element's height is higher than its row's max height:
+- If the element content is text, truncate its extra content with "..." and show the
+  whole content when the mouse hovers it.
+- Otherwise, use a cell scroll bar
+
+When the heights of all elements in a row are smaller than `min_row_height`, force
+the row height to be `min_row_height`.
+
+### 3.5 Max/min element width
+
+When an element's width is bigger than `max_elem_width`:
+- If the element content is text, wrap it to next lines, subject to `max_row_height`.
+  If it runs out of the height, truncate the extra content with "..." and show the
+  whole content when the mouse hovers it.
+
+### 3.6 Max number of elements per row
+
+If `max_num_elems` is not set, the default is 50. If it is 0, there is no maximum
+limit on the number of elements in a row. Otherwise, extra elements are forced to
+the next row.
+
+Row separators span the width of the widest row. Element separators are vertical
+and span their row's height. Thin, normal and bold lines are respectively 1, 2 and
+3 pixels wide; solid and dashed styles use the corresponding line style. Separators
+are centered in the gaps and do not consume layout space.
+
+Missing settings, including in old class copies, use the defaults above. The limits
+therefore also affect existing pages; page and class copies are not rewritten.
+The text renderer's displayed body is wrapped and truncated; its full text is exposed
+as a browser tooltip and remains available to assistive technology.
+
+Typical use of this attribute is to set it to 1, which forces the layouter
+to stack elements.
 
 ## 4. Card example
 
@@ -205,3 +248,9 @@ The catalogue row records the built-in code and the class row its defaults; pane
 it through their `elem_layouter` copy, without adding element classes. Page Style fallback,
 card composition, a card data source and an alignment authoring UI remain outside
 this implementation.
+
+The sizing, row count and separator additions are registered in class version 2 by
+`20261031000001_flow_layouter_constraints.sql`. Go validator and layout helper tests
+cover the new parameters; `web/tests/wpi-flow/test_flow.py` exercises browser row geometry,
+resizing, row spacing and text truncation using a test fixture. It does not replace an
+end-to-end test of a complete authenticated WPI page.
