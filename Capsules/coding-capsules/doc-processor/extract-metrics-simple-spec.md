@@ -85,7 +85,9 @@ an unclassified combined value stay `unresolved` with tag `value_review_unresolv
 
 ## 5. Configuration and use
 
-- Prompt: env `EXTRACT_METRICS_SIMPLE_PROMPT`, default `prompt-extract-metric-simple-v1.md`
+- Prompt: env `EXTRACT_METRICS_SIMPLE_PROMPT`, set in `ChenWeb/mise.local.toml` `[env]` like the other
+  prompts (so a deploy build embeds it in the doc-processor binary); default when unset:
+  `prompt-extract-metric-simple-v1.md`
 - Model: env `EXTRACT_METRICS_SIMPLE_MODEL_NAME`, falling back to `ENRICH_METRICS_MODEL_NAME`, then
   `EXTRACT_METRICS_MODEL_NAME` (the enrich pass's model, so a comparison uses the same model)
 - Concurrency: `EXTRACT_METRICS_MAX_TASKS` (sequential path), the coordinator's limits otherwise
