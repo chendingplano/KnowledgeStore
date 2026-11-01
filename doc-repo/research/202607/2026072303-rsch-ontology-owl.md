@@ -68,6 +68,91 @@ Even though that fact was never explicitly declared.
 
 This is called logical inference or entailment.
 
+### 2.1 Property
+
+Property is an object in OWL. Define once and use everywhere.
+A property has attributes.
+
+```
+ex:worksFor a owl:ObjectProperty ;
+    rdfs:domain ex:Employee ;
+    rdfs:range ex:Organization .
+```
+
+| Statement                    | Meaning                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ex:worksFor`                | The property being defined, representing the relationship "works for".                                                          |
+| `a owl:ObjectProperty`       | Declares `worksFor` as an OWL object property, which relates individuals to other individuals. `a` is shorthand for `rdf:type`. |
+| `rdfs:domain ex:Employee`    | The subject of any `worksFor` relationship is inferred to be an `Employee`.                                                     |
+| `rdfs:range ex:Organization` | The object of any `worksFor` relationship is inferred to be an `Organization`.                                                  |
+
+The semicolon (`;`) separates multiple statements that share the same subject (`ex:worksFor`). The period (`.`) terminates the statement sequence.
+
+Suppose we have:
+
+```
+ex:John ex:worksFor ex:Google .
+```
+
+This represents a relationship:
+
+An OWL reasoner can infer:
+
+```
+ex:John a ex:Employee .
+ex:Google a ex:Organization .
+```
+
+These types are inferred from the `domain` and `range` declarations.
+
+### 2.2 Inference versus validation
+
+A common misunderstanding is that `rdfs:domain` and `rdfs:range` impose validation constraints.
+
+They do not. They define logical implications.
+
+For example:
+
+```
+ex:Car123 ex:worksFor ex:Google .
+```
+
+An OWL reasoner will infer:
+
+```
+ex:Car123 a ex:Employee .
+```
+
+It does not automatically reject the statement because `Car123` sounds like a car.
+
+If your intention is to validate data rather than infer types, you can use SHACL:
+
+```
+ex:EmployeeShape a sh:NodeShape ;
+    sh:targetSubjectsOf ex:worksFor ;
+    sh:class ex:Employee ;
+
+    sh:property [
+        sh:path ex:worksFor ;
+        sh:class ex:Organization
+    ] .
+```
+
+This shape checks that subjects using `worksFor` are declared or recognized as employees, and that their `worksFor` values are organizations, under the chosen SHACL validation and entailment settings.
+
+## 2.3 OWL and knowledge model
+
+The original definition establishes three ontology elements:
+
+- Classes: `Employee`, `Organization`
+- Property: `worksFor`
+- Semantic relationship: `Employee → worksFor → Organization`
+
+However, an important distinction is that the domain and range are not merely a schema describing what is allowed. They also contribute logical semantics that support automatic reasoning.
+
+This is one of the key differences between an OWL ontology and a conventional database schema: OWL primarily describes logical meaning and enables inference, whereas a database schema primarily defines data structures and enforces constraints.
+
+
 ## 3. OWL's most important feature: logical reasoning
 
 Consider the following definition:

@@ -1342,3 +1342,68 @@ There are 8 knowledge structures:
 This is an open-source dataset for extrcting information from documents.
 It is installed in ThirdParty-2/SceREX. We may use this to build out
 benchmark.
+
+= 2026/10/31
+
+== Sentrux
+An open-source project to scan and evaluate code quality.
+Added to 'research-app-candidates.md'. 
+
+== Work
+- Text element: 
+
+= 2026/11/01
+
+== OWL, ontology and LLMs
+
+LLMs make ontology less important, but LLMs alone won't solve all
+the problems. Formal structured approach is logically constrained; LLMs are 
+semantically flexible. LLMs are nondeterministic, whereas formal
+approaches is much more deterministic. 
+
+But formal approaches do not eliminate uncertainly or even errors
+completely. If extraction is not 100% correct, the formal approaches
+that are built on top of the extracted can be formally correct
+but results are incorrect because it may use the wrong information.
+
+We should organize knowledge in four levels:
+- Natural languages are the main source of semantics
+- Lightweight semantics determines the retrieval system
+- structured semantics provides the analytical substrate
+- optional symbolic approaches provide validation and reasoning
+
+== WPI Proerty Editor
+
+Entities in WPI, such as elements, panels, panes, pages, app, etc., are
+all defined by descriptors. A descriptor defines a collection of
+attributes that are used to control entities looking-and-feel
+and their behaviors. Descriptors are highly configurable. WPI
+Property Editor is a tool to let users configure any WPI entities.
+
+A WPI Property Editor is a form:
+- Editor title
+- Property Group
+  - property, edited in a Property Value Editor
+  - ...
+
+=== Property Value Editor
+
+Individual properties are edited through property value editor.
+Different types of properties may be edited by different property
+editors.
+
+| Property Value Editor | Explanation |
+|-----------------------|-------------|
+| data-picker | Use a date picker to pick a date or a range of dates |
+| time-picker | Use a time picker to pick a time or a range of time |
+| color-picker | Use a color picker to pick a color |
+| length-editor | Allowed values include "auto", "elastic", "%", "px", "rem", "em", used for widths, heights, etc. |
+| value-picker | Use a pulldown menu to pick a value |
+| database-picker | Use a pulldown menu to pick a database |
+| schema-picker | Use a pulldown menu to pick a schema |
+| table-picker | Use a pulldown menu to pick a table |
+| field-picker | Use a pulldown menu to pick a field |
+| icon-picker | Use an icon picker to pick an icon |
+| button-type-picker | Show the button types the system supports and let users pick one |
+
+

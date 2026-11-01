@@ -264,7 +264,9 @@ using one copies it ([Descriptors and instances](#descriptors-and-instances)).
 
 #### 3.2.1 Page layouters
 
-A page layouter divides a page's space into panes. The division is a **tree**:
+A page layouter divides a page's space into panes. Page layouter classes are defined by
+descriptors stored in `kb.wpi_descriptors` with `kind` = `page-layouter`. The division is a
+**tree**:
 
 - The root of the tree is a pane that is the whole page, the page's root pane. A page has
   exactly one.
@@ -274,9 +276,6 @@ A page layouter divides a page's space into panes. The division is a **tree**:
   more child panes.
 - Any child can be split in turn, in either direction, to any depth.
 - Only leaf panes hold panels.
-
-(Earlier drafts called rows "vertical panes" and columns "horizontal panes". Rows and columns
-are used here because the words say how the panes sit.)
 
 Pane IDs are unique in a page. A split pane has an ID too (below, `middle-row`), but only the
 leaf panes have panels. The pilot has two page layouters:
@@ -306,7 +305,7 @@ A page that leaves a region out uses a tree without it; a page without a footer 
 The size of the root pane is not used: the root is the page, and the page's own `width` and
 `height` apply ([Page attributes](#page-attributes)).
 
-**A page layouter is a class.** It is stored in `kb.wpi_descriptors` with `kind`
+**A page layouter class** is stored in `kb.wpi_descriptors` with `kind`
 `page-layouter` ([Storage](#storage)). An element layouter is stored the same way, with `kind`
 `element-layouter` ([Element layouters](#element-layouters)), and a panel copies it as a page copies a page layouter. A page layouter has the following attributes:
 
@@ -318,12 +317,12 @@ The size of the root pane is not used: the root is the page, and the page's own 
 | code_module_id | string | none | the code module that draws the tree; many layouters can share one | an active module of type `page-layouter` in `kb.code_modules` ([Code modules](#code-modules)) |
 | root | object | none | the root pane of the tree, with default values | pane IDs are unique; a split pane has `split` and two or more `children`; the pane attributes are valid ([Panes](#panes)) |
 
-**A page copies the layouter.** A page layouter class is a template, and it is read-only:
+**A page has a layouter instance.** A page layouter class is a template, and it is read-only:
 using it never changes it, and only an admin changes it, by storing a new version. A page
 that uses one copies all of it, as an element instance copies its class
 ([Element classes and instances](#element-classes-and-instances)): the whole class row goes
-into the copy's `class`, and the page's own values sit beside it. The copy is the page's
-`page_layouter`:
+into the instance's `class` as a snapshot, and the page's own values sit beside it. The whole
+instance is the page's `page_layouter`:
 
 ```json
 "page_layouter": {
@@ -339,14 +338,27 @@ into the copy's `class`, and the page's own values sit beside it. The copy is th
 }
 ```
 
-`layouter` names the class and must equal the copy's `descriptor_id`; the copy's
+`layouter` names the class and must equal the class snapshot's `descriptor_id`; the snapshot's
 `code_module_id` names the code that draws the tree. The page's own `root`, when set, replaces
-the copy's `root` whole; without it the page uses the copy's tree. From then on the copy has no
+the snapshot's `root` whole; without it the page uses the snapshot's tree. The snapshot has no
 connection to its class. The page may change any value in its tree, and may leave panes out or
 add panes, as the home page of [A home page with a menu](#home-page-example) leaves out
 `bottom`. Modifying or retiring the class does not change the pages that copied it. A pane
 attribute that the tree does not set takes its default from [Panes](#panes); those defaults
 belong to the format, not to the class. Other examples in this document leave `class` out.
+
+#### 3.2.1.1 Pane Layouter in WPI Editor
+- It shows panes, or outlines panes with rectangles with a dim color dash line.
+- There is a slider between adjacent edges of panes so that users can drag-and-adjust
+  pane width/height.
+- Users can visually split a pane in to, either horizontally or vertically
+- Users can visually merge two or more panes into one
+- Users can change pane_ids, duplicated pane_ids are detected and rejected
+- The last pane in each split fills unused space in the editor. Pane boundaries can be dragged
+  past their minimum or maximum size; an exceeded limit is adjusted to the resulting size.
+  Pane widths and heights cannot be dragged below 20px in the editor.
+- Dragging a pane edge on the outside of the page changes the page size and the pane size.
+  Dragging the preview corner continues to resize the editor surface.
 
 <a id="panes"></a>
 
@@ -374,11 +386,22 @@ its content inside them. Only a leaf pane holds a panel, so `hori_align`, `vert_
 | max_width | string | null | the greatest width the pane may have; null means no limit | a length or a percentage |
 | max_height | string | null | the greatest height the pane may have; null means no limit | a length or a percentage |
 | resizable | boolean | false | whether the user can drag the pane's edge to change its size | true or false |
+| background_color, foreground_color | color | none | pane background and inherited text color | CSS color or light/dark pair (below) |
 | left_margin, right_margin, top_margin, bottom_margin | string | "0px" | the space between the pane's edges and its content or children; counted when deciding whether they fit (below) | a length |
 | hori_align | string | "center" | where the panel sits in the pane when it is narrower than the space inside the margins | "left", "center" or "right" |
 | vert_align | string | "top" | where the panel sits in the pane when it is shorter than the space inside the margins | "top", "center" or "bottom" |
 | hori_scrollbar | string | "auto" | what happens when the panel and the left and right margins are wider than the pane | "auto" or "hide" |
 | vert_scrollbar | string | "auto" | what happens when the panel and the top and bottom margins are taller than the pane | "auto" or "hide" |
+| `border_thickness` | nonnegative values in 'px' | none | If not defined or its value is 0, do not draw borders. Otherwise, draw pane borders with the specified thickness | value must be nonnegative |
+| `border_dark_color` | color | none | The pane border color in the dark mode. Applicable only when `border_thickness` > 0. If not specified, it uses a light color | valid color values |
+| `border_light_color` | color | none | The pane border color in the light mode. Applicable only when `border_thickness` > 0. If not specified, it uses a dark color | valid color values |
+
+A pane inherits each unset color independently from the closest ancestor pane that sets it.
+For example, if the root sets a red background and white foreground, and a child sets only
+a blue foreground, that child and its unset descendants use a red background and blue
+foreground. A descendant can override either color without changing the other. An absent
+value or `null` is unset. The effective pane background takes precedence over the panel's
+background, even when the pane inherited it ([Panels](#panels)).
 
 Values for a pane's `width` and `height`:
 
@@ -406,6 +429,8 @@ A leaf pane shows one thing at any given time: its own panel, or a page opened i
 ([Opening a page](#opening-a-page), [Panel Cache](#panel-cache)). The pane's margins, alignment and scroll bar attributes apply to
 whatever it shows.
 
+Each unset border attribute inherits independently from the closest ancestor that sets it. An absent value or `null` is unset; an explicit `0px` thickness disables the border for that pane and its descendants unless overridden. Thickness is a nonnegative pixel length such as `2px`. When no color is set, the border is black in light mode and white in dark mode.
+
 <a id="page-attributes"></a>
 
 #### 3.2.3 Page attributes
@@ -422,7 +447,7 @@ These are the attributes of the page itself. The attributes of its panes ([Panes
 | `description` | What the page is for. Authors search names and descriptions when looking for a page to reuse ([Reuse by copying](#reuse-by-copying)). |
 | `keywords`, `page_tags` | Words and categories that authors search, like `page_name` and `description`. |
 | `access_controls` | The user roles that may use the page. None, or an empty list, lets every logged-in user use it, and an admin counts as having the role `admin`. A page the user may not use is left out of the app, and reading it or running an action written in it is refused. |
-| `page_layouter` | The page's copy of a page layouter: the tree of panes, with this page's own values ([Page layouters](#page-layouters)). |
+| `page_layouter` | The page layouter instance: a class snapshot and the page's own values, including its pane tree ([Page layouters](#page-layouters)). |
 | `panels` | The page's panels, keyed by the `pane_id` of the leaf pane each one fills ([Panels](#panels)). |
 | `input` | Where the page's input doc comes from when the page is opened without being given one ([Page input](#page-input)). |
 | `save_action` | The `save` instance that saves the input doc; the close prompt and `save-page` run it ([Input doc lifecycle](#input-doc-lifecycle)). |
@@ -551,6 +576,9 @@ choosing each ID's latest active version. The behavior contract is
 
 ### 3.3 Panels
 
+Panes and panels accept optional `background_color` and `foreground_color`; absent or null means no color is set. A value is a CSS color, or an object such as `{ "light": "#fff", "dark": "#111" }` that follows the current display mode. Fixed colors stay fixed. Each unset pane color inherits the closest ancestor pane's corresponding color, independently; an explicit child color overrides it. Foreground colors inherit into content unless overridden. If a leaf pane has an effective background color, including one inherited from an ancestor, its panel background is ignored; otherwise the panel background colors its content area. When a page opens in a pane, the host pane replaces its root pane and supplies that precedence. Specify readable foreground/background combinations for both modes.
+
+
 A panel holds the elements shown in one pane of a page, and the element layouter that arranges
 them. A panel implements part of its page, through its elements. It is not the page, except
 when the page has only one pane. A page has one panel for each leaf pane it wants to fill; they
@@ -562,6 +590,7 @@ Panels have the following attributes:
 | Attribute | Data Type | Default | Explanation | Validation |
 |-----------|-----------|---------|-------------|------------|
 | elem_layouter | object | none | the panel's copy of an element layouter class: the whole class in `class`, and this panel's own `config` beside it when it changes the parameters ([Element layouters](#element-layouters)); the editor starts a new panel with a copy of `flow-layouter` | `layouter` equals the copy's `descriptor_id`; the copy's `code_module_id` is an active module of type `element-layouter` (planned); every key of either `config` is a parameter of that module, with a valid value |
+| background_color, foreground_color | color | none | panel background and foreground; the effective pane background takes precedence | CSS color or an object with `light` and `dark` CSS colors |
 | elem_list | list | [] | the element instances of the panel, in order | a valid JSON array of element instances ([Elements in panels](#elements-in-panels)) |
 
 ```json
@@ -1184,18 +1213,12 @@ customer list, without its `on_row_click`, which is the `open-page` instance sho
 
 An element layouter arranges the elements of a panel automatically, each layouter in its own
 way. WPI has several element layouters and each panel holds a copy of the one it uses, in its
-`elem_layouter` ([Panels](#panels)). The pilot has one:
+`elem_layouter` ([Panels](#panels)).
 
-- **`flow-layouter`** treats the elements as a flow of visual components: it places them
-  left to right and wraps to the next row when the next element does not fit in the
-  current row.
+Element layouters are defined by descriptors, stored in `kb.wpi_descriptors`, with `kind` 
+= 'element-layouter'.
 
-Vertical stacks, label/field grids and others come later.
-
-The parameters of a layouter are tunable, and they can differ from panel to panel. For
-`flow-layouter` they choose the column and row gaps, horizontal alignment within each row,
-vertical alignment of elements of unequal height, and placement of all rows in the height
-available. Invalid settings are rejected.
+The parameters of a layouter are tunable, and they can differ from panel to panel. 
 
 Element layouters are classes, to be stored in `kb.wpi_descriptors` with `kind`
 `element-layouter` ([Storage](#storage)), and they are used as page layouters are
@@ -1206,7 +1229,9 @@ its default value. A panel copies the whole class row into the `class` of its
 `elem_layouter`, every parameter with its default value included. A panel that changes the
 parameters sets its own `config` beside `class`, which replaces the copy's `config` whole, so it
 lists every parameter. From then on the copy has no connection to its class, so modifying the
-class does not change the panels that copied it. A panel with wider gaps and centred rows:
+class does not change the panels that copied it. 
+
+A panel with wider gaps and centred rows:
 
 ```json
 "elem_layouter": {
@@ -1267,6 +1292,18 @@ appearance attributes at all, so every WPI page follows the theme, including dar
 Style presets (named sets of appearance attributes) come later ([After the pilot](#after-the-pilot)).
 
 <a id="input-doc-and-data-binding"></a>
+
+#### 3.7.1 Element layouter class attributes
+| Attribute | Kind | Meaning |
+| --- | --- | --- |
+| `descriptor_id` | class | The class ID, `flow-layouter`. |
+| `schema_version` | class | The format version of the class's descriptor ([Page descriptors](#page-descriptors)). |
+| `description` | class | Description of the layouter. |
+| `` | instance |  |
+
+For more information, refer to 'KnowledgeStore/doc-repo/code_modules/interpreter-layouter-flow.md'.
+
+<a id="flow-layouter"></a>
 
 ### 3.8 Input doc and data binding
 

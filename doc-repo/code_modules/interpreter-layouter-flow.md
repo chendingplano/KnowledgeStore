@@ -93,6 +93,7 @@ copy.
 | `max_num_elems` | Nonnegative integer | `50` | The maximum number of elements per row; `0` means unlimited. |
 | `row_separator` | `thin_solid_line`, `norm_solid_line`, `bold_solid_line`, `thin_dash_line`, `norm_dash_line`, `bold_dash_line`, `none` | `none` | The separator between rows. |
 | `elem_separator` | `thin_solid_line`, `norm_solid_line`, `bold_solid_line`, `thin_dash_line`, `norm_dash_line`, `bold_dash_line`, `none` | `none` | The separator between elements. |
+| `` | `left`, `center`, `right` | `center` |  |
 
 Use logical `start` and `end` for horizontal alignment: in English and Chinese these
 normally mean left and right. Configuration belongs to the page's layouter, while each

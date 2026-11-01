@@ -86,6 +86,43 @@
 
 = Ontology
 
+Before diving into ontology, we need to understand why we need OWL and ontology at all.
+
+The most important feature of OWL is its logical reasoning. Given the example: 
+```text
+ex:John ex:worksFor ex:Google
+```
+
+we can reason: `ex:John a ex:Employee`, `ex:Google a ex:Organization`.
+
+But I feel OWL is less important or not critical at all if we use LLMs + RAG. If 
+RAG can retrieve the relevant information, such as chunks mentioning John, chunks 
+mentioning John works for Google, and chunks mentioning Google, then LLM can 
+inference John details, Google details and the relation work-for.
+
+Before we have LLMs, we have to use various methods to turn unstructured content 
+into structured content. We can then wrte code to do something with the 
+structured content.
+
+But LLMs is making the convertion of unstructured to structured less important 
+because the whole purpose of converting the unstructured to structured is to 
+let computers 'understand' what we have and LLMs are capable of understanding 
+unstructured (or natural language) content.
+
+To think deeper and extend this concept further, I see ontology is not as 
+critical or important as I original thought because ontology is also a way 
+of turning unstructured to structured.
+
+But on the pros side, there may be deep and complicate semantics that LLMs 
+will find hard time to find without something  OWL and ontology to help. 
+Another important feature of this symbolic reasoning is its deterministics. 
+
+To combine LLMs and formal symbolics, use LLMs to construct OWL/ontology or 
+knowledge bases in general, then use formal reasoning (especially important 
+in production systems) to eliminate the nondeterministics of LLMs.
+
+'semos-ontology-llm-impact.md' contains more information on this topic.
+
 == Ontology vs Semantic Layer
 @ref-ontology-vs-semantic-layer is a good article. It explains what ontology and semantic
 layer are; their differences; and how they work together.

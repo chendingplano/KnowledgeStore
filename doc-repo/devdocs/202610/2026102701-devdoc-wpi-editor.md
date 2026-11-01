@@ -1,4 +1,4 @@
-# WPI Editor — a canvas for laying out WPI pages, elements and actions
+# 1. WPI Editor — a canvas for laying out WPI pages, elements and actions
 
 **Date:** 2026-10-27 \
 **Scope:** What the WPI Editor in ChenWeb is today, what each control does, how it stores
@@ -8,7 +8,7 @@ connecting it to WPI descriptors. The Web Page Interpreter itself is described i
 [2026102603](2026102603-devdoc-wpi-pilot.md) (what was built). \
 **Code root:** `ChenWeb/web/src/lib/components/shared-ui/wpi-editor.svelte`
 
-## Summary
+## 1.1 Summary
 
 The WPI Editor is a drawing board inside ChenWeb, opened from **Development → Tools → WPI
 Editor**. It is meant to become the place where people build Web Page Interpreter (WPI)
@@ -23,7 +23,7 @@ server validation errors are shown to the author. Empty canvases and canvases co
 non-element nodes or connections cannot yet be saved. Flow management and template saving
 still use placeholder endpoints.
 
-## What is on the screen
+## 1.2 What is on the screen
 
 - **Left — node palette.** Building blocks you can drag onto the canvas, in folders
   (AI, Data, Actions, plus empty Pages and Elements folders kept for WPI). Folders start
@@ -41,7 +41,9 @@ still use placeholder endpoints.
   can be undone. An element box also has **Edit class** (pencil), which opens the Create
   Element form on the box's class (below).
 
-### Tool bar
+The Panes and Panel properties include `background_color` and `foreground_color`. Choose no color, one color, or separate light and dark colors. Use the color picker or enter a CSS color in the adjacent field; choose None to leave it unset. The canvas preview follows the editor theme and inherits each unset pane color from the closest ancestor and gives the effective pane background precedence over its panel background.
+
+### 1.2.1 Tool bar
 
 | Control | What it does | Available when |
 |---|---|---|
@@ -49,6 +51,7 @@ still use placeholder endpoints.
 | ▾ next to the name | Opens the picker of saved canvases (My Flows / Shared Flows / Templates); asks first if there are unsaved changes | Always |
 | **Create Nodes ▾** | Menu: **Create Page**, **Create Element**, **Create Action** — adds that kind of box in the middle of the visible canvas | Always |
 | **Load Page** | Searches stored pages and opens one in a new tab | Always |
+| **Code ▾** | **View JSON** opens the selected node’s descriptor, or the page descriptor if no node is selected; **View element tree** shows the page’s pane hierarchy, with a panel, its layouter name and element list under each leaf pane; element classes appear in reading order | In edit mode |
 | Undo / Redo | Steps back or forward through changes | When there is something to undo / redo |
 | Align left / horizontal centres / right | Lines the selected boxes up on that edge or centre line | Two or more boxes selected |
 | Align top / vertical centres / bottom | Same, vertically | Two or more boxes selected |
@@ -58,14 +61,15 @@ still use placeholder endpoints.
 
 To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 
-## Details
+## 1.3 Details
 
-### Where it lives
+### 1.3.1 Where it lives
 
 | File | Role |
 |---|---|
 | `web/src/lib/components/shared-ui/wpi-editor.svelte` | The editor: state, undo/redo, create/align/distribute, save, canvas, settings panel |
 | `web/src/lib/components/shared-ui/canvas/WpiCanvasToolbar.svelte` | The tool bar (presentational; all actions are callbacks into the editor) |
+| `web/src/lib/components/shared-ui/canvas/WpiTreeDialog.svelte`, `wpi-json.ts` | Read-only element tree, assembled from the current canvas using the same pane assignment and reading order as the page descriptor |
 | `web/src/lib/components/shared-ui/canvas/align-nodes.ts` | Pure align/distribute functions; tests in `align-nodes.test.ts` (`bun test`) |
 | `web/src/lib/components/shared-ui/canvas/nodes/WpiNode.svelte` | Renders the three WPI node types; icon chosen by node type |
 | `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
@@ -99,7 +103,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   theme yet, so it passes the dark colours (`canvasThemeVars(true)`, `darkMode={true}` to
   the picker); its text is white too.
 
-### Node types
+### 1.3.2 Node types
 
 - **From the server:** `GET /api/v1/flow-node-types` returns 11 hard-coded types
   (`server/api/flowhandler/nodetypes.go`): AI — `ai-assistant`, `coding-assistant`;
@@ -116,7 +120,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   (160 × 60), snapped to the grid when snap is on. If another node already sits at exactly
   that position, the new one moves one grid cell down and right until the spot is free.
 
-### Editing behaviour
+### 1.3.3 Editing behaviour
 
 - **Align / distribute** (`align-nodes.ts`): act on nodes with `selected: true`. Align
   needs two and distribute three; with fewer, the functions return the input unchanged
@@ -147,7 +151,7 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   its saved baseline. Closing a dirty tab asks for confirmation; switching tabs preserves it.
 - **Size warnings:** a one-time message above 500 nodes or 1000 edges.
 
-### Storage
+### 1.3.4 Storage
 
 For a loaded WPI page, Save sends the page descriptor and the current element instances
 to `PUT /api/v1/wpi/descriptors/page/:descriptorId`. The server validates the descriptor
@@ -160,7 +164,7 @@ is rejected. An empty canvas without a page descriptor cannot yet be saved.
 Flow picker, new-flow and template endpoints under `server/api/flowhandler/` remain stubs;
 they do not persist canvases. The separate Flow page still uses those endpoints.
 
-### Automatic recovery saves
+### 1.3.5 Automatic recovery saves
 
 The editor keeps a private recovery copy of an unsaved page so the author can resume work
 later. This is separate from **Save**: a recovery copy does not create an active version or
@@ -186,7 +190,7 @@ the page descriptor and element instances, not flow-only edges, viewport or prev
 The formal contract is in `ChenWeb/openspec/specs/wpi-pages/spec.md` and must be updated if
 this behavior changes.
 
-### Relationship to WPI
+### 1.3.6 Relationship to WPI
 
 The editor reads and writes element classes in `kb.wpi_descriptors` through
 `/api/v1/wpi/classes/element*` (Create Element, the ELEMENTS folder, the Properties panel,
@@ -195,7 +199,7 @@ Edit class). Page and action nodes are not linked to WPI pages or to the action 
 §3.2.3) expects the editor to create page instances from page classes. That work, and
 whatever **Load Page** should open, has not been decided or built.
 
-### Editing an element class
+### 1.3.7 Editing an element class
 
 **Edit class** on an element box reads the class's latest draft or active row
 (`GET /api/v1/wpi/classes/element/<class-id>`) into the Create Element form: the class
@@ -215,13 +219,46 @@ it leaves Save disabled; restoring the original values disables it again. Pendin
 to an existing attribute enable Save and use the existing Apply/Abandon prompt. Save is
 also disabled while loading or saving, and unchanged descriptors do not send an update.
 
-### Text and languages
+### 1.3.8 Text and languages
 
 All interface text goes through Paraglide. The editor's own keys are `wpi_toolbar_*` and
 `wpi_editor_*`. It also reuses `flowtoolbar_*`, `canvas_01_*` and `nodepalette_*` from
 the Flow page components.
 
-## Known limitations
+### 1.3.9 WPI Property Editor
+
+Entities in WPI, such as elements, panels, panes, pages, app, etc., are
+all defined by descriptors. A descriptor defines a collection of
+attributes that are used to control entities looking-and-feel
+and their behaviors. Descriptors are highly configurable. WPI
+Property Editor is a tool to let users configure any WPI entities.
+
+A WPI Property Editor is a form:
+- Editor title
+- Property Group
+  - property, edited in a Property Value Editor
+  - ...
+
+Individual properties are edited through property value editor.
+Different types of properties may be edited by different property
+editors.
+
+| Property Value Editor | Explanation |
+|-----------------------|-------------|
+| data-picker | Use a date picker to pick a date or a range of dates |
+| time-picker | Use a time picker to pick a time or a range of time |
+| color-picker | Use a color picker to pick a color |
+| length-editor | Allowed values include "auto", "elastic", "%", "px", "rem", "em", used for widths, heights, etc. |
+| value-picker | Use a pulldown menu to pick a value |
+| database-picker | Use a pulldown menu to pick a database |
+| schema-picker | Use a pulldown menu to pick a schema |
+| table-picker | Use a pulldown menu to pick a table |
+| field-picker | Use a pulldown menu to pick a field |
+| icon-picker | Use an icon picker to pick an icon |
+| button-type-picker | Show the button types the system supports and let users pick one |
+
+
+## 1.4 Known limitations
 
 - **Flow storage is incomplete.** The flow server endpoints are placeholders (see Storage);
   ordinary page saves persist WPI descriptors, not arbitrary flow canvases.
