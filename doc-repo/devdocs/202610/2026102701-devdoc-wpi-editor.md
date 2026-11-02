@@ -230,7 +230,8 @@ and schema version remain fixed. No temporary instance ID is added to this JSON.
 While **Properties** is selected, View JSON continues to show the instance or page.
 
 The form edits the attribute name, its description in one or both languages, the
-**Class / Instance** flag, its default, and its value editor. Choosing an editor
+**Attribute scope** dropdown (**Class attribute** or **Instance attribute**), its
+default, and its value editor. Choosing an editor
 shows configuration fields such as choices, number limits or allowed length units.
 **Editor options as JSON** edits only the selected value editor's configuration;
 for `localized-text`, it is that editor's options, not the translated text or class
@@ -246,7 +247,14 @@ classes, the flag records authoring scope only and does not restrict runtime
 overrides; the form says so beside the flag.
 
 **Save class** updates the existing record in place, retaining its version, status
-and creation details. It is disabled until something changes and while loading or
+and creation details. Every displayed attribute's scope, editor ID and options
+are explicit in `body.attribute_definitions`, including `/label`; descriptions
+also remain in the element's help tip. Older descriptors missing definitions get
+them in the local draft. A note asks the author to save those definitions to the
+body; opening a descriptor alone does not write the database. Existing explicit
+configuration is preserved. Clearing a plain description removes both its help tip
+and description metadata. Dirty checks ignore object-key ordering from PostgreSQL.
+Save is disabled for a complete, unchanged descriptor and while loading or
 saving. Invalid edits stay in the form with the server's issues; no record is
 changed. A missing class returns 404 and saving never creates a replacement.
 A successful save refreshes the class lists. Existing instances retain their own
