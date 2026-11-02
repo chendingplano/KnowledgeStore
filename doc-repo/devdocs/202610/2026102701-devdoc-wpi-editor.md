@@ -128,15 +128,14 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   `width`/`height`, then 0. Results are **not** snapped to the grid, because snapping would
   undo centre alignment. Distribute orders nodes by their left (or top) edge, keeps the
   first and last in place, and sets equal gaps; overlapping nodes give a negative gap.
-- **Undo / redo:** full snapshots of nodes and edges, at most 50 undo steps. One step is
-  recorded before: create, palette drop, duplicate, delete from the box tool bar, new edge,
-  align, distribute and edge-style change.
-  Not recorded: edits in the properties panel, and renames. Two handlers record *after* the
-  change, so the step is wrong: `onnodedragstop` (undo after a drag restores the
-  dragged-to position, so the drag itself cannot be undone) and `ondelete` (undo after a
-  Backspace delete restores the state without the deleted nodes; the tool bar's Delete
-  records its step first). Both were verified in the browser
-  on 2026-10-27. A second undo then steps back past the change.
+- **Undo / redo:** full snapshots of the page descriptor, preview size, nodes and edges, at
+  most 50 undo steps. A step is recorded before every change: create, palette drop,
+  duplicate, delete (tool bar or Backspace), the start of a drag, page and pane resizing,
+  new edge, align, distribute, edge-style change, edits in the properties panel (both
+  tabs) and in View JSON, page, pane and panel settings, and pane split, merge, add,
+  delete, rename and move. Typing in an element's property field records one step per
+  keystroke, so undoing a typed value takes one step per character and uses up the 50
+  steps quickly.
 - **Keyboard:** ⌘/Ctrl+Z undo; ⌘/Ctrl+Y or ⌘/Ctrl+Shift+Z redo; ⌘/Ctrl+S save;
   Backspace deletes the selection (Svelte Flow default).
 - **Edges:** dragged from an output handle to an input handle. A second edge between the
@@ -225,38 +224,114 @@ All interface text goes through Paraglide. The editor's own keys are `wpi_toolba
 `wpi_editor_*`. It also reuses `flowtoolbar_*`, `canvas_01_*` and `nodepalette_*` from
 the Flow page components.
 
-### 1.3.9 WPI Property Editor
+### 1.3.9 Property editors (planned)
 
-Entities in WPI, such as elements, panels, panes, pages, app, etc., are
-all defined by descriptors. A descriptor defines a collection of
-attributes that are used to control entities looking-and-feel
-and their behaviors. Descriptors are highly configurable. WPI
-Property Editor is a tool to let users configure any WPI entities.
+**Status: planned, not built.** This section sets the rules that every property editor
+must follow. Today's editors do not follow them yet (see Known limitations). All of them,
+for the page, panes, panels and elements, will be replaced by editors that do.
 
-A WPI Property Editor is a form:
-- Editor title
-- Property Group
-  - property, edited in a Property Value Editor
-  - ...
+**Terms**
 
-Individual properties are edited through property value editor.
-Different types of properties may be edited by different property
-editors.
+| Term | Meaning |
+|---|---|
+| Entity | A part of a WPI app: the app itself, a page, a pane, a panel, an element or an action |
+| Descriptor | The JSON that describes an entity: how it looks and how it behaves |
+| Class | The reusable definition of a kind of entity, such as the `chart` element, stored in `kb.wpi_descriptors`. Pages have no classes: a page is complete in itself and is reused by copying |
+| Instance | A copy of a class placed in a page. Changing an instance never changes its class |
+| Property | One attribute in a descriptor. The code, the API and the specs call these *attributes* |
+| Property editor | The form in the right-hand Properties panel that shows and edits the properties of the selected entity |
+| Value editor | The control that edits one property, such as a pulldown menu or a colour picker |
 
-| Property Value Editor | Explanation |
-|-----------------------|-------------|
-| data-picker | Use a date picker to pick a date or a range of dates |
-| time-picker | Use a time picker to pick a time or a range of time |
-| color-picker | Use a color picker to pick a color |
-| length-editor | Allowed values include "auto", "elastic", "%", "px", "rem", "em", used for widths, heights, etc. |
-| value-picker | Use a pulldown menu to pick a value |
-| database-picker | Use a pulldown menu to pick a database |
-| schema-picker | Use a pulldown menu to pick a schema |
-| table-picker | Use a pulldown menu to pick a table |
-| field-picker | Use a pulldown menu to pick a field |
-| icon-picker | Use an icon picker to pick an icon |
-| button-type-picker | Show the button types the system supports and let users pick one |
+**Why**
 
+Each kind of entity has its own property editor, written separately, and they have
+drifted apart. Some have a title and some do not. Some show help tips and some do not.
+Many properties that should be pulldown menus, or one of the value editors below, are
+plain text fields. Some editors do not show the effect of a change, or do not pick up a
+change made on the canvas. The rules below make every property editor look and work the
+same way and reuse the same value editors.
+
+**Where property editors come from**
+
+A new entity class is built in four steps:
+
+1. Write a proposal.
+2. Review it, and revise it until it is approved.
+3. Implement it. The implementation includes the class's property editor. For example,
+   the `chart` element's implementation contains both the code that draws charts and the
+   editor for a chart's properties.
+4. Add the class's record to `kb.wpi_descriptors`.
+
+A property editor is a Svelte component written by hand, like the rest of the class's
+code. It is built into the app, so selecting the same entity again reuses the component;
+nothing is generated or rebuilt while the editor runs. Describing property editors with
+descriptors and drawing them with WPI, as if they were WPI pages, may come later. That is
+a separate piece of work.
+
+**What property editors change**
+
+The WPI Editor edits pages. Placing a class on a page copies it into the page as an
+instance. The WPI Editor and the property editors change instances only, never classes.
+(The Edit class form in §1.3.7 does change a class record, but it is a separate form, not
+a property editor.)
+
+**Rules for every property editor**
+
+- **Shows the selection.** The Properties panel shows the property editor of the selected
+  entity. With nothing selected, or more than one entity selected, it shows nothing.
+- **Same layout.** A title naming the entity, then its properties in groups. Clicking a
+  group's heading folds or unfolds it. Each property has a label, a value editor and a
+  help tip.
+- **Right value editor.** Each property uses the value editor for its type (table below).
+  A property with a fixed set of values uses a pulldown menu, never a text field.
+- **Changes show at once.** A changed value takes effect on the canvas immediately.
+- **Canvas changes show at once.** Moving or resizing an entity, or splitting a pane, on
+  the canvas updates the property editor immediately. An editor whose values differ from
+  what the canvas shows is a bug.
+- **Positions.** Every entity's property editor shows its position. Where a layouter
+  places the entity, the position is read-only and is not stored. The planned manual
+  layouter places nothing itself: users arrange entities by dragging them, and the
+  property editor shows and edits their positions, in step with the canvas.
+- **Undo.** Every property change can be undone and redone (see Editing behaviour).
+- **Both languages.** Titles, labels, group names and help tips go through Paraglide, in
+  English and Chinese (see Text and languages).
+
+**Value editors**
+
+Unless a value editor is very simple, build it as a reusable module and catalogue it
+under `KnowledgeStore/doc-repo/modules/`. The list will grow: when a class needs a value
+editor that is not listed, add it here and build it the same way. The *Today* column says
+where the behaviour lives now, before the replacement.
+
+| Value editor | What it edits | Today |
+|---|---|---|
+| text-editor | One line of text, such as a label or a placeholder | Text fields in every panel |
+| multiline-text-editor | Longer text, such as a system prompt or a text element's content | Text areas in several panels |
+| localized-text-editor | Text that is either one string or separate English and Chinese versions | Text element (`TextProperties.svelte`) |
+| number-editor | A number, optionally limited to a range and a step | Chat composer rows, list row limit |
+| switch | On or off, such as *required* or a scroll bar | Checkboxes in element panels, switches in the page panel |
+| value-picker | One value from a fixed list, in a pulldown menu | Pulldown menus in every panel |
+| ordered-multi-picker | Several values from a fixed list, in order: tick to include, arrows to reorder | Chat composer tool bar and agents, chat panel tabs |
+| date-picker | A date or a range of dates | Not built |
+| time-picker | A time or a range of times | Not built |
+| color-picker | A colour: none, one colour, or separate light and dark colours, chosen with a picker or typed as a CSS colour | Pane and panel colours (see What is on the screen); typed text in the text element |
+| length-editor | A width, height, gap and the like: `auto`; `elastic`, which grows into the space left in its row, within its minimum and maximum; or a number in `px`, `rem`, `em` or `%`. A property may allow fewer units: font sizes take only `px`, `rem` and `em` | Typed text, checked when entered |
+| font-picker | A font family | Typed text, checked when entered |
+| alignment-picker | Horizontal or vertical alignment | Pulldown menus |
+| icon-picker | An icon | A pulldown of icon names in the text element |
+| button-type-picker | One of the button types the system supports | Not built |
+| database-picker | A database | Not built on its own; the first level of Pick Table |
+| schema-picker | A schema | Not built on its own; the second level of Pick Table |
+| table-picker | A table | Pick Table (module `20261029-01`), one menu that steps through database, schema and table |
+| field-picker | One or more fields of a table | Pick Fields (module `20261029-02`) |
+| data-source-editor | Where a list gets its rows: table, fields, row limit, action and result | List element, using Pick Table and Pick Fields |
+| column-list-editor | A list's columns: the label, field and width of each, with add and remove | List element |
+| sort-order-editor | The columns a list is sorted by, each ascending or descending | List element |
+| validation-editor | Input rules: minimum, maximum and step for numbers; minimum length and pattern for text | Input element |
+| action-picker | The action an event runs, such as *save* or *open page* on a click | Element `on_click` pulldown |
+| layouter-picker | The layouter of a page or a panel | Pulldown for the page layouter; the panel's is read-only |
+| read-only-value | A value that is shown but not edited, such as an ID, a schema version or a position set by a layouter | Page ID and schema version, an element's pane |
+| json-editor | A property that no other value editor fits, edited as JSON text | The *Other* group and the Node tab |
 
 ## 1.4 Known limitations
 
@@ -264,8 +339,12 @@ editors.
   ordinary page saves persist WPI descriptors, not arbitrary flow canvases.
 - **Page and action boxes carry only a name.** Element boxes have a class and attributes;
   page and action boxes have no class or attributes yet.
-- **Dragging a box, or deleting it with Backspace, cannot be undone**, and properties-panel
-  edits and renames are not recorded at all (see Editing behaviour).
+- **Typing in a property field records one undo step per keystroke** (see Editing
+  behaviour).
+- **Property editors are not uniform yet.** Titles, help tips, value editors and keeping in
+  step with the canvas differ from one kind of entity to another. Some editors do not show
+  the effect of a change, or do not pick up a change made on the canvas. Property editors
+  (§1.3.9) sets the rules they will all be rebuilt to.
 - **Text in the editor cannot be selected.** The dashboard shell sets `select-none`, and
   the editor does not turn selection back on with `select-text` at its root, as the
   workspace rules require for each page inside that shell.
