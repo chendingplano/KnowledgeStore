@@ -1,178 +1,151 @@
-# Off-Peak-Only Auto Processing — defer LLM document processing out of peak hours
+# Peak-Hour Control for Document Processing — run AI work in peak or off-peak hours
 
-**Date:** 2026-09-28 \
-**Scope:** What the "Auto - off-peak only" upload option does, how the document processor
-holds and resumes work around peak hours, where the code lives, and what it does not do.
-**Code root:** `ChenWeb/server/api/doc-processing/offpeak_gate.go`  
-**Review date:** 2026-11-02  
-**Status:** The existing off-peak gate is implemented in part; the broader task-engine requirements below are not fully implemented.
+**Date:** 2026-09-28 (rewritten 2026-11-02 for engine-wide peak-hour control) \
+**Scope:** When the document processor does its AI work relative to DeepSeek's peak hours: the
+processor-wide setting, the per-document "Auto - off-peak only" upload option, what happens to
+work that is running when peak hours start or end, and where the code lives.
+**Code root:** `ChenWeb/server/api/doc-processing/task_engine_policy.go`
+**Status:** Implemented 2026-11-02. Automated tests pass; a live run across a real peak boundary
+has not been observed yet (see "Verification").
 
 **Traceability — openspec:**
-- `ChenWeb/openspec/changes/offpeak-only-auto-processing/proposal.md` — why this exists
+- `ChenWeb/openspec/changes/doc-processor-peak-controls/proposal.md`, `design.md`, `tasks.md` —
+  the processor-wide control, why it replaced the old per-step hold, alternatives and risks
   (moves to `changes/archive/` once archived)
-- `ChenWeb/openspec/changes/offpeak-only-auto-processing/design.md` — rationale,
-  alternatives considered, risks/trade-offs
-- `ChenWeb/openspec/changes/offpeak-only-auto-processing/tasks.md` — implementation log
-- `ChenWeb/openspec/specs/offpeak-doc-processing/spec.md` (after archive; until then
-  `changes/offpeak-only-auto-processing/specs/offpeak-doc-processing/spec.md`) — the
-  canonical requirements. **Update this spec file, not just this doc, if behavior
-  changes** — this doc explains the feature for humans and points at code; the spec is the
-  contract for agents.
-
-## Tasks, engines and requested behavior
-
-A **task** is a unit of work; a **task engine** executes tasks of its supported kind.
-The currently identified task and engine are:
-
-| Task | Purpose | Task engine |
-|---|---|---|
-| `doc-processor` | Process documents, including artifact extraction | `ChenWeb/server/cmd/doc-processor` |
-
-The following is the **requested target behavior**, not a description of functionality
-already shipped. It extends beyond the original OpenSpec change linked above. That change
-remains the contract for its existing scope; a new or updated OpenSpec contract is needed
-before the broader behavior can be considered specified and implemented.
-
-### Peak-hour mode
-
-The `doc-processor` task engine must support `peak-hour-mode` with these values:
-
-| Value | Required behavior |
-|---|---|
-| `none` | Disable peak-hour control; this is the default. |
-| `auto_peak` | Work only during peak hours. |
-| `auto_offpeak` | Work only during off-peak hours. |
-
-A task waiting because its engine's mode does not allow execution must start or resume
-when its permitted time span returns. The existing upload `processing_mode = auto_offpeak`
-is a per-document setting and must not be confused with the requested engine mode.
-The requested default `none` disables peak-hour control, including the existing gate.
-
-### Crossing a peak boundary
-
-The doc-processor must support a `cross-peak-boundary` rule governing active tasks as time
-changes between peak and off-peak. Its values are:
-
-| Value | Required behavior |
-|---|---|
-| `ignore` | Continue all active tasks; this is the default. |
-| `pause-exec` | Pause execution of all active tasks. |
-| `pause-llm` | Continue each active task until it issues an LLM call; hold that call until the time span changes. |
-| `abort` | Abort all active tasks. |
-
-The mode determines the permitted span; these rules govern active work crossing a
-boundary, and held work resumes when its permitted span returns. An LLM call already in
-flight when a boundary is crossed is not explicitly covered by the request. The exact
-pause mechanism, persistence and recovery, configuration scope, and how boundary rules
-interact with `none` and existing per-document modes require a formal design. In
-particular, the existing ten-minute lead time is not the same as a boundary transition.
-
-### Required activity logging
-
-- The doc-processor task engine has its own log.
-- Log when a task waits due to peak-hour controls and when a held task starts or resumes.
-- When an LLM call is held, write an entry to both the task engine log and
-  `public.llm_usage_event`; write an entry to both again when that call resumes.
-
-The event representation, correlation identifiers, and behavior if either log write fails
-are not yet specified. The current usage sink records LLM usage; it does not establish
-these hold/resume events.
-
-## Implementation review (2026-11-02)
-
-The broader requirements are **not fully implemented**. This is a source review, not an
-end-to-end execution or deployment audit.
-
-| Requirement | Current evidence and gap |
-|---|---|
-| Task and engine | `doc-processor` is the only task engine in scope. |
-| Engine peak-hour modes | `doc-processor` has a per-input `auto_offpeak` gate for selected processing steps. No engine-wide `none` / `auto_peak` / `auto_offpeak` control was found in the document-processing gate. |
-| Boundary rules | No `cross-peak-boundary` configuration or `pause-exec`, `pause-llm`, or `abort` boundary handling was found. An already-started processor continues; this resembles `ignore` for that step, but is not the requested configurable engine-wide rule. |
-| Task wait/resume logging | The existing doc-processor gate logs hold and resume and records held progress. Engine-wide coverage for all tasks is not established. |
-| Engine logs | The doc-processor initializes a named logger; its log destination and isolation were not verified. |
-| LLM hold/resume events | The gate holds before selected processors, not at each LLM call, and its hold/resume path does not write events to `public.llm_usage_event`. Both required paired events remain unimplemented. |
+- `ChenWeb/openspec/changes/archive/2026-11-02-offpeak-only-auto-processing/` — the original
+  "Auto - off-peak only" upload option
+- `ChenWeb/openspec/changes/doc-processor-peak-controls/specs/doc-processor-peak-controls/spec.md`
+  (after archive: `ChenWeb/openspec/specs/doc-processor-peak-controls/spec.md`) and
+  `ChenWeb/openspec/specs/offpeak-doc-processing/spec.md` — the canonical requirements.
+  **Update these spec files, not just this doc, if behavior changes** — this doc explains the
+  feature for humans and points at code; the specs are the contract for agents.
+- Requirements and hand-off: `KnowledgeStore/doc-repo/hand-offs/202611/2026110201-hand-offs-doc-processor-peak-controls.md`
 
 ## Summary
 
-Most of the work done on an uploaded document — summaries, topics, metrics, entities and so
-on — is done by an AI language model, mainly DeepSeek. DeepSeek is more expensive and less
-available during its peak hours (Beijing time 9:00–12:00 and 14:00–18:00 on Chinese working
-days).
+Most of the work done on an uploaded document — summaries, topics, metrics, entities and so on —
+is done by an AI language model, mainly DeepSeek. DeepSeek costs more and is less available
+during its peak hours (Beijing time 9:00–12:00 and 14:00–18:00 on Chinese working days).
 
-Uploads now have a processing option called **"Auto - off-peak only"**, and it is the
-default. A document uploaded this way is stored and parsed right away, exactly as with plain
-"Auto". But whenever the processor is about to start a step that uses an AI model, it first
-checks the clock. If peak hours are on, or will start within the next 10 minutes, the
-document waits. It picks up again, on its own, once peak hours are over. Nobody has to come
-back and restart it.
+The document processor can now be told **when** to work. There are three settings:
 
-While a document waits, its current step shows as *active* with the note "held: waiting for
-off-peak hours (deepseek peak hours)". The usual Stop button still works on a waiting
-document. A waiting document also gives up its place in the processing queue, so a document
-uploaded with plain "Auto" (meaning "process now, whatever the time") is not stuck behind
-it.
+- **none** — work at any time. This is the default.
+- **off-peak only** — work only outside peak hours.
+- **peak only** — work only during peak hours.
+
+One setting applies to the whole document processor. A document can also carry its own setting,
+and when it does, that wins. Today the only way a document gets its own setting is the upload
+option **"Auto - off-peak only"** (still the default choice on the upload page): such a document
+is always treated as off-peak only, even if the processor-wide setting is "none". A document
+uploaded as plain **"Auto"** follows the processor-wide setting.
+
+**A document that arrives at the wrong time waits** before doing anything at all. While it waits
+it shows as running with the note "waiting for off-peak hours (deepseek peak hours)" (or "waiting
+for peak hours …"). It gives up its place in the processing queue so other documents are not stuck
+behind it. The Stop button still works. It starts on its own when its allowed time comes.
+
+**A second setting decides what happens to a document that is already being processed when the
+time changes** (for example, an off-peak-only document still running at 9:00):
+
+- **continue** (the default) — it simply finishes.
+- **pause AI calls** — it keeps going until its next request to an AI model, then waits until its
+  allowed time returns. A request already sent to the model is allowed to finish. Each pause and
+  each resume is written to the processor's log and appears in the LLM usage lists as "LLM call
+  held (peak-hour control)" and "Held LLM call resumed" (or "Held LLM call cancelled" if the
+  document was stopped while paused). These entries are bookkeeping only: they are not counted as
+  requests, tokens or cost in any usage report.
+- **abort** — the document's processing is stopped. It shows as stopped with "aborted at
+  peak-hour boundary" and does not restart by itself; someone has to run it again.
 
 Which hours count as "peak" is not hard-coded. It is the **Peak Hours** record named
-`deepseek peak hours`, edited under *System Admin → System → Peak Hours*, together with the
-holiday calendar (*System Admin → System → Calendar*). Edits take effect within about 30
-seconds, without a restart.
+`deepseek peak hours`, edited under *System Admin → System → Peak Hours*, together with the holiday
+calendar (*System Admin → System → Calendar*). Edits take effect within about 30 seconds without a
+restart. "Adjusted working days" (for example Sunday 2026-01-04, a Chinese working day that makes
+up for the New Year holiday) count as ordinary working days.
 
-This change also fixed a mistake in how peak hours were worked out. "Adjusted working days"
-(for example Sunday 2026-01-04, a CN working day that makes up for the New Year holiday)
-had been treated as holidays, so they counted as off-peak. They now count as ordinary
-working days.
+## How to configure
+
+The settings live in `ChenWeb/config.toml`, and can be overridden for one machine in the
+uncommitted `config.local.toml` beside it:
+
+```toml
+[[task-engines.doc-processor]]
+default_mode = "none"        # none | auto_peak | auto_offpeak
+cross_peak_mode = "ignore"   # ignore | pause-llm | abort
+```
+
+`ignore`, `pause-llm` and `abort` are the "continue", "pause AI calls" and "abort" choices above.
+There may be only one such entry; an unknown value (including `pause-exec`, which is not
+supported) stops the document processor from starting, with the error in its log. Restart the
+document processor after changing these settings.
+
+Optional environment settings of the document processor:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DOC_PROCESS_OFFPEAK_PEAK_HOURS_NAME` | `deepseek peak hours` | Which Peak Hours record defines "peak" |
+| `DOC_PROCESS_OFFPEAK_POLL_SEC` | `30` | How often waiting or running work re-checks the clock |
 
 ## Where things live
 
-- **Upload page:** `/home3` → Knowledge → File Management → Upload Files, the "Auto Process"
-  dropdown next to the refresh selector. The Pending Files dialog has the same dropdown.
-  Code: `ChenWeb/web/src/lib/components/home3/kb-import-view.svelte`,
-  `ChenWeb/web/src/lib/services/kbService.ts`.
-- **Stored value:** `kb.inputs.processing_mode = 'auto_offpeak'`. Migration
-  `ChenWeb/project_migrations/20260928000005_add_auto_offpeak_processing_mode.sql`. The
-  upload API accepts it in `server/api/kbhandler/upload_handler.go`. A zip's files inherit
-  the mode.
-- **Hold/resume logic:** `server/api/doc-processing/offpeak_gate.go` (`OffPeakGate`, the
-  pipeline-slot lease, `holdForOffPeak`). It is called from `runSingleProcessorCollect`
-  and before Phase C in `control.go`, and at the start of the chunk-batch path in
-  `chunk_batch_coordinator.go`. It is wired up in `runtime.go`.
-- **Peak evaluation:** `server/api/peakhourshandler/evaluate.go`, see
-  `2026092402-devdoc-peak-hours-admin.md`.
-- **Settings** (doc-processor environment, all optional):
-
-  | Variable | Default | Meaning |
-  |---|---|---|
-  | `DOC_PROCESS_OFFPEAK_PEAK_HOURS_NAME` | `deepseek peak hours` | Which Peak Hours record defines "peak" |
-  | `DOC_PROCESS_OFFPEAK_LEAD_MINUTES` | `10` | How early before peak to stop starting new steps |
-  | `DOC_PROCESS_OFFPEAK_POLL_SEC` | `30` | How often a waiting document re-checks |
+- **Upload option:** `/home3` → Knowledge → File Management → Upload Files, the "Auto Process"
+  dropdown (also in the Pending Files dialog). Code: `ChenWeb/web/src/lib/components/home3/kb-import-view.svelte`,
+  `ChenWeb/web/src/lib/services/kbService.ts`. Stored as `kb.inputs.processing_mode = 'auto_offpeak'`.
+- **Settings:** `ChenWeb/server/cmd/config/task_engine.go`.
+- **The control itself** — choosing a document's setting, waiting, abort, pausing AI calls, the
+  pause/resume records: `ChenWeb/server/api/doc-processing/task_engine_policy.go`, called from
+  `handleEvent` in `control.go` and set up in `runtime.go`.
+- **Peak-hours check and queue-place handling:** `ChenWeb/server/api/doc-processing/peak_window.go`;
+  the peak rules themselves are in `ChenWeb/server/api/peakhourshandler/evaluate.go` (see
+  `2026092402-devdoc-peak-hours-admin.md`).
+- **Pausing AI requests:** the shared library's request gate, `shared/go/api/llm/request_gate.go`.
+  Every request the shared AI clients send — text, structured output, embeddings, each retry —
+  passes through it.
+- **Pause/resume records:** `public.llm_usage_event.event_kind` (`request`, `llm_hold`,
+  `llm_resume`, `llm_hold_cancelled`; migration `ChenWeb/project_migrations/20261102000001_add_llm_usage_event_kind.sql`).
+  A pair shares `metadata_json.hold_id`; the closing row has `held_ms`. Usage reports count only
+  `request` rows (`ChenWeb/server/api/llmreporthandler/store.go`).
+- **Log:** the document processor's own log (logger `CWB_DOCPROC_001`). Look for "task waiting
+  for its permitted peak-hour span", "task starts after peak-hour wait", "aborting task at
+  peak-hour boundary", "llm call held …", "held llm call resumed" / "cancelled".
 
 ## Known limitations
 
-- **A step that already started is not paused.** Holding happens *between* steps. A long
-  step that starts just before the 10-minute margin can run into peak hours. Raise
-  `DOC_PROCESS_OFFPEAK_LEAD_MINUTES` if that happens too often.
-- **The gate operates at processor boundaries.** It uses its own classification of which
-  processors need a hold, rather than intercepting individual LLM calls; some local work
-  can run without waiting.
-- **It holds for one window, whatever model a step uses.** A step configured with a model
-  that has no peak pricing still waits.
-- **A missing or broken Peak Hours record means no holding.** If the named record doesn't
-  exist or can't be evaluated, documents run immediately and a warning is logged. This
-  avoids silently stalling every upload over a misconfiguration.
-- **Waiting lives in memory.** If the doc-processor restarts while documents are waiting,
-  they are recovered the same way as documents that were mid-run, not by this feature.
-- **Uploads without a mode are still plain "Auto".** Only the web page's default changed.
-  An API call that leaves `processing_mode` empty still gets `auto`.
+- **Waiting and paused work lives in memory.** If the document processor restarts, that work is
+  lost and the document keeps showing "running" with its waiting note. Stop it and run it again.
+- **No early stop before peak.** With "continue", a document that starts at 8:59 runs into peak
+  hours. (The old 10-minute look-ahead was removed; use "pause AI calls" or "abort" instead.)
+- **One peak window for every model.** Pausing holds every AI request, including local embedding
+  models that have no peak pricing.
+- **A request already sent is not interrupted by a pause.** "Abort" does cancel it, and the
+  provider may still charge for it.
+- **Abort and resume are not instant.** They are noticed at the next check, up to 30 seconds by
+  default.
+- **A pause can outlast a caller's own time limit.** No document-processing step puts its own
+  time limit around an AI request today; one added later would give up when paused too long.
+- **Only document processing is controlled.** Document reviews, search and other features that
+  call AI models are not held, even when they run in the same program.
+- **A missing or broken Peak Hours record means no holding at all.** Every document runs at once
+  and a warning is logged, rather than silently stalling everything.
+- **Time spent paused counts towards a processor's run time** in its status and logs.
+- **Automatically launched work cannot yet carry its own setting**; only the upload option can.
+  An API upload that leaves the processing mode empty is plain "Auto" and follows the
+  processor-wide setting.
 
-## Original verification status (2026-09-28)
+## Verification (2026-11-02)
 
-`go build`/`go vet` pass. New unit tests in `offpeak_gate_test.go` cover: caching,
-fail-open, waiting and resuming, stop while held, slot release and re-acquire, and no hold
-for plain `auto` or the blocking step. New peak-hours tests cover adjusted working days.
-`go test` passes for `doc-processing` and `peakhourshandler`. `kbhandler` has 11 failing
-tests (auth-related). They fail the same way without this change. The migration was applied
-to `miner` by the live server, and Down→Up was checked in a rolled-back transaction.
-`svelte-check` reports no errors in the touched files.
-
-**Not yet verified:** an end-to-end run with a real upload during peak hours, and a
-click-through of the dropdown in a logged-in browser.
+- Automated tests: shared `go test ./...` passes; ChenWeb `doc-processing`, `llmusage`,
+  `llmreporthandler` and `cmd/config` pass, with the new peak-control tests also clean under the
+  race detector. They cover both directions, mode `none`, stop while waiting, slot release and
+  re-check, abort during a processor and during post-processing, and pausing a real
+  `OpenAIJSONClient` request against a test server (paired rows, stop while paused, failed row
+  write). The one failing `doc-processing` test, `TestKBMetricsReadersExcludeResolvedRows`,
+  flags `kbhandler/question_generator_worker.go`, which this work does not touch.
+- Settings read through the real start-up path: `config.toml` defaults overridden by the local
+  file gave `auto_offpeak` / `ignore`.
+- The `event_kind` migration was applied to `miner` by the running server; undo/redo was checked in
+  a rolled-back transaction; the database rejects unknown kinds.
+- The real `deepseek peak hours` record evaluated as expected (Tuesday 10:00 Beijing: peak;
+  13:00, 20:00 and Saturday: not peak).
+- **Not yet verified:** a live document processed across a real peak boundary, pause/resume rows
+  written by a live run, and the new labels viewed in a logged-in browser.
