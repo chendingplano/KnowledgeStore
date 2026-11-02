@@ -44,6 +44,10 @@ it shows as running with the note "waiting for off-peak hours (deepseek peak hou
 for peak hours …"). It gives up its place in the processing queue so other documents are not stuck
 behind it. The Stop button still works. It starts on its own when its allowed time comes.
 
+The Doc Processor dashboard shows these documents in **Waiting Pipelines**, below Active Pipelines.
+It also lists running documents with an AI call held at a peak boundary. The section is hidden when
+there are no matching documents; its Detail and Stop buttons work like those on active cards.
+
 **A second setting decides what happens to a document that is already being processed when the
 time changes** (for example, an off-peak-only document still running at 9:00):
 
@@ -101,6 +105,9 @@ Optional environment settings of the document processor:
 - **Pausing AI requests:** the shared library's request gate, `shared/go/api/llm/request_gate.go`.
   Every request the shared AI clients send — text, structured output, embeddings, each retry —
   passes through it.
+- **Dashboard waiting list:** `ChenWeb/web/src/lib/components/home3/doc-processor-dashboard-view.svelte`
+  loads all pages of `pipeline_filter=peak_waiting` from the input list handler. That filter finds
+  admission notes and unclosed AI-call hold events for running documents.
 - **Pause/resume records:** `public.llm_usage_event.event_kind` (`request`, `llm_hold`,
   `llm_resume`, `llm_hold_cancelled`; migration `ChenWeb/project_migrations/20261102000001_add_llm_usage_event_kind.sql`).
   A pair shares `metadata_json.hold_id`; the closing row has `held_ms`. Usage reports count only
@@ -113,6 +120,9 @@ Optional environment settings of the document processor:
 
 - **Waiting and paused work lives in memory.** If the document processor restarts, that work is
   lost and the document keeps showing "running" with its waiting note. Stop it and run it again.
+- **The dashboard relies on hold-event writes for paused AI calls.** If a lifecycle event cannot be
+  written, the waiting list may miss a pause or keep showing it after it ends. Unclosed events and
+  running status left behind by a restart can also leave stale entries.
 - **No early stop before peak.** With "continue", a document that starts at 8:59 runs into peak
   hours. (The old 10-minute look-ahead was removed; use "pause AI calls" or "abort" instead.)
 - **One peak window for every model.** Pausing holds every AI request, including local embedding
