@@ -40,6 +40,27 @@ Like every code module, `list` also accepts size strings for `width`, `height`,
 and `height` accept non-negative integers in pixels. The layouter applies these sizes
 (devdoc §3.7). A fixed-height list scrolls its records while keeping pagination controls visible.
 
+## Property editor
+
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/elements.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Every editor starts with a **Placement** group showing the element's pane
+and its position on the page (read-only). Help tips are the class's `help_tip` for each
+attribute; an attribute with a non-empty tip gets an info icon at the upper right of its
+value editor. A class attribute the table does not list appears under **Other** with the
+common-sense value editor (chosen from its name and default value). Value editors are
+described in devdoc 2026102701 §1.3.9.
+
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Data | `source` | data-source | Table (Pick Table), fields (Pick Fields), row limit, action (`load`, `query`), result (`list`) and sort order (sort-order) |
+| Columns | `columns` | column-list | Label, field and width of each column |
+| Columns | `presentation` | value-picker | `rows` |
+| Columns | `pagination` | value-picker | `yes`, `no`, or unset for the default |
+| Columns | `on_row_click` | json | An action instance |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
+
 ## Limits
 
 - Read-only: records cannot be edited in the list.

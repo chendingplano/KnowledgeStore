@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.4.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.5.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -87,8 +87,18 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/src/routes/wpi/[appId]/+page.svelte` | Route page: fetches the bundle, shows validation errors or the app |
 | `ChenWeb/web/src/lib/wpi/text-attributes.ts` | Text R2 defaults, value checks and literal/bound conversion |
 | `ChenWeb/web/src/lib/wpi/text-attributes.test.ts` | Text defaults, conversion, shared value vectors and old-copy tests |
-| `ChenWeb/web/src/lib/components/shared-ui/canvas/PropertiesPanel.svelte` | Dispatches text module properties using the saved class copy |
-| `ChenWeb/web/src/lib/components/shared-ui/canvas/TextProperties.svelte` | Six bilingual text Properties groups, typed controls, reset and fixed display |
+| `ChenWeb/web/src/lib/wpi/properties/types.ts` | Property editor definition types: `EditorDef`, `GroupDef`, `PropertyDef`, `PropertySource` (OpenSpec `wpi-property-editors`) |
+| `ChenWeb/web/src/lib/wpi/properties/common-sense.ts` | The value editor for a property no definition describes |
+| `ChenWeb/web/src/lib/wpi/properties/common-sense.test.ts` | Common-sense editor tests |
+| `ChenWeb/web/src/lib/wpi/properties/shared.ts` | Groups and choices the definitions share: placement, element size, binding modes, font weights |
+| `ChenWeb/web/src/lib/wpi/properties/text.ts` | `text` property editor definition, with the module's validation and warnings |
+| `ChenWeb/web/src/lib/wpi/properties/input.ts` | `input` property editor definition and the input module's defaults |
+| `ChenWeb/web/src/lib/wpi/properties/elements.ts` | `select`, `button`, `list` and `menu` property editor definitions |
+| `ChenWeb/web/src/lib/wpi/properties/chat.ts` | `chat-composer` and `chat-panel` property editor definitions |
+| `ChenWeb/web/src/lib/wpi/properties/page.ts` | Page, pane and flow-layouter panel property editor definitions |
+| `ChenWeb/web/src/lib/wpi/properties/sources.ts` | What the property editor reads and writes for an element, the page, a pane and a panel |
+| `ChenWeb/web/src/lib/wpi/properties/index.ts` | Definitions by code module ID; `moduleFallbacks` |
+| `ChenWeb/web/src/lib/wpi/properties/properties.test.ts` | Definition and source tests |
 | `ChenWeb/web/src/lib/components/shared-ui/canvas/text-property-labels.ts` | Paraglide labels/help for text attributes, groups and choices |
 | `ChenWeb/server/api/wpi/text-values.json` | Shared finite CSS-color and icon vocabulary used by client/server |
 | `ChenWeb/server/api/wpi/text-attribute-cases.json` | Shared valid/invalid client/server text-value cases |

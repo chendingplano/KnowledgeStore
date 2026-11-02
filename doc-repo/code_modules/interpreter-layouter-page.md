@@ -51,6 +51,31 @@ when it has none.
 The leaf-only attributes on a split pane are validation errors. Split panes are separated by
 a line in the theme's border colour.
 
+### 3.1 Property editor
+
+The WPI Editor shows a pane's properties when *Panes* is chosen (the root pane when no pane
+is selected) or a pane is clicked in the preview. Above the groups are the pane tree, to choose
+another pane, and the commands to split, add, merge and delete panes. The editor is
+drawn at run time from `ChenWeb/web/src/lib/wpi/properties/page.ts` (OpenSpec
+`wpi-property-editors`); the table is the contract that file follows. Labels and help tips
+are Paraglide messages (`wpi_prop_*`) in English and Chinese; a non-empty tip shows as an
+info icon at the upper right of the value editor. *Reset* removes the attribute. Value
+editors are described in devdoc 2026102701 §1.3.9.
+
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Pane | `pane_id` | text | Applied on leaving the field or Enter; refused when invalid or already used. Renaming moves the panel and elements. No *Reset* |
+| Pane | position | read-only | x and y in page pixels from the page's top-left corner |
+| Size | `width`, `height` | length | `auto`, `elastic`, or a number in px, rem, em or % |
+| Size | `min_width`, `min_height`, `max_width`, `max_height` | length | A number in px, rem, em or % |
+| Size | `resizable` | switch | |
+| Margins (leaf panes) | `left_margin`, `right_margin`, `top_margin`, `bottom_margin` | length | px, rem or em |
+| Colors and border | `background_color`, `foreground_color` | color | None, one CSS colour, or light and dark |
+| Colors and border | `border_thickness` | length | px |
+| Colors and border | `border_light_color`, `border_dark_color` | color | None or one CSS colour |
+| Content placement (leaf panes) | `hori_align`, `vert_align` | value-picker | `left`, `center`, `right`; `top`, `center`, `bottom`; or unset |
+| Content placement (leaf panes) | `hori_scrollbar`, `vert_scrollbar` | switch | On stores `auto`, off stores `hide` |
+
 ## 4. A page opened in a pane
 
 When a page is opened in a leaf pane of another page, that pane takes the place of the page's

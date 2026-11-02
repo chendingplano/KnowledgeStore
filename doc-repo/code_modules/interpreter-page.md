@@ -179,6 +179,35 @@ The element layouter copy is `{"layouter": "flow-layouter", "class": <class row>
 parameters are in [Flow Layouter](interpreter-layouter-flow.md). A panel's size comes from its
 content; elastic and percentage element widths make it as wide as its pane's content area.
 
+### 4.3 Property editor
+
+The WPI Editor shows the page's properties when *View page config* is chosen. The editor is
+drawn at run time from `ChenWeb/web/src/lib/wpi/properties/page.ts` (OpenSpec
+`wpi-property-editors`); the table is the contract that file follows. Labels and help tips
+are Paraglide messages (`wpi_prop_*`) in English and Chinese; a non-empty tip shows as an
+info icon at the upper right of the value editor. *Reset* removes the attribute. Value
+editors are described in devdoc 2026102701 §1.3.9.
+Attributes the table does not list appear under **Other** as JSON.
+
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Basic Info | `descriptor_id`, `schema_version` | read-only | |
+| Basic Info | `page_name` | localized-text | One text, or English and Chinese |
+| Basic Info | `description` | localized-text | Two rows |
+| Basic Info | `keywords`, `page_tags` | string-list | Comma-separated |
+| Geometry | `page_layouter` | value-picker | The page layouter classes (`GET /api/v1/wpi/classes/page-layouter`); choosing one replaces the pane tree. No *Reset* |
+| Geometry | `width`, `height` | length | `auto`, or a number in px, rem, em or % |
+| Geometry | `min_width`, `min_height`, `max_width`, `max_height` | length | A number in px, rem, em or % |
+| Geometry | `hori_align`, `vert_align` | value-picker | `left`, `center`, `right`; `top`, `center`, `bottom`; or unset |
+| Geometry | `hori_scrollbar`, `vert_scrollbar` | switch | On stores `auto`, off stores `hide` |
+| Colors | `bkgd_color`, `frgd_color` | color | None or one CSS colour (`auto` allowed) |
+| Actions | `save_action` | json | A `save` action instance |
+| Actions | `refresh` | switch | On stores `{ "on_show": true }` |
+| Misc | `access_controls` | string-list | Roles, comma-separated; empty means everyone |
+| Misc | `page_policy`, `page_style` | text | Reserved |
+| Misc | `binding_mode` | value-picker | `read-only`, `read-write`, or unset |
+| Misc | `input` | json | Static data or an action instance |
+
 ## 5. Example: Customers
 
 The page `demo-customers` shows a title followed by customer records from
@@ -371,7 +400,7 @@ changing action locations while an app is open can affect its next action reques
 | Page, panes and panels | `web/src/lib/wpi/PageView.svelte`, `PaneView.svelte`, `PanelView.svelte`, `layout.ts` |
 | Copy resolution and element dispatch | `web/src/lib/wpi/entries.ts`, `elements/Element.svelte`, `elements/index.ts` |
 | Element layouters and Flow | `web/src/lib/wpi/layouters/index.ts`, `layouters/FlowLayouter.svelte` |
-| Editor: pages, panes, preview | `web/src/lib/components/shared-ui/wpi-editor.svelte`, `canvas/wpi-json.ts`, `canvas/pane-edit.ts`, `canvas/PagePreview.svelte`, `canvas/PageConfigPanel.svelte` |
+| Editor: pages, panes, preview | `web/src/lib/components/shared-ui/wpi-editor.svelte`, `canvas/wpi-json.ts`, `canvas/pane-edit.ts`, `canvas/PagePreview.svelte`, `canvas/WpiProperties.svelte`, `canvas/PaneStructure.svelte` |
 
 A new page or pane attribute needs its specification, Go validation, TypeScript shape and
 consuming runtime/rendering code changed together, and a migration when stored pages must

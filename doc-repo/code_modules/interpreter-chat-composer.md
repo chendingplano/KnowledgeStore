@@ -227,18 +227,30 @@ width of the element.
 
 All attributes are optional, so an incomplete page has nothing to finish for this element.
 
-## Properties panel
+## Property editor
 
-Groups are presentation only; the instance stays flat. The editor groups a class by its code
-module, so specialised classes get the same groups. Labels are in Paraglide. Fixed values are
-shown read-only as "Fixed by class". Reset removes the instance value.
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/chat.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Groups are presentation only; the instance stays flat. Every editor starts
+with a **Placement** group showing the element's pane and its position on the page
+(read-only). Labels and group names are in Paraglide. Help tips are the class's `help_tip`
+for each attribute; an attribute with a non-empty tip gets an info icon at the upper right
+of its value editor. A value fixed by the class is shown read-only, marked fixed; *Reset*
+removes the instance's own value. Hidden attributes keep their values. A class attribute
+the table does not list appears under **Other** with the common-sense value editor. Value
+editors are described in devdoc 2026102701 §1.3.9.
 
-| Order and group | Attributes, labels EN / 中文 | Controls |
-| --- | --- | --- |
-| 1. Message box / 消息框 | `placeholder` Placeholder / 占位文字; `rows` Rows / 行数; `slash_commands` Slash commands / 斜杠命令 | Text (JSON for a language map), number 1–20, checkbox |
-| 2. Tool bar / 工具栏 | `toolbar` Controls / 控件 | A checklist of the five controls; checked ones are stored in order, with move up and down buttons |
-| 3. Assistant / 助手 | `agents` Assistants / 助手; `default_agent` Default assistant / 默认助手; `default_model` Default model / 默认模型 | A checklist of the four assistants (at least one stays checked), a choice among the checked ones or "First in the list", text |
-| 4. Size / 尺寸 | `width`, `height`, `min_width`, `max_width` | Size fields |
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Message box | `placeholder` | localized-text | One text, or English and Chinese |
+| Message box | `rows` | number | A whole number from 1 to 20 |
+| Message box | `slash_commands` | switch | On when unset |
+| Tool bar | `toolbar` | ordered-multi-picker | The five controls; ticked ones are stored in order; unset means all |
+| Assistant | `agents` | ordered-multi-picker | The four harness assistants; at least one stays ticked |
+| Assistant | `default_agent` | value-picker | The ticked assistants, or *First in the list* (unset) |
+| Assistant | `default_model` | text | A model name |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
 
 ## Examples
 
@@ -462,7 +474,7 @@ A material change returns to review.
 | `web/src/lib/wpi/elements/ChatComposerElement.svelte` | The composer |
 | `web/src/lib/wpi/elements/index.ts`, `types.ts` | Registration; descriptor fields |
 | `web/src/lib/services/harnessFrontendService.ts` | `listHarnesses`; `HarnessRequestError` carries the HTTP status |
-| `web/src/lib/components/shared-ui/canvas/PropertiesPanel.svelte` | Groups by code module; checklist and choice controls |
+| `web/src/lib/wpi/properties/chat.ts` | Property editor definition (groups, ordered multi-pickers, choices) |
 | `web/src/lib/wpi/api.ts`, `server/api/wpi/store.go` | The element class list reports `code_module_id` |
 | `server/api/wpi/chat_attributes.go`, `validate.go`, `bundle.go` | Attribute checks, one composer per page, pairing warnings |
 | `project_migrations/20261030000005_wpi_chat_elements.sql` | `kb.code_modules` rows and the active `chat-composer` and `chat-panel` classes (version 1) |

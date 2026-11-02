@@ -159,28 +159,47 @@ Example descriptor:
 }
 ```
 
-## Properties panel grouping
+## Property editor
 
-The WPI Editor should present these groups in the order below. These are editor
-presentation groups, not nested objects in the element descriptor. Keep the stored
-attribute names flat, except for the members of `validation`. Group headings and labels
-must be localized in English and Chinese. Show class-fixed values read-only; offer reset
-to the class default for editable values. An omitted `default_value` means an optional
-attribute with no class default, whereas an explicit null marks a required instance
-attribute. The pane selector is editor context and is not an input attribute.
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/input.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Groups are presentation only; the instance stays flat. Every editor starts
+with a **Placement** group showing the element's pane and its position on the page
+(read-only). Labels and group names are in Paraglide. Help tips are the class's `help_tip`
+for each attribute; an attribute with a non-empty tip gets an info icon at the upper right
+of its value editor. A value fixed by the class is shown read-only, marked fixed; *Reset*
+removes the instance's own value. Hidden attributes keep their values. A class attribute
+the table does not list appears under **Other** with the common-sense value editor. Value
+editors are described in devdoc 2026102701 §1.3.9.
 
-| Group | Attributes, in display order | Editor guidance |
-| --- | --- | --- |
-| General | `label`, `data_binding`, `binding_mode`, `input_type` | Localized text editor, binding path, and enumerated choices. |
-| Caption layout | `label_placement`, `label_horizontal_gap`, `label_vertical_gap`, `label_horizontal_align`, `label_vertical_align`, `label_max_width`, `label_max_lines` | Show the relevant gap and vertical alignment for the chosen placement; preserve values when hidden. |
-| Caption appearance | `label_font_family`, `label_font_size`, `label_color`, `label_font_weight`, `label_font_style` | Font, length, color and choice controls; allow unset values to inherit defaults. |
-| Input and help | `placeholder`, `help_text`, `help_tip`, `autocomplete` | Localized text editors for the first three; autocomplete token input. |
-| Validation | `required`, `max_length`, `validation.min_length`, `validation.pattern`, `validation.min`, `validation.max`, `validation.step` | Boolean and typed rule controls; show text or number rules as appropriate and preserve hidden values. Edit members of the single `validation` object. |
-| Size | `width`, `height`, `min_width`, `max_width` | These size the whole element through the layouter. |
+When neither the instance nor its class sets a caption or type attribute, the editor shows the
+value `InputElement.svelte` uses (`inputDefaults` in the definition file).
 
-The Properties panel groups the `input` class this way. Unlisted class attributes appear in
-Other. Text and localized values may be edited as JSON in the generic property control;
-validation members have individual controls.
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| General | `label` | localized-text | One text, or English and Chinese |
+| General | `data_binding` | text | A path such as `$input_doc.name` |
+| General | `binding_mode` | value-picker | `read-only`, `read-write` |
+| General | `input_type` | value-picker | `text`, `password`, `email`, `number`, `tel`, `url`, `search` |
+| Caption layout | `label_placement` | value-picker | `left`, `top`, `right`, `bottom` |
+| Caption layout | `label_horizontal_gap` | length | px; shown for `left` and `right` placement |
+| Caption layout | `label_vertical_gap` | length | px; shown for `top` and `bottom` placement |
+| Caption layout | `label_horizontal_align` | value-picker | `left`, `center`, `right` |
+| Caption layout | `label_vertical_align` | value-picker | `top`, `center`, `bottom`; shown for `left` and `right` placement |
+| Caption layout | `label_max_width` | length | px |
+| Caption layout | `label_max_lines` | number | A whole number, at least 1 |
+| Caption appearance | `label_font_family` | text | A CSS font family |
+| Caption appearance | `label_font_size` | length | px |
+| Caption appearance | `label_color` | color | None or one CSS colour |
+| Caption appearance | `label_font_weight` | value-picker | `normal`, `bold`, `100`–`900`; numbers are stored as numbers |
+| Caption appearance | `label_font_style` | value-picker | `normal`, `italic`, `oblique` |
+| Input and help | `placeholder`, `help_text`, `help_tip` | localized-text | One text, or English and Chinese |
+| Input and help | `autocomplete` | text | An autocomplete token |
+| Validation | `required` | switch | |
+| Validation | `max_length` | number | A whole number, at least 0; hidden for `number` inputs |
+| Validation | `validation` | validation | `min`, `max`, `step` for `number` inputs; `min_length`, `pattern` otherwise. Rules of the other kind are kept |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px; a note under `width` says the panel's limits also apply |
 
 ## Implementation and verification
 

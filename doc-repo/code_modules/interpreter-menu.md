@@ -36,6 +36,24 @@ Like every code module, `menu` also accepts the size attributes `width`, `height
 `min_width` and `max_width`. The layouter applies them (devdoc §3.7); this code does not
 read them.
 
+## Property editor
+
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/elements.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Every editor starts with a **Placement** group showing the element's pane
+and its position on the page (read-only). Help tips are the class's `help_tip` for each
+attribute; an attribute with a non-empty tip gets an info icon at the upper right of its
+value editor. A class attribute the table does not list appears under **Other** with the
+common-sense value editor (chosen from its name and default value). Value editors are
+described in devdoc 2026102701 §1.3.9.
+
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Items | `items` | json | The menu tree |
+| Items | `initial_item` | value-picker | The `item_id`s in `items` that have no children; unset means the first |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
+
 ## Limits
 
 - Item labels are plain strings, the same in every language (devdoc §9).

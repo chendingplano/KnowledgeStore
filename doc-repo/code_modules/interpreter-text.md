@@ -231,28 +231,53 @@ Backend errors use WPI's descriptor/path error contract and existing logger conv
 No content/value logging is added. Retrieval authorization belongs to backend actions;
 caption/icon/tooltip choices grant no permission. No text-specific input validation rules.
 
-## Properties panel — implemented R2
+## Property editor
 
-Groups are display-only; attributes remain flat. Localize every label/help through Paraglide.
-Show available class-copy fields plus common sizes. Unknown fields stay under Other / 其他
-with warnings. Fixed values show read-only with Fixed by class / 类固定值. Reset removes
-an override to restore the saved default/fallback; it never stores null. Clearing an optional
-caption removes its key. Empty text, help or icon is an explicit string value, not omission.
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/text.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Groups are presentation only; the instance stays flat. Every editor starts
+with a **Placement** group showing the element's pane and its position on the page
+(read-only). Labels and group names are in Paraglide. Help tips are the class's `help_tip`
+for each attribute; an attribute with a non-empty tip gets an info icon at the upper right
+of its value editor. A value fixed by the class is shown read-only, marked fixed; *Reset*
+removes the instance's own value. Hidden attributes keep their values. A class attribute
+the table does not list appears under **Other** with the common-sense value editor. Value
+editors are described in devdoc 2026102701 §1.3.9.
 
-| Order/group EN / 中文 | Fields in order (EN / 中文) | Controls and help |
-| --- | --- | --- |
-| 1. Content / 内容 | `text` Text / 文本; `data_binding` Binding / 数据绑定; `label` Caption / 标题; `help_tip` Tooltip / 提示 | Localized editors and binding path. “Set one content source.” / “只设置一个内容来源。” |
-| 2. Caption layout / 标题布局 | `label_placement` Placement / 位置; `label_horizontal_gap` Horizontal gap / 水平间距; `label_vertical_gap` Vertical gap / 垂直间距; `label_horizontal_align` Horizontal alignment / 水平对齐; `label_vertical_align` Vertical alignment / 垂直对齐; `label_max_width` Maximum width / 最大宽度; `label_font_weight` Weight / 字重 | Choices/length/weight. “Wrap the full caption.” / “完整显示并换行标题。” |
-| 3. Icon / 图标 | `icon` Icon / 图标; `icon_placement` Placement / 位置; `icon_size` Size / 尺寸; `icon_gap` Gap / 间距; `icon_color` Color / 颜色 | Local icon picker, choices, lengths, color/inherit. “Decorative; keep meaning in text.” / “仅作装饰；请用文字表达含义。” |
-| 4. Typography / 字体 | `font_family` Family / 字体族; `font_size` Size / 字号; `font_weight` Weight / 字重; `font_style` Style / 样式; `line_height` Line height / 行高 | Typed fields with default/inherit options. “Defaults preserve small paragraph text.” / “默认保留小号段落文字。” |
-| 5. Appearance and layout / 外观与布局 | `color` Foreground / 前景色; `background_color` Background / 背景色; `text_align` Alignment / 对齐; `white_space` Whitespace / 空白处理; `padding` Padding / 内边距 | Color, choices and spacing. “Check both themes.” / “检查两种主题。” |
-| 6. Size / 尺寸 | `width` Width / 宽度; `height` Height / 高度; `min_width` Minimum width / 最小宽度; `max_width` Maximum width / 最大宽度 | Size fields; optional maximum. “Size the entire element.” / “设置整个元素的尺寸。” |
+Each group has a one-line hint under its heading. Caption settings are shown only when the
+element has a caption, icon settings only when it has an icon, and the horizontal gap and
+vertical alignment only for `left` and `right` placement. When neither the instance nor its
+class sets a value, the editor shows the module default (`textDefaults`). Values are checked
+with `validTextAttribute`; an invalid one is not applied. A width or height above `max_width`
+or the panel's maximum element width or row height, and a binding set beside `text`, are shown
+as warnings. No `source_mode` is stored.
 
-Caption controls are conditional on a supplied caption; icon layout is conditional on a
-nonempty icon. Hide irrelevant horizontal/vertical caption controls by placement but retain
-values. No `source_mode` is stored: source switching explicitly clears the prior instance
-source; defaults/fixed source conflicts require a suitable class copy, not silent deletion.
-Display whether each effective value comes from an override, class default or module fallback.
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Content | `text` | localized-text | One text, or English and Chinese; *Use empty text* stores `""` |
+| Content | `data_binding` | text | A path under `$input_doc` |
+| Content | `label` | localized-text | The caption |
+| Content | `help_tip` | localized-text | The tooltip; *No tooltip* stores `""` |
+| Caption layout | `label_placement` | value-picker | `top`, `left`, `right`, `bottom` |
+| Caption layout | `label_horizontal_gap`, `label_vertical_gap`, `label_max_width` | length | px |
+| Caption layout | `label_horizontal_align` | value-picker | `start`, `center`, `end` |
+| Caption layout | `label_vertical_align` | value-picker | `top`, `center`, `bottom` |
+| Caption layout | `label_font_weight` | value-picker | `inherit`, `normal`, `bold`, `100`–`900`; numbers are stored as numbers |
+| Icon | `icon` | value-picker | *None* (stored as `""`) and the icons in `server/api/wpi/text-values.json` |
+| Icon | `icon_placement` | value-picker | `start`, `end` |
+| Icon | `icon_size`, `icon_gap` | length | px |
+| Icon | `icon_color` | color | None or one CSS colour; `inherit` may be typed |
+| Typography | `font_family` | text | A CSS font family or `inherit` |
+| Typography | `font_size` | length | px, rem or em |
+| Typography | `font_weight` | value-picker | `inherit`, `normal`, `bold`, `100`–`900` |
+| Typography | `font_style` | value-picker | `normal`, `italic`, `oblique` |
+| Typography | `line_height` | json | `normal` or a positive number |
+| Appearance and layout | `color`, `background_color` | color | None or one CSS colour |
+| Appearance and layout | `text_align` | value-picker | `start`, `center`, `end`, `justify` |
+| Appearance and layout | `white_space` | value-picker | `normal`, `pre-wrap` |
+| Appearance and layout | `padding` | text | One to four lengths in px or rem |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
 
 ## Examples
 
@@ -654,8 +679,8 @@ Implemented files:
   `text` in `elements/index.ts`; public interface remains `{ instanceId, element }`.
 - Descriptor types and pure client validation/defaults: `types.ts`, `text-attributes.ts`
   and `text-attributes.test.ts` under `ChenWeb/web/src/lib/wpi/`.
-- Properties: `TextProperties.svelte`, `text-property-labels.ts` and the text-module
-  integration in `PropertiesPanel.svelte`, under `web/src/lib/components/shared-ui/canvas/`.
+- Property editor: the definition `web/src/lib/wpi/properties/text.ts`, with labels from
+  `web/src/lib/components/shared-ui/canvas/text-property-labels.ts`.
 - Backend: `text_attributes.go`, `text_attributes_test.go`, shared `text-values.json` and
   `text-attribute-cases.json`, plus `validate.go` registration under `server/api/wpi/`.
 - Reproducible real-component browser checks: `ChenWeb/web/tests/wpi-text/test_text.py`

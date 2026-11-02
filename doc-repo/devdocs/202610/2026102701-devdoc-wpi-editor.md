@@ -23,6 +23,10 @@ server validation errors are shown to the author. Empty canvases and canvases co
 non-element nodes or connections cannot yet be saved. Flow management and template saving
 still use placeholder endpoints.
 
+The right-hand Properties panel shows the selected page, pane, panel or element. Every one of
+these editors is drawn by one shared property editor from a definition, so they all look and
+work the same way (§1.3.9).
+
 ## 1.2 What is on the screen
 
 - **Left — node palette.** Building blocks you can drag onto the canvas, in folders
@@ -31,10 +35,14 @@ still use placeholder endpoints.
 - **Middle — tool bar and canvas.** The tool bar runs along the top of the canvas (table
   below). The canvas has zoom controls at the bottom left, an overview map at the bottom
   right, and a gear button at the top right for line style and grid settings.
-- **Right — properties.** When exactly one box is selected, it is edited here on two tabs:
-  **Properties** (its name and settings) and **Node** (its descriptor, the JSON *View JSON*
-  shows, as name/value rows to add, rename, change and remove). Drag the panel's left edge
-  to make it wider or narrower (200–640 px; it starts at 390 px).
+- **Right — properties.** The property editor of the one selected entity (§1.3.9): an
+  element box, or the page, a pane or a panel chosen with **View page config**, **Panes** and
+  **Panel** above the canvas or by clicking the preview. With nothing selected, or several
+  boxes, the panel is empty. An element is edited on two tabs: **Properties** (its property
+  editor) and **Node** (its descriptor, the JSON *View JSON* shows, as name/value rows to add,
+  rename, change and remove). Other boxes (flow nodes, page and action boxes) show their name
+  and settings. Drag the panel's left edge to make it wider or narrower (200–640 px; it starts
+  at 390 px).
 - **Above a selected box — its tool bar.** **Duplicate** adds a copy one grid cell down and
   right (further while another box sits there), with the same data and size, and selects
   it; lines are not copied. **Delete** removes the box and every line attached to it. Both
@@ -72,7 +80,12 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/WpiTreeDialog.svelte`, `wpi-json.ts` | Read-only element tree, assembled from the current canvas using the same pane assignment and reading order as the page descriptor |
 | `web/src/lib/components/shared-ui/canvas/align-nodes.ts` | Pure align/distribute functions; tests in `align-nodes.test.ts` (`bun test`) |
 | `web/src/lib/components/shared-ui/canvas/nodes/WpiNode.svelte` | Renders the three WPI node types; icon chosen by node type |
-| `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`) |
+| `web/src/lib/components/shared-ui/canvas/{NodePalette,PropertiesPanel,FlowPicker}.svelte`, `nodes/*` | Shared with the Flow page (`canvas-01.svelte`). In the WPI editor `PropertiesPanel` shows only flow nodes and page/action boxes |
+| `web/src/lib/components/shared-ui/canvas/WpiProperties.svelte` | The Properties panel for WPI entities: the element, page, pane or panel editor for the selection, or nothing |
+| `web/src/lib/components/shared-ui/canvas/PaneStructure.svelte` | The pane editor's tree and its split, add, merge and delete commands |
+| `web/src/lib/components/shared-ui/canvas/edit-session.ts` | One undo step per focus; tests in `edit-session.test.ts` |
+| `web/src/lib/components/shared-ui/property-editor/`, `value-editors/` | The shared property editor and the value editors (reusable modules `20261102-01` to `-08`) |
+| `web/src/lib/wpi/properties/` | The property editor definitions and the sources that read and write each kind of entity (§1.3.9) |
 | `web/src/lib/components/shared-ui/canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts` | The properties panel's Node tab; only the WPI editor turns it on (`nodeTab`), so the Flow page's panel has no tabs |
 | `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
 | `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element, and, given a `classId`, Edit class: loads the class's latest row, keeps its ID, updates its existing row in place |
@@ -133,9 +146,9 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   duplicate, delete (tool bar or Backspace), the start of a drag, page and pane resizing,
   new edge, align, distribute, edge-style change, edits in the properties panel (both
   tabs) and in View JSON, page, pane and panel settings, and pane split, merge, add,
-  delete, rename and move. Typing in an element's property field records one step per
-  keystroke, so undoing a typed value takes one step per character and uses up the 50
-  steps quickly.
+  delete and rename. A property edit is one step per focus: everything changed in one
+  property between entering it and leaving it is a single step (`canvas/edit-session.ts`);
+  a canvas action, undo or redo during the focus starts a new one.
 - **Keyboard:** ⌘/Ctrl+Z undo; ⌘/Ctrl+Y or ⌘/Ctrl+Shift+Z redo; ⌘/Ctrl+S save;
   Backspace deletes the selection (Svelte Flow default).
 - **Edges:** dragged from an output handle to an input handle. A second edge between the
@@ -224,11 +237,13 @@ All interface text goes through Paraglide. The editor's own keys are `wpi_toolba
 `wpi_editor_*`. It also reuses `flowtoolbar_*`, `canvas_01_*` and `nodepalette_*` from
 the Flow page components.
 
-### 1.3.9 Property editors (planned)
+### 1.3.9 Property editors
 
-**Status: planned, not built.** This section sets the rules that every property editor
-must follow. Today's editors do not follow them yet (see Known limitations). All of them,
-for the page, panes, panels and elements, will be replaced by editors that do.
+**Status: built 2026-11-02** (OpenSpec change `wpi-property-editors` in ChenWeb; its spec is
+the contract and must be updated if this behaviour changes). The page, pane, panel and every
+element editor follow the rules below. Not built yet: the manual layouter (so positions are
+read-only everywhere), and the value editors no property uses (date, time and button-type
+pickers, and standalone database and schema pickers).
 
 **Terms**
 
@@ -244,12 +259,12 @@ for the page, panes, panels and elements, will be replaced by editors that do.
 
 **Why**
 
-Each kind of entity has its own property editor, written separately, and they have
-drifted apart. Some have a title and some do not. Some show help tips and some do not.
-Many properties that should be pulldown menus, or one of the value editors below, are
-plain text fields. Some editors do not show the effect of a change, or do not pick up a
-change made on the canvas. The rules below make every property editor look and work the
-same way and reuse the same value editors.
+Each kind of entity used to have its own property editor, written separately, and they had
+drifted apart. Some had a title and some did not. Some showed help tips and some did not.
+Many properties that should have been pulldown menus were plain text fields. Some editors did
+not show the effect of a change, or did not pick up a change made on the canvas. The rules
+below make every property editor look and work the same way and reuse the same value
+editors.
 
 **Where property editors come from**
 
@@ -259,14 +274,26 @@ A new entity class is built in four steps:
 2. Review it, and revise it until it is approved.
 3. Implement it. The implementation includes the class's property editor. For example,
    the `chart` element's implementation contains both the code that draws charts and the
-   editor for a chart's properties.
+   definition of a chart's property editor (below).
 4. Add the class's record to `kb.wpi_descriptors`.
 
-A property editor is a Svelte component written by hand, like the rest of the class's
-code. It is built into the app, so selecting the same entity again reuses the component;
-nothing is generated or rebuilt while the editor runs. Describing property editors with
-descriptors and drawing them with WPI, as if they were WPI pages, may come later. That is
-a separate piece of work.
+A property editor is not a Svelte file. It is a *definition*: data in code, in
+`web/src/lib/wpi/properties/`, that lists the entity's groups and, for each property, its
+label, its value editor and the data that editor needs. Pulldown choices normally come from
+the entity's class: the action classes for an `on_click`, the page layouter classes for a
+page, the items of a menu for its first item. One renderer,
+`shared-ui/property-editor/PropertyEditor.svelte`, draws every property editor from its
+definition while the app runs.
+
+Each element's code-module document (`KnowledgeStore/doc-repo/code_modules/`) has a
+*Property editor* table giving every attribute's group and value editor; the page, page
+layouter and flow layouter documents have one too. An attribute without one gets the
+*common-sense* value editor, chosen from its name and default value: a length for sizes,
+gaps and margins, a colour picker for `…_color`, a switch for a boolean, a number for a
+number, localized text for labels and descriptions, JSON for other objects, and text
+otherwise. It appears under **Other**. So implementing a class (step 3) includes writing its
+definition and its document's table. Describing property editors with descriptors and
+drawing them with WPI, as WPI pages, may come later.
 
 **What property editors change**
 
@@ -279,20 +306,34 @@ a property editor.)
 
 - **Shows the selection.** The Properties panel shows the property editor of the selected
   entity. With nothing selected, or more than one entity selected, it shows nothing.
-- **Same layout.** A title naming the entity, then its properties in groups. Clicking a
-  group's heading folds or unfolds it. Each property has a label, a value editor and a
-  help tip.
+  **Panes** with no pane selected selects the root pane; **Panel** shows the panel of the
+  selected pane only when it is a leaf. Choosing the page, a pane or a panel leaves no box
+  selected.
+- **Same layout.** A title naming the entity, then its properties in groups, all open at
+  first. Clicking a group's heading folds or unfolds it. Each property has a label (with `*`
+  when every instance must set it), a value editor and a help tip, which may be empty. A
+  non-empty tip shows as an info icon at the upper right of the value editor; hovering over
+  it or focusing it shows the tip. *Reset* removes a property's own value so the default
+  applies; it is not offered for the page layouter or a pane's ID.
 - **Right value editor.** Each property uses the value editor for its type (table below).
   A property with a fixed set of values uses a pulldown menu, never a text field.
-- **Changes show at once.** A changed value takes effect on the canvas immediately.
+- **Changes show at once.** A changed value takes effect on the canvas immediately, while
+  the author is still in the field.
+- **Invalid values are not applied.** Text that is not valid (a length of `12xy`, say) stays
+  in the field, unapplied and unflagged while the author types, because half-typed values
+  are normal. On leaving the field, the stored value comes back and the field says why the
+  text was not applied. Warnings about an applied value (a width above the maximum) show at
+  once.
 - **Canvas changes show at once.** Moving or resizing an entity, or splitting a pane, on
   the canvas updates the property editor immediately. An editor whose values differ from
   what the canvas shows is a bug.
-- **Positions.** Every entity's property editor shows its position. Where a layouter
-  places the entity, the position is read-only and is not stored. The planned manual
-  layouter places nothing itself: users arrange entities by dragging them, and the
-  property editor shows and edits their positions, in step with the canvas.
-- **Undo.** Every property change can be undone and redone (see Editing behaviour).
+- **Positions.** Element and pane editors show the position, x and y in page pixels from
+  the page's top-left corner, measured on the canvas. Where a layouter places the entity,
+  the position is read-only and is not stored. The planned manual layouter places nothing
+  itself: users will arrange entities by dragging them, and the property editor will show
+  and edit their positions, in step with the canvas.
+- **Undo.** Everything changed in one property between entering it and leaving it is one
+  undo step (see Editing behaviour).
 - **Both languages.** Titles, labels, group names and help tips go through Paraglide, in
   English and Chinese (see Text and languages).
 
@@ -300,38 +341,38 @@ a property editor.)
 
 Unless a value editor is very simple, build it as a reusable module and catalogue it
 under `KnowledgeStore/doc-repo/modules/`. The list will grow: when a class needs a value
-editor that is not listed, add it here and build it the same way. The *Today* column says
-where the behaviour lives now, before the replacement.
+editor that is not listed, add it here and build it the same way. The *Built as* column names
+the catalogued module (`KnowledgeStore/doc-repo/modules/`).
 
-| Value editor | What it edits | Today |
+| Value editor (ID in definitions) | What it edits | Built as |
 |---|---|---|
-| text-editor | One line of text, such as a label or a placeholder | Text fields in every panel |
-| multiline-text-editor | Longer text, such as a system prompt or a text element's content | Text areas in several panels |
-| localized-text-editor | Text that is either one string or separate English and Chinese versions | Text element (`TextProperties.svelte`) |
-| number-editor | A number, optionally limited to a range and a step | Chat composer rows, list row limit |
-| switch | On or off, such as *required* or a scroll bar | Checkboxes in element panels, switches in the page panel |
-| value-picker | One value from a fixed list, in a pulldown menu | Pulldown menus in every panel |
-| ordered-multi-picker | Several values from a fixed list, in order: tick to include, arrows to reorder | Chat composer tool bar and agents, chat panel tabs |
+| text-editor (`text`) | One line of text, such as a data binding or a font family | Property Editor (`20261102-01`) |
+| multiline-text-editor (`multiline-text`) | Longer text | Property Editor |
+| localized-text-editor (`localized-text`) | Text that is one string or separate English and Chinese versions | Localized Text Editor (`20261102-02`) |
+| number-editor (`number`) | A number, optionally whole and within limits | Property Editor |
+| switch (`switch`) | On or off, such as *required* or a scroll bar | Property Editor |
+| value-picker (`value-picker`) | One value from a list, in a pulldown | Property Editor |
+| ordered-multi-picker (`ordered-multi-picker`) | Several values from a list, in order: tick to include, arrows to reorder | Ordered Multi-Picker (`20261102-03`) |
+| string-list (`string-list`) | A list of words typed as comma-separated text: keywords, tags, roles | Property Editor |
 | date-picker | A date or a range of dates | Not built |
 | time-picker | A time or a range of times | Not built |
-| color-picker | A colour: none, one colour, or separate light and dark colours, chosen with a picker or typed as a CSS colour | Pane and panel colours (see What is on the screen); typed text in the text element |
-| length-editor | A width, height, gap and the like: `auto`; `elastic`, which grows into the space left in its row, within its minimum and maximum; or a number in `px`, `rem`, `em` or `%`. A property may allow fewer units: font sizes take only `px`, `rem` and `em` | Typed text, checked when entered |
-| font-picker | A font family | Typed text, checked when entered |
-| alignment-picker | Horizontal or vertical alignment | Pulldown menus |
-| icon-picker | An icon | A pulldown of icon names in the text element |
+| color-picker (`color`) | A colour: none, one colour, or separate light and dark colours, chosen with a picker or typed as CSS | Color Picker (`20261102-04`) |
+| length-editor (`length`) | `auto` and `elastic` where allowed, or a number in the allowed units (px, rem, em, %); a bare number means px | Length Editor (`20261102-05`) |
+| font-picker | A font family | The text editor with the font grammar |
+| alignment-picker | Horizontal or vertical alignment | The value-picker with the alignment values |
+| icon-picker | An icon | The value-picker with the icon names |
 | button-type-picker | One of the button types the system supports | Not built |
-| database-picker | A database | Not built on its own; the first level of Pick Table |
-| schema-picker | A schema | Not built on its own; the second level of Pick Table |
-| table-picker | A table | Pick Table (module `20261029-01`), one menu that steps through database, schema and table |
-| field-picker | One or more fields of a table | Pick Fields (module `20261029-02`) |
-| data-source-editor | Where a list gets its rows: table, fields, row limit, action and result | List element, using Pick Table and Pick Fields |
-| column-list-editor | A list's columns: the label, field and width of each, with add and remove | List element |
-| sort-order-editor | The columns a list is sorted by, each ascending or descending | List element |
-| validation-editor | Input rules: minimum, maximum and step for numbers; minimum length and pattern for text | Input element |
-| action-picker | The action an event runs, such as *save* or *open page* on a click | Element `on_click` pulldown |
-| layouter-picker | The layouter of a page or a panel | Pulldown for the page layouter; the panel's is read-only |
-| read-only-value | A value that is shown but not edited, such as an ID, a schema version or a position set by a layouter | Page ID and schema version, an element's pane |
-| json-editor | A property that no other value editor fits, edited as JSON text | The *Other* group and the Node tab |
+| database-picker, schema-picker | A database, a schema | Not built on their own; the first levels of Pick Table |
+| table-picker | A table | Pick Table (`20261029-01`), inside the data-source editor |
+| field-picker | Fields of a table | Pick Fields (`20261029-02`), inside the data-source editor |
+| data-source-editor (`data-source`) | Where a list gets its rows: table, fields, row limit, action, result and sort order | Data Source Editor (`20261102-06`) |
+| column-list-editor (`column-list`) | A list's columns: label, field and width, with add and remove | Column List Editor (`20261102-07`) |
+| sort-order-editor | Sort columns, each ascending or descending | Property Editor (inside the data-source editor) |
+| validation-editor (`validation`) | Input rules: min, max and step for numbers; min length and pattern for text | Validation Rules Editor (`20261102-08`) |
+| action-picker | The action an event runs, such as *open page* on a click | The value-picker with the action classes |
+| layouter-picker | The page layouter | The value-picker with the page layouter classes |
+| read-only-value (`read-only`) | A value shown but not edited: an ID, a schema version, a pane, a position | Property Editor |
+| json-editor (`json`) | A property no other value editor fits, as JSON text | Property Editor |
 
 ## 1.4 Known limitations
 
@@ -339,12 +380,10 @@ where the behaviour lives now, before the replacement.
   ordinary page saves persist WPI descriptors, not arbitrary flow canvases.
 - **Page and action boxes carry only a name.** Element boxes have a class and attributes;
   page and action boxes have no class or attributes yet.
-- **Typing in a property field records one undo step per keystroke** (see Editing
-  behaviour).
-- **Property editors are not uniform yet.** Titles, help tips, value editors and keeping in
-  step with the canvas differ from one kind of entity to another. Some editors do not show
-  the effect of a change, or do not pick up a change made on the canvas. Property editors
-  (§1.3.9) sets the rules they will all be rebuilt to.
+- **Positions are read-only**, and shown only for elements and panes. The manual layouter
+  that will let authors place entities by dragging is not built.
+- **Property editors are defined in code**, not in descriptors (§1.3.9); changing a
+  property's value editor means changing its definition file and its module document.
 - **Text in the editor cannot be selected.** The dashboard shell sets `select-none`, and
   the editor does not turn selection back on with `select-text` at its root, as the
   workspace rules require for each page inside that shell.

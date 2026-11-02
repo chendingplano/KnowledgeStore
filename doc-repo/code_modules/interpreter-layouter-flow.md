@@ -181,6 +181,26 @@ as a browser tooltip and remains available to assistive technology.
 Typical use of this attribute is to set it to 1, which forces the layouter
 to stack elements.
 
+### 3.7 Property editor
+
+The WPI Editor shows a leaf pane's panel when *Panel* is chosen; with a split pane selected the
+Properties panel is empty. The editor is drawn at run time from `ChenWeb/web/src/lib/wpi/properties/page.ts` (OpenSpec
+`wpi-property-editors`); the table is the contract that file follows. Labels and help tips
+are Paraglide messages (`wpi_prop_*`) in English and Chinese; a non-empty tip shows as an
+info icon at the upper right of the value editor. *Reset* removes the attribute. Value
+editors are described in devdoc 2026102701 §1.3.9.
+
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Layouter | `layouter` | read-only | The element layouter class |
+| Colors | `background_color`, `foreground_color` | color | None, one CSS colour, or light and dark; stored beside `elem_layouter` |
+| Flow layout | `column_gap`, `row_gap`, `min_row_height`, `max_row_height`, `min_elem_width`, `max_elem_width` | length | px or rem; a bare number means px |
+| Flow layout | `horizontal_alignment`, `vertical_alignment`, `rows_alignment`, `row_separator`, `elem_separator` | value-picker | The values in the table above |
+| Flow layout | `max_num_elems` | number | A whole number, at least 0; 0 means unlimited |
+
+A changed setting is written to the panel's own `config`, which starts as a copy of the class
+copy's; *Reset* removes the setting, so the renderer's default applies.
+
 ## 4. Card example
 
 Suppose there are seven cards, each `240px` wide, with `16px` column and row gaps. The

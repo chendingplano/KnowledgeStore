@@ -164,15 +164,25 @@ notices are not listed. When empty: "No dialog history yet." / "还没有对话�
 
 Both attributes are optional, so an incomplete page has nothing to finish for this element.
 
-## Properties panel
+## Property editor
 
-Groups are presentation only; the instance stays flat. Labels are in Paraglide. Fixed values are
-shown read-only as "Fixed by class"; reset removes the instance value.
+The WPI Editor's Properties panel draws this module's property editor at run time from
+`ChenWeb/web/src/lib/wpi/properties/chat.ts` (OpenSpec `wpi-property-editors`); no Svelte
+file is written per module. The table below is the contract that file follows: change the
+two together. Groups are presentation only; the instance stays flat. Every editor starts
+with a **Placement** group showing the element's pane and its position on the page
+(read-only). Labels and group names are in Paraglide. Help tips are the class's `help_tip`
+for each attribute; an attribute with a non-empty tip gets an info icon at the upper right
+of its value editor. A value fixed by the class is shown read-only, marked fixed; *Reset*
+removes the instance's own value. Hidden attributes keep their values. A class attribute
+the table does not list appears under **Other** with the common-sense value editor. Value
+editors are described in devdoc 2026102701 §1.3.9.
 
-| Order and group | Attributes, labels EN / 中文 | Controls |
-| --- | --- | --- |
-| 1. Tabs / 标签页 | `tabs` Tabs / 标签页; `initial_tab` First tab shown / 初始标签页 | A checklist of the two tabs (at least one stays checked) with move up and down buttons, then a choice among the checked tabs or "First in the list" |
-| 2. Size / 尺寸 | `width`, `height`, `min_width`, `max_width` | Size fields |
+| Group | Attribute | Value editor | Data and rules |
+| --- | --- | --- | --- |
+| Tabs | `tabs` | ordered-multi-picker | `chat`, `dialog`; at least one stays ticked; unset means both |
+| Tabs | `initial_tab` | value-picker | The ticked tabs, or *First in the list* (unset) |
+| Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
 
 ## Examples
 
