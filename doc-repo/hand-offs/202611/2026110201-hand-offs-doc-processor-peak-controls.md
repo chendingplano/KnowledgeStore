@@ -1,8 +1,32 @@
 # Handoff: doc-processor peak-hour controls
 
 **Date:** 2026-11-02  
-**Status:** Incomplete; uncommitted runtime changes are not ready for deployment.  
+**Status:** Picked up and implemented the same day (see "Resolution"). The sections after it are the
+original hand-off, kept as written.  
 **Scope:** `ChenWeb/server/cmd/doc-processor` only. PDF parser and doc-service are not task engines for this work.
+
+## Resolution (2026-11-02)
+
+Implemented under OpenSpec change `ChenWeb/openspec/changes/doc-processor-peak-controls/` (not yet
+archived) and committed: shared `mpuk` ("llm: gate every provider request; record usage event
+kind"), ChenWeb `uvmv` ("doc-processor: engine-wide peak-hour control with cross-peak rules"). The
+current description is the devdoc
+`KnowledgeStore/doc-repo/devdocs/202609/2026092802-devdoc-offpeak-only-auto-processing.md`.
+
+| Work item below | Outcome |
+|---|---|
+| 1. Admission and the per-document mode | The user decided (2026-11-02): a task's own mode wins, and the engine `default_mode` applies only when the task has none. An `auto_offpeak` upload gives its task mode `auto_offpeak`; plain `auto` follows the engine. Admission runs before routing, releases the slot, shows a waiting note, can be stopped, and re-checks after taking a slot back. The old per-processor gate and its 10-minute look-ahead were removed. The upload option and its UI are unchanged. |
+| 2. `abort` | Cancels the task with a cause that every existing stop check honours, during routing, processors and Phase C alike. The task ends `stopped` with "aborted at peak-hour boundary" on its status and run row, and is not resumed. |
+| 3. `pause-llm` | `llm.RequestGate` in shared is passed by every provider request of the shared clients (text, structured output, embeddings, retries; openai, anthropic, jev, jev_emulated). A request already sent finishes. A held call gives back its model permit. The temporary startup rejection was removed. |
+| 4. Hold/resume events | Logged in the doc-processor log and written as `llm_usage_event` rows with new column `event_kind` (`llm_hold`, `llm_resume`, `llm_hold_cancelled`; migration `20261102000001`), paired by `metadata_json.hold_id`. Usage aggregates count only `request` rows. A failed write is logged and never blocks the call. |
+| 5. Tests and docs | Unit and integration tests cover the listed cases, including a real `OpenAIJSONClient` against a test server. The startup config path was checked with the local override. The spec, devdoc and `config.toml` were updated, and `pause-exec` is documented as unsupported. |
+| 6. Shared-library rules | Shared tests pass and `tax` builds. No dependency changed, so `go work sync` was not needed. The shared commit holds only this feature's hunks. |
+
+**Still open:**
+- A live doc-processor run across a real peak boundary has not been observed. Neither have hold/resume rows written by a live run, nor the new labels in a browser.
+- The shared working copy still holds unrelated uncommitted work (alert sink, `Host` field, list-form embedding input). Because the commit leaves that work out, hold/resume rows carry no `metadata.host`.
+- `TestKBMetricsReadersExcludeResolvedRows` still fails on `kbhandler/question_generator_worker.go`. That failure is unrelated to this work.
+- Peak modes for auto-launched tasks were deferred by the user.
 
 ## Requested behavior
 
