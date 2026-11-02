@@ -3,7 +3,9 @@
 **Date:** 2026-09-28 \
 **Scope:** What the "Auto - off-peak only" upload option does, how the document processor
 holds and resumes work around peak hours, where the code lives, and what it does not do.
-**Code root:** `ChenWeb/server/api/doc-processing/offpeak_gate.go`
+**Code root:** `ChenWeb/server/api/doc-processing/offpeak_gate.go`  
+**Review date:** 2026-11-02  
+**Status:** The existing off-peak gate is implemented in part; the broader task-engine requirements below are not fully implemented.
 
 **Traceability — openspec:**
 - `ChenWeb/openspec/changes/offpeak-only-auto-processing/proposal.md` — why this exists
@@ -16,6 +18,80 @@ holds and resumes work around peak hours, where the code lives, and what it does
   canonical requirements. **Update this spec file, not just this doc, if behavior
   changes** — this doc explains the feature for humans and points at code; the spec is the
   contract for agents.
+
+## Tasks, engines and requested behavior
+
+A **task** is a unit of work; a **task engine** executes tasks of its supported kind.
+The currently identified tasks and engines are:
+
+| Task | Purpose | Task engine |
+|---|---|---|
+| `pdf-parser` | Parse PDF documents | `ChenWeb/python/pdf-parser` |
+| `doc-processor` | Process documents, including artifact extraction | `ChenWeb/server/cmd/doc-processor` |
+| `doc-service` | Convert PDF parser output into line files | `ChenWeb/server/cmd/doc-service` |
+
+The following is the **requested target behavior**, not a description of functionality
+already shipped. It extends beyond the original OpenSpec change linked above. That change
+remains the contract for its existing scope; a new or updated OpenSpec contract is needed
+before the broader behavior can be considered specified and implemented.
+
+### Peak-hour mode
+
+Every task engine must support `peak-hour-mode` with these values:
+
+| Value | Required behavior |
+|---|---|
+| `none` | Disable peak-hour control. |
+| `auto_peak` | Work only during peak hours. |
+| `auto_offpeak` | Work only during off-peak hours. |
+
+A task waiting because its engine's mode does not allow execution must start or resume
+when its permitted time span returns. The existing upload `processing_mode = auto_offpeak`
+is a per-document setting and must not be confused with the requested engine mode.
+
+### Crossing a peak boundary
+
+Each engine must support a `cross-peak-boundary` rule governing active tasks as time
+changes between peak and off-peak. Its values are:
+
+| Value | Required behavior |
+|---|---|
+| `ignore` | Continue all active tasks; this is the default. |
+| `pause-exec` | Pause execution of all active tasks. |
+| `pause-llm` | Continue each active task until it issues an LLM call; hold that call until the time span changes. |
+| `abort` | Abort all active tasks. |
+
+The mode determines the permitted span; these rules govern active work crossing a
+boundary, and held work resumes when its permitted span returns. An LLM call already in
+flight when a boundary is crossed is not explicitly covered by the request. The exact
+pause mechanism, persistence and recovery, configuration scope, and how boundary rules
+interact with `none` and existing per-document modes require a formal design. In
+particular, the existing ten-minute lead time is not the same as a boundary transition.
+
+### Required activity logging
+
+- Each task engine has its own log.
+- Log when a task waits due to peak-hour controls and when a held task starts or resumes.
+- When an LLM call is held, write an entry to both the task engine log and
+  `public.llm_usage_event`; write an entry to both again when that call resumes.
+
+The event representation, correlation identifiers, and behavior if either log write fails
+are not yet specified. The current usage sink records LLM usage; it does not establish
+these hold/resume events.
+
+## Implementation review (2026-11-02)
+
+The broader requirements are **not fully implemented**. This is a source review, not an
+end-to-end execution or deployment audit.
+
+| Requirement | Current evidence and gap |
+|---|---|
+| Three engines and task types | The three engine directories exist. This review did not establish a common task/engine registry or lifecycle. |
+| Engine peak-hour modes | `doc-processor` has a per-input `auto_offpeak` gate for selected processing steps. No engine-wide `none` / `auto_peak` / `auto_offpeak` control was found in the three engine entry points or the document-processing gate; no peak gate was found in the PDF parser or doc-service source searched. |
+| Boundary rules | No `cross-peak-boundary` configuration or `pause-exec`, `pause-llm`, or `abort` boundary handling was found. An already-started processor continues; this resembles `ignore` for that step, but is not the requested configurable engine-wide rule. |
+| Task wait/resume logging | The existing doc-processor gate logs hold and resume and records held progress. Equivalent engine-wide coverage for all three task types is not established. |
+| Engine logs | The two Go engines initialize separate named loggers. The PDF parser contains Python logging, but separate destinations and complete per-engine log isolation were not verified. |
+| LLM hold/resume events | The gate holds before selected processors, not at each LLM call, and its hold/resume path does not write events to `public.llm_usage_event`. Both required paired events remain unimplemented. |
 
 ## Summary
 
@@ -76,9 +152,9 @@ working days.
 - **A step that already started is not paused.** Holding happens *between* steps. A long
   step that starts just before the 10-minute margin can run into peak hours. Raise
   `DOC_PROCESS_OFFPEAK_LEAD_MINUTES` if that happens too often.
-- **Almost every step counts as AI work.** Only the first, purely mechanical "blocking"
-  step runs during peak. Even structure analysis and chunking make AI calls, so they wait
-  too.
+- **The gate operates at processor boundaries.** It uses its own classification of which
+  processors need a hold, rather than intercepting individual LLM calls; some local work
+  can run without waiting.
 - **It holds for one window, whatever model a step uses.** A step configured with a model
   that has no peak pricing still waits.
 - **A missing or broken Peak Hours record means no holding.** If the named record doesn't
@@ -89,7 +165,7 @@ working days.
 - **Uploads without a mode are still plain "Auto".** Only the web page's default changed.
   An API call that leaves `processing_mode` empty still gets `auto`.
 
-## Verification status (2026-09-28)
+## Original verification status (2026-09-28)
 
 `go build`/`go vet` pass. New unit tests in `offpeak_gate_test.go` cover: caching,
 fail-open, waiting and resuming, stop while held, slot release and re-acquire, and no hold
