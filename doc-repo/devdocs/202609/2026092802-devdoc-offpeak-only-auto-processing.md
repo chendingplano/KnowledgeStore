@@ -22,13 +22,11 @@ holds and resumes work around peak hours, where the code lives, and what it does
 ## Tasks, engines and requested behavior
 
 A **task** is a unit of work; a **task engine** executes tasks of its supported kind.
-The currently identified tasks and engines are:
+The currently identified task and engine are:
 
 | Task | Purpose | Task engine |
 |---|---|---|
-| `pdf-parser` | Parse PDF documents | `ChenWeb/python/pdf-parser` |
 | `doc-processor` | Process documents, including artifact extraction | `ChenWeb/server/cmd/doc-processor` |
-| `doc-service` | Convert PDF parser output into line files | `ChenWeb/server/cmd/doc-service` |
 
 The following is the **requested target behavior**, not a description of functionality
 already shipped. It extends beyond the original OpenSpec change linked above. That change
@@ -37,21 +35,22 @@ before the broader behavior can be considered specified and implemented.
 
 ### Peak-hour mode
 
-Every task engine must support `peak-hour-mode` with these values:
+The `doc-processor` task engine must support `peak-hour-mode` with these values:
 
 | Value | Required behavior |
 |---|---|
-| `none` | Disable peak-hour control. |
+| `none` | Disable peak-hour control; this is the default. |
 | `auto_peak` | Work only during peak hours. |
 | `auto_offpeak` | Work only during off-peak hours. |
 
 A task waiting because its engine's mode does not allow execution must start or resume
 when its permitted time span returns. The existing upload `processing_mode = auto_offpeak`
 is a per-document setting and must not be confused with the requested engine mode.
+The requested default `none` disables peak-hour control, including the existing gate.
 
 ### Crossing a peak boundary
 
-Each engine must support a `cross-peak-boundary` rule governing active tasks as time
+The doc-processor must support a `cross-peak-boundary` rule governing active tasks as time
 changes between peak and off-peak. Its values are:
 
 | Value | Required behavior |
@@ -70,7 +69,7 @@ particular, the existing ten-minute lead time is not the same as a boundary tran
 
 ### Required activity logging
 
-- Each task engine has its own log.
+- The doc-processor task engine has its own log.
 - Log when a task waits due to peak-hour controls and when a held task starts or resumes.
 - When an LLM call is held, write an entry to both the task engine log and
   `public.llm_usage_event`; write an entry to both again when that call resumes.
@@ -86,11 +85,11 @@ end-to-end execution or deployment audit.
 
 | Requirement | Current evidence and gap |
 |---|---|
-| Three engines and task types | The three engine directories exist. This review did not establish a common task/engine registry or lifecycle. |
-| Engine peak-hour modes | `doc-processor` has a per-input `auto_offpeak` gate for selected processing steps. No engine-wide `none` / `auto_peak` / `auto_offpeak` control was found in the three engine entry points or the document-processing gate; no peak gate was found in the PDF parser or doc-service source searched. |
+| Task and engine | `doc-processor` is the only task engine in scope. |
+| Engine peak-hour modes | `doc-processor` has a per-input `auto_offpeak` gate for selected processing steps. No engine-wide `none` / `auto_peak` / `auto_offpeak` control was found in the document-processing gate. |
 | Boundary rules | No `cross-peak-boundary` configuration or `pause-exec`, `pause-llm`, or `abort` boundary handling was found. An already-started processor continues; this resembles `ignore` for that step, but is not the requested configurable engine-wide rule. |
-| Task wait/resume logging | The existing doc-processor gate logs hold and resume and records held progress. Equivalent engine-wide coverage for all three task types is not established. |
-| Engine logs | The two Go engines initialize separate named loggers. The PDF parser contains Python logging, but separate destinations and complete per-engine log isolation were not verified. |
+| Task wait/resume logging | The existing doc-processor gate logs hold and resume and records held progress. Engine-wide coverage for all tasks is not established. |
+| Engine logs | The doc-processor initializes a named logger; its log destination and isolation were not verified. |
 | LLM hold/resume events | The gate holds before selected processors, not at each LLM call, and its hold/resume path does not write events to `public.llm_usage_event`. Both required paired events remain unimplemented. |
 
 ## Summary
