@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.4.0
+**Type:** backend · **Language:** go · **Version:** 3.5.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -46,6 +46,14 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 `2026102603-devdoc-wpi-pilot.md`; formal requirements: OpenSpec changes `wpi-pilot`,
 `wpi-classes-and-instances`, `wpi-pages`, `wpi-create-element-class`, `wpi-code-modules` and
 `wpi-pages-own-panes`.
+
+The WPI editor reads and updates stored element, action and layouter classes through
+`GET/PUT /api/v1/wpi/classes/:kind/:classId`. Writes require an administrator and
+an existing valid record, preserving its version and status. Optional
+`attribute_definitions` metadata is checked separately, retained in class copies
+and excluded from runtime defaults. `/api/v1/wpi/classes/action?scope=all` includes
+all active action classes; ordinary requests retain the click-trigger whitelist.
+The contract is `ChenWeb/openspec/changes/wpi-class-editor/specs/wpi-class-editor/spec.md`.
 
 ## 2. Files
 
@@ -105,6 +113,8 @@ devdoc `2026102601-devdoc-web-page-interpreter.md`; what was built: devdoc
 | `ChenWeb/server/api/wpi/text-attribute-cases.json` | Shared client/server value-validation cases |
 | `ChenWeb/project_migrations/20261030000004_wpi_text_r2_draft.sql` | Preserves existing text identity in draft version 4 |
 | `ChenWeb/project_migrations/20261030000006_wpi_text_r2_active.sql` | Activates approved implemented text version 5 without rewriting copies |
+| `ChenWeb/server/api/wpi/class_editor.go` | Authenticated class reads, admin updates retaining version/status, and definition metadata validation |
+| `ChenWeb/server/api/wpi/class_editor_test.go` | Class API, metadata, scope consistency and copy regression tests |
 
 ## 3. Interface
 

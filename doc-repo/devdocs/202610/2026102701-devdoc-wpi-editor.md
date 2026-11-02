@@ -25,7 +25,8 @@ still use placeholder endpoints.
 
 The right-hand Properties panel shows the selected page, pane, panel or element. Every one of
 these editors is drawn by one shared property editor from a definition, so they all look and
-work the same way (§1.3.9).
+work the same way (§1.3.9). The adjacent Class tab edits the reusable stored definition,
+with an attribute tree and inline forms (§1.3.7).
 
 ## 1.2 What is on the screen
 
@@ -38,16 +39,17 @@ work the same way (§1.3.9).
 - **Right — properties.** The property editor of the one selected entity (§1.3.9): an
   element box, or the page, a pane or a panel chosen with **View page config**, **Panes** and
   **Panel** above the canvas or by clicking the preview. With nothing selected, or several
-  boxes, the panel is empty. An element is edited on two tabs: **Properties** (its property
-  editor) and **Node** (its descriptor, the JSON *View JSON* shows, as name/value rows to add,
-  rename, change and remove). Other boxes (flow nodes, page and action boxes) show their name
-  and settings. Drag the panel's left edge to make it wider or narrower (200–640 px; it starts
-  at 390 px).
+  boxes, the property editor is empty. **Properties** edits the selected instance;
+  **Class** edits its reusable stored class (§1.3.7). A pane selects its page layouter
+  class; a panel selects its element layouter class. Pages have no class. An action
+  box offers a class selector on Class. Other flow boxes show their own settings in
+  Properties. Drag the panel's left edge to make it wider or narrower (200–640 px;
+  it starts at 390 px).
 - **Above a selected box — its tool bar.** **Duplicate** adds a copy one grid cell down and
   right (further while another box sits there), with the same data and size, and selects
   it; lines are not copied. **Delete** removes the box and every line attached to it. Both
-  can be undone. An element box also has **Edit class** (pencil), which opens the Create
-  Element form on the box's class (below).
+  can be undone. An element box also has **Edit class** (pencil), which opens the Class
+  tab on the box's class (below).
 
 The Panes and Panel properties include `background_color` and `foreground_color`. Choose no color, one color, or separate light and dark colors. Use the color picker or enter a CSS color in the adjacent field; choose None to leave it unset. The canvas preview follows the editor theme and inherits each unset pane color from the closest ancestor and gives the effective pane background precedence over its panel background.
 
@@ -86,9 +88,10 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/edit-session.ts` | One undo step per focus; tests in `edit-session.test.ts` |
 | `web/src/lib/components/shared-ui/property-editor/`, `value-editors/` | The shared property editor and the value editors (reusable modules `20261102-01` to `-08`) |
 | `web/src/lib/wpi/properties/` | The property editor definitions and the sources that read and write each kind of entity (§1.3.9) |
-| `web/src/lib/components/shared-ui/canvas/NodeDescriptorEditor.svelte`, `node-descriptor.ts` | The properties panel's Node tab; only the WPI editor turns it on (`nodeTab`), so the Flow page's panel has no tabs |
+| `web/src/lib/components/shared-ui/canvas/{WpiClassPanel,EntityClassEditor,ClassAttributeTree,ClassEditorOptions}.svelte`, `class-editor.ts` | The Class tab, stored-class drafts, recursive attributes and editor configuration |
+| `server/api/wpi/class_editor.go` | Class read/update endpoints and editor metadata validation |
 | `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
-| `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element, and, given a `classId`, Edit class: loads the class's latest row, keeps its ID, updates its existing row in place |
+| `web/src/lib/components/shared-ui/canvas/CreateElementDialog.svelte` | Create Element: defines a new element class as a draft |
 | `web/src/lib/components/shared-ui/canvas/canvas-theme.ts` | Dark and light colours of the canvas editors, as `--cv-*` CSS variables |
 | `web/src/lib/services/flowService.ts` | Client for `/api/v1/flows*` and `/api/v1/flow-node-types` |
 | `server/api/flowhandler/` | Server handlers for those endpoints — **stubs** (below) |
@@ -204,37 +207,66 @@ this behavior changes.
 
 ### 1.3.6 Relationship to WPI
 
-The editor reads and writes element classes in `kb.wpi_descriptors` through
-`/api/v1/wpi/classes/element*` (Create Element, the ELEMENTS folder, the Properties panel,
-Edit class). Page and action nodes are not linked to WPI pages or to the action classes
-(`load`, `save`, `open-page`, `close-page`, `save-page`). The WPI design (devdoc 2026102601,
-§3.2.3) expects the editor to create page instances from page classes. That work, and
-whatever **Load Page** should open, has not been decided or built.
+The editor reads and writes reusable element, action and layouter classes in
+`kb.wpi_descriptors`. Pages and their instance values remain separate, in
+`kb.frontend_pages`. A pane's Class tab opens the page layouter; a panel's opens
+its element layouter. Action boxes can select a stored action class, but they are
+still flow-only canvas nodes: saving them as page actions is not built.
 
-### 1.3.7 Editing an element class
+### 1.3.7 Editing a class
 
-**Edit class** on an element box reads the class's latest draft or active row
-(`GET /api/v1/wpi/classes/element/<class-id>`) into the Create Element form: the class
-attributes first, then the instance attributes, with `descriptor_id` read-only. The form
-says whether the class is a draft or implemented. **Save** sends the row to
-`PUT /api/v1/wpi/classes/element/<class-id>` (admins only), which updates the latest draft or active record in place, keeping its version, status
-and creation details. It updates the descriptor body and the last-updated user and time.
-A missing record returns 404, including if it disappears before the update; saving never
-creates a replacement. Drafts use the draft rules; active classes must name a registered
-code module. Attribute edits use structural validation, and unsupported attributes return
-warnings. Invalid edits show the server's issues in the form without changing the record. After a save the palette and the
-properties panel reload the class list. A class's edits reach every box of that class; a
-box's own values (Properties tab) are not part of the class.
+The **Class** tab, also opened by **Edit class** on an element box, edits the
+selected entity's latest stored class. It reads the database record, even when the
+instance already holds an older class copy. Each attribute is a button showing its
+name. Clicking it reveals its form and any nested attributes; clicking again folds
+it. Element defaults are shown directly, without their storage wrapper.
 
-Save stays disabled until the descriptor changes. Opening an attribute without editing
-it leaves Save disabled; restoring the original values disables it again. Pending edits
-to an existing attribute enable Save and use the existing Apply/Abandon prompt. Save is
-also disabled while loading or saving, and unchanged descriptors do not send an update.
+The form edits the attribute name, its description in one or both languages, the
+**Class / Instance** flag, its default, and its value editor. Choosing an editor
+shows configuration fields such as choices, number limits or allowed length units.
+The full configuration can also be edited as a JSON object. Names must be unique;
+identity fields and array indices retain their names. Descriptor ID and schema
+version values are read-only. Blank default text removes the default; `null` means
+an instance must supply it; `""` means an empty string.
+
+For a top-level element attribute, **Class** fixes its non-null default for every
+new instance; **Instance** allows each instance to change it. Built-in class
+attributes keep their class scope. For nested attributes and action or layouter
+classes, the flag records authoring scope only and does not restrict runtime
+overrides; the form says so beside the flag.
+
+**Save class** updates the existing record in place, retaining its version, status
+and creation details. It is disabled until something changes and while loading or
+saving. Invalid edits stay in the form with the server's issues; no record is
+changed. A missing class returns 404 and saving never creates a replacement.
+A successful save refreshes the class lists. Existing instances retain their own
+class copies; class changes apply to new copies. Properties edits remain separate.
+
+Unsaved class drafts stay available while switching entities, editor or canvas
+tabs, sidebar views and runtime Preview. They are kept in memory for this editor
+session. Route navigation and browser unload warn before discarding them; explicit
+**Discard changes** also asks first. Class edits use their own Save class command,
+and canvas undo/save shortcuts do not intercept typing in the Class form.
+
+**Implementation and contract.** The endpoints are authenticated
+`GET /api/v1/wpi/classes/:kind/:classId` and admin-only `PUT` at the same path, for
+`element`, `action`, `page-layouter` and `element-layouter`. Existing element
+endpoints are preserved. `/api/v1/wpi/classes/action?scope=all` lists every active
+action class for the selector; the ordinary request still lists click triggers.
+Optional `attribute_definitions` metadata stores descriptions, scopes and editor
+configuration by logical JSON pointer; it is never an instance value or runtime
+default. Renaming an attribute moves its nested metadata too.
+
+The [design and implementation plan](../../../../../ChenWeb/openspec/changes/wpi-class-editor/design.md)
+and [Class editor spec](../../../../../ChenWeb/openspec/changes/wpi-class-editor/specs/wpi-class-editor/spec.md)
+carry the implementation details and contract. Update that spec when this behavior
+changes. Regression tests are in `web/tests/wpi-class-editor/test_editor.py` and
+`canvas/class-editor.test.ts`; backend tests are in `server/api/wpi/class_editor_test.go`.
 
 ### 1.3.8 Text and languages
 
 All interface text goes through Paraglide. The editor's own keys are `wpi_toolbar_*` and
-`wpi_editor_*`. It also reuses `flowtoolbar_*`, `canvas_01_*` and `nodepalette_*` from
+`wpi_editor_*`; Class tab keys are `wpi_class_*`. It also reuses `flowtoolbar_*`, `canvas_01_*` and `nodepalette_*` from
 the Flow page components.
 
 ### 1.3.9 Property editors
@@ -283,7 +315,9 @@ label, its value editor and the data that editor needs. Pulldown choices normall
 the entity's class: the action classes for an `on_click`, the page layouter classes for a
 page, the items of a menu for its first item. One renderer,
 `shared-ui/property-editor/PropertyEditor.svelte`, draws every property editor from its
-definition while the app runs.
+definition while the app runs. Class metadata may override the value editor and
+its options for element attributes and panel layouter configuration. The metadata
+travels with the class copy, so older instances keep their existing configuration.
 
 Each element's code-module document (`KnowledgeStore/doc-repo/code_modules/`) has a
 *Property editor* table giving every attribute's group and value editor; the page, page
@@ -298,9 +332,8 @@ drawing them with WPI, as WPI pages, may come later.
 **What property editors change**
 
 The WPI Editor edits pages. Placing a class on a page copies it into the page as an
-instance. The WPI Editor and the property editors change instances only, never classes.
-(The Edit class form in §1.3.7 does change a class record, but it is a separate form, not
-a property editor.)
+instance. The **Properties** tab changes instances. The separate **Class** tab
+changes a stored class (§1.3.7).
 
 **Rules for every property editor**
 
@@ -380,15 +413,15 @@ the catalogued module (`KnowledgeStore/doc-repo/modules/`).
 
 - **Flow storage is incomplete.** The flow server endpoints are placeholders (see Storage);
   ordinary page saves persist WPI descriptors, not arbitrary flow canvases.
-- **Page and action boxes carry only a name.** Element boxes have a class and attributes;
-  page and action boxes have no class or attributes yet.
+- **Page and action boxes are flow-only.** Action boxes can select and edit a stored
+  action class, but cannot yet be saved into a WPI page; page boxes have no page class.
 - **Positions are read-only**, and shown only for elements and panes. The manual layouter
   that will let authors place entities by dragging is not built.
-- **Property editors are defined in code**, not in descriptors (§1.3.9); changing a
-  property's value editor means changing its definition file and its module document.
-- **Text in the editor cannot be selected.** The dashboard shell sets `select-none`, and
-  the editor does not turn selection back on with `select-text` at its root, as the
-  workspace rules require for each page inside that shell.
+- **Property editor groups and labels are defined in code** (§1.3.9). Element value
+  editors and panel layouter configuration can use overrides from their class copy.
+  Date, time and button-type controls, and standalone database/schema controls, are
+  configurable placeholders. Standalone table, field and sort controls use JSON;
+  their specialized controls remain inside the data-source editor.
 - **Fixed to the site header's height.** The top offset is a constant (see Where it lives).
 - **The properties panel's width is not remembered.** It returns to 390 px each time the
   editor opens, and the resize handle works with the mouse only, not the keyboard.

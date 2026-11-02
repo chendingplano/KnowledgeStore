@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.5.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.6.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -35,6 +35,14 @@ whole WPI apps, opened at `/wpi/<app-id>`, and draws pages in the WPI editor's p
 design is devdoc `KnowledgeStore/doc-repo/devdocs/202610/2026102601-devdoc-web-page-interpreter.md`;
 what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half is module
 `20261026-02` (Web Page Interpreter backend).
+
+The WPI editor client reads and updates element, action and layouter classes through
+`getEntityClass` and `updateEntityClass`. `listActionClasses` includes all active action
+classes, independently of click-trigger choices. Optional `attribute_definitions`
+metadata is retained in copies and excluded from runtime defaults. Property editors
+can use the copy's value-editor choices and configuration through `withClassEditors`;
+older copies without metadata retain the module defaults. The Class editor UI is
+documented in devdoc 2026102701 §1.3.7.
 
 ## 2. Files
 
@@ -109,6 +117,8 @@ what the pilot built is devdoc `2026102603-devdoc-wpi-pilot.md`. The server half
 | `ChenWeb/web/tests/wpi-text/test.css` | Real-component Chromium harness and interaction checks |
 | `ChenWeb/web/tests/wpi-text/test_text.py` | Real-component Chromium harness and interaction checks |
 | `ChenWeb/web/tests/wpi-text/vite.config.ts` | Real-component Chromium harness and interaction checks |
+| `ChenWeb/web/src/lib/wpi/properties/class-definition.ts` | Applies value-editor configuration from frozen class metadata to property definitions |
+| `ChenWeb/web/src/lib/wpi/properties/class-definition.test.ts` | Regression tests for class editor overrides and value conversions |
 
 ## 3. Interface
 

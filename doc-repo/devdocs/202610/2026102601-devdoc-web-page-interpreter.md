@@ -990,6 +990,20 @@ ID for active classes.
 
 <a id="elements-in-panels"></a>
 
+**Class editor metadata.** The WPI Editor's Class tab edits stored element, action
+and layouter definitions. Its optional `attribute_definitions` object maps logical
+JSON pointers to descriptions, Class/Instance scope and `{id, options}` value-editor
+settings. For example, `/source/table` describes the `table` field inside an element's
+source default; the `default_value` wrapper is not part of that path. This metadata
+is retained when a class is copied but is excluded from runtime defaults and instance
+attributes. Top-level element Class scope uses `instance_modifiable: false` with a
+non-null default; nested and non-element scope is authoring classification only.
+Existing descriptors need no metadata or migration. Class changes reach new copies;
+existing copies retain their defaults and editor configuration. Panes and panels
+have no new class kinds: the tab edits their associated layouter class. See
+[WPI Editor §1.3.7](2026102701-devdoc-wpi-editor.md#137-editing-a-class) and the
+[Class editor contract](../../../../../ChenWeb/openspec/changes/wpi-class-editor/specs/wpi-class-editor/spec.md).
+
 #### 3.5.2 Elements in panels
 
 A page is defined by a page descriptor ([Page descriptors](#page-descriptors)). Its elements live in its panels:

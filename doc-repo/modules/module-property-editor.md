@@ -110,6 +110,8 @@ Value editors take `ValueEditorProps` (`id`, `label`, `value`, `options`, `check
 
 ## 7. Scope and limits
 
-- Definitions are code, not descriptors; drawing editors from descriptors with WPI is later work.
+- Groups and labels are defined in code. The WPI editor may apply value-editor overrides
+  from the instance's class metadata before passing `def` to this renderer; see devdoc
+  2026102701 §1.3.7. Drawing whole editors as WPI pages is later work.
 - Date, time and button-type pickers and standalone database/schema pickers are not built; add
   them when a property needs one, and catalogue them unless they are very simple.
