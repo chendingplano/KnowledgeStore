@@ -30,7 +30,10 @@ selected-binary deployment, and documented the NATS/PDF-parser restart behavior;
 rev 2026-10-18: moved the PDF worker to a container with MinerU 4.0.9 and PyTorch
 2.7.1+cpu, bypassing the host's glibc 2.27 wheel restriction; provisioned the MinerU 4
 models and verified real PDF parsing. CPU parsing uses ONNX and llama.cpp to avoid a
-native-library conflict when PyTorch and llama.cpp are loaded in the same process.)
+native-library conflict when PyTorch and llama.cpp are loaded in the same process;
+rev 2026-11-03: added the stacked-cell repair to §4 (openspec `mineru-stacked-cell-repair`,
+in the next image build; `prepare-context.py` now stages its two modules) and recorded that
+PDF table geometry (viewer row highlighting) was never provisioned on this box.)
 **Scope:** Operations, build, and deployment for the ChenWeb stack on the China production
 box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
 **`https://onto.bzton.cn`**. The original manual procedures and why this box deviates from
@@ -409,6 +412,17 @@ Build, model provisioning and rollback instructions are in
 `ChenWeb/python/pdf-parser/container/README.md`. The deployed build context and smoke
 results are under `/home/gui/Workspace/deploy/mineru-4.0.9-container/`.
 
+**Stacked-cell repair** (openspec `mineru-stacked-cell-repair`, built 2026-11-03, deployed
+with the next image build). MinerU's table VLM glues a cell's stacked lines together
+(GB 9448—2025 表 1: `<2.52.5~<44~6.4>6.4`, `781011`) in every tier. After the adapter, the
+worker re-cuts such cells from the PDF text layer and splits rows whose values line up into
+one row per value, without model calls; tables it cannot verify pass through unchanged. The
+image needs `mineru_cell_repair.py` and `stacked_cells.py` beside `parser_mineru.py`; the
+README's rsync list and `prepare-context.py` include them. Check a parse with
+`journalctl -u pdf-parser | grep 20261103-51` (`-513` report, `-512` repair failed and was
+skipped). Only documents parsed after the deploy are affected; existing ones are not
+re-parsed.
+
 **Start (systemd):**
 ```bash
 env LC_ALL=C LANG=C su -c 'systemctl start pdf-parser'
@@ -452,6 +466,13 @@ the previous deployment's forced OCR setting (`MINERU_EXTRA_ARGS=-m ocr -l ch`).
   `~/Workspace/mineru.json`. MinerU 4 reads YAML config at `~/.mineru/config.yaml` and
   model repositories under `~/.mineru/models`; the old JSON config and model cache do not
   provision MinerU 4 models.
+- PDF table geometry is not provisioned on this box (found 2026-11-03): `table_geometry.py`
+  is not deployed in `~/Workspace/ChenWeb/python/pdf-parser/` and
+  `PDF_TABLE_GEOMETRY_PYTHON`/`PDF_TABLE_GEOMETRY_SCRIPT` are unset, so every conversion
+  logs `(20261007-643) table geometry companion unavailable … (20261007-653)` and no
+  record has a `.pdf-table-geometry.json`. Viewer row highlighting therefore has no PDF
+  boxes. Provisioning it needs `table_geometry.py` plus `stacked_cells.py` on the host and
+  a Python with PyMuPDF.
 - Relevant `.env` keys: `PDF_PARSER_NAME=mineru`,
   `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged`, `PDF_PIPELINE_MODE=jetstream`.
 - MinerU 4 YAML config is `~/.mineru/config.yaml`, with `model.source: local`; missing
