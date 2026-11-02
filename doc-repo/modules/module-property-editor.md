@@ -1,7 +1,7 @@
 # Module: Property Editor
 
 **Module ID:** `20261102-01`
-**Type:** frontend · **Language:** svelte · **Version:** 1.0.0
+**Type:** frontend · **Language:** svelte · **Version:** 1.1.0
 **Status:** active — used by the WPI editor's Properties panel (OpenSpec `wpi-property-editors`)
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/property-editor`
@@ -35,7 +35,7 @@ themselves belong to [Web Page Interpreter (frontend)](module-web-page-interpret
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/values.ts` | Pure parsing and value helpers (lengths, numbers, JSON, lists, colours, languages) |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/values.test.ts` | Tests for `values.ts` (`bun test`) |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/value-editors.css` | Shared look of the value editors |
-| `ChenWeb/web/src/lib/components/shared-ui/value-editors/DraftField.svelte` | Text field that keeps typed text, applies only valid text and reports invalid text on leaving |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/DraftField.svelte` | Text field that keeps typed text, applies only valid text, and on leaving with invalid text shows why with *Abandon Edit* and *Stay Edit* |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/TextEditor.svelte` | One line of text; empty unsets |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/MultilineTextEditor.svelte` | Longer text |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/NumberEditor.svelte` | A number within `min`/`max`, optionally whole |
@@ -99,9 +99,11 @@ Value editors take `ValueEditorProps` (`id`, `label`, `value`, `options`, `check
 ## 6. Behaviour and conventions
 
 - A valid value is applied at once. Invalid typed text is kept, not applied and not flagged
-  while the field has focus; on leaving, the stored value is shown again with the reason and
-  "not applied" (`aria-invalid`, `role="alert"`). Warnings describe applied values
-  (`role="status"`).
+  while the field has focus. On leaving the field (or Enter) with invalid text, the text stays
+  and under the value editor appear the reason and "This value is not applied." with two
+  buttons: *Abandon Edit* (show the stored value again) and *Stay Edit* (focus back in the
+  field) (`aria-invalid`, `role="alert"`). A change from elsewhere, such as undo, drops the
+  typed text. Warnings describe applied values (`role="status"`).
 - Groups are `<details open>`; clicking the summary folds them. Hidden properties keep their values.
 - Text is selectable (`select-text`); all text goes through Paraglide; colours use the `--cv-*`
   canvas variables.

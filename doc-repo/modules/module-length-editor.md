@@ -9,7 +9,7 @@
 
 ## 1. What it is
 
-Edits a width, height, gap or margin: an allowed keyword (`auto`, `elastic`) or a non-negative number with an allowed unit. A number typed without a unit means px (`240` is stored as `240px`); a percentage is at most 100. A half-typed value is not flagged while typing; an invalid one is reported, and not applied, when the field is left. Value editor ID: `length`.
+Edits a width, height, gap or margin: an allowed keyword (`auto`, `elastic`) or a non-negative number with an allowed unit. A number typed without a unit means px (`240` is stored as `240px`); a percentage is at most 100. A half-typed value is not flagged while typing; an invalid one is never applied, and on leaving the field the editor says why and offers *Abandon Edit* and *Stay Edit*. Value editor ID: `length`.
 
 ## 2. Files
 

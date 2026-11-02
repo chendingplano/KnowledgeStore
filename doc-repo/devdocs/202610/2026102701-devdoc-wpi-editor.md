@@ -319,10 +319,12 @@ a property editor.)
   A property with a fixed set of values uses a pulldown menu, never a text field.
 - **Changes show at once.** A changed value takes effect on the canvas immediately, while
   the author is still in the field.
-- **Invalid values are not applied.** Text that is not valid (a length of `12xy`, say) stays
-  in the field, unapplied and unflagged while the author types, because half-typed values
-  are normal. On leaving the field, the stored value comes back and the field says why the
-  text was not applied. Warnings about an applied value (a width above the maximum) show at
+- **Invalid values are not applied.** Text that is not valid (a length of `12xy`, say) is
+  not applied and is not flagged while the author types, because half-typed values are
+  normal. When the author leaves the field (or presses Enter), the text stays in the field
+  and the editor shows, under the value editor, why it is invalid, with two buttons:
+  **Abandon Edit** shows the stored value again; **Stay Edit** puts the cursor back in the
+  field to fix it. Warnings about an applied value (a width above the maximum) show at
   once.
 - **Canvas changes show at once.** Moving or resizing an entity, or splitting a pane, on
   the canvas updates the property editor immediately. An editor whose values differ from
