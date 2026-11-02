@@ -1,8 +1,9 @@
 # Module: Property Editor
 
 **Module ID:** `20261102-01`
-**Type:** frontend · **Language:** svelte · **Version:** 1.1.0
-**Status:** active — used by the WPI editor's Properties panel (OpenSpec `wpi-property-editors`)
+**Type:** frontend · **Language:** svelte · **Version:** 1.2.0
+**Status:** active — used by the WPI editor's Properties panel (OpenSpec `wpi-property-editors`) and,
+through `editors.ts`, by the `value-editor` element module (OpenSpec `wpi-value-editor-elements`)
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/property-editor`
 **Created:** 2026-11-02
@@ -44,7 +45,10 @@ themselves belong to [Web Page Interpreter (frontend)](module-web-page-interpret
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/StringListEditor.svelte` | A list of words as comma-separated text |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/ReadOnlyValue.svelte` | A value shown but not edited |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/JsonEditor.svelte` | Any value as JSON text; text that does not parse is kept as a string |
-| `ChenWeb/web/src/lib/components/shared-ui/value-editors/SortOrderEditor.svelte` | Sort columns, each ascending or descending |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/SortOrderEditor.svelte` | Sort columns, each ascending or descending (`sort-order-editor`) |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/IconPickerEditor.svelte` | `icon-picker`: the icon library's `IconSearchPicker` (`20261102-10`) behind a button showing the chosen icon; the value is the icon name |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/TablePickerEditor.svelte` | `table-picker`: Pick Table (`20261029-01`) as a value editor |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/FieldPickerEditor.svelte` | `field-picker`: Pick Fields (`20261029-02`) for the table in `options.table` |
 
 ## 3. Interface
 

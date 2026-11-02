@@ -1135,7 +1135,11 @@ modules. Migration `20261030000005_wpi_chat_elements.sql` added the element modu
 `chat-composer` and `chat-panel` and their active classes (2026-10-30, ChenWeb OpenSpec change
 `wpi-chat-elements`): a message box and a Chat/Dialog panel that share the chat of their page
 instance, converted from ChenWeb's Chat page ([Chat Composer](../../code_modules/interpreter-chat-composer.md),
-[Chat Panel](../../code_modules/interpreter-chat-panel.md)). Besides them only the `flow-layouter` element layouter has a row (migration
+[Chat Panel](../../code_modules/interpreter-chat-panel.md)). Migration
+`20261102000003_wpi_value_editor_elements.sql` added the element module `value-editor` and 28
+classes that all use it, one per value editor of the WPI Editor (2026-11-02, ChenWeb OpenSpec
+change `wpi-value-editor-elements`; [Value Editor](../../code_modules/interpreter-value-editor.md)).
+Each class fixes the editor it draws, and the five editors without code are drafts. Besides them only the `flow-layouter` element layouter has a row (migration
 `20261028000003_register_flow_layouter.sql`): action classes still name their code by
 their class ID ([Actions](#actions)), and the code of page layouters is not registered yet. The editor reads the table through
 `GET /api/v1/wpi/code-modules`.

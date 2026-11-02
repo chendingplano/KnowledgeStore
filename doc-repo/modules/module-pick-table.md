@@ -2,7 +2,7 @@
 
 **Module ID:** `20261029-01`
 **Type:** frontend · **Language:** svelte · **Version:** 1.0.0
-**Status:** active — used by the WPI editor
+**Status:** active — used by the WPI editor: inside the data-source editor, and as the `table-picker` value editor and element class
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/database-picker`
 **Created:** 2026-10-29

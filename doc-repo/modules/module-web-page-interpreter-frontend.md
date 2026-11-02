@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.6.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.7.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -88,6 +88,7 @@ documented in devdoc 2026102701 §1.3.7.
 | `ChenWeb/web/src/lib/wpi/elements/MenuElement.svelte` | `menu`: tree with folders, `initial_item`, current item from the pane it opens pages in |
 | `ChenWeb/web/src/lib/wpi/elements/ChatComposerElement.svelte` | `chat-composer`: message box and tool bar for a harness-backed assistant ([doc](../code_modules/interpreter-chat-composer.md)) |
 | `ChenWeb/web/src/lib/wpi/elements/ChatPanelElement.svelte` | `chat-panel`: Chat and Dialog tabs of the page's chat ([doc](../code_modules/interpreter-chat-panel.md)) |
+| `ChenWeb/web/src/lib/wpi/elements/ValueEditorElement.svelte` | `value-editor`: any value editor under a caption, bound to an input-doc field; drawn for the 28 value-editor classes ([doc](../code_modules/interpreter-value-editor.md)) |
 | `ChenWeb/web/src/lib/wpi/chat-session.svelte.ts` | The chat of one page instance, shared by its chat elements; reference-counted per runtime and page instance |
 | `ChenWeb/web/src/lib/wpi/chat-agents.ts` | The four harness-backed assistants and the assistant and model selection |
 | `ChenWeb/web/src/lib/wpi/chat-agents.test.ts` | Assistant selection tests |
@@ -119,6 +120,10 @@ documented in devdoc 2026102701 §1.3.7.
 | `ChenWeb/web/tests/wpi-text/vite.config.ts` | Real-component Chromium harness and interaction checks |
 | `ChenWeb/web/src/lib/wpi/properties/class-definition.ts` | Applies value-editor configuration from frozen class metadata to property definitions |
 | `ChenWeb/web/src/lib/wpi/properties/class-definition.test.ts` | Regression tests for class editor overrides and value conversions |
+| `ChenWeb/web/src/lib/wpi/properties/editor-ids.ts` | Which value editor draws each catalogue ID (built, variant to base, none for unbuilt); used by class overrides and the value-editor element |
+| `ChenWeb/web/src/lib/wpi/properties/editor-ids.test.ts` | Every catalogue ID with code resolves to a registered editor |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/element-palette.ts` | Palette entries of element classes: value-editor classes in VALUE EDITORS, the others in ELEMENTS |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/element-palette.test.ts` | Tests for the palette split |
 
 ## 3. Interface
 
@@ -185,6 +190,11 @@ No Page Styles integration is implied. Browser checks run with
 `python3 web/tests/wpi-text/test_text.py --start-server` from ChenWeb.
 
 - Input controls validate on blur and before save, and the server validates the stored page rules; see `doc-repo/code_modules/interpreter-input.md`.
+- `rt.read` reads each attribute on a binding's path as a property before calling `getPath`.
+  A property read subscribes to an attribute the input doc does not have yet, and
+  `Object.hasOwn` on a Svelte state proxy does not. So an element bound to an absent attribute
+  shows a value written there later (fixed 2026-11-02 in 3.7.0; value editors, which redraw
+  from the stored value, exposed it).
 - The route's root sets `select-text`; only the pane resize handle is `select-none`.
 - All of the interpreter's own text goes through Paraglide (`wpi_*` keys in English and
   Chinese). A `label` (and a class's `description`) may hold one text per language and is

@@ -31,7 +31,7 @@ with an attribute tree and inline forms (§1.3.7).
 ## 1.2 What is on the screen
 
 - **Left — node palette.** Building blocks you can drag onto the canvas, in folders
-  (AI, Data, Actions, plus empty Pages and Elements folders kept for WPI). Folders start
+  (AI, Data, Actions, plus Pages, Elements and Value editors for WPI; §1.3.10). Folders start
   folded; typing in the search box opens every folder with a match.
 - **Middle — tool bar and canvas.** The tool bar runs along the top of the canvas (table
   below). The canvas has zoom controls at the bottom left, an overview map at the bottom
@@ -87,7 +87,8 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/PaneStructure.svelte` | The pane editor's tree and its split, add, merge and delete commands |
 | `web/src/lib/components/shared-ui/canvas/edit-session.ts` | One undo step per focus; tests in `edit-session.test.ts` |
 | `web/src/lib/components/shared-ui/property-editor/`, `value-editors/` | The shared property editor and the value editors (reusable modules `20261102-01` to `-08`) |
-| `web/src/lib/wpi/properties/` | The property editor definitions and the sources that read and write each kind of entity (§1.3.9) |
+| `web/src/lib/wpi/properties/` | The property editor definitions and the sources that read and write each kind of entity (§1.3.9); `editor-ids.ts` decides which editor draws each value-editor ID |
+| `web/src/lib/wpi/elements/ValueEditorElement.svelte`, `web/src/lib/components/shared-ui/canvas/element-palette.ts` | The value-editor elements and the palette's ELEMENTS / VALUE EDITORS split (§1.3.10) |
 | `web/src/lib/components/shared-ui/canvas/{WpiClassPanel,EntityClassEditor,ClassAttributeTree,ClassEditorOptions}.svelte`, `class-editor.ts` | The Class tab, stored-class drafts, recursive attributes and editor configuration |
 | `server/api/wpi/class_editor.go` | Class read/update endpoints and editor metadata validation |
 | `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
@@ -124,8 +125,12 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 - **From the server:** `GET /api/v1/flow-node-types` returns 11 hard-coded types
   (`server/api/flowhandler/nodetypes.go`): AI — `ai-assistant`, `coding-assistant`;
   Data — `text`, `document`, `file`, `media`; Actions — `tool`, `mcp`, `http-request`,
-  `rule`, `git`. These appear in the palette. The palette also shows empty `Pages` and
-  `Elements` folders (`WPI_PALETTE_CATEGORIES`).
+  `rule`, `git`. These appear in the palette. After them the palette shows the `Pages`,
+  `Elements` and `Value editors` folders (`WPI_PALETTE_CATEGORIES`). Element classes from
+  `GET /api/v1/wpi/classes/element` fill the last two: a class whose `code_module_id` is
+  `value-editor` goes to VALUE EDITORS, every other class to ELEMENTS
+  (`canvas/element-palette.ts`). Dropping a class from either folder adds a `wpi-element`
+  node of that class.
 - **WPI node types (client only):** `wpi-page`, `wpi-element`, `wpi-action`, defined in
   `WPI_NODE_TYPES` in `wpi-editor.svelte`. They are created only from the tool bar and are
   not in the palette. Each has one input handle and one output handle, and
@@ -395,7 +400,10 @@ changes a stored class (§1.3.7).
 Unless a value editor is very simple, build it as a reusable module and catalogue it
 under `KnowledgeStore/doc-repo/modules/`. The list will grow: when a class needs a value
 editor that is not listed, add it here and build it the same way. The *Built as* column names
-the catalogued module (`KnowledgeStore/doc-repo/modules/`).
+the catalogued module (`KnowledgeStore/doc-repo/modules/`). Which editor draws each ID is
+decided in one place, `web/src/lib/wpi/properties/editor-ids.ts`, for both the Properties
+panel and the value-editor elements (§1.3.10). Every value editor is also an element class
+with the name in the first column.
 
 | Value editor (ID in definitions) | What it edits | Built as |
 |---|---|---|
@@ -411,21 +419,41 @@ the catalogued module (`KnowledgeStore/doc-repo/modules/`).
 | time-picker | A time or a range of times | Not built |
 | color-picker (`color`) | A colour: none, one colour, or separate light and dark colours, chosen with a picker or typed as CSS | Color Picker (`20261102-04`) |
 | length-editor (`length`) | `auto` and `elastic` where allowed, or a number in the allowed units (px, rem, em, %); a bare number means px | Length Editor (`20261102-05`) |
-| font-picker | A font family | The text editor with the font grammar |
-| alignment-picker | Horizontal or vertical alignment | The value-picker with the alignment values |
-| icon-picker | An icon | The value-picker with the icon names |
+| font-picker (`font-picker`) | A font family | The text editor. As an element, it accepts only `inherit` or a CSS font-family list. A real font picker waits for font management (a separate change, decided 2026-11-02) |
+| alignment-picker (`alignment-picker`) | Horizontal or vertical alignment | The value-picker with the alignment values |
+| icon-picker (`icon-picker`) | An icon, found by English or Chinese keyword or description; the value is its name | The icon library's `IconSearchPicker` (`20261102-10`), adapted in `IconPickerEditor.svelte` |
+| emoji-picker (`emoji-picker`) | An emoji, found by English or Chinese keyword or description; the value is its Unicode string | WPI Emoji Value Editor (`20261102-13`), backed by the shared emoji library |
 | button-type-picker | One of the button types the system supports | Not built |
 | database-picker, schema-picker | A database, a schema | Not built on their own; the first levels of Pick Table |
-| table-picker | A table | Pick Table (`20261029-01`), inside the data-source editor |
-| field-picker | Fields of a table | Pick Fields (`20261029-02`), inside the data-source editor |
+| table-picker (`table-picker`) | A table | Pick Table (`20261029-01`), adapted in `TablePickerEditor.svelte` |
+| field-picker (`field-picker`) | Fields of the table in the `table` option | Pick Fields (`20261029-02`), adapted in `FieldPickerEditor.svelte` |
 | data-source-editor (`data-source`) | Where a list gets its rows: table, fields, row limit, action, result and sort order | Data Source Editor (`20261102-06`) |
 | column-list-editor (`column-list`) | A list's columns: label, field and width, with add and remove | Column List Editor (`20261102-07`) |
-| sort-order-editor | Sort columns, each ascending or descending | Property Editor (inside the data-source editor) |
+| sort-order-editor (`sort-order-editor`) | Sort columns, each ascending or descending | Property Editor (`SortOrderEditor.svelte`, also used inside the data-source editor) |
 | validation-editor (`validation`) | Input rules: min, max and step for numbers; min length and pattern for text | Validation Rules Editor (`20261102-08`) |
-| action-picker | The action an event runs, such as *open page* on a click | The value-picker with the action classes |
-| layouter-picker | The page layouter | The value-picker with the page layouter classes |
+| action-picker (`action-picker`) | The action an event runs, such as *open page* on a click | The value-picker with the action classes |
+| layouter-picker (`layouter-picker`) | The page layouter | The value-picker with the page layouter classes |
 | read-only-value (`read-only`) | A value shown but not edited: an ID, a schema version, a pane, a position | Property Editor |
 | json-editor (`json`) | A property no other value editor fits, as JSON text | Property Editor |
+
+### 1.3.10 Value editors as elements
+
+**Status: built 2026-11-02** (OpenSpec change `wpi-value-editor-elements` in ChenWeb; its spec is
+the contract). Each value editor above is also an element class that an author can put on a
+page. These classes are listed in the palette's **VALUE EDITORS** folder, after ELEMENTS, and
+are dropped, configured in the Properties and Class tabs, previewed and saved like any
+element. Each one draws its editor under a caption and binds the value to an input-doc field.
+
+All 28 classes share one code module, `value-editor`. Each class fixes the editor it draws in
+`editor` and gives default `editor_options`. The 23 editors that have code are active
+classes. date-picker, time-picker, button-type-picker, database-picker and schema-picker are
+drafts: they are listed and marked as drafts, but a page cannot use them yet. The classes,
+attributes and rules are in the code-module document
+[`interpreter-value-editor.md`](../../code_modules/interpreter-value-editor.md).
+
+The Properties panel shows a value-editor element in four groups: Placement; General (caption,
+data binding, binding mode); Editor (the fixed `editor`, and `editor_options` as JSON); and
+Size.
 
 ## 1.4 Known limitations
 
@@ -438,8 +466,12 @@ the catalogued module (`KnowledgeStore/doc-repo/modules/`).
 - **Property editor groups and labels are defined in code** (§1.3.9). Element value
   editors and panel layouter configuration can use overrides from their class copy.
   Date, time and button-type controls, and standalone database/schema controls, are
-  configurable placeholders. Standalone table, field and sort controls use JSON;
-  their specialized controls remain inside the data-source editor.
+  configurable placeholders, and their element classes are drafts.
+- **Value editors on a page keep their compact Properties-panel look** (11 px text). Pickers
+  on a page show raw values, because choice labels are functions and cannot be stored in a
+  class. font-picker accepts only CSS font-family text until font management exists.
+- **icon-picker needs `shared.icon_library`**, which is in the dev database but not yet in
+  production (hand-off 2026110202).
 - **Fixed to the site header's height.** The top offset is a constant (see Where it lives).
 - **The properties panel's width is not remembered.** It returns to 390 px each time the
   editor opens, and the resize handle works with the mouse only, not the keyboard.

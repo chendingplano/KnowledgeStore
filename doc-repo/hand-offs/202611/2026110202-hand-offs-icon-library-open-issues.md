@@ -1,7 +1,7 @@
 # Handoff: icon library — three open issues
 
 **Date:** 2026-11-02  
-**Status:** The icon library is built, live-tested and committed. Three follow-ups remain; none blocks the others.  
+**Status:** The icon library is built, live-tested and committed. Issues 1 and 2 were closed on 2026-11-02 by ChenWeb OpenSpec change `wpi-value-editor-elements` (see the notes under each). Issue 3 remains open.  
 **Scope:** `shared/` (Go `iconlib`, Svelte `Icon` / `IconSearchPicker`), ChenWeb wiring. Current description: devdoc `KnowledgeStore/doc-repo/devdocs/202611/2026110201-devdoc-icon-library.md`. Contract: `shared/openspec/specs/icon-library`, `icon-search`, `icon-picker`. Catalogue entries: modules `20261102-09` (backend) and `20261102-10` (frontend).
 
 ## State at hand-off
@@ -13,6 +13,16 @@
 - Not yet verified: the picker in a browser, and fused (BM25 + vector) results through the running server. Live Go tests cover BM25 and SVG fetch only.
 
 ## Issue 1 — Connect the page-designer `icon-picker` to the new picker
+
+**Closed 2026-11-02.** The `icon-picker` editor ID now draws `IconSearchPicker`, adapted in
+`ChenWeb/web/src/lib/components/shared-ui/value-editors/IconPickerEditor.svelte`, and shows the
+stored name with `Icon`. This applies in the Properties panel and in the new `icon-picker`
+element class. The `'icon-picker': 'value-picker'` alias is gone; `editor-ids.ts` now decides
+which editor draws each ID. A browser check picked an icon after typing `reload` and found its
+name in the input doc. That check used keyword search only: `reload` ranked first and
+`refresh-cw` was not tested. The text element's own `icon` attribute still uses its fixed
+list, which `TextElement` draws and `text_attributes.go` checks. Moving it to the library is a
+separate follow-up.
 
 **Problem.** In ChenWeb the WPI attribute type `icon-picker` is only an alias of `value-picker` (`ChenWeb/web/src/lib/wpi/properties/class-definition.ts`, the `aliases` table). Users still choose from a hand-written list; nothing in the UI uses the library.
 
@@ -27,6 +37,10 @@
 **Done when.** Picking an icon by typing "刷新" or "reload" in the page designer saves `refresh-cw`, and reopening the page shows the icon.
 
 ## Issue 2 — Paraglide keys for the picker's text
+
+**Closed 2026-11-02.** `icon_search_placeholder`, `icon_search_empty` and `icon_search_error`
+are in both ChenWeb message files, and the adapter passes `locale={getLocale()}`.
+`bun run check` passes, and the picker rendered in ChenWeb's shell.
 
 **Problem.** The shared Svelte library has no translations, so `IconSearchPicker` takes `labels` (`placeholder`, `empty`, `error`) and `locale` from the host app. The usage example in the frontend module doc calls `m.icon_search_placeholder()`, `m.icon_search_empty()` and `m.icon_search_error()`. **These keys do not exist** in `ChenWeb/web/messages/en.json` or `zh-cn.json`.
 

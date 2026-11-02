@@ -2,7 +2,7 @@
 
 **Module ID:** `20261102-10`
 **Type:** frontend · **Language:** svelte · **Version:** 1.0.0
-**Status:** active — exported from the shared Svelte library; not yet used by a ChenWeb screen
+**Status:** active — exported from the shared Svelte library; used by ChenWeb as the `icon-picker` value editor and element class (`IconPickerEditor.svelte`, 2026-11-02)
 **Project:** shared
 **Location:** `shared/svelte/src/lib/components/icons/`
 **Created:** 2026-11-02
