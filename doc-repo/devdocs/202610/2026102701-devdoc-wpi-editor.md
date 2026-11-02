@@ -220,11 +220,21 @@ selected entity's latest stored class. It reads the database record, even when t
 instance already holds an older class copy. Each attribute is a button showing its
 name. Clicking it reveals its form and any nested attributes; clicking again folds
 it. Element defaults are shown directly, without their storage wrapper.
+The header shows the class record's **Version** and **Schema version** alongside
+its draft or implemented status.
+
+While **Class** is selected, **Code → View JSON** shows that class's whole descriptor
+body, including unsaved form edits. **Edit → Apply** updates the same class draft;
+**Save class** writes the changed body to `kb.wpi_descriptors.body`. Descriptor ID
+and schema version remain fixed. No temporary instance ID is added to this JSON.
+While **Properties** is selected, View JSON continues to show the instance or page.
 
 The form edits the attribute name, its description in one or both languages, the
 **Class / Instance** flag, its default, and its value editor. Choosing an editor
 shows configuration fields such as choices, number limits or allowed length units.
-The full configuration can also be edited as a JSON object. Names must be unique;
+**Editor options as JSON** edits only the selected value editor's configuration;
+for `localized-text`, it is that editor's options, not the translated text or class
+body. An empty object uses the editor's default options. Names must be unique;
 identity fields and array indices retain their names. Descriptor ID and schema
 version values are read-only. Blank default text removes the default; `null` means
 an instance must supply it; `""` means an empty string.
