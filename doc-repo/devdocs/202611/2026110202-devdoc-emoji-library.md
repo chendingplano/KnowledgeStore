@@ -25,7 +25,7 @@ Reusable-module records are `20261102-11` (backend), `20261102-12` (frontend) an
 
 ## Operating it
 
-The shared database needs the PostgreSQL `pg_search` extension with its Chinese `jieba` tokenizer. Apply the shared migration and run `emoji-seed` using the pinned sources; see `shared/go/cmd/emoji-seed/README.md`. Apply the project migration for the standalone WPI class. Both migrations and the catalogue import have been applied to the development database; another environment needs its own migration and import. The shared migration currently lives in ChenWeb's migration directory; an independent consumer must include that migration in its own deployment before enabling the library.
+The shared database needs the PostgreSQL `pg_search` extension with its Chinese `jieba` tokenizer. The shared migration runner includes the embedded emoji migration when the extension is available; it rejects a project copy that differs from the embedded version. Run `emoji-seed` using the pinned sources; see `shared/go/cmd/emoji-seed/README.md`. Apply the project migration for the standalone WPI class. Both migrations and the catalogue import have been applied to the development database; another environment needs its own migration and import.
 
 The seeder checks source checksums, complete bilingual metadata and SVG safety before it starts a transaction. An incomplete build or failed import leaves the prior catalogue intact. Reusing unchanged inputs does not update unchanged rows. A future release with missing translations needs reviewed overrides before it can be published.
 

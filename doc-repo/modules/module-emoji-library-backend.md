@@ -22,6 +22,7 @@ Builds a bilingual, locally served Twemoji catalogue and searches it by English 
 | `shared/go/cmd/emoji-seed/main.go`, `shared/go/cmd/emoji-seed/source.go`, `shared/go/cmd/emoji-seed/source_test.go` | Validated build/import command and checksum tests |
 | `shared/go/cmd/emoji-seed/source-manifest.json`, `shared/go/cmd/emoji-seed/zh-name-overrides.json`, `shared/go/cmd/emoji-seed/fetch-sources.sh`, `shared/go/cmd/emoji-seed/README.md` | Pins, reviewed translations, source download and operator instructions |
 | `ChenWeb/shared_migrations/20261103000002_create_shared_emoji_library.sql` | Shared table and BM25 index |
+| `shared/go/api/goose/emoji_migration.go`, `shared/go/api/goose/emoji_migration_test.go`, `shared/go/api/goose/shared_migrations/20261103000002_create_shared_emoji_library.sql` | Embedded shared migration and consistency checks |
 
 ## 3. Interface
 
