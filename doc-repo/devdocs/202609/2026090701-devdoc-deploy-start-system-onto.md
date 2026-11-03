@@ -33,7 +33,10 @@ models and verified real PDF parsing. CPU parsing uses ONNX and llama.cpp to avo
 native-library conflict when PyTorch and llama.cpp are loaded in the same process;
 rev 2026-11-03: added the stacked-cell repair to §4 (openspec `mineru-stacked-cell-repair`,
 in the next image build; `prepare-context.py` now stages its two modules) and recorded that
-PDF table geometry (viewer row highlighting) was never provisioned on this box.)
+PDF table geometry (viewer row highlighting) was never provisioned on this box;
+rev 2026-11-04: §4 — the image now writes PDF table geometry, and its PyMuPDF 2.1 layout gating
+left 表 1's continuation page unrepaired and unhighlighted; fixed in source, needs the next image
+build.)
 **Scope:** Operations, build, and deployment for the ChenWeb stack on the China production
 box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
 **`https://onto.bzton.cn`**. The original manual procedures and why this box deviates from
@@ -413,15 +416,26 @@ Build, model provisioning and rollback instructions are in
 results are under `/home/gui/Workspace/deploy/mineru-4.0.9-container/`.
 
 **Stacked-cell repair** (openspec `mineru-stacked-cell-repair`, built 2026-11-03, deployed
-with the next image build). MinerU's table VLM glues a cell's stacked lines together
+in the 2026-11-04 image). MinerU's table VLM glues a cell's stacked lines together
 (GB 9448—2025 表 1: `<2.52.5~<44~6.4>6.4`, `781011`) in every tier. After the adapter, the
 worker re-cuts such cells from the PDF text layer and splits rows whose values line up into
 one row per value, without model calls; tables it cannot verify pass through unchanged. The
-image needs `mineru_cell_repair.py` and `stacked_cells.py` beside `parser_mineru.py`; the
-README's rsync list and `prepare-context.py` include them. Check a parse with
+image needs `mineru_cell_repair.py`, `stacked_cells.py` and `table_geometry.py` from the
+source tree; the README's rsync list and `prepare-context.py` include them. Check a parse with
 `journalctl -u pdf-parser | grep 20261103-51` (`-513` report, `-512` repair failed and was
 skipped). Only documents parsed after the deploy are affected; existing ones are not
 re-parsed.
+
+**PyMuPDF version (found 2026-11-04).** The 2026-11-04 image resolved the unpinned
+`PyMuPDF>=1.24` to 2.1 (the 2026-10-18 image had 1.28.2). PyMuPDF 2 gates `find_tables()` by
+a layout model: a ruled table survives only when the model's table box overlaps it by 0.6 or
+more, else it is replaced by a table built from the text lines in the model's box. Record 103's
+表 1 continuation page (page 13) lost its ruled table that way (overlap 0.518, the model left
+out the footnote row inside the border): the repair logged `skipped: {"no_match": 1}`, its cells
+stayed glued, and the viewer had no row boxes, only the whole-table outline. Fixed in source
+(ChenWeb jj `vpkl`, 2026-11-04): both callers use `find_tables(use_layout=False)` and PyMuPDF is pinned to
+2.1 in the Dockerfile and `pyproject.toml`. **Takes effect with the next image build**; record
+103 needs a re-parse after it. A `no_match` skip on a table that has visible rules is the symptom.
 
 **Start (systemd):**
 ```bash
@@ -466,13 +480,13 @@ the previous deployment's forced OCR setting (`MINERU_EXTRA_ARGS=-m ocr -l ch`).
   `~/Workspace/mineru.json`. MinerU 4 reads YAML config at `~/.mineru/config.yaml` and
   model repositories under `~/.mineru/models`; the old JSON config and model cache do not
   provision MinerU 4 models.
-- PDF table geometry is not provisioned on this box (found 2026-11-03): `table_geometry.py`
-  is not deployed in `~/Workspace/ChenWeb/python/pdf-parser/` and
-  `PDF_TABLE_GEOMETRY_PYTHON`/`PDF_TABLE_GEOMETRY_SCRIPT` are unset, so every conversion
-  logs `(20261007-643) table geometry companion unavailable … (20261007-653)` and no
-  record has a `.pdf-table-geometry.json`. Viewer row highlighting therefore has no PDF
-  boxes. Provisioning it needs `table_geometry.py` plus `stacked_cells.py` on the host and
-  a Python with PyMuPDF.
+- PDF table geometry (viewer row highlighting) is written by the pdf-parser worker itself
+  since the 2026-11-04 image: after each parse it saves `<pdf>.pdf-table-geometry.json`
+  (`(20261007-641) extracted PDF table geometry`), and the converter then logs
+  `(20261007-644) table geometry companion ready`. Records parsed before that image have no
+  PDF boxes; their conversions logged `(20261007-643) … (20261007-653)`, because the
+  converter's own fallback (`PDF_TABLE_GEOMETRY_PYTHON`/`PDF_TABLE_GEOMETRY_SCRIPT`) is
+  still unset in `.env`. They get boxes only when re-parsed.
 - Relevant `.env` keys: `PDF_PARSER_NAME=mineru`,
   `PDF_STAGE_EVENT_SUBJECT=kb.pdf.staged`, `PDF_PIPELINE_MODE=jetstream`.
 - MinerU 4 YAML config is `~/.mineru/config.yaml`, with `model.source: local`; missing
