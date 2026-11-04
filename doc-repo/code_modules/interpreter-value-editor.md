@@ -113,6 +113,49 @@ Picking one stores its name, for example `refresh-cw`, and closes the search. **
 **清除** unsets it. The search uses `/shared_api/v1/icons/search` and `/by-name/:name/svg`,
 which need the `shared.icon_library` table.
 
+## Proposed color-picker revision 1 — awaiting human design review
+
+This section proposes a change to the existing `color` editor; it is not yet implemented.
+It applies both in the Properties panel and when the `color-picker` class is placed on a
+page. The existing class identity, descriptor attributes, defaults, binding and value shapes
+remain unchanged; saved class copies receive the revised editor without a descriptor update.
+
+The mode selector and current color controls share one line. Retain the existing None,
+Single and Light and dark choices (the latter is available when `editor_options.theme` is
+true or the current value is already a theme). None shows no color; Single shows one swatch
+and editable color value; Light and dark shows two individually labeled swatches and values.
+Use the compact swatch/value/opacity treatment in the supplied reference. On narrow panels,
+keep the row usable with horizontal overflow rather than clipping controls. CSS color text
+remains editable and copyable, including existing values that are not hex colors.
+
+Clicking either swatch opens a floating dialog for that specific color. Its title bar is a
+drag handle and includes a close button; a resize handle changes its dimensions. Constrain
+the dialog to a usable minimum size and keep it reachable in the viewport. Closing it or
+pressing Escape retains already applied changes and returns focus to the opening swatch.
+Movement and resizing must have keyboard-accessible alternatives. The dialog uses the
+reference's color field, hue and opacity sliders, numeric color controls and a palette area;
+all controls need accessible names and visible focus. Changes apply through the existing
+validation and binding path. Invalid typed values remain editable and are not applied.
+
+The palette area has a dropdown with **Common colors / 常用颜色** and **Color families /
+颜色系列**. Common colors shows a grid of selectable swatches; Color families provides a
+family selector and its swatches using the existing family data. A chosen swatch updates the
+active color. The controls, labels and errors are available in English and Chinese. The dialog
+does not imply support for the reference image's library, gradient, eyedropper or other icons
+unless implemented and separately specified. Color conversion and opacity must preserve the
+visible result; editing one theme variant must not change the other. Existing CSS values must
+not be silently rewritten merely by opening the dialog.
+
+**Review assumptions:** The two menu entries select palette content, not the color mode;
+the existing None option and theme availability are retained for compatibility. The dialog
+edits one variant at a time, and its position and size need not persist after it closes.
+No new configurable descriptor attributes or class defaults are proposed. The current
+implementation and class remain active while this revision awaits approval. Verification
+will cover both modes, existing CSS values, alpha, validation, palette selection, keyboard
+operation, movement/resizing, localization and narrow viewports.
+
+**Review record:** Revision 1; awaiting human design review. No approval recorded.
+
 ## States
 
 | State | Behaviour |
