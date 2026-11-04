@@ -188,7 +188,7 @@ session.
 
 - length property has a label that describes what it is
 - length property may define its default value
-- length property can have values of "auto", "elastic", percent ('%"), pixels ('px'), 'em', 'default'. These are types of length property. If the property does not have a default, do not list 'default'
+- length property can have values of "value", "auto", "elastic", percent ('%"), pixels ('px'), 'em', 'default'. These are types of length property. If the property does not have a default, do not list 'default'
 - the actual value of "auto" and "elastic" will be determined by system defaults, layouters, styles, etc.
 
 **Looking-and-feel**
@@ -206,7 +206,7 @@ The following contract was approved on 2026-11-04.
 
 The existing `length` editor is shared by the Properties panel and page elements. Keep
 existing stored values and class copies compatible: a numeric length is a CSS string such
-as `"12px"` or `"50%"`; `auto` and `elastic` are strings. Selecting **default** unsets
+as `"12px"` or `"50%"`; `value` stores a unitless numeric string such as `"12.5"`; `auto` and `elastic` are strings. Selecting **default** unsets
 the property rather than storing the literal string `"default"`, so the existing class or
 system default can take effect. Offer it only when a concrete property default is known.
 For a page-bound value, unsetting writes `null`, as in §4; a page element must explicitly
@@ -214,8 +214,8 @@ supply its default in `editor_options.defaultValue` for the choice to appear. Se
 default does not write its displayed value to the bound field.
 
 The label and help tip belong to the host property or element. Show them alongside the
-value and type; omit the tip icon when no help text is supplied. The type selector offers
-only configured `keywords` and `units`, plus default when available. Preserve `rem` where
+value and type; omit the tip icon when no help text is supplied. The type selector offers `value`, configured `keywords` and `units`, plus default when available.
+An unset length without a configured default starts with `value` selected and an empty input. Preserve `rem` where
 already configured: existing descriptors and property definitions use it. Selecting a
 numeric unit retains the current numeric amount, or starts at zero when the previous type
 had no numeric amount; selecting a keyword applies that keyword. Selecting a unit changes
@@ -274,10 +274,15 @@ instance object:
 | `editor_options.helpTip` | Optional string or localized `{ "en": string, "zh-cn": string }`; supplies the page element's help tip. |
 | `width`, `height`, `min_width`, `max_width` | Optional layout lengths for the editor element itself, distinct from the value it edits. The class defaults `width` to `"elastic"`. |
 
+The `value` type is always offered and stores a numeric string without a unit. It is the
+initial type when there is no value or configured default. Existing layout fields may
+interpret a unitless string as pixels; the editor does not add a unit to the stored value.
+Individual properties may apply additional validation.
+
 The following is a complete instance with the current version 1 class copy. It can be
 placed in a panel's `elem_list`; the surrounding page and panel are omitted. Its input
 doc might contain `{ "panel": { "width": "240px" } }`. A numeric value is stored as
-one string with its unit; `"auto"` and `"elastic"` are stored as strings. Selecting
+one string with its selected unit, or without a suffix for `value`; `"auto"` and `"elastic"` are stored as strings. Selecting
 **Default** writes `null` at the binding, rather than storing `"default"` or `"240px"`.
 The `default_value` inside the class copy describes a class attribute's default; it is
 separate from `editor_options.defaultValue`, the fallback for the length being edited.
