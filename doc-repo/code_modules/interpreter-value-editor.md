@@ -125,7 +125,10 @@ Reset; the current color controls are below. A color-picker element places the s
 to its caption and the current color controls below, matching the Properties panel. Retain the existing None,
 Single and Light and dark choices (the latter is available when `editor_options.theme` is
 true or the current value is already a theme). None shows no color; Single shows one swatch
-and editable color value; Light and dark shows two individually labeled swatches and values.
+and editable color value; Light and dark shows two individually labeled swatches and values
+in separate rows. A newly mounted unbound color-picker with `theme: true` starts with light
+`#ffffff` and dark `#000000`. A bound editor displays the bound value, including an unset
+value, without writing defaults into the input document.
 Use the compact swatch/value/opacity treatment in the supplied reference. On narrow panels,
 keep the row usable with horizontal overflow rather than clipping controls. CSS color text
 remains editable and copyable, including existing values that are not hex colors.
