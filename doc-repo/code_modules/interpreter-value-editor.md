@@ -117,83 +117,6 @@ which need the `shared.icon_library` table.
 
 ## 5. Value Editors
 
-### String value editor
-
-**Approved by the user on 2026-11-04.** `string-editor` handles a single string, a
-multilingual string, or a string selected from a list. It has its own class and editor ID;
-the existing `text-editor` and `localized-text-editor` and their saved class copies keep
-their existing behavior.
-
-Show **label + value + …**. The ellipsis opens a keyboard- and touch-operable menu:
-**Single / 单一文本**, **Multilingual / 多语言**, and **List / 列表**. The selected
-element's Properties panel also has an ellipsis menu with those choices and
-**Validators / 验证器**. Single shows a
-one-line text field. Multilingual shows one field per configured language, labelled by
-language, with English and Chinese by default. List shows a dropdown of author-defined
-string values. The page author defines the list in the Properties panel; the person using
-the page selects a value. The menu changes the value's representation, so it is disabled
-in read-only mode; the displayed value remains selectable.
-
-Selecting Validators opens a panel showing the editor's current validators in order and
-a **+** button with the accessible name **Add validator / 添加验证器**. The button opens
-the available validator classes; choosing one adds an instance. The panel also allows
-reordering and removing instances and editing their constraints and messages, using the
-existing validator property editor. An empty list is explicitly shown. Closing the panel
-does not change the current Single, Multilingual or List mode. These are authoring controls:
-they edit the element's existing `validators` array, not the bound string value. On a
-running page the Validators item is unavailable because page users do not edit the page
-descriptor; read-only authoring views may inspect validators but cannot change them.
-If validator classes cannot be loaded, show an error and retain the existing list.
-
-The following options are supported under `E.editor_options` for page elements and under
-`value_editor.options` for Properties-panel definitions. In all cases the class-fixed
-value wins over an instance value, then the class default; the page binding mode still
-applies. The surrounding element attributes and validation follow §§3–4 and §9.
-
-| Path within options | Type and default | Behavior |
-| --- | --- | --- |
-| `mode` | `single`, `multilingual`, `list`; `single` | Initial mode when the value does not establish one. The menu changes the current mode. |
-| `languages` | Nonempty array of distinct language tags; `["en", "zh-cn"]` | Fields shown in multilingual mode. Existing language keys outside this list remain intact. |
-| `emptyAsNull` | Boolean; `true` | In single or list mode an empty selection/edit writes `null` when true and `""` when false. In multilingual mode it controls each emptied language entry; other language entries remain unchanged. |
-| `choices` | Array of distinct strings; `[]` | The options for List mode, in author-defined order. Empty list shows an empty dropdown. An empty string choice follows `emptyAsNull`. |
-| `commitOnBlur` | Boolean; `false` | Apply valid text edits on blur when true; otherwise apply while typing. List selections apply immediately. |
-
-Single and List store a JSON string or `null`; Multilingual stores a language-keyed
-object such as `{"en":"Hello","zh-cn":"你好"}`, with each entry a string or `null`.
-Spaces and Unicode are preserved. Switching Single to Multilingual places the current
-string in the current page language if configured, otherwise the first configured language;
-other fields start empty. Switching Multilingual to Single or List uses the current page
-language, falling back to the first configured language with a string value. Switching
-between Single and List keeps the current string, including one absent from `choices`;
-the dropdown displays that value until the user chooses another. Switching modes applies
-the resulting value; it does not rewrite data merely because the control mounted.
-Switching away from Multilingual prompts for confirmation when it would discard nonempty
-translations and displays the resulting value. Cancelling preserves the mode and all values.
-
-List choices are configured as data, not executable code. In the Properties panel, expose
-Mode, Languages, Empty as null, Choices and Commit on blur in the Editor group; show
-Languages for Multilingual and Choices for List while retaining hidden settings. Values
-must be strings, language tags and choices must be unique, and invalid supported options
-produce descriptor errors for this editor. Unsupported class attributes remain
-warnings and forbidden overrides remain errors. The class's `label`, `binding_mode` and
-`width` defaults remain Text / 文本, `read-write` and `elastic`; `data_binding` is
-optional because it is page-specific. The host provides the accessible label and errors;
-all interface text is English and Chinese. Invalid edits remain available for correction,
-and existing validators apply before save. Validators currently receive the complete bound
-value: in Multilingual mode this is an object, so primitive string validators reject it;
-per-language validator execution requires a separate design. No password masking or multiline input is proposed.
-
-**Design assumption:** List choices are configured by the page author, not
-edited by the page's end user. The default `emptyAsNull: true` preserves the existing text editor's
-empty-to-unset behavior; authors can select `false` to store empty strings.
-
-The editor is `StringValueEditor.svelte`, with conversion rules in `string-value.ts`.
-Migration `20261104000003_wpi_string_editor.sql` creates the class and an active version 2;
-the database record was read back with its defaults. Frontend and backend tests pass, and
-the browser harness exercises value conversion, list choice, confirmation and adding a
-validator. A signed-in WPI Editor session has not been exercised. The authoring Validators
-menu opens the existing Properties group; it is separate from the runtime value menu.
-
 ### 5.1 Color picker
 
 The `color` editor is shared by the Properties panel and the `color-picker` page element.
@@ -564,6 +487,85 @@ The backend validates that `editor_options` is an object; it does not validate e
 nested option. The editor validates entered length values, so use the types and choices
 above when authoring descriptors. Changes to the class catalogue do not update a saved
 `class` copy; current module code still renders existing copies.
+
+#### 5.2.3 String value editor
+
+**Approved by the user on 2026-11-04.** `string-editor` handles a single string, a
+multilingual string, or a string selected from a list. It has its own class and editor ID;
+the existing `text-editor` and `localized-text-editor` and their saved class copies keep
+their existing behavior.
+
+Show **label + value + …**. The ellipsis opens a keyboard- and touch-operable menu:
+**Single / 单一文本**, **Multilingual / 多语言**, and **List / 列表**. The selected
+element's Properties panel also has an ellipsis menu with those choices and
+**Validators / 验证器**. The Properties menu sets the configured initial mode; the
+runtime menu changes the value being edited. Single shows a one-line text field.
+Multilingual shows one field per configured language, labelled by
+language, with English and Chinese by default. List shows a dropdown of author-defined
+string values. The page author defines the list in the Properties panel; the person using
+the page selects a value. The menu changes the value's representation, so it is disabled
+in read-only mode; the displayed value remains selectable.
+
+Selecting Validators opens and scrolls to the existing Validators group in Properties.
+It shows the element's current validators in order and a **+** button with the accessible
+name **Add validator / 添加验证器**. The button opens
+the available validator classes; choosing one adds an instance. The panel also allows
+reordering and removing instances and editing their constraints and messages, using the
+existing validator property editor. An empty list is explicitly shown. Opening the group
+does not change the current Single, Multilingual or List mode. These are authoring controls:
+they edit the element's existing `validators` array, not the bound string value. On a
+running page the Validators item is unavailable because page users do not edit the page
+descriptor. If validator classes cannot be loaded, the editor reports the loading error;
+existing validator instances remain in the descriptor.
+
+The following options are supported under `E.editor_options` for page elements and under
+`value_editor.options` for Properties-panel definitions. In all cases the class-fixed
+value wins over an instance value, then the class default; the page binding mode still
+applies. The surrounding element attributes and validation follow §§3–4 and §9.
+
+| Path within options | Type and default | Behavior |
+| --- | --- | --- |
+| `mode` | `single`, `multilingual`, `list`; `single` | Initial mode when the value does not establish one. The menu changes the current mode. |
+| `languages` | Nonempty array of distinct language tags; `["en", "zh-cn"]` | Fields shown in multilingual mode. Existing language keys outside this list remain intact. |
+| `emptyAsNull` | Boolean; `true` | In single or list mode an empty selection/edit writes `null` when true and `""` when false. In multilingual mode it controls each emptied language entry; other language entries remain unchanged. |
+| `choices` | Array of distinct strings; `[]` | The options for List mode, in author-defined order. An unset value displays a Select placeholder. A stored string absent from the choices stays visible. An empty string choice follows `emptyAsNull`. |
+| `commitOnBlur` | Boolean; `false` | Apply valid text edits on blur when true; otherwise apply while typing. List selections apply immediately. |
+
+Single and List store a JSON string or `null`; Multilingual stores a language-keyed
+object such as `{"en":"Hello","zh-cn":"你好"}`, with each entry a string or `null`.
+Spaces and Unicode are preserved. Switching Single to Multilingual places the current
+string in the current page language if configured, otherwise the first configured language;
+other fields start empty. Switching Multilingual to Single or List uses the current page
+language, falling back to the first configured language with a string value. Switching
+between Single and List keeps the current string, including one absent from `choices`;
+the dropdown displays that value until the user chooses another. Switching modes applies
+the resulting value; it does not rewrite data merely because the control mounted.
+Switching away from Multilingual prompts for confirmation when it would discard nonempty
+translations and displays the resulting value. Cancelling preserves the mode and all values.
+
+List choices are configured as data, not executable code. The Properties panel exposes
+Mode, Languages, Empty as null, Choices and Commit on blur in the Editor group; it shows
+Languages for Multilingual and Choices for List while retaining hidden settings. Values
+must be strings, language tags and choices must be unique, and invalid supported options
+produce descriptor errors for this editor. Unsupported class attributes remain
+warnings and forbidden overrides remain errors. The class's `label`, `binding_mode` and
+`width` defaults remain Text / 文本, `read-write` and `elastic`; `data_binding` is
+optional because it is page-specific. The host provides the accessible label and errors;
+all interface text is English and Chinese. Invalid edits remain available for correction,
+and existing validators apply before save. Validators currently receive the complete bound
+value: in Multilingual mode this is an object, so primitive string validators reject it;
+per-language validator execution requires a separate design. No password masking or multiline input is proposed.
+
+**Design assumption:** List choices are configured by the page author, not
+edited by the page's end user. The default `emptyAsNull: true` preserves the existing text editor's
+empty-to-unset behavior; authors can select `false` to store empty strings.
+
+The editor is `StringValueEditor.svelte`, with conversion rules in `string-value.ts`.
+Migration `20261104000003_wpi_string_editor.sql` creates the class and an active version 2;
+the database record was read back with its defaults. Frontend and backend tests pass, and
+the browser harness exercises value conversion, list choice, confirmation and adding a
+validator. A signed-in WPI Editor session has not been exercised. The authoring Validators
+menu opens the existing Properties group; it is separate from the runtime value menu.
 
 ## 6. States
 
