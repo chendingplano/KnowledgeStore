@@ -16,7 +16,7 @@ the editors themselves in `ChenWeb/web/src/lib/components/shared-ui/value-editor
 **Design:** [WPI Editor devdoc](../devdocs/202610/2026102701-devdoc-wpi-editor.md) §1.3.9 (the
 value editors); [WPI devdoc](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md) §3.5 Elements
 
-## Purpose and boundary
+## 1. Purpose and boundary
 
 The value editors are the controls the WPI Editor's Properties panel uses to edit one property:
 a colour picker, a length editor, a data-source editor and so on. This module puts any of them
@@ -33,7 +33,7 @@ ELEMENTS. They are dropped, configured and saved exactly like the classes in ELE
 Not part of the module: field rules (`required`, validation), on-change actions, and styling
 beyond the caption. The editors keep the compact look they have in the Properties panel.
 
-## Classes
+## 2. Classes
 
 All rows are `kind = 'element'`, version 1, `schema_version` `0.4`. The emoji class is created by
 `seed:wpi-emoji-picker`; the others are created by `seed:wpi-value-editor-elements`. *Caption* is the default `label` (English / Chinese).
@@ -77,14 +77,14 @@ rejected. To build one: add its editor under `value-editors/`, register it in
 `pendingValueEditors` in `value_editor_attributes.go` and `PENDING_EDITORS` in
 `canvas/class-editor.ts`, then activate the class through the class update endpoint.
 
-## Descriptor rules and precedence
+## 3. Descriptor rules and precedence
 
 As for every element: `schema_version` `"0.4"`, `code_module_id` `"value-editor"`, the complete
 class copy in `class`, a fixed value before the instance value before the class default, `null`
 instance values invalid, and later class edits reaching only new instances. A page-level
 `binding_mode` applies.
 
-## Attribute contract
+## 4. Attribute contract
 
 | Exact path | Type and allowed values | Absence, validation and behaviour |
 | --- | --- | --- |
@@ -113,7 +113,7 @@ Picking one stores its name, for example `refresh-cw`, and closes the search. **
 **清除** unsets it. The search uses `/shared_api/v1/icons/search` and `/by-name/:name/svg`,
 which need the `shared.icon_library` table.
 
-## Color-picker revision 1
+## 5. Color-picker revision 1
 
 This section describes the approved change to the existing `color` editor.
 It applies both in the Properties panel and when the `color-picker` class is placed on a
@@ -127,7 +127,8 @@ Single and Light and dark choices (the latter is available when `editor_options.
 true or the current value is already a theme). None shows no color; Single shows one swatch
 and editable color value; Light and dark shows two individually labeled swatches and values
 in separate rows. The color-picker has a content minimum of 280 × 120 CSS pixels;
-canvas resize attempts below that size are clamped to the minimum, with a message beside the element. A newly mounted unbound color-picker with `theme: true` starts with light
+canvas resize attempts below that size show a confirmation beside the element. OK applies the
+minimum for undersized dimensions; Cancel leaves the original size unchanged. A newly mounted unbound color-picker with `theme: true` starts with light
 `#ffffff` and dark `#000000`. A bound editor displays the bound value, including an unset
 value, without writing defaults into the input document.
 Use the compact swatch/value/opacity treatment in the supplied reference. On narrow panels,
@@ -165,7 +166,7 @@ cover conversion and opacity. Browser interaction verification is still pending.
 that depend on context, such as custom properties, cannot be resolved by the canvas preview
 and display as black in the dialog until changed; opening alone does not rewrite them.
 
-## States
+## 6. States
 
 | State | Behaviour |
 | --- | --- |
@@ -174,13 +175,13 @@ and display as black in the dialog until changed; opening alone does not rewrite
 | Editor not drawn | An error box: "Value editor "{editor}" is not built yet." This happens only for a class copy that is changed by hand, since drafts cannot be placed. |
 | Editor preview | As on a page; `action-picker` and `layouter-picker` still load their choices. |
 
-## Keyboard, accessibility and text
+## 7. Keyboard, accessibility and text
 
 The caption is a `<label>` for the editor. Each editor keeps its Properties-panel keyboard
 behaviour. Text stays selectable. Module text is in Paraglide under `wpi_value_editor_*`,
 `wpi_icon_picker_*` and `icon_search_*`; captions are data, shown in the page's language.
 
-## Validation and errors
+## 8. Validation and errors
 
 | Check | When | Result |
 | --- | --- | --- |
@@ -190,7 +191,7 @@ behaviour. Text stays selectable. Module text is in Paraglide under `wpi_value_e
 | An instance sets `editor` | Page save and run | Error: the class fixes it |
 | A page names a draft class | Page save | Rejected, as for every draft |
 
-## Property editor
+## 9. Property editor
 
 Drawn from `ChenWeb/web/src/lib/wpi/properties/elements.ts` (`valueEditor`); change the two
 together. Each class's own `value_editor` metadata travels with its copy, as for every class.
@@ -205,7 +206,7 @@ together. Each class's own `value_editor` metadata travels with its copy, as for
 | Editor | `editor_options` | json | The editor's options |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or % |
 
-## Example
+## 10. Example
 
 The `value-picker` class, abridged (help tips, `value_editor` metadata and
 `attribute_definitions` omitted):
