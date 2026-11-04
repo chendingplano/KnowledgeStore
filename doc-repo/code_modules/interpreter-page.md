@@ -126,7 +126,7 @@ authoritative checks are in `validator.page()` in
 | `hori_align` | `left`, `center`, `right` | `center` | Horizontal placement in the app's page area | Listed value |
 | `vert_align` | `top`, `center`, `bottom` | `top` | Vertical placement in the app's page area | Listed value |
 | `hori_scrollbar`, `vert_scrollbar` | `auto`, `hide` | `auto` | Scrolling in the app's page area when the page is bigger | Listed value |
-| `bkgd_color`, `frgd_color` | color | `auto` | Background and foreground color | `auto` or a CSS color |
+| `bkgd_color`, `frgd_color` | color | `auto` | Background and foreground color | `auto`, a CSS color, or `{ "light": color, "dark": color }` |
 
 **Length.** A non-negative number, optionally followed by a unit `px`, `rem`, `em` or `%`.
 Spaces may separate the number and the unit; a value without a unit is in `px`; decimals are
@@ -141,7 +141,7 @@ pane's margins, alignment and scroll bars do so instead; the page's sizes and co
 apply, measured inside the pane.
 
 **Colors.** `auto` inherits the application theme's background and foreground, so the page
-follows light and dark mode. An explicit color is fixed and does not follow the mode; set
+follows light and dark mode. An explicit string color is fixed; a light/dark pair follows the active color scheme. Both pair entries must be CSS colors, not `auto`. Set
 `bkgd_color` and `frgd_color` together so the text stays readable. A color is a CSS color:
 `#rgb`, `#rrggbb` (with optional alpha), `rgb()`/`rgba()`/`hsl()`/`hsla()` or a named color.
 
@@ -200,7 +200,7 @@ Attributes the table does not list appear under **Other** as JSON.
 | Geometry | `min_width`, `min_height`, `max_width`, `max_height` | length | A number in px, rem, em or % |
 | Geometry | `hori_align`, `vert_align` | value-picker | `left`, `center`, `right`; `top`, `center`, `bottom`; or unset |
 | Geometry | `hori_scrollbar`, `vert_scrollbar` | switch | On stores `auto`, off stores `hide` |
-| Colors | `bkgd_color`, `frgd_color` | color | None or one CSS colour (`auto` allowed) |
+| Colors | `bkgd_color`, `frgd_color` | color | None, one CSS colour (`auto` allowed), or separate light and dark colours |
 | Actions | `save_action` | json | A `save` action instance |
 | Actions | `refresh` | switch | On stores `{ "on_show": true }` |
 | Misc | `access_controls` | string-list | Roles, comma-separated; empty means everyone |
