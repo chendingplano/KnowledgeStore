@@ -248,6 +248,231 @@ supplies binding state and page help. Existing class copies need no changes. The
 additional options without changing the descriptor schema. Focused value tests cover unit
 changes and unsetting. Browser interaction verification remains pending.
 
+#### 5.2.2 JSON descriptor
+
+A length editor is an instance of the `length-editor` element class. Its descriptor is
+an object in a panel's `elem_list`; the `class` object is a complete copy of the class at
+the time the element is placed. The `editor` is fixed to `"length"` by that class and
+must not be supplied as an instance override. The following paths are relative to the
+instance object:
+
+| JSON path | Shape and meaning |
+| --- | --- |
+| `element` | Required string `"length-editor"`. |
+| `class` | Required complete class descriptor copy. It identifies the `value-editor` code module and fixes `editor` to `"length"`. |
+| `label` | Optional string or `{ "en": string, "zh-cn": string }`; absent uses the class caption. |
+| `data_binding` | Optional string `$input_doc.<path>`; absent keeps the value locally. |
+| `binding_mode` | `"read-write"` or `"read-only"`; the class default is `"read-write"`, subject to page-level binding mode. |
+| `editor_options` | Optional object. The class default is `{ "keywords": ["auto"], "units": ["px", "rem", "em", "%"] }`. An instance-supplied object replaces the class default as a whole; include `keywords` and `units` when those class choices are desired. |
+| `editor_options.keywords` | Array of keyword strings such as `"auto"` and `"elastic"`; when absent from the effective options, no keywords are offered. |
+| `editor_options.units` | Array selected from `"px"`, `"rem"`, `"em"`, `"%"`; when absent, the editor uses all four. |
+| `editor_options.defaultValue` | Optional length or keyword string. Its presence offers **Default**; it is a display fallback, not an initial write to the input doc. |
+| `editor_options.valueDisplay` | `"input"`, `"label"`, or `"select"`; defaults to `"input"`. Applies to numeric values. |
+| `editor_options.choices` | Array of numeric strings, for example `["120", "240"]`; used by `"select"`. |
+| `editor_options.allowCustomValue` | Boolean, default `false`; with `"select"`, allows typing as well as choosing. |
+| `editor_options.helpTip` | Optional string or localized `{ "en": string, "zh-cn": string }`; supplies the page element's help tip. |
+| `width`, `height`, `min_width`, `max_width` | Optional layout lengths for the editor element itself, distinct from the value it edits. The class defaults `width` to `"elastic"`. |
+
+The following is a complete instance with the current version 1 class copy. It can be
+placed in a panel's `elem_list`; the surrounding page and panel are omitted. Its input
+doc might contain `{ "panel": { "width": "240px" } }`. A numeric value is stored as
+one string with its unit; `"auto"` and `"elastic"` are stored as strings. Selecting
+**Default** writes `null` at the binding, rather than storing `"default"` or `"240px"`.
+The `default_value` inside the class copy describes a class attribute's default; it is
+separate from `editor_options.defaultValue`, the fallback for the length being edited.
+
+```json
+{
+  "element": "length-editor",
+  "label": {
+    "en": "Panel width",
+    "zh-cn": "面板宽度"
+  },
+  "data_binding": "$input_doc.panel.width",
+  "binding_mode": "read-write",
+  "editor_options": {
+    "keywords": [
+      "auto",
+      "elastic"
+    ],
+    "units": [
+      "px",
+      "rem",
+      "em",
+      "%"
+    ],
+    "defaultValue": "240px",
+    "valueDisplay": "select",
+    "choices": [
+      "120",
+      "240",
+      "480"
+    ],
+    "allowCustomValue": true,
+    "helpTip": {
+      "en": "Choose the width of the panel.",
+      "zh-cn": "选择面板的宽度。"
+    }
+  },
+  "class": {
+    "descriptor_id": "length-editor",
+    "schema_version": "0.4",
+    "code_module_id": "value-editor",
+    "description": {
+      "en": "A length in px, rem, em or %, or a keyword such as auto",
+      "zh-cn": "以 px、rem、em 或 % 表示的长度，或 auto 等关键字"
+    },
+    "implement_notes": {
+      "en": "KnowledgeStore/doc-repo/code_modules/interpreter-value-editor.md"
+    },
+    "editor": {
+      "scope": "class",
+      "help_tip": {
+        "en": "The value editor this class draws.",
+        "zh-cn": "此类绘制的值编辑器。"
+      },
+      "value_editor": {
+        "id": "read-only",
+        "options": {}
+      },
+      "default_value": "length"
+    },
+    "label": {
+      "scope": "instance",
+      "help_tip": {
+        "en": "The caption shown above the editor.",
+        "zh-cn": "显示在编辑器上方的标题。"
+      },
+      "value_editor": {
+        "id": "localized-text",
+        "options": {}
+      },
+      "default_value": {
+        "en": "Length",
+        "zh-cn": "长度"
+      }
+    },
+    "data_binding": {
+      "scope": "instance",
+      "help_tip": {
+        "en": "The input doc attribute the editor shows and edits, such as $input_doc.theme.accent; leave out to keep the value on the page only.",
+        "zh-cn": "编辑器显示并编辑的输入文档属性，例如 $input_doc.theme.accent；留空则值只保留在页面上。"
+      },
+      "value_editor": {
+        "id": "text",
+        "options": {}
+      }
+    },
+    "binding_mode": {
+      "scope": "instance",
+      "help_tip": {
+        "en": "read-write lets the user edit the value; read-only only shows it.",
+        "zh-cn": "read-write 允许用户编辑该值；read-only 只显示该值。"
+      },
+      "value_editor": {
+        "id": "value-picker",
+        "options": {
+          "choices": [
+            "read-only",
+            "read-write"
+          ]
+        }
+      },
+      "default_value": "read-write"
+    },
+    "editor_options": {
+      "scope": "instance",
+      "help_tip": {
+        "en": "keywords: the words allowed, such as auto; units: the units allowed.",
+        "zh-cn": "keywords：允许的关键字，例如 auto；units：允许的单位。"
+      },
+      "value_editor": {
+        "id": "json",
+        "options": {
+          "rows": 3
+        }
+      },
+      "default_value": {
+        "keywords": [
+          "auto"
+        ],
+        "units": [
+          "px",
+          "rem",
+          "em",
+          "%"
+        ]
+      }
+    },
+    "width": {
+      "scope": "instance",
+      "help_tip": {
+        "en": "Width of the editor.",
+        "zh-cn": "编辑器宽度。"
+      },
+      "value_editor": {
+        "id": "length",
+        "options": {
+          "keywords": [
+            "auto",
+            "elastic"
+          ],
+          "units": [
+            "px",
+            "rem",
+            "em",
+            "%"
+          ]
+        }
+      },
+      "default_value": "elastic"
+    },
+    "attribute_definitions": {
+      "/description": {
+        "scope": "class",
+        "value_editor": {
+          "id": "localized-text",
+          "options": {}
+        }
+      },
+      "/descriptor_id": {
+        "scope": "class",
+        "value_editor": {
+          "id": "text",
+          "options": {}
+        }
+      },
+      "/code_module_id": {
+        "scope": "class",
+        "value_editor": {
+          "id": "text",
+          "options": {}
+        }
+      },
+      "/schema_version": {
+        "scope": "class",
+        "value_editor": {
+          "id": "text",
+          "options": {}
+        }
+      },
+      "/implement_notes": {
+        "scope": "class",
+        "value_editor": {
+          "id": "localized-text",
+          "options": {}
+        }
+      }
+    }
+  }
+}
+```
+
+The backend validates that `editor_options` is an object; it does not validate each
+nested option. The editor validates entered length values, so use the types and choices
+above when authoring descriptors. Changes to the class catalogue do not update a saved
+`class` copy; current module code still renders existing copies.
+
 ## 6. States
 
 | State | Behaviour |
