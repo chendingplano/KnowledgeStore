@@ -495,13 +495,17 @@ multilingual string, or a string selected from a list. It has its own class and 
 the existing `text-editor` and `localized-text-editor` and their saved class copies keep
 their existing behavior.
 
-Show **label + value + …**. The ellipsis opens a keyboard- and touch-operable menu:
+A page element shows **label + value + …**. In the Properties panel the ellipsis follows
+the property's caption in its heading (**label …**, with Reset at the end of that row) and
+the value is drawn below. Either way the value stretches to the right edge of its host,
+aligned with the other value editors. The ellipsis opens a keyboard- and touch-operable menu:
 **Single / 单一文本**, **Multilingual / 多语言**, and **List / 列表**. The selected
 element's Properties panel also has an ellipsis menu with those choices and
 **Validators / 验证器**. The Properties menu sets the configured initial mode; the
 runtime menu changes the value being edited. Single shows a one-line text field.
-Multilingual shows one field per configured language, labelled by
-language, with English and Chinese by default. List shows a dropdown of author-defined
+Multilingual shows one row per configured language: the language's name (English /
+英文, Chinese / 中文, otherwise its tag), then its field. English and Chinese are the
+default languages. List shows a dropdown of author-defined
 string values. The page author defines the list in the Properties panel; the person using
 the page selects a value. The menu changes the value's representation, so it is disabled
 in read-only mode; the displayed value remains selectable.
@@ -560,11 +564,16 @@ per-language validator execution requires a separate design. No password masking
 edited by the page's end user. The default `emptyAsNull: true` preserves the existing text editor's
 empty-to-unset behavior; authors can select `false` to store empty strings.
 
-The editor is `StringValueEditor.svelte`, with conversion rules in `string-value.ts`.
+The editor is `StringValueEditor.svelte`, with conversion rules in `string-value.ts`. The
+mode menu is `StringModeMenu.svelte`. As with the colour mode selector, `PropertyEditor.svelte`
+draws it in the heading and passes `modeInHeading` and the current `mode` to the editor,
+which then omits its own menu. The panel keeps the Single or List choice per property.
 Migration `20261104000003_wpi_string_editor.sql` creates the class and an active version 2;
 the database record was read back with its defaults. Frontend and backend tests pass, and
 the browser harness exercises value conversion, list choice, confirmation and adding a
-validator. A signed-in WPI Editor session has not been exercised. The authoring Validators
+validator. It also checks the Label property's layout: the menu follows the caption, each
+language shares a row with its field, and the fields end where the other editors end.
+The user requested that layout on 2026-11-04. A signed-in WPI Editor session has not been exercised. The authoring Validators
 menu opens the existing Properties group; it is separate from the runtime value menu.
 
 The Properties panel edits every value-editor element's `label` with this editor (§9). A
