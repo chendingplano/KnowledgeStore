@@ -243,7 +243,8 @@ it. The UI text and accessible names are localized in English and Chinese. A key
 can activate the editable label and operate the type and value selectors.
 
 The shared control is `LengthEditor.svelte`; `values.ts` splits and changes types.
-`PropertyEditor.svelte` supplies the class default and fixed state; `ValueEditorElement.svelte`
+`PropertyEditor.svelte` supplies the class default and fixed state; the Editor group exposes
+`editor_options.defaultValue` as **Default value**, using the same control as Width; `ValueEditorElement.svelte`
 supplies binding state and page help. Existing class copies need no changes. The active
 `length-editor` class remains version 1; its existing `editor_options` object accepts these
 additional options without changing the descriptor schema. Focused value tests cover unit
@@ -516,6 +517,7 @@ together. Each class's own `value_editor` metadata travels with its copy, as for
 | General | `data_binding` | text | A `$input_doc` path |
 | General | `binding_mode` | value-picker | `read-only`, `read-write` |
 | Editor | `editor` | read-only | Fixed by the class |
+| Editor | `editor_options.defaultValue` | length | Length editor only; edits the default inside `editor_options`, preserving its other options. Reset restores the class default, if any. |
 | Editor | `editor_options` | json | The editor's options |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or % |
 

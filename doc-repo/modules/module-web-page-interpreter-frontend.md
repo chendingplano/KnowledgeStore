@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.9.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.10.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -155,7 +155,7 @@ documented in devdoc 2026102701 §1.3.7.
 The shared length editor accepts the optional `editor_options` described in
 [its code-module document](../code_modules/interpreter-value-editor.md#521-contract-and-implementation),
 including value display, numeric choices, default and help tip. Existing option defaults and
-stored length strings remain supported. Its `value` type accepts a unitless numeric string.
+stored length strings remain supported. Its `value` type accepts a unitless numeric string; the Properties panel exposes its default as a length control.
 
 ## 5. Usage
 
