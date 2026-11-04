@@ -36,7 +36,8 @@ in the next image build; `prepare-context.py` now stages its two modules) and re
 PDF table geometry (viewer row highlighting) was never provisioned on this box;
 rev 2026-11-04: §4 — the image now writes PDF table geometry, and its PyMuPDF 2.1 layout gating
 left 表 1's continuation page unrepaired and unhighlighted; fixed in source, needs the next image
-build.)
+build; §4 — the dashboard's Active PDF Parsing phases listed MinerU pipeline phases that this
+box's VLM backend never runs; fixed in source, needs the next image build and a `server` deploy.)
 **Scope:** Operations, build, and deployment for the ChenWeb stack on the China production
 box `210.5.158.91` (`rssvr19`, colloquially "the dingbo box"), which serves
 **`https://onto.bzton.cn`**. The original manual procedures and why this box deviates from
@@ -436,6 +437,16 @@ stayed glued, and the viewer had no row boxes, only the whole-table outline. Fix
 (ChenWeb jj `vpkl`, 2026-11-04): both callers use `find_tables(use_layout=False)` and PyMuPDF is pinned to
 2.1 in the Dockerfile and `pyproject.toml`. **Takes effect with the next image build**; record
 103 needs a re-parse after it. A `no_match` skip on a table that has visible rules is the symptom.
+
+**Dashboard parse phases (found 2026-11-04).** The Development → Doc Processor dashboard's
+Active PDF Parsing card showed eight fixed MinerU pipeline phases (`MFR Predict`,
+`Table-wireless Predict`, `OCR-det` …), seven of them "Waiting". This box's VLM backend
+runs only `Layout Predict` and then `VLM Predict`, which the parser did not track, so the card
+stayed on `Layout Predict 100%` for the whole VLM pass (`journalctl -u pdf-parser` shows the
+real bars). The worker now lists each progress bar MinerU prints, as it starts, and
+the dashboard hides phases that have not started (`2026061005-pdf-parser.md` §8). Both fixes are
+in source: the worker part takes effect with the next image build, and hiding the stale "Waiting"
+cards needs a `server` deploy.
 
 **Start (systemd):**
 ```bash
