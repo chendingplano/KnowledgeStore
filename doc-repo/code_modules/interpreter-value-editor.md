@@ -121,8 +121,8 @@ page. The existing class identity, descriptor attributes, defaults, binding and 
 remain unchanged; saved class copies receive the revised editor without a descriptor update.
 
 In the Properties panel, the mode selector sits in the property heading immediately before
-Reset; the current color controls are below. A standalone value-editor element keeps the
-selector and current color controls on one line. Retain the existing None,
+Reset; the current color controls are below. A color-picker element places the selector next
+to its caption and the current color controls below, matching the Properties panel. Retain the existing None,
 Single and Light and dark choices (the latter is available when `editor_options.theme` is
 true or the current value is already a theme). None shows no color; Single shows one swatch
 and editable color value; Light and dark shows two individually labeled swatches and values.
