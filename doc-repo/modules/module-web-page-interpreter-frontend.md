@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.11.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.12.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -124,6 +124,17 @@ documented in devdoc 2026102701 §1.3.7.
 | `ChenWeb/web/src/lib/wpi/properties/editor-ids.test.ts` | Every catalogue ID with code resolves to a registered editor |
 | `ChenWeb/web/src/lib/components/shared-ui/canvas/element-palette.ts` | Palette entries of element classes: value-editor classes in VALUE EDITORS, the others in ELEMENTS |
 | `ChenWeb/web/src/lib/components/shared-ui/canvas/element-palette.test.ts` | Tests for the palette split |
+| `ChenWeb/web/src/lib/wpi/validators/index.ts` | Validators as elements use them: instance types, effective constraints, `runValidators` (allOf), `bindingPointer`, `newValidatorInstance`, `acceptsValidators` (OpenSpec `wpi-primitive-validators`) |
+| `ChenWeb/web/src/lib/wpi/validators/run.ts` | The nine primitive validator modules and their shared constraints, the twin of the Go package; reads `server/api/wpi/validators/modules.json` |
+| `ChenWeb/web/src/lib/wpi/validators/decimal.ts` | Exact decimals with BigInt for comparisons, rounding and `multiple_of` |
+| `ChenWeb/web/src/lib/wpi/validators/text.ts` | Whitespace, line breaks, length units and portable patterns |
+| `ChenWeb/web/src/lib/wpi/validators/messages.ts` | Error text from codes and params, instance messages, constraint, choice and category labels |
+| `ChenWeb/web/src/lib/wpi/validators/cases.test.ts` | Runs the shared `validator-cases.json`, plus decimal, pattern and instance tests |
+| `ChenWeb/web/src/lib/wpi/validators/messages.test.ts` | Every error code and constraint has its text |
+| `ChenWeb/web/src/lib/wpi/properties/validators.ts` | The Validators group, one group per validator instance, and the source serving `validators.<n>.<constraint>` |
+| `ChenWeb/web/src/lib/wpi/properties/validators.test.ts` | Tests for the validator groups and source |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/validator-drop.ts` | Dropping a validator from the palette onto an element node |
+| `ChenWeb/web/src/lib/components/shared-ui/canvas/validator-drop.test.ts` | Tests for the drop and the VALIDATORS palette entries |
 
 ## 3. Interface
 
@@ -141,14 +152,19 @@ documented in devdoc 2026102701 §1.3.7.
     document in `KnowledgeStore/doc-repo/code_modules/`. Action classes are dispatched by
     class ID in `runtime.svelte.ts` (`runTrigger`).
 - **Runtime** (`getRuntime()` inside the app): `start`, `openPage`, `resolvePane`,
-  `closePage`, `save`, `runTrigger`, `isShowing`, `queryList`, `read` / `write` / `errorsFor`
-  for bindings, `isDirty`, `anyDirty`; state `pages` (page instances), `panes` (Panel Cache),
-  `paneSizes`, `root`.
+  `closePage`, `save`, `runTrigger`, `isShowing`, `queryList`, `read` / `write` / `errorsFor` /
+  `validationErrorsFor` for bindings, `isDirty`, `anyDirty`; state `pages` (page instances),
+  `panes` (Panel Cache), `paneSizes`, `root`.
+- **Validators** (`$lib/wpi/validators`): `runValidator(module, constraints, value, path)` →
+  `{valid, errors, value, hasValue}`; `runValidators(list, value, path)` for an element's
+  instances; `validationErrorText(error, instance)` in `messages.ts`. `input`, `select` and
+  value-editor elements run them when editing ends and before a save
+  ([contract](../code_modules/validator-primitive.md)).
 - **API client:** `fetchApp(appId)`, `runAction(ref, args, inputDoc?)` with
   `ref = {kind: 'page', id, pointer}`; both throw `WpiError` (`status`, `issues`,
-  `fieldErrors`). For the editor: `savePage` (returns `{version, page}`),
+  `fieldErrors`, `validationErrors`). For the editor: `savePage` (returns `{version, page}`),
   `listElementClasses`, `createElementClass`, `getElementClass`, `updateElementClass`,
-  `listCodeModules`.
+  `listCodeModules`, `listValidatorClasses`.
 
 ## 4. Configuration
 

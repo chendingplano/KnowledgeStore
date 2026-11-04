@@ -132,6 +132,16 @@ cleared or refreshed when the affected value changes and on the next save respon
 response for an older value must not overwrite validation for a newer edit. Save failures
 unrelated to a field remain visible at page level.
 
+**Validators** (2026-11-04, OpenSpec `wpi-primitive-validators`). An input may also hold
+validator instances in `validators`, even when its class copy does not name it
+([validator-primitive.md](validator-primitive.md)). They are an add-on: `required`,
+`max_length`, `validation` and the `input_type` formats keep working unchanged. Validators run
+together with these rules, on blur, then on every change, and before a save; all must pass.
+The backend runs them again on every save, after the input rules, and refuses failing values
+with 422 `validation_errors`. Their errors show under the control after the input's own,
+from the code and params, or from the instance's `messages`. A `read-only` input is not
+checked.
+
 ### Accessibility, state, and examples
 
 A real label must be associated with the control by a unique ID for every instance. Keep
@@ -199,6 +209,7 @@ value `InputElement.svelte` uses (`inputDefaults` in the definition file).
 | Validation | `required` | switch | |
 | Validation | `max_length` | number | A whole number, at least 0; hidden for `number` inputs |
 | Validation | `validation` | validation | `min`, `max`, `step` for `number` inputs; `min_length`, `pattern` otherwise. Rules of the other kind are kept |
+| Validators | `validators` | validator-list | The input's validator instances; each then has a group of its constraints ([validator-primitive.md](validator-primitive.md) §7) |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px; a note under `width` says the panel's limits also apply |
 
 ## Implementation and verification

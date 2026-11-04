@@ -27,6 +27,7 @@ server's errors for that attribute are shown under the pulldown.
 | `data_binding` | yes | a path such as `$input_doc.category` | Holds the chosen option's value. Save errors are matched to the pulldown by this path. |
 | `binding_mode` | yes | `read-only` or `read-write` | `read-write` lets the user choose; `read-only` disables the pulldown. |
 | `options` | yes | a list of `{ "value": …, "label": "…" }`; `value` is a string or a number, `label` a string | The choices, in order. Choosing one writes its `value` with its own type, so a number stays a number; choosing the placeholder writes `null`. |
+| `validators` | no | an array of validator instances ([validator-primitive.md](validator-primitive.md) §3) | Allowed even when the class copy does not name it. All must pass. They run after a value is chosen and before a save, and again in the backend on save; their errors show under the pulldown. Not checked while `read-only`. |
 
 *Required* means the code cannot work without the attribute: every instance must end up
 with a value, set by the instance itself, by its page (`binding_mode`, devdoc §3.2.1) or by
@@ -54,6 +55,7 @@ described in devdoc 2026102701 §1.3.9.
 | General | `data_binding` | text | A path such as `$input_doc.category` |
 | General | `binding_mode` | value-picker | `read-only`, `read-write` |
 | General | `options` | json | The list of `{ value, label }` |
+| Validators | `validators` | validator-list | The element's validator instances; each then has a group of its constraints ([validator-primitive.md](validator-primitive.md) §7) |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
 
 ## Limits

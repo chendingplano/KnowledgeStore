@@ -94,6 +94,7 @@ instance values invalid, and later class edits reaching only new instances. A pa
 | `E.binding_mode` | `read-only`, `read-write` | Required; class default `read-write`. `read-only` draws the read-only value editor with the bound value. |
 | `E.editor_options` | A JSON object | Optional; instance scope, with the class default above. Passed to the editor as its options. Anything but an object is an error at `/editor_options`. |
 | `E.width`, `E.min_width`, `E.max_width`, `E.height` | `auto`, `elastic`, or a length in px, rem, em, % | Class default width `elastic`. |
+| `E.validators` | An array of validator instances ([validator-primitive.md](validator-primitive.md) §3) | Optional, and allowed even when the class copy does not name it. All must pass. They run after the editor applies a value and before a save, and again in the backend on save; their errors show under the editor. Not checked while `read-only`. |
 
 **Values.** A value the editor unsets is written as `null`. Server field errors for the bound
 path are shown under the editor, as for `input`. `action-picker` and `layouter-picker` load
@@ -526,6 +527,7 @@ together. Each class's own `value_editor` metadata travels with its copy, as for
 | Editor | `editor_options.displayType` | switch | Length editor only; defaults to off. |
 | Editor | `editor_options.defaultValue` | length | Length editor only; edits the default inside `editor_options`, preserving its other options. The type list offers the class default when one exists. |
 | Editor | `editor_options` | json | The editor's options |
+| Validators | `validators` | validator-list | The element's validator instances; each then has a group of its constraints ([validator-primitive.md](validator-primitive.md) §7) |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or % |
 
 ## 10. Example

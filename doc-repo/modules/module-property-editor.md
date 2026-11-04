@@ -1,7 +1,7 @@
 # Module: Property Editor
 
 **Module ID:** `20261102-01`
-**Type:** frontend · **Language:** svelte · **Version:** 1.2.0
+**Type:** frontend · **Language:** svelte · **Version:** 1.3.0
 **Status:** active — used by the WPI editor's Properties panel (OpenSpec `wpi-property-editors`) and,
 through `editors.ts`, by the `value-editor` element module (OpenSpec `wpi-value-editor-elements`)
 **Project:** ChenWeb (web front end)
@@ -49,6 +49,7 @@ themselves belong to [Web Page Interpreter (frontend)](module-web-page-interpret
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/IconPickerEditor.svelte` | `icon-picker`: the icon library's `IconSearchPicker` (`20261102-10`) behind a button showing the chosen icon; the value is the icon name |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/TablePickerEditor.svelte` | `table-picker`: Pick Table (`20261029-01`) as a value editor |
 | `ChenWeb/web/src/lib/components/shared-ui/value-editors/FieldPickerEditor.svelte` | `field-picker`: Pick Fields (`20261029-02`) for the table in `options.table` |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/ValidatorListEditor.svelte` | `validator-list`: an element's validators, with move, remove and Add validator from `options.validatorClasses` (OpenSpec `wpi-primitive-validators`) |
 
 ## 3. Interface
 

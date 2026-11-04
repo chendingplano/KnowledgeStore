@@ -1,6 +1,6 @@
 ---
 Date: 2026/11/04
-Status: Draft requirements, revised 2026/11/04 after review
+Status: Draft requirements, revised 2026/11/04 after review. §3.1 built 2026/11/04 (ChenWeb OpenSpec change wpi-primitive-validators; contract in code_modules/validator-primitive.md)
 ---
 
 # 1. Overview
@@ -207,6 +207,11 @@ valid is decided case by case, by each validator, and stated in its definition. 
 makes it explicit with a flag, such as "non-empty", that the author sets on the instance.
 For example, an empty string is not an email address, but an email field may be optional:
 the "non-empty" flag of an `email` instance says which.
+
+As built for §3.1 (2026-11-04), the flag is the constraint `empty`, with three choices: `pass`
+accepts an empty value with no other check, `fail` rejects it (the "non-empty" flag), and
+`check` checks it like any other value. `string` defaults to `check`, so an empty string is
+a string like any other; the others default to `pass`.
 
 ### 2.6.6 Regular expressions
 
@@ -560,25 +565,35 @@ Deferred:
 
 # 4. Open questions
 
+Questions 1, 2 and 4 were answered by the user on 2026-11-04, when §3.1 was built. That change
+also left 3, 5, 6 and 7 open, with the defaults noted under each.
+
 1. **Drag-and-drop.** How a validator is dragged from the palette, given it is not drawn on
    a page: dropped onto the element that uses it, or placed as a node of its own and linked
-   to the element.
+   to the element. *Decided: dropped onto the element that uses it.*
 2. **Where a class names its code.** By its class ID, as action classes do, or in a
    `code_module_id`, as element classes do. The latter lets several classes share one code,
-   such as an `age` class on the `integer` code with fixed limits.
+   such as an `age` class on the `integer` code with fixed limits. *Decided: in
+   `code_module_id`, a `kb.code_modules` row of type `validator`.*
 3. **Types versus constraints.** The catalogue lists some constraints as validators:
    `pattern`, `length`, `range`, `precision`, `scale`, `multiple_of`, `positive`, `finite`,
    `contains`, `prefix`, `suffix`, `case`, `whitespace`, `required`. Proposed rule: a type
-   says what a value is; a constraint narrows it.
+   says what a value is; a constraint narrows it. *§3.1 follows the proposed rule: `pattern`,
+   length, ranges, `multiple_of`, prefix, suffix and contains are constraints.*
 4. **Naming style.** JSON Schema keywords are camelCase (`maxLength`). WPI attributes are
    snake_case (`max_length`), class IDs are kebab-case (`text-editor`), and this catalogue's
-   names are snake_case (`ip_address`).
+   names are snake_case (`ip_address`). *Decided: constraint names are snake_case forms of
+   the JSON Schema keywords, with their meanings (`min_length`, `exclusive_maximum`,
+   `multiple_of`); error codes are `<validator>.<rule>`, such as `integer.maximum`.*
 5. **Normalized values.** Where a normalized value goes, for example whether `123` replaces
    `" 123 "` in the input doc, and whether the backend normalizes the same way (§2.6.1).
+   *For now: both sides compute the same normalized value and report it with the result, but
+   nothing writes it back.*
 6. **Other context.** Whether validators can read the locale, the user or a timezone,
-   besides the values they are configured to read (§2.4).
+   besides the values they are configured to read (§2.4). *For now: none; the primitive
+   validators need none.*
 7. **Severity.** Whether a validator can report a warning as well as an error, as WPI's own
-   validation does.
+   validation does. *For now: errors only.*
 
 # 5. References
 

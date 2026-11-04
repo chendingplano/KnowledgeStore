@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (backend)
 
 **Module ID:** `20261026-02`
-**Type:** backend · **Language:** go · **Version:** 3.5.0
+**Type:** backend · **Language:** go · **Version:** 3.6.0
 **Status:** under-dev — apps and pages in format `0.5`: pages own their panes through a copy
 of a page layouter class, panels hold elements with a copy of an element layouter class, and
 every instance holds a copy of its class, filled in when a page is written (2026-10-30,
@@ -115,6 +115,17 @@ The contract is `ChenWeb/openspec/changes/wpi-class-editor/specs/wpi-class-edito
 | `ChenWeb/project_migrations/20261030000006_wpi_text_r2_active.sql` | Activates approved implemented text version 5 without rewriting copies |
 | `ChenWeb/server/api/wpi/class_editor.go` | Authenticated class reads, admin updates retaining version/status, and definition metadata validation |
 | `ChenWeb/server/api/wpi/class_editor_test.go` | Class API, metadata, scope consistency and copy regression tests |
+| `ChenWeb/server/api/wpi/validator_classes.go` | Validator class rows (kind `validator`, format `0.1`), `validators` on input, select and value-editor instances, and the validator runs on save (OpenSpec `wpi-primitive-validators`) |
+| `ChenWeb/server/api/wpi/validator_classes_test.go` | Class rows, instances, copies, save runs and module refs |
+| `ChenWeb/server/api/wpi/validators/modules.go` | Package `validators`: the module specifications, embedded from `modules.json` |
+| `ChenWeb/server/api/wpi/validators/modules.json` | What each validator module accepts and reports; also read by the frontend |
+| `ChenWeb/server/api/wpi/validators/run.go` | `Run`: the nine primitive validators and their shared constraints |
+| `ChenWeb/server/api/wpi/validators/decimal.go` | Exact decimals for comparisons, rounding and `multiple_of` |
+| `ChenWeb/server/api/wpi/validators/text.go` | Whitespace, length units, Unicode normalization and portable patterns |
+| `ChenWeb/server/api/wpi/validators/check.go` | `CheckValue` and `CheckConstraints`: constraint values and the rules between them |
+| `ChenWeb/server/api/wpi/validators/validator-cases.json` | Shared cases both languages must pass |
+| `ChenWeb/server/api/wpi/validators/validators_test.go` | Runs the shared cases; constraint checks and decimals |
+| `ChenWeb/project_migrations/20261104000002_wpi_primitive_validators.sql` | Kind `validator`, module type `validator`, nine modules and nine classes |
 
 ## 3. Interface
 
@@ -131,20 +142,23 @@ Routes (registered on the authenticated `/api/v1` group in `server/api/routes.go
 | --- | --- | --- | --- |
 | `GET /api/v1/wpi/apps/:appId` | logged-in | — | 200 `{app, pages, warnings}` (pages carry their class copies); 404; 422 `{errors, warnings}` |
 | `GET /api/v1/wpi/pages/:pageId/preview` | logged-in | — | 200 a bundle whose app's initial page is the page; 404; 422 `{errors, warnings}` |
-| `PUT /api/v1/wpi/descriptors/:kind/:descriptorId` | admin | descriptor JSON; `kind` is `app`, `page`, `element`, `action`, `page-layouter` or `element-layouter` | 200 `{kind, descriptor_id, version, warnings}`, plus `page` (the stored page, with the class copies the server added) for a page; 400 `{errors}`, including a class with no active row to copy, a page checked completely against its copies, and an element or layouter class whose module is not active in `kb.code_modules`; 403 |
+| `PUT /api/v1/wpi/descriptors/:kind/:descriptorId` | admin | descriptor JSON; `kind` is `app`, `page`, `element`, `action`, `page-layouter`, `element-layouter` or `validator` | 200 `{kind, descriptor_id, version, warnings}`, plus `page` (the stored page, with the class copies the server added) for a page; 400 `{errors}`, including a class with no active row to copy, a page checked completely against its copies, and an element or layouter class whose module is not active in `kb.code_modules`; 403 |
 | `POST /api/v1/wpi/actions/preview-list` | admin | `{source, args}` | 200 the records of an unsaved list `load` source; 400; 403 |
-| `POST /api/v1/wpi/actions/run` | logged-in | `{ref: {kind: "page", id, pointer}, args, input_doc}` | load, query, load-file 200 `{result}`; save 200 `{key_attribute, key_value}` or 422 `{field_errors}`; 400; 403 (stored row's roles); 404 |
+| `POST /api/v1/wpi/actions/run` | logged-in | `{ref: {kind: "page", id, pointer}, args, input_doc}` | load, query, load-file 200 `{result}`; save 200 `{key_attribute, key_value}` or 422 `{field_errors, validation_errors}` (validator failures by attribute: `{code, path, params, validator}`); 400; 403 (stored row's roles); 404 |
 | `GET /api/v1/wpi/pages?q=&limit=` | logged-in | — | 200 `{pages: [{descriptor_id, version, page_name, description, updated_at}]}`, matching ID, name or description in any language; 400 |
 | `GET /api/v1/wpi/pages/:pageId` | logged-in | — | 200 `{version, page}` (newest active version); 404 |
 | `POST /api/v1/wpi/classes/element` | admin | element class row (`descriptor_id`, `schema_version` `0.4`, required `description`, optional `code_module_id`, attribute objects) | 201 `{descriptor_id, version: 1, status: "draft", warnings}`; 400 `{errors}`, including a `code_module_id` that is not an active element module in `kb.code_modules`; 403; 409 when any row of the class ID exists |
 | `GET /api/v1/wpi/classes/element` | logged-in | — | 200 `{classes: [{descriptor_id, version, status, description, code_module_id, attributes}]}`: the latest draft or active version of each element class, by ID; `code_module_id` is left out when the row has none; `attributes` holds the row's instance attributes, each `{help_tip, default_value, instance_modifiable}` |
 | `GET /api/v1/wpi/classes/element/:classId` | logged-in | — | 200 `{version, status, class}`: the class's latest draft or active row, whole; 404 |
 | `PUT /api/v1/wpi/classes/element/:classId` | admin | the edited class row (same `descriptor_id`) | 200 `{descriptor_id, version, status, warnings}`: the latest draft or active row updated in place, keeping its version and status; a draft checked as a draft, an active class for structure and a code module that has code; 400 `{errors}` or a changed `descriptor_id`; 403; 404 when the class has no draft or active row |
+| `GET /api/v1/wpi/classes/validator` | logged-in | — | 200 `{classes: [...]}`: the latest active validator class rows, whole, by ID |
 | `GET /api/v1/wpi/code-modules` | logged-in | — | 200 `{code_modules: [{code_module_id, module_name, description, module_type, module_doc, notes, status}]}`, by type and ID |
 
 Go API: `wpi.New(db *sql.DB) *Handler` (methods `GetApp`, `GetPagePreview`, `PutDescriptor`,
 `RunAction`, `PreviewList`, `SearchPages`, `GetPage`, `CreateElementClass`,
-`ListElementClasses`, `GetElementClass`, `UpdateElementClass`, `ListCodeModules`);
+`ListElementClasses`, `GetElementClass`, `UpdateElementClass`, `ListValidatorClasses`,
+`ListCodeModules`); package `validators` with `Run(module, constraints, value, path) Result`
+and `CheckConstraints(module, constraints) []Problem`;
 `Handler{DB, User}` with an injectable user lookup for tests;
 `ValidateDescriptor(kind, id, body) []Issue`; `ValidateDraftClass(body) []Issue`;
 `BuildBundle(ctx, appID, Loader, Columns, Registered) (*BundleResult, error)` and

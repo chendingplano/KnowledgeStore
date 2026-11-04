@@ -1124,7 +1124,7 @@ module, each with its own description, help tips, defaults and fixed attributes 
 | `code_module_id` | The module's ID, e.g. `button`. Unique and not null. |
 | `module_name` | Its name for people, e.g. "Button". Unique and not null. |
 | `description` | What the module does. |
-| `module_type` | What it implements: `element`, `action`, `page`, `page-layouter` or `element-layouter`. Two layouter types, not one, so that a panel cannot name the code of a page layouter, nor a page the code of an element layouter. |
+| `module_type` | What it implements: `element`, `action`, `page`, `page-layouter`, `element-layouter` or `validator` ([Validators](#validators)). Two layouter types, not one, so that a panel cannot name the code of a page layouter, nor a page the code of an element layouter. |
 | `module_doc` | The file name of its document in `KnowledgeStore/doc-repo/code_modules`, e.g. `button.md`. |
 | `notes` | Additional notes. |
 | `status` | `active` or `suspended`. |
@@ -1182,6 +1182,37 @@ can a class that names it become active.
 
 The pilot's `element_type` (History, above) also named code, but it was set in each stored
 element, which was really an instance. `code_module_id` is set once, in the class.
+
+<a id="validators"></a>
+
+#### 3.5.5 Validators
+
+**Status: built 2026-11-04** for the primitive validators (OpenSpec change
+`wpi-primitive-validators`; requirements in
+[validator-requirements.md](../../validators/validator-requirements.md); contract in
+[validator-primitive.md](../../code_modules/validator-primitive.md)).
+
+A validator checks one value. It is a special kind of element: it is a class with instances,
+and it is implemented by code, but it is not drawn. Validator classes are rows of kind
+`validator`, format `0.1`, and name their code in `code_module_id`, a `kb.code_modules` row of
+type `validator`. The nine built are `string`, `integer`, `decimal`, `number`, `boolean`,
+`enum`, `null`, `binary` and `bigint`.
+
+A class lists the constraints its instances may set, each shaped like an element attribute
+(`help_tip`, `default_value`, `instance_modifiable`), inside its `constraints` object. It also
+states facts about its code (value types, empty handling, error codes), which must agree with
+the code.
+
+How elements use them:
+- `input`, `select` and value-editor instances may hold validator instances in `validators`,
+  like the sizes, even when their class copy does not name it.
+- Each instance holds a whole copy of its class, as every instance does, plus its own
+  `constraints` and optional `messages`. All validators of an element must pass.
+- The browser runs them when editing ends and before a save.
+- The backend runs them again on every `save` and refuses failing values with 422
+  `validation_errors`: `{code, path, params, validator}` by attribute.
+- One file of constraint specifications (`server/api/wpi/validators/modules.json`) and one
+  file of cases keep the Go and TypeScript implementations in step.
 
 <a id="lists"></a>
 
@@ -1726,7 +1757,7 @@ the workspace rule that data belongs in the database. The table is created by mi
 ```text
 kb.wpi_descriptors
   id              BIGSERIAL primary key
-  kind            'app' | 'element' | 'action' | 'page-layouter' | 'element-layouter'
+  kind            'app' | 'element' | 'action' | 'page-layouter' | 'element-layouter' | 'validator'
   descriptor_id   e.g. 'customer-form'
   version         integer, increasing per descriptor
   schema_version  descriptor format version
@@ -1761,6 +1792,10 @@ kb.wpi_descriptors
   element class, the draft create and the class edit) return `warnings` for attributes the
   class's code module does not support, and refuse a `code_module_id` that is not an
   active element module in `kb.code_modules`.
+- **Validator classes** ([Validators](#validators)) are rows of kind `validator`, added by migration
+  `20261104000002_wpi_primitive_validators.sql`, which also widened the kind check. They are
+  written with the admin write and listed, active only and whole, by
+  `GET /api/v1/wpi/classes/validator` for the editor's palette and Properties panel.
 - **Code modules** are listed in `kb.code_modules` ([Code modules](#code-modules)), created by migration
   `20261028000002_create_kb_code_modules.sql`, and read by the editor through
   `GET /api/v1/wpi/code-modules`.
@@ -1801,7 +1836,8 @@ The checks include:
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
 | Instances | An element or action instance is checked against the class copy it holds, not against the stored class ([Element classes and instances](#element-classes-and-instances), [Actions](#actions)): `element` or `action` equals the copy's `descriptor_id`; the instance sets only instance attributes the copy names (an element also its sizes), none the copy fixes. Before a page runs, it must also set every attribute whose default in the copy is `null`. Missing values are allowed when the page is saved |
-| Capabilities | The `code_module_id` in the class copy of every page layouter and element layouter is an active code module of its own type (`page-layouter` or `element-layouter`) that has code in this interpreter; the `code_module_id` in every element instance's class copy is an active element module that has code, and every action instance's `action` has code registered under that ID; every active action class has code registered under its class ID; every active element class names a code module that has code and is an active element module in `kb.code_modules` (an element class draft is checked for structure and against `kb.code_modules`, [Element classes and instances](#element-classes-and-instances), [Code modules](#code-modules)) |
+| Capabilities | The `code_module_id` in the class copy of every page layouter and element layouter is an active code module of its own type (`page-layouter` or `element-layouter`) that has code in this interpreter; the `code_module_id` in every element instance's class copy is an active element module that has code, and every action instance's `action` has code registered under that ID; every active action class has code registered under its class ID; every active element class names a code module that has code and is an active element module in `kb.code_modules` (an element class draft is checked for structure and against `kb.code_modules`, [Element classes and instances](#element-classes-and-instances), [Code modules](#code-modules)); every validator class and validator copy names an active `validator` module that has code ([Validators](#validators)) |
+| Validators | A validator class row states what its code accepts; a validator instance is checked against its copy: it sets only constraints the copy lists and does not fix, with values of the right type and in order (minimum ≤ maximum, `min_length` ≤ `max_length`, patterns both Go and JavaScript read the same way), and, before the page runs, every constraint whose default in the copy is `null`; only `input`, `select` and value-editor elements may hold validators ([Validators](#validators)) |
 
 Failures are never silent. On screen, an error box replaces the element or page and names
 the descriptor and the problem. On the backend, the failure is logged.

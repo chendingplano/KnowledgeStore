@@ -31,8 +31,9 @@ with an attribute tree and inline forms (§1.3.7).
 ## 1.2 What is on the screen
 
 - **Left — node palette.** Building blocks you can drag onto the canvas, in folders
-  (AI, Data, Actions, plus Pages, Elements and Value editors for WPI; §1.3.10). Folders start
-  folded; typing in the search box opens every folder with a match.
+  (AI, Data, Actions, plus Pages, Elements, Value editors (§1.3.10) and Validators (§1.3.11)
+  for WPI). Validators are listed in a second level of folders, one per category. Folders
+  start folded; typing in the search box opens every folder and sub-folder with a match.
 - **Middle — tool bar and canvas.** The tool bar runs along the top of the canvas (table
   below). The canvas has zoom controls at the bottom left, an overview map at the bottom
   right, and a gear button at the top right for line style and grid settings.
@@ -88,7 +89,8 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
 | `web/src/lib/components/shared-ui/canvas/edit-session.ts` | One undo step per focus; tests in `edit-session.test.ts` |
 | `web/src/lib/components/shared-ui/property-editor/`, `value-editors/` | The shared property editor and the value editors (reusable modules `20261102-01` to `-08`) |
 | `web/src/lib/wpi/properties/` | The property editor definitions and the sources that read and write each kind of entity (§1.3.9); `editor-ids.ts` decides which editor draws each value-editor ID |
-| `web/src/lib/wpi/elements/ValueEditorElement.svelte`, `web/src/lib/components/shared-ui/canvas/element-palette.ts` | The value-editor elements and the palette's ELEMENTS / VALUE EDITORS split (§1.3.10) |
+| `web/src/lib/wpi/elements/ValueEditorElement.svelte`, `web/src/lib/components/shared-ui/canvas/element-palette.ts` | The value-editor elements and the palette's ELEMENTS / VALUE EDITORS split (§1.3.10), and the VALIDATORS entries (§1.3.11) |
+| `web/src/lib/components/shared-ui/canvas/validator-drop.ts`, `web/src/lib/wpi/properties/validators.ts`, `value-editors/ValidatorListEditor.svelte` | Dropping a validator onto an element, and the element's Validators group and per-validator groups (§1.3.11) |
 | `web/src/lib/components/shared-ui/canvas/{WpiClassPanel,EntityClassEditor,ClassAttributeTree,ClassEditorOptions}.svelte`, `class-editor.ts` | The Class tab, stored-class drafts, recursive attributes and editor configuration |
 | `server/api/wpi/class_editor.go` | Class read/update endpoints and editor metadata validation |
 | `web/src/lib/components/shared-ui/canvas/node-actions.ts` | The box tool bar's Duplicate and Delete: each canvas provides them through Svelte context (`setNodeActions`) and `nodes/BaseNode.svelte` calls them; pure `duplicateNode`/`removeNode`, tests in `node-actions.test.ts`. The Flow page provides them too |
@@ -130,7 +132,10 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   `GET /api/v1/wpi/classes/element` fill the last two: a class whose `code_module_id` is
   `value-editor` goes to VALUE EDITORS, every other class to ELEMENTS
   (`canvas/element-palette.ts`). Dropping a class from either folder adds a `wpi-element`
-  node of that class.
+  node of that class. A last folder, `Validators`, lists the classes from
+  `GET /api/v1/wpi/classes/validator` in sub-folders by their `category` (palette IDs
+  `wpi-validator:<class>`). Dropping one adds no node: it goes onto the element under the
+  pointer (§1.3.11).
 - **WPI node types (client only):** `wpi-page`, `wpi-element`, `wpi-action`, defined in
   `WPI_NODE_TYPES` in `wpi-editor.svelte`. They are created only from the tool bar and are
   not in the palette. Each has one input handle and one output handle, and
@@ -455,6 +460,40 @@ The Properties panel shows a value-editor element in four groups: Placement; Gen
 data binding, binding mode); Editor (the fixed `editor`, and `editor_options` as JSON); and
 Size.
 
+### 1.3.11 Validators
+
+**Status: built 2026-11-04** (OpenSpec change `wpi-primitive-validators` in ChenWeb; its spec
+is the contract). Validators check the value of an element ([WPI devdoc](2026102601-devdoc-web-page-interpreter.md)
+§3.5.5; classes, constraints and errors in
+[`validator-primitive.md`](../../code_modules/validator-primitive.md)). They are not drawn on a
+page, so they are not dropped onto the canvas like elements.
+
+- **Palette.** The **VALIDATORS** folder, after VALUE EDITORS, lists the active validator
+  classes in one sub-folder per category, in the order of the requirements (PRIMITIVE first;
+  the other categories have no classes yet). Each entry's tooltip says to drag it onto an
+  element.
+- **Drop.** Dropping a validator onto an input, a pulldown menu or a value editor on the canvas
+  page adds an instance to that element's `validators`: `{validator, class}`, with the whole
+  class row as its copy. The element is then selected, its Properties tab shown, and the drop
+  is one undo step. Dropped anywhere else, or onto another element, nothing changes and a
+  message says where validators go.
+- **Properties.** The element's **Validators** group lists its validators, in order:
+  - each validator can be moved up, moved down or removed;
+  - **Add validator** offers the active classes, as a drop does.
+
+  Each validator then has a group of its own, "Validator *n*: *class*", whose help is the
+  class description:
+  - one property per constraint the copy lists, in the order the code checks them;
+  - each drawn with the value editor of its type (a switch, a number, a pulldown, text checked
+    as a decimal or a portable pattern, or JSON for lists);
+  - help tips, defaults and fixed or required marks from the copy, and Reset to the default.
+
+  A last **Messages** property holds the instance's own error texts, as JSON keyed by error
+  code. The list itself uses the `validator-list` value editor, which only the Properties
+  panel uses, so it is not in the table of §1.3.9.
+- **Preview** runs validators exactly as a page does: an input when it loses focus, a
+  pulldown when a value is chosen, a value editor when it applies a value.
+
 ## 1.4 Known limitations
 
 - **Flow storage is incomplete.** The flow server endpoints are placeholders (see Storage);
@@ -472,6 +511,8 @@ Size.
   class. font-picker accepts only CSS font-family text until font management exists.
 - **icon-picker needs `shared.icon_library`**, which is in the dev database but not yet in
   production (hand-off 2026110202).
+- **Validators have no Class tab.** Their classes are changed with the admin descriptor write;
+  the Class tab edits element, action and layouter classes only.
 - **Fixed to the site header's height.** The top offset is a constant (see Where it lives).
 - **The properties panel's width is not remembered.** It returns to 390 px each time the
   editor opens, and the resize handle works with the mouse only, not the keyboard.
