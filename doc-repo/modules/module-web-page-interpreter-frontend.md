@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.12.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.13.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -89,6 +89,14 @@ documented in devdoc 2026102701 §1.3.7.
 | `ChenWeb/web/src/lib/wpi/elements/ChatComposerElement.svelte` | `chat-composer`: message box and tool bar for a harness-backed assistant ([doc](../code_modules/interpreter-chat-composer.md)) |
 | `ChenWeb/web/src/lib/wpi/elements/ChatPanelElement.svelte` | `chat-panel`: Chat and Dialog tabs of the page's chat ([doc](../code_modules/interpreter-chat-panel.md)) |
 | `ChenWeb/web/src/lib/wpi/elements/ValueEditorElement.svelte` | `value-editor`: any value editor under a caption, bound to an input-doc field; drawn for the 28 value-editor classes ([doc](../code_modules/interpreter-value-editor.md)) |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/StringValueEditor.svelte` | Single, multilingual and list string value control |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/string-value.ts` | Empty-value and string-mode conversion rules |
+| `ChenWeb/web/src/lib/components/shared-ui/value-editors/string-value.test.ts` | String conversion tests |
+| `ChenWeb/web/tests/wpi-string-editor/Harness.svelte` | Browser fixture for string and validator authoring |
+| `ChenWeb/web/tests/wpi-string-editor/index.html` | Browser fixture entry page |
+| `ChenWeb/web/tests/wpi-string-editor/main.ts` | Browser fixture entry point |
+| `ChenWeb/web/tests/wpi-string-editor/vite.config.ts` | Browser fixture configuration |
+| `ChenWeb/web/tests/wpi-string-editor/test_editor.py` | Browser interaction checks |
 | `ChenWeb/web/src/lib/wpi/chat-session.svelte.ts` | The chat of one page instance, shared by its chat elements; reference-counted per runtime and page instance |
 | `ChenWeb/web/src/lib/wpi/chat-agents.ts` | The four harness-backed assistants and the assistant and model selection |
 | `ChenWeb/web/src/lib/wpi/chat-agents.test.ts` | Assistant selection tests |
