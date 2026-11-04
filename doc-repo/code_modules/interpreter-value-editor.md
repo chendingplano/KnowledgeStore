@@ -35,7 +35,7 @@ beyond the caption. The editors keep the compact look they have in the Propertie
 
 ## 2. Classes
 
-All rows are `kind = 'element'`, `schema_version` `0.4`; `length-editor` and `string-editor` are version 2 and the other classes are version 1. The emoji class is created by
+All rows are `kind = 'element'`, `schema_version` `0.4`; `length-editor` and `string-editor` are version 3 and the other classes are version 2. The emoji class is created by
 `seed:wpi-emoji-picker`; the others are created by `seed:wpi-value-editor-elements`. *Caption* is the default `label` (English / Chinese).
 *Options* is the default `editor_options`.
 
@@ -566,6 +566,13 @@ the database record was read back with its defaults. Frontend and backend tests 
 the browser harness exercises value conversion, list choice, confirmation and adding a
 validator. A signed-in WPI Editor session has not been exercised. The authoring Validators
 menu opens the existing Properties group; it is separate from the runtime value menu.
+
+The Properties panel edits every value-editor element's `label` with this editor (§9). A
+class's `value_editor` setting overrides the code default, so migration
+`20261104000004_wpi_value_editor_label_string_editor.sql` gives each value-editor class a
+new version whose `label.value_editor` is `string-editor`, multilingual, with `en` and
+`zh-cn`. An element placed before that migration keeps the localized-text editor in its
+class copy until it is placed again.
 
 ## 6. States
 
