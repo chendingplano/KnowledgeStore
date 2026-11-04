@@ -109,6 +109,7 @@ Each validator class must clearly define its JSON shape. The shape gives at leas
 - The type of value it accepts.
 - Its constraints: for each, the name, type and default, and whether an instance may change
   it.
+- How it treats empty values, and its "non-empty" flag where that is ambiguous (§2.6.5).
 - The error codes it reports, with their params (§2.6.3).
 - Whether it is synchronous or asynchronous (§2.6.2).
 - Where it runs: in the browser and the backend, or in the backend only (§2.5).
@@ -202,8 +203,10 @@ sees when no branch passes.
 
 Avoid a generic `required`. Whether an empty value (absent, null or an empty string) is
 valid is decided case by case, by each validator, and stated in its definition. For
-`email`, an empty string is not an email address, so it is missing. For `string`, an empty
-string is a string like any other.
+`string`, an empty string is a string like any other. Where it is ambiguous, the validator
+makes it explicit with a flag, such as "non-empty", that the author sets on the instance.
+For example, an empty string is not an email address, but an email field may be optional:
+the "non-empty" flag of an `email` instance says which.
 
 ### 2.6.6 Regular expressions
 
@@ -572,11 +575,9 @@ Deferred:
    names are snake_case (`ip_address`).
 5. **Normalized values.** Where a normalized value goes, for example whether `123` replaces
    `" 123 "` in the input doc, and whether the backend normalizes the same way (§2.6.1).
-6. **Optional values.** How an author says an email address may be left blank, given that
-   `email` treats an empty string as missing (§2.6.5).
-7. **Other context.** Whether validators can read the locale, the user or a timezone,
+6. **Other context.** Whether validators can read the locale, the user or a timezone,
    besides the values they are configured to read (§2.4).
-8. **Severity.** Whether a validator can report a warning as well as an error, as WPI's own
+7. **Severity.** Whether a validator can report a warning as well as an error, as WPI's own
    validation does.
 
 # 5. References
