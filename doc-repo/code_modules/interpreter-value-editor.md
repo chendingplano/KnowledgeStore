@@ -35,7 +35,7 @@ beyond the caption. The editors keep the compact look they have in the Propertie
 
 ## 2. Classes
 
-All rows are `kind = 'element'`, version 1, `schema_version` `0.4`. The emoji class is created by
+All rows are `kind = 'element'`, `schema_version` `0.4`; `length-editor` is version 2 and the other classes are version 1. The emoji class is created by
 `seed:wpi-emoji-picker`; the others are created by `seed:wpi-value-editor-elements`. *Caption* is the default `label` (English / Chinese).
 *Options* is the default `editor_options`.
 
@@ -52,7 +52,7 @@ All rows are `kind = 'element'`, version 1, `schema_version` `0.4`. The emoji cl
 | `date-picker` | `date-picker` | draft | Date / 日期 | `{}` | Not built |
 | `time-picker` | `time-picker` | draft | Time / 时间 | `{}` | Not built |
 | `color-picker` | `color` | active | Colour / 颜色 | `{"theme": true}` | None, one colour, or light and dark |
-| `length-editor` | `length` | active | Length / 长度 | `{"keywords": ["auto"], "units": ["px", "rem", "em", "%"]}` | A length or keyword |
+| `length-editor` | `length` | active | Length / 长度 | `{"keywords": ["auto"], "units": ["px", "rem", "em", "%"], "displayType": false}` | A length or keyword |
 | `font-picker` | `font-picker` | active | Font / 字体 | `{}` | The text editor; accepts only `inherit` or a CSS font-family list |
 | `alignment-picker` | `alignment-picker` | active | Alignment / 对齐 | `{"choices": ["left", "center", "right"]}` | The value-picker; an instance may use `top`, `center`, `bottom` |
 | `icon-picker` | `icon-picker` | active | Icon / 图标 | `{}` | The shared icon library's search picker; stores the icon name |
@@ -231,6 +231,7 @@ Properties-panel definition:
 
 | Option | Type and default | Behavior |
 | --- | --- | --- |
+| `displayType` | Boolean; default `false` for page elements | Shows the type selector when true. When false, the value control shows and edits the complete length, including its unit; Properties-panel length controls retain their type selector. |
 | `defaultValue` | Valid length string; absent | Enables default and provides its displayed value. In the Properties panel, use the property's class default if present. |
 | `valueDisplay` | `input`, `label`, `select`; default `input` | Label enters editing on double-click or keyboard activation when writable; it returns to a label on blur after a valid edit. |
 | `choices` | Array of numeric strings; default `[]` | Values offered by `select` for the selected numeric unit. |
@@ -248,9 +249,9 @@ The shared control is `LengthEditor.svelte`; `values.ts` splits and changes type
 `PropertyEditor.svelte` supplies the class default and fixed state; the Editor group exposes
 `editor_options.defaultValue` as **Default value**, using the same control as Width; `ValueEditorElement.svelte`
 supplies binding state and page help. Existing class copies need no changes. The active
-`length-editor` class remains version 1; its existing `editor_options` object accepts these
+`length-editor` class is version 2; its existing `editor_options` object accepts these
 additional options without changing the descriptor schema. Focused value tests cover unit
-changes and unsetting. Browser interaction verification remains pending.
+changes and unsetting. Browser interaction tests cover toggling the type selector and editing a displayed default.
 
 #### 5.2.2 JSON descriptor
 
@@ -267,10 +268,11 @@ instance object:
 | `label` | Optional string or `{ "en": string, "zh-cn": string }`; absent uses the class caption. |
 | `data_binding` | Optional string `$input_doc.<path>`; absent keeps the value locally. |
 | `binding_mode` | `"read-write"` or `"read-only"`; the class default is `"read-write"`, subject to page-level binding mode. |
-| `editor_options` | Optional object. The class default is `{ "keywords": ["auto"], "units": ["px", "rem", "em", "%"] }`. An instance-supplied object replaces the class default as a whole; include `keywords` and `units` when those class choices are desired. |
+| `editor_options` | Optional object. The class default is `{ "keywords": ["auto"], "units": ["px", "rem", "em", "%"], "displayType": false }`. An instance-supplied object replaces the class default as a whole; include `keywords` and `units` when those class choices are desired. |
 | `editor_options.keywords` | Array of keyword strings such as `"auto"` and `"elastic"`; when absent from the effective options, no keywords are offered. |
 | `editor_options.units` | Array selected from `"px"`, `"rem"`, `"em"`, `"%"`; when absent, the editor uses all four. |
-| `editor_options.defaultValue` | Optional length or keyword string. Its presence offers **Default**; it is a display fallback, not an initial write to the input doc. |
+| `editor_options.displayType` | Boolean; default `false`. When true, show the type selector; when false, edit the complete value in the value control. |
+| `editor_options.defaultValue` | Optional length or keyword string. Its presence offers **Default** when the type selector is visible; it is a display fallback, not an initial write to the input doc. |
 | `editor_options.valueDisplay` | `"input"`, `"label"`, or `"select"`; defaults to `"input"`. Applies to numeric values. |
 | `editor_options.choices` | Array of numeric strings, for example `["120", "240"]`; used by `"select"`. |
 | `editor_options.allowCustomValue` | Boolean, default `false`; with `"select"`, allows typing as well as choosing. |
@@ -282,7 +284,7 @@ initial type when there is no value or configured default. Existing layout field
 interpret a unitless string as pixels; the editor does not add a unit to the stored value.
 Individual properties may apply additional validation.
 
-The following is a complete instance with the current version 1 class copy. It can be
+The following is a complete instance with the current version 2 class copy. It can be
 placed in a panel's `elem_list`; the surrounding page and panel are omitted. Its input
 doc might contain `{ "panel": { "width": "240px" } }`. A numeric value is stored as
 one string with its selected unit, or without a suffix for `value`; `"auto"` and `"elastic"` are stored as strings. Selecting
@@ -311,6 +313,7 @@ separate from `editor_options.defaultValue`, the fallback for the length being e
       "%"
     ],
     "defaultValue": "240px",
+    "displayType": true,
     "valueDisplay": "select",
     "choices": [
       "120",
@@ -410,7 +413,8 @@ separate from `editor_options.defaultValue`, the fallback for the length being e
           "rem",
           "em",
           "%"
-        ]
+        ],
+        "displayType": false
       }
     },
     "width": {
@@ -519,7 +523,8 @@ together. Each class's own `value_editor` metadata travels with its copy, as for
 | General | `data_binding` | text | A `$input_doc` path |
 | General | `binding_mode` | value-picker | `read-only`, `read-write` |
 | Editor | `editor` | read-only | Fixed by the class |
-| Editor | `editor_options.defaultValue` | length | Length editor only; edits the default inside `editor_options`, preserving its other options. Reset restores the class default, if any. |
+| Editor | `editor_options.displayType` | switch | Length editor only; defaults to off. |
+| Editor | `editor_options.defaultValue` | length | Length editor only; edits the default inside `editor_options`, preserving its other options. The type list offers the class default when one exists. |
 | Editor | `editor_options` | json | The editor's options |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or % |
 
