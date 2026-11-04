@@ -219,8 +219,9 @@ only configured `keywords` and `units`, plus default when available. Preserve `r
 already configured: existing descriptors and property definitions use it. Selecting a
 numeric unit retains the current numeric amount, or starts at zero when the previous type
 had no numeric amount; selecting a keyword applies that keyword. Selecting a unit changes
-the suffix without converting the numeric amount. Invalid edits remain unapplied and use
-the existing abandon/stay error flow. Existing length validation, including its nonnegative
+the suffix without converting the numeric amount. Clearing a numeric input keeps the
+selected unit and input active while the field has focus; leaving it empty unsets the value.
+Invalid edits remain unapplied and use the existing abandon/stay error flow. Existing length validation, including its nonnegative
 and percentage limits, remains in force.
 
 Optional `editor_options` for the page element and the equivalent options on a
