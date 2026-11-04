@@ -113,9 +113,9 @@ Picking one stores its name, for example `refresh-cw`, and closes the search. **
 **清除** unsets it. The search uses `/shared_api/v1/icons/search` and `/by-name/:name/svg`,
 which need the `shared.icon_library` table.
 
-## Proposed color-picker revision 1 — awaiting human design review
+## Color-picker revision 1
 
-This section proposes a change to the existing `color` editor; it is not yet implemented.
+This section describes the approved change to the existing `color` editor.
 It applies both in the Properties panel and when the `color-picker` class is placed on a
 page. The existing class identity, descriptor attributes, defaults, binding and value shapes
 remain unchanged; saved class copies receive the revised editor without a descriptor update.
@@ -149,12 +149,15 @@ not be silently rewritten merely by opening the dialog.
 **Review assumptions:** The two menu entries select palette content, not the color mode;
 the existing None option and theme availability are retained for compatibility. The dialog
 edits one variant at a time, and its position and size need not persist after it closes.
-No new configurable descriptor attributes or class defaults are proposed. The current
-implementation and class remain active while this revision awaits approval. Verification
-will cover both modes, existing CSS values, alpha, validation, palette selection, keyboard
-operation, movement/resizing, localization and narrow viewports.
+No new configurable descriptor attributes or class defaults are proposed. The existing class remains active. The editor implementation uses the existing shared value
+editor; no descriptor or catalog change is needed.
 
-**Review record:** Revision 1; awaiting human design review. No approval recorded.
+**Review record:** Revision 1 approved by the user on 2026-11-04. Implemented in
+`ChenWeb/web/src/lib/components/shared-ui/value-editors/ColorPicker.svelte`, with color
+conversion in `color-math.ts`. The existing color families supply the palette. Unit tests
+cover conversion and opacity. Browser interaction verification is still pending. CSS values
+that depend on context, such as custom properties, cannot be resolved by the canvas preview
+and display as black in the dialog until changed; opening alone does not rewrite them.
 
 ## States
 
