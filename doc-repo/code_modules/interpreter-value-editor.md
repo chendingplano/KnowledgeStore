@@ -495,19 +495,29 @@ multilingual string, or a string selected from a list. It has its own class and 
 the existing `text-editor` and `localized-text-editor` and their saved class copies keep
 their existing behavior.
 
-A page element shows **label + value + …**. In the Properties panel the ellipsis follows
-the property's caption in its heading (**label …**, with Reset at the end of that row) and
-the value is drawn below. Either way the value stretches to the right edge of its host,
-aligned with the other value editors. The ellipsis opens a keyboard- and touch-operable menu:
-**Single / 单一文本**, **Multilingual / 多语言**, and **List / 列表**. The selected
-element's Properties panel also has an ellipsis menu with those choices and
+A page element shows **label + value + Options**. In the Properties panel the Options button
+sits in the property's heading beside its caption (**label Options**, with Reset at the end of that row).
+The caption, Options button and Reset share one vertical centre line. The Options button is a
+pulldown button in the value editors' look: the background of their input, 10px text and a ▾
+marker. The value is drawn below, indented under the caption, and stretches to the right edge
+of its host, aligned with the other value editors. The Options button (**Options / 选项**) opens a keyboard- and touch-operable menu:
+**Single / 单一文本**, **Multilingual / 多语言**, and **List / 列表**. The menu items use 10px text.
+A press anywhere outside an open menu closes it. The selected
+element's Properties panel also has an Options menu with those choices and
 **Validators / 验证器**. The Properties menu sets the configured initial mode; the
 runtime menu changes the value being edited. Single shows a one-line text field.
 Multilingual shows one row per configured language: the language's name (English /
 英文, Chinese / 中文, otherwise its tag), then its field. English and Chinese are the
 default languages. List shows a dropdown of author-defined
-string values. The page author defines the list in the Properties panel; the person using
-the page selects a value. The menu changes the value's representation, so it is disabled
+string values. The page author defines the list in the Properties panel. Under the Label, in
+List mode, the Choices list is shown indented, even when empty: a text field with **+** adds a
+value, and **×** beside each value removes it. A value is added when the field loses focus or when
+**+** (or Enter) is used. An empty value adds nothing. A value already in the list is not added,
+and its text stays in the field for correction. The person using the page selects a value from
+the list. The Label's List values are stored on
+the element as `label_options.choices` (an array of distinct strings), and the list appears
+under the Label whenever its mode is List, even when empty. The element's own Choices stay in
+`editor_options.choices`. The menu changes the value's representation, so it is disabled
 in read-only mode; the displayed value remains selectable.
 
 Selecting Validators opens and scrolls to the existing Validators group in Properties.
@@ -549,7 +559,7 @@ translations and displays the resulting value. Cancelling preserves the mode and
 
 List choices are configured as data, not executable code. The Properties panel exposes
 Mode, Languages, Empty as null, Choices and Commit on blur in the Editor group; it shows
-Languages for Multilingual and Choices for List while retaining hidden settings. Values
+Languages for Multilingual and Choices for List (the add and remove list, `string-choices`) while retaining hidden settings. Values
 must be strings, language tags and choices must be unique, and invalid supported options
 produce descriptor errors for this editor. Unsupported class attributes remain
 warnings and forbidden overrides remain errors. The class's `label`, `binding_mode` and
@@ -565,7 +575,8 @@ edited by the page's end user. The default `emptyAsNull: true` preserves the exi
 empty-to-unset behavior; authors can select `false` to store empty strings.
 
 The editor is `StringValueEditor.svelte`, with conversion rules in `string-value.ts`. The
-mode menu is `StringModeMenu.svelte`. As with the colour mode selector, `PropertyEditor.svelte`
+mode menu is `StringModeMenu.svelte`. The List values editor in the Properties panel is
+`StringChoicesEditor.svelte` (`string-choices`); `PropertyEditor.svelte` draws it under the Label. As with the colour mode selector, `PropertyEditor.svelte`
 draws it in the heading and passes `modeInHeading` and the current `mode` to the editor,
 which then omits its own menu. The panel keeps the Single or List choice per property.
 Migration `20261104000003_wpi_string_editor.sql` creates the class and an active version 2;
@@ -604,6 +615,7 @@ behaviour. Text stays selectable. Module text is in Paraglide under `wpi_value_e
 | --- | --- | --- |
 | `editor` is not one of the 30 IDs (a draft) or of the 25 drawn ones (active class, page) | Class save, page save and run | Error at `/editor` |
 | `editor_options` is not an object | Class save, page save and run | Error at `editor_options` |
+| `label_options` is not an object, has a key other than `choices`, or its choices are not distinct strings | Page save and run | Error at `label_options` |
 | `data_binding` is not a `$input_doc` path, or `binding_mode` is not allowed | Page save and run | Error, naming the path |
 | An instance sets `editor` | Page save and run | Error: the class fixes it |
 | A page names a draft class | Page save | Rejected, as for every draft |
@@ -616,7 +628,7 @@ together. Each class's own `value_editor` metadata travels with its copy, as for
 | Group | Attribute | Value editor | Data and rules |
 | --- | --- | --- | --- |
 | Placement | pane, position | read-only | Measured on the canvas |
-| General | `label` | localized-text | |
+| General | `label` | string-editor | Multilingual by default, languages `en` and `zh-cn` (§5.2.3) |
 | General | `data_binding` | text | A `$input_doc` path |
 | General | `binding_mode` | value-picker | `read-only`, `read-write` |
 | Editor | `editor` | read-only | Fixed by the class |

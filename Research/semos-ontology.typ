@@ -86,6 +86,43 @@
 
 = Ontology
 
+== Why we need ontology?
+
+In pre-LLM dates, ontology is probably the only solution to enable computers
+understand content. Things changed dramatically when LLMs are available. 
+If we have LLMs, do we really need ontology? Is ontology is still important?
+
+From the application view point, ontology is a methodology that enables
+computers understand the unstructured content. With the help of ontology,
+we can develop a reasoning engine that can answer questions.
+
+Ontology to semantics is what databases to applications. The major differences
+are that inputs to databases are structured data, while inputs to ontology
+are normally unstructured data. There should be processes to extract
+structured artifacts from unstructured content. 
+
+The second difference
+is data formats. Databases use difference formats for different data, 
+while the formats in ontology are simple: RDF, which is application
+independent.
+
+The third difference is that databases are at the syntactical layer
+while ontology is at semantic layer. Ontology requires terms be normalized.
+If a software module is called 'service', it should always be called
+'service', regardless of who generate the content. But in databases,
+one table may call it service, another 'application' and still a third
+calls it 'function'.
+
+Since at semantic layer, relations are named and names are normalized
+and the name space is much more stable. New relation names may or may
+not be added; adding new relation names may require human reviews.
+
+The fourth difference is documentation. Databases can be, of course,
+carefully documented, but documentation in databases is a second class
+citizen. Ontology treats documentation its first-class citizen.
+
+== Logical reasnoing
+
 Before diving into ontology, we need to understand why we need OWL and ontology at all.
 
 The most important feature of OWL is its logical reasoning. Given the example: 
@@ -266,6 +303,80 @@ Four layers:
 - Categories: hierarchical, more organized
 - Ontology: define the semantics
 - Knowledge Graphs: instantiation of ontology, Knowledge Graph = Ontology + Real Instance Data + Semantic Connections
+
+= Name Normalization
+
+At semantic level, objects are identified by business keys or
+`names`. Names are free text. The name entity may be named differently.
+Without a good naming foundation, it makes no sense to semantics.
+
+The first mission of ontology is, therefore, name normalization.
+
+== Namespaces
+
+It scope names by subjects, areas, etc. @ref-ontology-driven-telemetry identifies 12 namespaces:
+
+- SLACK: channels, threads, messages
+- OPS: applications, teams, incidents
+- Alert: triggers, firings, patterns
+- Metric: queries, anomalies
+- Log: error patterns, signatures
+- Timeline: deploys, config changes
+- Incident: lifecycle, roles, MTTR
+- RCA: root cause, causal chains
+- Experiment: A/B tests, allocation
+- E2E: traces, bottlenecks
+- Correlation: signal patterns, chains
+- Harvest: provenance, lineage
+
+We may consider namespaces a way to categorize names.
+
+== From non-determinism to determinism
+
+Ontology sifts through seas of unstructured content, extract facts, relations, entities,
+relations, metrics, etc., then thread descrete artifacts semantically, organize
+them structurally and hierarchically. 
+
+This structured semantic extraction and organization makes it possible
+to create a reasoning engine to find the niddle from hays.
+
+@ref-ontology-driven-telemetry uses the following stack
+to address the determinism:
+
+*1. Deterministic extraction*
+
+It uses trace IDs, incident refs, user mentions, etc. Some are the
+outputs of applications/services; some from telemetry. Ensure
+they use the same names to reduce the non-deterministics.
+
+This does not eliminate the non-determinism of extracting
+artifacts. We may still use LLMs to extract artifacts. The key
+point is whether/how to eliminate the undeterminism but reduce
+and minimize.
+
+Sources of undeterminism during extraction include:
+- fazzy match
+- LLMs
+- keyword search
+- semantic search
+
+*2. Catalog validation*
+
+Since we cannot 100% eliminate the uncertainty in the extraction,
+important artifacts should be carefully reviewed and validated.
+
+*3. API enrichment*
+
+Use programs to turn unstructured data into structured, normalized
+data, such as names. The outputs should be typed triples.
+
+*4. LLM classification*
+
+Stochastic model => constrained JSON => deterministic predicate
+
+*5. Probabilistic correlation*
+
+DFS over weighted signals: deploy => error => alert => incident.
 
 = Reviews
 == Palantir Foundry

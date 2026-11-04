@@ -46,7 +46,7 @@ described in devdoc 2026102701 §1.3.9.
 
 | Group | Attribute | Value editor | Data and rules |
 | --- | --- | --- | --- |
-| General | `label` | localized-text | One text, or English and Chinese |
+| General | `label` | string-editor | English and Chinese by default (Multilingual, default `{"en": "Button", "zh-cn": "按钮"}`); the Options menu switches to Single or List. A plain-string label shows in Single. |
 | General | `on_click` | value-picker | The active trigger action classes (`GET /api/v1/wpi/classes/action`); choosing one stores `{ "action": id }` |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px; a note under `width` says the panel's limits also apply |
 
