@@ -215,6 +215,8 @@ default does not write its displayed value to the bound field.
 
 The label and help tip belong to the host property or element. Show them alongside the
 value and type; omit the tip icon when no help text is supplied. The type selector offers `value`, configured `keywords` and `units`, plus default when available.
+Length properties have no separate Reset button; select default from the type list to restore
+a configured default.
 An unset length without a configured default starts with `value` selected and an empty input. Preserve `rem` where
 already configured: existing descriptors and property definitions use it. Selecting a
 numeric unit retains the current numeric amount, or starts at zero when the previous type
