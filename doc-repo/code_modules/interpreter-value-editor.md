@@ -113,58 +113,72 @@ Picking one stores its name, for example `refresh-cw`, and closes the search. **
 **清除** unsets it. The search uses `/shared_api/v1/icons/search` and `/by-name/:name/svg`,
 which need the `shared.icon_library` table.
 
-## 5. Color-picker revision 1
+## 5. Color picker
 
-This section describes the approved change to the existing `color` editor.
-It applies both in the Properties panel and when the `color-picker` class is placed on a
-page. The existing class identity, descriptor attributes, defaults, binding and value shapes
-remain unchanged; saved class copies receive the revised editor without a descriptor update.
+The `color` editor is shared by the Properties panel and the `color-picker` page element.
+The mode selector appears in the property heading before Reset, or beside the page element's
+caption. The color controls appear below it. Light and Dark are separate rows; their labels
+are outside the color fields. Each field shows a swatch, editable CSS color text and opacity.
 
-In the Properties panel, the mode selector sits in the property heading immediately before
-Reset; the current color controls are below. A color-picker element places the selector next
-to its caption and the current color controls below, matching the Properties panel. Retain the existing None,
-Single and Light and dark choices (the latter is available when `editor_options.theme` is
-true or the current value is already a theme). None shows no color; Single shows one swatch
-and editable color value; Light and dark shows two individually labeled swatches and values
-in separate rows. The color-picker has a content minimum of 200 × 120 CSS pixels;
-canvas resize attempts below that size show a confirmation beside the element. OK applies the
-minimum for undersized dimensions; Cancel leaves the original size unchanged. A newly mounted unbound color-picker with `theme: true` starts with light
-`#ffffff` and dark `#000000`. A bound editor displays the bound value, including an unset
-value, without writing defaults into the input document.
-Use the compact swatch/value/opacity treatment in the supplied reference. On narrow panels,
-keep the row usable with horizontal overflow rather than clipping controls. CSS color text
-remains editable and copyable, including existing values that are not hex colors.
+The stored value determines the selected mode:
 
-Clicking either swatch opens a floating dialog for that specific color. Its title bar is a
-drag handle and includes a close button; a resize handle changes its dimensions. Constrain
-the dialog to a usable minimum size and keep it reachable in the viewport. Closing it or
-pressing Escape retains already applied changes and returns focus to the opening swatch.
-Movement and resizing must have keyboard-accessible alternatives. The dialog uses the
-reference's color field, hue and opacity sliders, numeric color controls and a palette area;
-all controls need accessible names and visible focus. Changes apply through the existing
-validation and binding path. Invalid typed values remain editable and are not applied.
+| Mode | Value | Behavior |
+| --- | --- | --- |
+| None | Missing, `null`, or an empty string | No color controls. Unsetting a bound value writes `null`. |
+| Single color | A CSS color string, such as `"#89cff0"` | One color control. |
+| Light and dark | `{ "light": "#ffffff", "dark": "#000000" }` | One control for each variant. Editing one preserves the other. |
 
-The palette area has a dropdown with **Common colors / 常用颜色** and **Color families /
-颜色系列**. Common colors shows a grid of selectable swatches; Color families provides a
-family selector and its swatches using the existing family data. A chosen swatch updates the
-active color. The controls, labels and errors are available in English and Chinese. The dialog
-does not imply support for the reference image's library, gradient, eyedropper or other icons
-unless implemented and separately specified. Color conversion and opacity must preserve the
-visible result; editing one theme variant must not change the other. Existing CSS values must
-not be silently rewritten merely by opening the dialog.
+`editor_options.theme: true` enables the Light and dark option. It also remains available
+when the current value is already a theme object. Changing to Single keeps the light color;
+changing a single color to Light and dark starts both variants from that color. Changing
+`auto` or an unset value to Light and dark starts with white and black. A newly mounted,
+unbound color-picker with `theme: true` starts with that white/black pair. Its local value
+is lost when the element is unmounted. A bound editor displays the bound value, including
+an unset value, without writing defaults to the input document.
 
-**Review assumptions:** The two menu entries select palette content, not the color mode;
-the existing None option and theme availability are retained for compatibility. The dialog
-edits one variant at a time, and its position and size need not persist after it closes.
-No new configurable descriptor attributes or class defaults are proposed. The existing class remains active. The editor implementation uses the existing shared value
-editor; no descriptor or catalog change is needed.
+Click a swatch to open a floating dialog for that variant. It provides a color field, hue
+and opacity sliders, RGB inputs and a palette. The palette menu offers **Common colors /
+常用颜色** and **Color families / 颜色系列**; the latter also offers a family selector.
+Selecting a swatch or changing a dialog control applies a color through the editor's existing
+validation and binding path. The dialog edits one variant at a time. Its title bar moves it,
+and its resize handle changes its dimensions; both support arrow keys. Escape or the close
+button closes it and returns focus to the swatch. Applied changes remain in place.
 
-**Review record:** Revision 1 approved by the user on 2026-11-04. Implemented in
-`ChenWeb/web/src/lib/components/shared-ui/value-editors/ColorPicker.svelte`, with color
-conversion in `color-math.ts`. The existing color families supply the palette. Unit tests
-cover conversion and opacity. Browser interaction verification is still pending. CSS values
-that depend on context, such as custom properties, cannot be resolved by the canvas preview
-and display as black in the dialog until changed; opening alone does not rewrite them.
+Typing an invalid CSS color leaves the draft editable without applying it; leaving the field
+shows the error and options to abandon or continue editing. Opening the dialog alone does
+not rewrite an existing color. The dialog does not provide the reference image's libraries,
+gradients or eyedropper. CSS values dependent on context, such as custom properties, cannot
+be resolved by its canvas conversion and appear black in the dialog until changed.
+
+### Element sizing and canvas resize
+
+A `color-picker` element has a content minimum of **200 × 120 CSS pixels** in the flow
+layouter, including the canvas preview. This minimum is combined with the element and
+panel's configured minimums. A canvas resize below an applicable minimum opens a confirmation
+beside the selected element; the resize is not applied while the confirmation is open.
+**Cancel** discards the resize; **OK** applies it with each undersized dimension raised to
+its minimum. The element remains selected. If the resulting size crosses another adjustable
+limit, its existing override confirmation still applies. A class-fixed size or limit cannot
+be overridden in the canvas. These controls apply to canvas resizing; an ancestor pane that
+is itself too small can still constrain what is visible.
+
+### Implementation and verification
+
+The color editor is `ChenWeb/web/src/lib/components/shared-ui/value-editors/ColorPicker.svelte`;
+`ColorModeSelect.svelte` shares its mode selector with the Properties panel and
+`ValueEditorElement.svelte`. `color-math.ts` handles RGB/HSV and opacity conversion, and
+`commonColors.ts` provides palette data. The content minimum is in
+`web/src/lib/wpi/element-minimum.ts`; `layout.ts` applies it and
+`canvas/PagePreview.svelte` handles resize confirmation and selection. Existing saved class
+copies use these editor changes without a descriptor update. No new descriptor attributes or
+catalogue rows were introduced.
+
+The user approved the initial color-picker revision on 2026-11-04; the subsequent layout and
+resize changes were requested in the same session. Focused tests cover color conversion,
+mode changes, minimum-size calculation, layout and resize limit calculations. Frontend
+`bun run check` passed during implementation with one unrelated existing CSS warning.
+The latest selection-preservation fix has not been verified in an authenticated browser
+session.
 
 ## 6. States
 
@@ -178,14 +192,14 @@ and display as black in the dialog until changed; opening alone does not rewrite
 ## 7. Keyboard, accessibility and text
 
 The caption is a `<label>` for the editor. Each editor keeps its Properties-panel keyboard
-behaviour. Text stays selectable. Module text is in Paraglide under `wpi_value_editor_*`,
+behaviour. Text stays selectable. Module text is in Paraglide under `wpi_value_editor_*`, `wpi_color_*`,
 `wpi_icon_picker_*` and `icon_search_*`; captions are data, shown in the page's language.
 
 ## 8. Validation and errors
 
 | Check | When | Result |
 | --- | --- | --- |
-| `editor` is not one of the 28 IDs (a draft) or of the 23 drawn ones (active class, page) | Class save, page save and run | Error at `/editor` |
+| `editor` is not one of the 29 IDs (a draft) or of the 24 drawn ones (active class, page) | Class save, page save and run | Error at `/editor` |
 | `editor_options` is not an object | Class save, page save and run | Error at `editor_options` |
 | `data_binding` is not a `$input_doc` path, or `binding_mode` is not allowed | Page save and run | Error, naming the path |
 | An instance sets `editor` | Page save and run | Error: the class fixes it |
