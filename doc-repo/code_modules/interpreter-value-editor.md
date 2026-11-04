@@ -113,7 +113,9 @@ Picking one stores its name, for example `refresh-cw`, and closes the search. **
 **清除** unsets it. The search uses `/shared_api/v1/icons/search` and `/by-name/:name/svg`,
 which need the `shared.icon_library` table.
 
-## 5. Color picker
+## 5. Value Editors
+
+### 5.1 Color picker
 
 The `color` editor is shared by the Properties panel and the `color-picker` page element.
 The mode selector appears in the property heading before Reset, or beside the page element's
@@ -150,7 +152,7 @@ not rewrite an existing color. The dialog does not provide the reference image's
 gradients or eyedropper. CSS values dependent on context, such as custom properties, cannot
 be resolved by its canvas conversion and appear black in the dialog until changed.
 
-### Element sizing and canvas resize
+#### 5.1.1 Element sizing and canvas resize
 
 A `color-picker` element has a content minimum of **200 × 120 CSS pixels** in the flow
 layouter, including the canvas preview. This minimum is combined with the element and
@@ -162,7 +164,7 @@ limit, its existing override confirmation still applies. A class-fixed size or l
 be overridden in the canvas. These controls apply to canvas resizing; an ancestor pane that
 is itself too small can still constrain what is visible.
 
-### Implementation and verification
+#### 5.1.2 Implementation and verification
 
 The color editor is `ChenWeb/web/src/lib/components/shared-ui/value-editors/ColorPicker.svelte`;
 `ColorModeSelect.svelte` shares its mode selector with the Properties panel and
@@ -179,6 +181,72 @@ mode changes, minimum-size calculation, layout and resize limit calculations. Fr
 `bun run check` passed during implementation with one unrelated existing CSS warning.
 The latest selection-preservation fix has not been verified in an authenticated browser
 session.
+
+### 5.2 Length Editor
+
+"Length" property is defines the values of width, height, radius, etc.
+
+- length property has a label that describes what it is
+- length property may define its default value
+- length property can have values of "auto", "elastic", percent ('%"), pixels ('px'), 'em', 'default'. These are types of length property. If the property does not have a default, do not list 'default'
+- the actual value of "auto" and "elastic" will be determined by system defaults, layouters, styles, etc.
+
+**Looking-and-feel**
+
+- Show as "label" + "value" + "type", and a small icon for its help tip
+- "value" can be displayed as a label, an input, or a pulldown menu. 
+- "value" can be read-only or read-write. Read-only shows "value" as a label with a background color. Read-write shows "value" using the input element.
+- if "value" is shown as a pulldown menu, users can use the pulldown menu to select a value instead of manually enter the value. Optionally, the pulldown menu allows users to enter values.
+- If "value" is displayed as a label and the property is read-write, double clicking the label changes it to use an input element to let users enter/change values and it changes back to "label" when losing focus.
+
+
+#### 5.2.1 Contract and implementation
+
+The following contract was approved on 2026-11-04.
+
+The existing `length` editor is shared by the Properties panel and page elements. Keep
+existing stored values and class copies compatible: a numeric length is a CSS string such
+as `"12px"` or `"50%"`; `auto` and `elastic` are strings. Selecting **default** unsets
+the property rather than storing the literal string `"default"`, so the existing class or
+system default can take effect. Offer it only when a concrete property default is known.
+For a page-bound value, unsetting writes `null`, as in §4; a page element must explicitly
+supply its default in `editor_options.defaultValue` for the choice to appear. Selecting a
+default does not write its displayed value to the bound field.
+
+The label and help tip belong to the host property or element. Show them alongside the
+value and type; omit the tip icon when no help text is supplied. The type selector offers
+only configured `keywords` and `units`, plus default when available. Preserve `rem` where
+already configured: existing descriptors and property definitions use it. Selecting a
+numeric unit retains the current numeric amount, or starts at zero when the previous type
+had no numeric amount; selecting a keyword applies that keyword. Selecting a unit changes
+the suffix without converting the numeric amount. Invalid edits remain unapplied and use
+the existing abandon/stay error flow. Existing length validation, including its nonnegative
+and percentage limits, remains in force.
+
+Optional `editor_options` for the page element and the equivalent options on a
+Properties-panel definition:
+
+| Option | Type and default | Behavior |
+| --- | --- | --- |
+| `defaultValue` | Valid length string; absent | Enables default and provides its displayed value. In the Properties panel, use the property's class default if present. |
+| `valueDisplay` | `input`, `label`, `select`; default `input` | Label enters editing on double-click or keyboard activation when writable; it returns to a label on blur after a valid edit. |
+| `choices` | Array of numeric strings; default `[]` | Values offered by `select` for the selected numeric unit. |
+| `allowCustomValue` | Boolean; default `false` | In `select` mode, allow typing a value as well as choosing one. |
+| `helpTip` | Localized text; absent | Page-element help text; Properties-panel help continues to come from its property definition or class. |
+
+Read-only shows the current value as a non-editable, shaded label and disables type
+changes. `auto`, `elastic`, and default have no separately editable numeric amount. An
+unset value without a default is displayed empty. A saved value whose unit or keyword is
+no longer offered remains visible until changed; merely opening the editor does not rewrite
+it. The UI text and accessible names are localized in English and Chinese. A keyboard user
+can activate the editable label and operate the type and value selectors.
+
+The shared control is `LengthEditor.svelte`; `values.ts` splits and changes types.
+`PropertyEditor.svelte` supplies the class default and fixed state; `ValueEditorElement.svelte`
+supplies binding state and page help. Existing class copies need no changes. The active
+`length-editor` class remains version 1; its existing `editor_options` object accepts these
+additional options without changing the descriptor schema. Focused value tests cover unit
+changes and unsetting. Browser interaction verification remains pending.
 
 ## 6. States
 
