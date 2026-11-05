@@ -33,7 +33,12 @@ new copies ([Descriptors and instances](#descriptors-and-instances)); panes have
 in when a page is written, the Panel Cache, the outward pane lookup, pane editing in the WPI
 editor, and migration `20261030000001_wpi_pages_own_panes.sql`, which converted every stored
 page. The pilot ([Pilot](#pilot), [What the pilot taught](#pilot-lessons)) followed the earlier
-model, in which the app's panes held pages. Cross-references
+model, in which the app's panes held pages. **Revised 2026-11-05:** apps are separate from pages. An app descriptor is stored in its own table,
+`kb.wpi_apps`, and names the page it opens by that page's descriptor ID; a page no longer carries an
+`app` attribute, so one page can serve several apps ([WPI apps](#wpi-apps),
+[WPI app attributes](#wpi-app-attributes), [App descriptor](#app-descriptor), [Storage](#storage));
+built the same day (OpenSpec change `wpi-apps-table`, migration
+`20261105000001_create_kb_wpi_apps.sql`). Cross-references
 in this document are links to a section by name, not section numbers, so that sections can be
 added, removed and moved.
 
@@ -157,7 +162,9 @@ application is deployed individually and independently. A WPI app is not deploye
 own: it is a descriptor, run by the same interpreter as every other WPI app. What it has of
 its own is its URL, which makes it individually loadable in a browser.
 
-Every page lives inside a WPI app; a page cannot be opened by itself. Even a page holding a
+Every page runs inside a WPI app; a page cannot be opened by itself. The app only names the page
+it opens, by descriptor ID ([WPI app attributes](#wpi-app-attributes)): pages are stored apart from
+apps, and one page can be used by many apps. Even a page holding a
 single form normally needs a header — with controls for display mode, language, menus and
 notifications — and a footer saying who we are, and the app provides them. Single-page
 apps are rare, so writing an app descriptor for them is a small cost.
@@ -225,6 +232,41 @@ name the page and its arguments); how the handler tells a WPI page from a conven
 example by a registry of URLs (the existing `kb.page_def`, [Storage](#storage)); how the input is
 passed (a URL can carry only arguments; a `load`, `query` or `load-file` input is run again by the
 backend); access control; and what an iframe may do.
+
+<a id="wpi-app-attributes"></a>
+
+#### 3.1.3 WPI app attributes
+
+An app is a descriptor of its own, stored in `kb.wpi_apps` ([Storage](#storage)). It is not part of
+a page: a page does not know which apps use it, and one page can be the `initial_page` of several
+apps. Before 2026-11-05 the editor's *Create app* dialog stored an app's identity in a root
+attribute `app` of its first page, which tied the app to that page; the attribute is gone and the
+migration turned each one into an app row ([Storage](#storage)).
+
+The app descriptor ([App descriptor](#app-descriptor)) has these attributes:
+
+| Attribute | Required | Meaning |
+| --- | --- | --- |
+| `descriptor_id` | yes | The app's ID, which is also its URL; letters, digits and hyphens, at most 64 characters when made from a name. |
+| `schema_version` | yes | The format version of the app descriptor. |
+| `initial_page` | yes | The `descriptor_id` of the page the app opens first. The page must be stored before the app is. |
+| `app_name`, `app_description` | no | Text for people, a plain string or one text per language (as a page's `page_name`); at most 100 and 1000 characters. |
+| `keywords`, `tags` | no | Words and categories that authors search; arrays of non-empty strings. |
+
+No other attribute is allowed. The validator checks these on every save; the admin write
+(`PUT /api/v1/wpi/descriptors/app/<id>`) also refuses, with 400, an `initial_page` that has no
+active page, so an app that cannot be shown is never stored. A page deleted or retired afterwards
+makes the bundle report `page "<id>" does not exist` when the app is opened
+([Validation and errors](#validation-and-errors)).
+
+In the WPI editor, *Create > Create App* opens a blank app in the Properties panel, whose form edits
+exactly these attributes; Save stores a new version of the app. *Create > Create Page* names a page
+instead: its first save opens a dialog that asks for the page name (the slug of which is the page's
+descriptor ID, as for apps), a description, keywords and tags, and stores them in the page root as
+`page_name`, `description`, `keywords` and `page_tags`, with the page's `width` and `height`
+([Page attributes](#page-attributes)). The dialog saves with `If-None-Match: *`; when the ID already
+exists the server answers 409 and the editor asks whether to replace that page. Not built: loading
+a stored app into the editor, and a page picker for `initial_page` (the author types the ID).
 
 <a id="pages"></a>
 
@@ -762,11 +804,39 @@ A descriptor is a definition; an instance is one running copy of it.
 The same page can have several page instances at once, as `customer-form` does in the diagram
 above, where it has three page instances. Each page instance has its own input doc, so they never share data by accident.
 Likewise, one element class can be placed on many pages, or several times on one page.
-In principle, everything that can be addressed has a unique instance ID. Instance IDs are always
-generated dynamically by the system and never written in descriptors. A descriptor uses design-time
+In principle, everything that can be addressed has a unique instance ID. A descriptor uses design-time
 names, such as class IDs and `pane_id`, and the interpreter resolves them to instance IDs at run
 time: the `pane` of an `open-page` becomes the pane instance ID of the pane it resolves to
 ([Action classes](#action-classes)). The entries of the Panel Cache ([Panel Cache](#panel-cache)) are made of instance IDs.
+
+**Instance IDs**
+
+There are two instance IDs when a descriptor is placed on a page (i.e., instantiated to a page),
+both attributes of its descriptor copy, set by the frontend. This holds for every WPI object, that is,
+anything stored in `kb.wpi_descriptors`: element (value editors included), action, validator, page layouter and
+element layouter. The WPI Editor generates both IDs at the moment it copies the descriptor onto the page,
+whether or not the page is ever saved:
+
+- `dynamic_instance_id` is generated at run time (a UUID), and again each time a stored page is loaded. It
+  is never saved: saving a page strips it.
+- `instance_id` is saved with the page. Its format is `<descriptor_id>_<version>_<seqno>`, with the class's
+  `kb.wpi_descriptors` version at the time of the copy, and `seqno` a number local to the page: one more
+  than the greatest in any `instance_id` of the page, of every kind. `input_4_1` is the first instance on its
+  page: an `input`, class version 4.
+
+The editor reads the class versions from `GET /api/v1/wpi/classes/versions` when it opens, since a class copy
+has no version attribute. It generates the IDs when an element is dropped on a pane, when a validator is dropped
+onto an element, when the Properties panel adds an action or validator, when a page layouter is chosen, when a
+blank page is made, and when the first element dropped into a pane creates that pane's panel and element
+layouter. Duplicating an element gives the copy, with its actions and validators, new IDs. Loading a stored page
+only adds run-time IDs; a copy stored before this decision gets its `instance_id` the next time the editor
+stamps its element or page, which any edit does. The server accepts `instance_id` on all five kinds and does not
+check its format; it never generates one. `dynamic_instance_id` is separate from the execution ID of a run
+([above](#descriptors-and-instances)).
+
+Code: `web/src/lib/wpi/instance-ids.ts` (formats, `stampInstances`), `canvas/wpi-json.ts` (saving strips
+dynamic IDs, loading adds them), `canvas/validator-drop.ts`, `wpi-editor.svelte`, and
+`server/api/wpi/validate.go` and `handler.go`. Not built as an OpenSpec change.
 
 An element's attributes are split into *class attributes*, which all its instances share,
 and *instance attributes*, which each instance may set ([Element classes and instances](#element-classes-and-instances)). Actions are split the
@@ -1433,12 +1503,17 @@ named in the text, not in the JSON, because the validator rejects attributes it 
 {
   "descriptor_id": "customer-admin",
   "schema_version": "0.5",
-  "initial_page": "customer-admin-home"
+  "initial_page": "customer-admin-home",
+  "app_name": { "en": "Customer admin", "zh-cn": "客户管理" },
+  "keywords": ["customers"]
 }
 ```
 
 - The app does not deal with page details. It does not name panes, sizes or layouters; those
   belong to each page ([Pages](#pages)).
+- The descriptor is stored in `kb.wpi_apps` and references its page by `descriptor_id`; it does not
+  contain the page ([WPI app attributes](#wpi-app-attributes)). `app_name`, `app_description`,
+  `keywords` and `tags` are optional and are what authors search.
 - `initial_page` is the page the app opens when it starts, here the home page of
   [A home page with a menu](#home-page-example). The app's page area is empty until then.
 - A menu is not an app attribute. It is an element in a panel of a page, like every other
@@ -1757,7 +1832,7 @@ the workspace rule that data belongs in the database. The table is created by mi
 ```text
 kb.wpi_descriptors
   id              BIGSERIAL primary key
-  kind            'app' | 'element' | 'action' | 'page-layouter' | 'element-layouter' | 'validator'
+  kind            'element' | 'action' | 'page-layouter' | 'element-layouter' | 'validator'  (apps and pages have their own tables)
   descriptor_id   e.g. 'customer-form'
   version         integer, increasing per descriptor
   schema_version  descriptor format version
@@ -1778,6 +1853,13 @@ kb.wpi_descriptors
   elements and actions (format `0.1`), such as `customer-email` and `save-customer`, were
   retired on 2026-10-27.
 - The interpreter uses the latest `active` version of each descriptor.
+- **Apps have their own table, `kb.wpi_apps`** ([WPI app attributes](#wpi-app-attributes)), with the
+  same columns as `kb.frontend_pages`. Migration `20261105000001_create_kb_wpi_apps.sql` moved every
+  app version there (`kb.wpi_descriptors` no longer accepts kind `app`), turned each page's old root
+  attribute `app` into an app row whose `initial_page` is that page, and moved what only `app` held
+  (name, description, keywords, tags, size) to the page root. The old attribute never stored the
+  app's name, only its slug, so the migrated rows use the slug as `app_name`. The admin write still
+  takes `app` as its kind and writes to the new table.
 - Versions are never edited in place. An admin writes a new version with
   `PUT /api/v1/wpi/descriptors/<kind>/<descriptor-id>`, which checks it first and stores it
   as `active`. Apart from *Create Element* (below), there is no editor screen yet.
@@ -1833,6 +1915,7 @@ The checks include:
 | Panes | A page has a `page_layouter` with exactly one root pane; pane IDs are unique in the page; a split pane has `split` and two or more `children`; a page without a `page_layouter` is an error |
 | References | Every referenced app and page exists (element and action instances hold copies of their classes and need no class rows, [Descriptors and instances](#descriptors-and-instances)); every key of a page's `panels` is the ID of a leaf pane of its page layouter; every `pane` that an `open-page` names resolves to a leaf pane ([Action classes](#action-classes)), checked when an app is loaded, since only then is it known in which panes of which pages a page can be opened; every statement a `query` names and every file a `load-file` names is stored |
 | Tables | Every table and column named in a `load` or `save` action exists |
+| App descriptor | exactly the attributes of [WPI app attributes](#wpi-app-attributes); `initial_page` is a stored page (checked when the app is saved and again when it is opened) |
 | Bindings | Paths are well formed; `__proto__`, `constructor` and `prototype` are rejected |
 | Consistency | Every attribute in a `save` action is bound `read-write` by some element on the page (warning) |
 | Instances | An element or action instance is checked against the class copy it holds, not against the stored class ([Element classes and instances](#element-classes-and-instances), [Actions](#actions)): `element` or `action` equals the copy's `descriptor_id`; the instance sets only instance attributes the copy names (an element also its sizes), none the copy fixes. Before a page runs, it must also set every attribute whose default in the copy is `null`. Missing values are allowed when the page is saved |
