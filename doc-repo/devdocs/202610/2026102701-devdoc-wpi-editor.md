@@ -156,14 +156,14 @@ To select several boxes, hold ⌘ (Ctrl on Windows/Linux) while clicking them.
   first and last in place, and sets equal gaps; overlapping nodes give a negative gap.
 - **Undo / redo:** full snapshots of the page descriptor, preview size, nodes and edges, at
   most 50 undo steps. A step is recorded before every change: create, palette drop,
-  duplicate, delete (tool bar or Backspace), the start of a drag, page and pane resizing,
+  duplicate, delete (tool bar or Backspace/Delete), the start of a drag, page and pane resizing,
   new edge, align, distribute, edge-style change, edits in the properties panel (both
   tabs) and in View JSON, page, pane and panel settings, and pane split, merge, add,
   delete and rename. A property edit is one step per focus: everything changed in one
   property between entering it and leaving it is a single step (`canvas/edit-session.ts`);
   a canvas action, undo or redo during the focus starts a new one.
 - **Keyboard:** ⌘/Ctrl+Z undo; ⌘/Ctrl+Y or ⌘/Ctrl+Shift+Z redo; ⌘/Ctrl+S save;
-  Backspace deletes the selection (Svelte Flow default).
+  Backspace and Delete remove the selection, including selected nodes and edges.
 - **Edges:** dragged from an output handle to an input handle. A second edge between the
   same two handles is ignored.
 - **Canvas settings (gear):** edge style — curve, step, rounded step or straight. It
