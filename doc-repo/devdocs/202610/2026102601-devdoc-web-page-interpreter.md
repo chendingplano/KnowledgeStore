@@ -132,11 +132,13 @@ implementing them (report §3.4).
 | Page area | The space in which a page is rendered: the app's own page area (the browser tab or an iframe), or a pane of another page in which the page was opened. The app's page area shows one page instance; a pane shows one thing at a time, its own panel or a page opened in it ([Panel Cache](#panel-cache)). |
 | Panel Cache | A frontend module that caches the pages opened in panes, as `(page-instance-id, pane-instance-id)` entries, so that a pane can show a page again without rendering it again ([Panel Cache](#panel-cache)). |
 | Root pane | The pane at the root of a page's page layouter tree: the whole page. Every page has exactly one. |
-| Single-pane page | A page whose root pane has no children, so it has one pane and one panel. Usually written with the `single-pane` page layouter. Earlier drafts called it a headless page. |
+| Single-pane page | A stored page whose root pane has no child panes. When opened inside a leaf pane, its content is a Headless Page. Usually written with the `single-pane` page layouter. |
+| Headless Page | Paneless content: exactly one Element Layouter and one Element List, with no pane tree of its own. Represented by a panel in the current descriptor format. |
+| Compound Page | A multi-pane page opened inside a leaf pane. Has one Page Layouter and repeats the Pane Tree structure recursively. |
 | Panel | The elements shown in one pane, and the element layouter that arranges them. Implements part of its page. Its geometry comes from its content and only its content can change it. |
 | Element layouter | Arranges the elements of a panel in one specific way, e.g. `flow-layouter`. Stored as a class that serves as a read-only template: a panel copies all of it and then changes the parameters it needs. |
 | Page instance | One open copy of a page: the page descriptor plus its input doc. Its panes and panels have instance IDs of their own; a page instance opened in a pane and then hidden is kept in the Panel Cache. |
-| Element | One visible part of a page, placed in a panel: text, input, pulldown menu, button, list, menu. |
+| Element | One visual element or value editor in an Element List: text, input, pulldown menu, button, list, menu, or a registered value editor. |
 | Element class | A kind of element, e.g. `input`. Its `code_module_id` names the frontend code that draws it ([Code modules](#code-modules)). Classes are few and stable. |
 | Code module | The frontend code that draws elements, e.g. `button`, listed in `kb.code_modules` and documented in `KnowledgeStore/doc-repo/code_modules/`. One code module may draw several classes, such as `simple-button` and `fancy-button` ([Code modules](#code-modules)). |
 | Element instance | One use of an element class in a panel: a whole copy of the class, made when the element is placed and kept in the instance's `class`, plus the instance's own values. Later changes to the class do not reach it. Lives inside the page's descriptor. |
@@ -147,6 +149,69 @@ implementing them (report §3.4).
 | Input doc | The JSON data a page instance shows and edits. |
 | Data binding | The link between an element and one attribute of the input doc. |
 | Instance ID | Identity of one running copy of anything addressable — an app, page, page layouter, pane, panel, element layouter or element — generated dynamically by the system. |
+
+<a id="component-tree"></a>
+
+### Component tree
+
+The component tree describes ownership: each element belongs to the content of one
+leaf pane. Element layouters and element lists belong under that pane, rather than
+beside the page layouter. The tree has these rules:
+
+1. **App** has exactly one **Page**, defined in `kb.frontend_pages` and named by the
+   app's `initial_page`. This is the page currently displayed, not a list of every
+   page the app can open.
+2. **Page** has exactly one **Page Layouter**. The layouter has one **Pane Tree**,
+   whose root is exactly one **Pane**.
+3. An inner Pane has two or more child Panes; a leaf Pane has no child Panes.
+   A Pane with exactly one child Pane is invalid. Content nodes do not count as
+   child Panes.
+4. Each leaf Pane shows exactly one content node: either a **Headless Page**
+   (paneless content) or a **Compound Page** (a multi-pane page).
+5. A Headless Page has exactly two children: **Element Layouter** and **Element List**.
+   An Element List has zero or more **Element** children in reading order. An Element
+   represents a visual element or a value editor; its class and instance IDs identify it.
+6. A Compound Page has exactly one Page Layouter, followed by its Pane Tree and root
+   Pane. Its leaf Panes obey the same rules recursively.
+
+```text
+App
+└── Page
+    └── Page Layouter
+        └── Pane Tree
+            └── Pane (root, split into columns)
+                ├── Pane (leaf)
+                │   └── Headless Page
+                │       ├── Element Layouter
+                │       └── Element List
+                │           └── Element …
+                └── Pane (leaf)
+                    └── Compound Page
+                        └── Page Layouter
+                            └── Pane Tree
+                                └── Pane (root) …
+```
+
+**Storage and display.** These names clarify the component tree without introducing
+new descriptor kinds. `page_layouter.root` stores the pane tree; `panels[pane_id]`
+stores a leaf's Headless Page, using `elem_layouter` and `elem_list`. An omitted
+panel is empty content; the editor tree still shows its Headless Page, the default
+`flow-layouter`, and an empty Element List. This does not create a database row or
+write a default panel into the descriptor. A Compound Page comes from an existing
+`open-page` action and page instance, not a new inline page attribute.
+
+**Editor behavior.** Code → Component Tree shows the current descriptor while editing,
+with each leaf's own content. Selecting a Headless Page or its Element Layouter opens
+that pane's panel properties; selecting an Element selects its canvas box. Keep the
+window open when entering Preview to see the visible runtime page instances: an
+opened single-pane page supplies a Headless Page, and an opened multi-pane page
+supplies a Compound Page. Runtime tree nodes are read-only. Hidden cached pages are
+not additional children; switching or closing a page updates the visible tree.
+All structural labels support English and Chinese.
+
+The host pane still replaces an opened page's root pane for geometry
+([Opening a page](#opening-a-page)); the Compound Page's root in the tree records
+ownership, not an additional surrounding rectangle.
 
 <a id="wpi-apps"></a>
 
@@ -292,7 +357,8 @@ has exactly one **root pane**, the root of its page layouter's tree, which is th
 page without a `page_layouter` is an error ([Validation and errors](#validation-and-errors)).
 
 **Single-pane pages.** A page whose root pane has no children is a *single-pane page*: its root
-pane is its only pane, and it has one panel. (Earlier drafts called it a *headless* page.) The
+pane is its only pane, and it has one panel. Its panel content is a *Headless Page* in
+the [component tree](#component-tree); the stored page retains its page-layouter wrapper. The
 interpreter treats it like every other page; the page layouter `single-pane` is the usual way
 to write one. The root pane matters when a page is opened in a pane of another page: that pane
 always takes the place of the page's root pane. For a single-pane page this leaves only its
@@ -617,6 +683,11 @@ choosing each ID's latest active version. The behavior contract is
 <a id="panels"></a>
 
 ### 3.3 Panels
+
+A panel is the current descriptor representation of a **Headless Page** in the
+[component tree](#component-tree): its Element Layouter and Element List. The word
+"paneless" means this content has no pane tree of its own; it does not remove the
+`panels` field from stored page descriptors.
 
 Panes and panels accept optional `background_color` and `foreground_color`; absent or null means no color is set. A value is a CSS color, or an object such as `{ "light": "#fff", "dark": "#111" }` that follows the current display mode. Fixed colors stay fixed. Each unset pane color inherits the closest ancestor pane's corresponding color, independently; an explicit child color overrides it. Foreground colors inherit into content unless overridden. If a leaf pane has an effective background color, including one inherited from an ancestor, its panel background is ignored; otherwise the panel background colors its content area. When a page opens in a pane, the host pane replaces its root pane and supplies that precedence. Specify readable foreground/background combinations for both modes.
 
