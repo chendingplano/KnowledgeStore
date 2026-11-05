@@ -34,6 +34,8 @@ native-library conflict when PyTorch and llama.cpp are loaded in the same proces
 rev 2026-11-03: added the stacked-cell repair to §4 (openspec `mineru-stacked-cell-repair`,
 in the next image build; `prepare-context.py` now stages its two modules) and recorded that
 PDF table geometry (viewer row highlighting) was never provisioned on this box;
+rev 2026-11-06: added the internal Kratos `scheduler` identity required for LLM balance
+capture, and documented provisioning and verification in §9.1;
 rev 2026-11-04: §4 — the image now writes PDF table geometry, and its PyMuPDF 2.1 layout gating
 left 表 1's continuation page unrepaired and unhighlighted; fixed in source, needs the next image
 build; §4 — the dashboard's Active PDF Parsing phases listed MinerU pipeline phases that this
@@ -992,6 +994,59 @@ journalctl -u doc-processor -f | grep -i 'MID-20260708-01'
 ```
 
 ---
+
+### 9.1 Internal scheduler identity for LLM balance capture
+
+The hourly LLM provider balance collector resolves an **active Kratos identity with
+credential identifier `scheduler`** before it contacts DeepSeek. This identity is
+used to attribute the provider-balance audit event. A missing or inactive identity
+also blocks the dashboard's manual reconciliation, which uses the same collector.
+It is separate from the DeepSeek account and API key.
+
+On 2026-11-06, this box had no matching identity: the last successful capture was
+2026-11-02 00:00 Asia/Shanghai, and hourly runs from 01:00 failed with
+`resolve scheduler identity for balance capture: ... identity not found for email: scheduler`.
+An active `scheduler` identity was created on 2026-11-06 (ID
+`84de6882-1453-45c2-b5dd-6e3006f9b638`). Its randomly generated password was
+discarded; this is an internal service identity, not an interactive login.
+
+For a fresh Kratos database, first check whether it already exists, then create it
+only if the lookup returns an empty list. Run on the production box; the admin API
+is loopback-only. The schema requires a password credential for username lookup.
+
+```bash
+curl -sG --data-urlencode credentials_identifier=scheduler \
+  http://127.0.0.1:4434/admin/identities
+
+python3 - <<'PY'
+import json, secrets, urllib.request
+url = 'http://127.0.0.1:4434/admin/identities'
+with urllib.request.urlopen(url + '?credentials_identifier=scheduler') as response:
+    if json.load(response):
+        raise SystemExit('scheduler already exists; inspect its state instead')
+payload = {
+    'schema_id': 'default', 'state': 'active',
+    'traits': {'username': 'scheduler', 'name': {'first': 'scheduler', 'last': '-'}},
+    'credentials': {'password': {'config': {'password': secrets.token_urlsafe(48)}}},
+}
+request = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={'Content-Type': 'application/json'}, method='POST')
+with urllib.request.urlopen(request) as response:
+    identity = json.load(response)
+print(identity['id'], identity['state'])
+PY
+```
+
+Check that the lookup returns one active identity, then check the next hourly
+`chenweb` reconciliation log for `snapshots_created=1` and `failures=0`. A failed
+hour is already claimed, so it is not retried in that hour; the next hourly run
+claims a new slot. A new capture does not reconstruct the missing daily snapshots.
+
+```bash
+curl -sG --data-urlencode credentials_identifier=scheduler \
+  http://127.0.0.1:4434/admin/identities
+journalctl -u chenweb --since '1 hour ago' --no-pager | grep 'llm provider reconciliation'
+```
 
 ## 10. Product Drawings (image generation) — env gaps + a silent "Keep" failure
 
