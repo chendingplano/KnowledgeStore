@@ -41,8 +41,9 @@ with an attribute tree and inline forms (§1.3.7).
   element box, or the page, a pane or a panel chosen with **View page config**, **Panes** and
   **Panel** above the canvas or by clicking the preview. With nothing selected, or several
   boxes, the property editor is empty. **Properties** edits the selected instance;
-  **Class** edits its reusable stored class (§1.3.7). A pane selects its page layouter
-  class; a panel selects its element layouter class. Pages have no class. An action
+  **Class** edits its reusable stored class or the layouter selected from the floating
+  view menu (§1.3.7). A pane selects its page layouter class; a panel selects its
+  element layouter class. Pages have no class. An action
   box offers a class selector on Class. Other flow boxes show their own settings in
   Properties. Drag the panel's left edge to make it wider or narrower (200–640 px;
   it starts at 390 px).
@@ -50,7 +51,8 @@ with an attribute tree and inline forms (§1.3.7).
   right (further while another box sits there), with the same data and size, and selects
   it; lines are not copied. **Delete** removes the box and every line attached to it. Both
   can be undone. An element box also has **Edit class** (pencil), which opens the Class
-  tab on the box's class (below).
+  tab on the box's class (below), and a **View layouter** (eye) menu for the page and
+  element layouter classes that apply to it (§1.3.7).
 
 The Panes and Panel properties include `background_color` and `foreground_color`. Choose no color, one color, or separate light and dark colors. Use the color picker or enter a CSS color in the adjacent field; choose None to leave it unset. The canvas preview follows the editor theme and inherits each unset pane color from the closest ancestor and gives the effective pane background precedence over its panel background.
 
@@ -222,6 +224,18 @@ The editor reads and writes reusable element, action and layouter classes in
 `kb.frontend_pages`. A pane's Class tab opens the page layouter; a panel's opens
 its element layouter. Action boxes can select a stored action class, but they are
 still flow-only canvas nodes: saving them as page actions is not built.
+
+With an element selected in the page preview, the floating **View layouter** menu can
+open the page's layouter class or the element layouter for the element's pane in the
+Properties panel's **Class** tab. The element stays selected, and the chosen view follows
+selection changes on that page. If the current selection has no usable target for the
+chosen view, the panel temporarily shows that element's own class; the view resumes when
+a later selection has a target. Clearing the selection or changing pages or tabs resets
+the view. **Edit class** switches back to the selected element's own class.
+
+The menu offers **Page Layouter** and **Element Layouter**. It has no App option because a
+page descriptor does not identify its containing app. A non-empty layouter ID that cannot
+be loaded uses the Class editor's existing unavailable-class state.
 
 ### 1.3.7 Editing a class
 
