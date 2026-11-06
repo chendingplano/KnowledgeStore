@@ -195,7 +195,7 @@ session.
 
 **Looking-and-feel**
 
-- Show as "label" + "value" + "type", and a small icon for its help tip
+- Show as "label" + "value" + "type", with an Options menu when help text is available
 - "value" can be displayed as a label, an input, or a pulldown menu. 
 - "value" can be read-only or read-write. Read-only shows "value" as a label with a background color. Read-write shows "value" using the input element.
 - if "value" is shown as a pulldown menu, users can use the pulldown menu to select a value instead of manually enter the value. Optionally, the pulldown menu allows users to enter values.
@@ -216,7 +216,7 @@ supply its default in `editor_options.defaultValue` for the choice to appear. Se
 default does not write its displayed value to the bound field.
 
 The label and help tip belong to the host property or element. Show them alongside the
-value and type; omit the tip icon when no help text is supplied. The type selector offers `value`, configured `keywords` and `units`, plus default when available.
+value and type; an Options menu contains a Help tip item when help text is supplied. This applies to all value editors, including page elements using `editor_options.helpTip`. The type selector offers `value`, configured `keywords` and `units`, plus default when available.
 Length properties have no separate Reset button; select default from the type list to restore
 a configured default.
 An unset length without a configured default starts with `value` selected and an empty input. Preserve `rem` where
