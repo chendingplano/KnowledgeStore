@@ -23,6 +23,7 @@ recommendations.
 }
 ```
 - Depending on `EXTRACT_PROVISIONS_INPUT`, iterate over chunks (default) or blocks. For each unit, use the EXTRACT_PROVISIONS_MODEL_NAME model with the EXTRACT_PROVISIONS_PROMPT prompt to extract provisions. Units may be processed concurrently up to `EXTRACT_PROVISIONS_MAX_TASKS` at a time (default 1, sequential). Results are collected in unit order regardless of completion order.
+- Put stable extraction instructions before unit text to support provider prompt caching across units. When `MODEL_DEFAULT_REASONING_POLICY` is `no-reasoning`, disable thinking for both primary and fallback models; otherwise retain each model's configured thinking setting.
   - `"chunks"`: convert lines with `markedLinesToJSON`
   - `"blocks"`: convert lines with `blockLinesToJSON`
 - The LLM generates zero or more provisions for each block. 
