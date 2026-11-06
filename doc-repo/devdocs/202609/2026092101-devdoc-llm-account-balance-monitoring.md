@@ -59,8 +59,9 @@ reconciliation-enabled DeepSeek account's official balance and writes a
   cancellation does not discard the audit event. Balance reads are attributed to the active internal Kratos username
   `scheduler`. The adapter resolves its identity through `credentials_identifier`
   before each read and supplies its ID through `RequestCapture.UserID`, including
-  for failed provider calls. A missing, inactive or unavailable scheduler identity
-  fails the read before contacting the provider, so no unattributed event is
+  for failed provider calls. If the identity is missing, the collector creates an
+  active username/password identity using a random, discarded password. An inactive
+  identity or an unavailable Kratos service fails the read before contacting the provider, so no unattributed event is
   generated. This applies to hourly jobs and manual reconciliation, which share
   the adapter. No model profile is assigned; unresolved-profile warning policies
   still apply. Capture failures are

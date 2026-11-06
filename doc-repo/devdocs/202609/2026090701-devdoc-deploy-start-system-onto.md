@@ -1008,7 +1008,10 @@ On 2026-11-06, this box had no matching identity: the last successful capture wa
 `resolve scheduler identity for balance capture: ... identity not found for email: scheduler`.
 An active `scheduler` identity was created on 2026-11-06 (ID
 `84de6882-1453-45c2-b5dd-6e3006f9b638`). Its randomly generated password was
-discarded; this is an internal service identity, not an interactive login.
+discarded; this is an internal service identity, not an interactive login. The
+updated ChenWeb source now creates this identity automatically when it is missing
+on a balance capture; that change requires a new server deployment. Existing
+inactive identities are not changed automatically.
 
 For a fresh Kratos database, first check whether it already exists, then create it
 only if the lookup returns an empty list. Run on the production box; the admin API
