@@ -319,3 +319,10 @@ where:
   no index-time hybrid artifact-connection step).
 
 Refer to KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-provisions-impl.md
+
+## 3.4 Benchmark
+Output quality is measured against gold provisions: the `extract-provisions-benchmark` skill builds
+them (`testbed.provisions`, versioned rules), `score-extract-provisions` scores `kb.provisions`
+against them (1–100), and ChenWeb shows both under System Admin › Benchmark › Provisions
+(development page). See devdoc
+`KnowledgeStore/doc-repo/devdocs/202611/2026110602-devdoc-provisions-benchmark.md`.
