@@ -168,6 +168,8 @@ one assistant.
 
 | Exact path | Type and allowed values | Absence and behavior |
 | --- | --- | --- |
+| `E.message_box_height` | Nonnegative length in `px`, `rem`, `em`, `%` (bare numbers mean px) | Unset: `rows` determines the message box height. Set: overrides the rows-based height. |
+| `E.toolbar_height` | Same length grammar | Unset: height follows its controls. Set: toolbar height is fixed and overflowing controls scroll. |
 | `E.width` | `auto`, `elastic`, or a nonnegative length in `px`, `rem`, `em`, `%` | Class default `elastic` in the `chat-composer` class: share the row's free width. |
 | `E.height` | Same grammar | Unset or `auto` (recommended): the box's rows plus the tool bar's rows. |
 | `E.min_width` | Same grammar | Class default `320px` in the `chat-composer` class. |
@@ -251,6 +253,9 @@ editors are described in devdoc 2026102701 §1.3.9.
 | Assistant | `default_agent` | value-picker | The ticked assistants, or *First in the list* (unset) |
 | Assistant | `default_model` | text | A model name |
 | Size | `width`, `height`, `min_width`, `max_width` | length | `auto`, `elastic`, or a number in px, rem, em or %; a bare number means px |
+| Size | `message_box_height`, `toolbar_height` | length | Optional nonnegative lengths in px, rem, em or %; unset retains automatic sizing |
+
+Newly created class versions declare both optional attributes; existing class copies retain their defaults and can use the supported attributes as instance values.
 
 ## Examples
 

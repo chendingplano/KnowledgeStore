@@ -53,6 +53,8 @@ with an attribute tree and inline forms (§1.3.7).
   can be undone. An element box also has **Edit class** (pencil), which opens the Class
   tab on the box's class (below), and a **View layouter** (eye) menu for the page and
   element layouter classes that apply to it (§1.3.7).
+- **Above a selected element in the page preview — the floating toolbar.** It has View
+  layouter, Edit class, Duplicate and Delete, and is described in §1.3.12.
 
 The Panes and Panel properties include `background_color` and `foreground_color`. Choose no color, one color, or separate light and dark colors. Use the color picker or enter a CSS color in the adjacent field; choose None to leave it unset. The canvas preview follows the editor theme and inherits each unset pane color from the closest ancestor and gives the effective pane background precedence over its panel background.
 
@@ -508,6 +510,47 @@ page, so they are not dropped onto the canvas like elements.
   panel uses, so it is not in the table of §1.3.9.
 - **Preview** runs validators exactly as a page does: an input when it loses focus, a
   pulldown when a value is chosen, a value editor when it applies a value.
+
+### 1.3.12 Floating element toolbar
+
+When an element is selected in the page preview, a small toolbar floats above it. It gives
+quick access to the element's layouter view, class, duplication and deletion without going
+to the Properties panel. It is drawn by the preview (`canvas/PagePreview.svelte`, class
+`element-toolbar`), not by the canvas boxes.
+
+**Where it appears.** Only while an element is selected and its top edge is inside the
+preview. It is centred above the element's top edge, 4 px clear of it. Its horizontal
+position is clamped so it stays at least 55 px from each side of the preview. When the
+element scrolls out of view, the toolbar disappears and returns when the element is visible
+again. Selecting a page, pane or panel shows no toolbar.
+
+**Buttons**, left to right:
+
+| Button | Icon and tooltip | What it does | Notes |
+|---|---|---|---|
+| View layouter | Eye; "View layouter class" | Opens a menu of **Page Layouter** and **Element Layouter**. The chosen layouter class is shown in the Properties panel's **Class** tab (§1.3.6) | A menu item is disabled when the page or the element's pane has no such layouter |
+| Edit class | Pencil; "Edit class" | Opens the **Class** tab on the element's class (§1.3.7) and ends any layouter view | Does nothing for an element without a class ID |
+| Duplicate | Copy; "Duplicate" | Copies the element one grid cell down and right and selects the copy (as in §1.2) | One undo step |
+| Delete | Red trash; "Delete" | Removes the element from the page (as in §1.2) | One undo step |
+
+Clicks on the toolbar do not reach the preview, so they neither start a drag nor clear the
+selection. Its buttons show a focus outline, so they can be reached with the keyboard while
+the toolbar is shown.
+
+**Relation to the box tool bar (§1.2).** A canvas box has its own tool bar above it,
+drawn by `canvas/nodes/BaseNode.svelte`. Both bars call the same Duplicate and Delete
+functions, provided by the editor through `canvas/node-actions.ts`, so those two buttons
+behave the same. The floating toolbar also has View layouter, and it always shows Edit
+class in the WPI Editor; the box bar shows Edit class only on boxes that supply it.
+
+**Code.** `PagePreview.svelte` (`positionToolbar`, `.element-toolbar`). The actions come
+from `wpi-editor.svelte` (`setNodeActions`); the layouter view is handled by
+`chooseLayouterView` (§1.3.6).
+
+**Text.** Through Paraglide: `wpi_element_actions` (the toolbar's accessible name),
+`wpi_preview_layouter_view_tooltip` and `wpi_preview_layouter_view_label`,
+`wpi_preview_page_layouter`, `wpi_preview_element_layouter`, and the shared
+`basenode_edit_class`, `basenode_duplicate` and `basenode_delete`.
 
 ## 1.4 Known limitations
 

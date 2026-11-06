@@ -302,11 +302,9 @@ backend); access control; and what an iframe may do.
 
 #### 3.1.3 WPI app attributes
 
-An app is a descriptor of its own, stored in `kb.wpi_apps` ([Storage](#storage)). It is not part of
-a page: a page does not know which apps use it, and one page can be the `initial_page` of several
-apps. Before 2026-11-05 the editor's *Create app* dialog stored an app's identity in a root
-attribute `app` of its first page, which tied the app to that page; the attribute is gone and the
-migration turned each one into an app row ([Storage](#storage)).
+An app is a descriptor of its own, stored in `kb.wpi_apps` ([Storage](#storage)). Each WPI app binds
+a page (`initial_page`). One page can be the `initial_page` of multple
+apps. 
 
 The app descriptor ([App descriptor](#app-descriptor)) has these attributes:
 
@@ -323,6 +321,8 @@ No other attribute is allowed. The validator checks these on every save; the adm
 active page, so an app that cannot be shown is never stored. A page deleted or retired afterwards
 makes the bundle report `page "<id>" does not exist` when the app is opened
 ([Validation and errors](#validation-and-errors)).
+
+WPI apps use their `initial_page` image as its image.
 
 In the WPI editor, *Create > Create App* opens a blank app in the Properties panel, whose form edits
 exactly these attributes; Save stores a new version of the app. *Create > Create Page* names a page
@@ -554,6 +554,7 @@ These are the attributes of the page itself. The attributes of its panes ([Panes
 | `page_name` | The page's name as people see it, e.g. "Customers". |
 | `description` | What the page is for. Authors search names and descriptions when looking for a page to reuse ([Reuse by copying](#reuse-by-copying)). |
 | `keywords`, `page_tags` | Words and categories that authors search, like `page_name` and `description`. |
+| `page_image` | File name of a PNG of the page in `DATA_HOME_DIR/page-images`, set by the editor each time it creates or saves a page ([Page images](#page-images)). Not set by hand. |
 | `access_controls` | The user roles that may use the page. None, or an empty list, lets every logged-in user use it, and an admin counts as having the role `admin`. A page the user may not use is left out of the app, and reading it or running an action written in it is refused. |
 | `page_layouter` | The page layouter instance: a class snapshot and the page's own values, including its pane tree ([Page layouters](#page-layouters)). |
 | `panels` | The page's panels, keyed by the `pane_id` of the leaf pane each one fills ([Panels](#panels)). |
@@ -1963,6 +1964,22 @@ kb.wpi_descriptors
   admin write above still takes `page` as its kind and writes to the new table.
 - Stored SQL statements and files are in `kb.stored_stmts` and `kb.stored_files` ([Page input](#page-input)),
   created by migration `20261027000004_create_kb_stored_stmts_and_files.sql`.
+
+<a id="page-images"></a>
+
+### Page images
+
+When the WPI editor creates or saves a page, it captures a PNG of the page preview (the
+interpreter's own rendering, without the editor's selection overlays and handles) with
+`html-to-image`, uploads it with `PUT /api/v1/wpi/page-images/<page-id>` (admins only, PNG, at
+most 4 MiB), and saves the page with the returned name in `page_image`. The server writes the file
+to `<DATA_HOME_DIR>/page-images/<page-id>-<yyyymmddhhmmss>-<hex>.png`, so each save has an image of
+its own and older versions keep theirs. `GET /api/v1/wpi/page-images/<name>` serves it to any
+logged-in user. A capture or upload failure never stops the save: the page is saved with its
+earlier `page_image` and the editor shows a warning. The validator checks only the form of the
+name, not that the file exists. Old images are never deleted, and showing the image in *Load Page*
+is not built. Code: `server/api/wpi/images.go`, `web/src/lib/wpi/page-image.ts`, `save()` in
+`wpi-editor.svelte`. Built 2026-11-05 (OpenSpec change `wpi-page-images`).
 
 <a id="validation-and-errors"></a>
 

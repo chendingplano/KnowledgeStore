@@ -1,7 +1,7 @@
 # Module: Web Page Interpreter (frontend)
 
 **Module ID:** `20261026-01`
-**Type:** frontend · **Language:** svelte · **Version:** 3.13.0
+**Type:** frontend · **Language:** svelte · **Version:** 3.16.0
 **Status:** under-dev — pages own their panes and instances hold copies of their classes
 (formats `0.5` for apps and pages, 2026-10-30, OpenSpec change `wpi-pages-own-panes`); used
 by the `customer-admin` and `customers-demo` apps
@@ -9,7 +9,7 @@ by the `customer-admin` and `customers-demo` apps
 **Location:** `ChenWeb/web/src/lib/wpi`
 **Created:** 2026-10-26
 
-Panes and panels support optional fixed or light/dark background and foreground colors; pane backgrounds take precedence over panel backgrounds.
+Panes and panels support optional fixed or light/dark background and foreground colors; pane backgrounds take precedence over panel backgrounds. List class version 5 supports single or light/dark background, font, odd-row and even-row colors through the shared color value editor. Button class version 7 supports an optional single or light/dark background through the same editor. Existing page class copies retain their original attributes and appearance.
 
 ## 1. What it is
 

@@ -122,3 +122,32 @@ Assume File F1 needs to reference File F2:
 #reference_f2()
 ...
 ```
+
+**Use #link**
+
+```text
+See #link("notes.txt")[the text file].
+See #link("documents/report.pdf")[the PDF report].
+#link("file:///Users/cding/Workspace/notes.txt")[Open notes]
+```
+
+If a relative file path is used, it is relative to the current Typst file.
+```text
+output/
+├── document.pdf
+└── attachments/
+    └── notes.txt
+```
+
+Example:
+```
+QChunker (@ref-QChunker, #link("file:///Users/cding/Workspace/KnowledgeStore/Reviews/review-QChunker.md")[QChunker])
+
+Example: #link("file:../Reviews/review-QChunker.md")[QChunker]
+
+```
+
+To set the caption in blue:
+```text
+#show link: set text(fill: blue)
+```

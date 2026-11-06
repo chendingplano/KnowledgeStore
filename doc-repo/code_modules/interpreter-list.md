@@ -1,7 +1,7 @@
 # Code module: `list`
 
 **Code module ID:** `list` \
-**Status:** implemented \
+**Status:** implemented; class version 5 adds light/dark color options \
 **Row in `kb.code_modules`:** `list`, `module_type` `element`, `module_doc` `list.md`, `status` `active` \
 **Classes using it:** `list` \
 **Frontend code:** `ChenWeb/web/src/lib/wpi/elements/ListElement.svelte`, registered as `list`
@@ -80,3 +80,63 @@ described in devdoc 2026102701 §1.3.9.
 
 Until both are done, a class may carry the attribute but it has no effect; saving the
 class, and loading an app that uses it, reports a warning (devdoc 2026102601 §3.5.2).
+
+## Color properties
+
+**Status: implemented.** The user approved revision 1 on 2026-11-06. The `list` class
+version 4 adds these fields; version 5 enables light/dark values; existing page instances retain their embedded class copies.
+
+The request's “single-row” is interpreted here as **odd-numbered row**. The first record
+is odd; the second is even. The user approved this interpretation.
+
+All four attributes are flat members of a list instance (for example,
+`/panels/main/elem_list/0/background_color`), rather than members of a nested `colors`
+object. Each is a CSS color string or an object with `light` and `dark` CSS color strings, accepted by the existing color-picker value editor and WPI
+CSS-color validation rules; invalid supplied values are descriptor validation errors.
+The class defines each with `help_tip`, the default below and `scope: instance` (modifiable);
+standard class-fixed and instance override rules apply if a class author changes that
+flag. Explicit instance values take precedence over class defaults. Reset removes the
+instance override. These attributes are optional on instances because the class supplies
+non-null defaults.
+
+| Properties group | Label | Attribute | Class default | Effect |
+| --- | --- | --- | --- | --- |
+| Colors | Background color | `background_color` | `transparent` | Background of the whole list, including its header, empty space and pagination area. The parent surface shows through when transparent. |
+| Colors | Font color | `font_color` | `inherit` | Inherited text color for the list, including header, records, messages and pagination; error messages retain any explicit error-state color. |
+| Colors | Single-row background color | `odd_row_background_color` | `transparent` | Background of odd-numbered data rows, beginning with the first record; transparent reveals the list background. |
+| Colors | Even-row background color | `even_row_background_color` | `transparent` | Background of even-numbered data rows; transparent reveals the list background. |
+
+Number rows by their position in the returned records, so striping remains consistent
+when pagination changes; the header is not a data row. Row colors apply to both clickable
+and non-clickable rows. Keep the existing hover and keyboard-focus feedback visible for
+clickable rows. The configured font color applies equally to odd and even records.
+Loading, empty and error states do not create artificial data rows. The default values
+preserve the existing inherited colors and transparent surfaces, including for old class
+copies that lack these attributes. An old copy cannot expose these attributes for editing
+until refreshed through the normal class-copy workflow.
+
+Add a **Colors** group to the list Properties panel, after **Columns** and before **Size**,
+with the four fields in the table order. Each field uses the shared `color-picker` value editor with None, Single color, and Light and dark modes.
+Group and labels must be available in English and Chinese. Normal help, fixed-value and
+reset behavior applies. The editor and backend must agree on accepted color values; do not
+silently accept invalid colors or change them into a different value.
+
+The following is an **abbreviated instance illustration**, not a complete runnable page or
+class copy:
+
+```json
+{
+  "element": "list",
+  "background_color": "#ffffff",
+  "font_color": "#202020",
+  "odd_row_background_color": "#ffffff",
+  "even_row_background_color": "#f3f4f6"
+}
+```
+
+The renderer, Properties editor and backend validator implement these attributes. Migration
+`20261106000001_wpi_list_colors.sql` creates class version 4 and `20261106000002_wpi_list_theme_colors.sql` creates version 5 without changing saved copies.
+Browser verification covered the four controls and the rendered list, text and alternating
+row colors in both light and dark schemes; backend tests cover valid and invalid colors. Existing copies continue to render
+with their original appearance. The generic color picker remains independent of these list
+attributes and can be reused for other elements.

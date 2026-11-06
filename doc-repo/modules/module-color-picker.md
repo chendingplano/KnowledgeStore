@@ -1,7 +1,7 @@
 # Module: Color Picker
 
 **Module ID:** `20261102-04`
-**Type:** frontend · **Language:** svelte · **Version:** 1.0.0
+**Type:** frontend · **Language:** svelte · **Version:** 1.0.2
 **Status:** active — used by the WPI editor's Properties panel (OpenSpec `wpi-property-editors`)
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/value-editors`
@@ -53,6 +53,13 @@ the canvas theme variables (`--cv-*`) with plain fallbacks, so the editor works 
 themes and outside the canvas. It depends on the shared files of
 [Property Editor](module-property-editor.md) (`DraftField.svelte`, `values.ts`, `types.ts`,
 `value-editors.css`).
+
+The color dialog can be dragged by its heading. Clicking outside it closes it without
+stealing focus; Escape and the close button also close it. After it is moved, other picker
+instances open their dialogs at the same location for the rest of the page session. Its
+resized width and height are also shared across picker instances for that session. The
+position is kept visible and dimensions constrained when the viewport changes; these
+settings are not persisted across reloads.
 
 ## 7. Scope and limits
 
