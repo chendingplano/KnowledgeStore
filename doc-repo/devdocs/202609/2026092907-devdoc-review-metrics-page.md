@@ -1,7 +1,7 @@
 # Review Metrics Page — an LLM checks the metrics extracted from a document
 
 **Date:** 2026-09-29 \
-**Scope:** What the System Admin → LLM → Review Metrics page does, where its parts
+**Scope:** What the Review Metrics page does, where its parts
 live, and its limits. Open this before changing the review prompt, the report
 format, or how reviews are stored.
 **Code root:** `ChenWeb/server/api/kbhandler/metric_review_handler.go`,
@@ -85,7 +85,7 @@ it open.
 
 | What | Where |
 |---|---|
-| Menu | System Admin → LLM → Review Metrics (nav id `sysadmin-llm-review-metrics`) |
+| Menu | Development: System Admin → Benchmark → Metrics → Review Metrics; other pages: System Admin → LLM → Review Metrics (nav id `sysadmin-llm-review-metrics`) |
 | Page | `web/src/lib/components/home3/metric-review-view.svelte` + `metric-review-client.ts` |
 | Server | `server/api/kbhandler/metric_review_handler.go` — `GET /api/v1/kb/metric-reviews/:record_id?lang=`, `POST` (body `{force, lang}`), `POST …/:record_id/translate` (body `{lang}`) |
 | Stored reviews | table `kb.metric_reviews`, one row per run (migrations `20260929000002_create_kb_metric_reviews.sql`, `20260929000003_add_lang_to_kb_metric_reviews.sql`) |

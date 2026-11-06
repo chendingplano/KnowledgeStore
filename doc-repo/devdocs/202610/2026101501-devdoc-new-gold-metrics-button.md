@@ -7,7 +7,7 @@
 
 ## Summary
 
-The Gold Metrics page (System Admin → LLM → Metrics → Gold Metrics) lets you browse
+The Gold Metrics page (Development → System Admin → Benchmark → Metrics → Gold Metrics) lets you browse
 "gold" benchmarks: carefully checked lists of the metrics a document really contains,
 used to score the automatic extractor. Today a gold benchmark can only be produced by
 running an AI agent by hand in a terminal, using the `extract-metrics-benchmark` skill.

@@ -108,7 +108,7 @@ settings are still there.
 | Decision model setup | `metric_open_value_decision.go`; profile `METRIC_DECISION_MODEL`; thresholds `METRIC_DECISION_DROP_MIN_P` (0.9), `METRIC_DECISION_PROVISION_MIN_P` (0.1); policy `metric_open_value_kind` in the shared decision-policy store (version 2 current), question wording in `prompts/prompt-metric-open-value-q-*.md` |
 | Why a kept row was judged | `kb.metrics.ext_info.open_value_decision` (choice, probabilities, outcome, reason, reason_text) |
 | Prompts in use | `prompts/prompt-extract-metric-candidates-v14.md`, `prompts/prompt-enrich-metrics-v11.md` (defaults in code and pins in `mise.local.toml`) |
-| Pages | Knowledge System → Metrics, "Show dropped"; System Admin → LLM → Metrics → Benchmark, report section "Dropped rows" |
+| Pages | Knowledge System → Metrics, "Show dropped"; Development → System Admin → Benchmark → Metrics → Benchmark, report section "Dropped rows" |
 | Scoring | skill `score-extract-metrics` reads dropped pure requirements from `kb.metrics_dropped`, falling back to the old log for older runs |
 | Rules in detail | coding capsule `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-metrics-spec.md`, section 3.4.2 |
 
