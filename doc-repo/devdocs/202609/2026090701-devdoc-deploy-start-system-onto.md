@@ -555,6 +555,15 @@ Compiled binary `~/Workspace/ChenWeb/doc-processor-linux`. The main pipeline wor
 chunking, extraction (metrics / provisions / entities / relations / semantic projections /
 inventory items / topics / scene blocks) and the doc-review pipeline.
 
+**Concurrent extraction incident (2026-11-06).** Automatic runs for records 218 and 219
+reported success with no metrics because concurrent documents reused mutable processor
+state. The source fix gives each admitted document a fresh processor graph and model
+clients; deploy a rebuilt `doc-processor` and restart it for the fix to take effect. No
+schema or configuration change is required. Existing results need an audit before recovery:
+some other documents may contain misplaced metrics even when their counts are nonzero.
+See [document processor run isolation](../202611/2026110601-devdoc-document-processor-run-isolation.md)
+for evidence, regression coverage, and recovery requirements.
+
 Subscribes to:
 - `kb.pdf.start-doc-processing` and `kb.line-file-generated` (stream `doc-processor-start-events`)
 - `kb.doc-review.start` (stream `doc-review-events`)
