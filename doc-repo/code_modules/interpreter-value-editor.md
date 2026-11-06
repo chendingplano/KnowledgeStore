@@ -554,8 +554,10 @@ language, falling back to the first configured language with a string value. Swi
 between Single and List keeps the current string, including one absent from `choices`;
 the dropdown displays that value until the user chooses another. Switching modes applies
 the resulting value; it does not rewrite data merely because the control mounted.
-Switching away from Multilingual prompts for confirmation when it would discard nonempty
-translations and displays the resulting value. Cancelling preserves the mode and all values.
+Switching from Multilingual to Single does not prompt for confirmation; the conversion
+discards other translations. Switching to List prompts for confirmation when it would
+discard nonempty translations and displays the resulting value. Cancelling preserves the
+mode and all values.
 
 List choices are configured as data, not executable code. The Properties panel exposes
 Mode, Languages, Empty as null, Choices and Commit on blur in the Editor group; it shows
