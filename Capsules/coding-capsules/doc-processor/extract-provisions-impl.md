@@ -2,11 +2,55 @@
 
 Date: 2026-05-08
 
+## Missing source spans regression fix (2026-11-07)
+
+The first live v4 run on record 416 (run 259) produced 74 provisions, of which
+16 had no source spans. The raw responses `llm-1f52fd3c` and `llm-7274abaf`
+omitted provision-level `source_line_spans` on all seven and nine provisions
+respectively, despite line-numbered input. The omission happened in generation,
+not in compact expansion or indexing. The original replay of valid run 258
+responses tested deterministic expansion but did not establish live prompt
+adherence. The response handler and generic provision-array contract failed to
+reject this missing evidence, allowing null spans into storage.
+
+The current default, `prompt-extract-provisions-v5.md`, limits omissions to named
+optional fields and requires explicit nonempty source spans on every provision
+and object. Span compression is no longer requested; v4 decoding remains
+compatible. In `llm_contracts.go`, each provision must contain a nonempty
+`source_line_spans` array, so structured clients retry schema violations. In
+`extractProvisionPayloadFromText`, normalization must produce nonempty line spans
+for every provision before expansion; otherwise extraction returns an error and
+uses the existing fallback path. If both models lack usable evidence, processing
+fails without saving those results. This check applies to all prompt versions
+and both structured/plain JSON extractors.
+
+`provisions_source_spans_test.go` includes the captured run 259 responses in
+`testdata/provisions-run-259.json.gz`. Regression tests reject exactly the two
+affected responses (16 provisions), cover missing/null/empty/unusable spans,
+exercise HTTP-level structured validation and retries, and check that invalid
+block/chunk results never reach provision persistence. Existing run 258 replay
+still passes. The old approximately 10% wire-size reduction is a v4 offline
+measurement, not a v5 live quality or token-savings claim.
+
+Verification: focused provision/contract tests pass, as does
+`go test ./server/api/doc-processing -skip '^TestKBMetricsReadersExcludeResolvedRows$' -count=1`.
+The excluded metrics-reader guard is the unrelated known failure described in the
+compact-output implementation plan. The processor builds successfully to
+`.cache/doc-processor.exe`. Independent review found no blocking issues. These
+checks use captured responses and a local HTTP test server, not new provider
+calls; no document re-extraction or database writes were performed.
+
+The local configuration and embedded default select v5; rebuild/restart the
+running processor to activate the new code and prompt. This fix does not invent
+or patch spans on the 16 existing rows from run 259; record 416 needs a successful
+fresh extraction to replace that output and rebuild its indexes.
+
 ## Compact responses (2026-11-07)
 
-The default prompt is now `ChenWeb/prompts/prompt-extract-provisions-v4.md`.
+The initial compact prompt was `ChenWeb/prompts/prompt-extract-provisions-v4.md`
+(superseded by v5 above).
 The compact wire format and its omission rules are defined in
-[`extract-provisions-spec.md`](extract-provisions-spec.md#compact-llm-response-v4).
+[`extract-provisions-spec.md`](extract-provisions-spec.md#compact-llm-response-v5-v4-decoding-compatible).
 The sections below describe the original implementation; where response/schema
 details differ, the current specification and this section take precedence.
 

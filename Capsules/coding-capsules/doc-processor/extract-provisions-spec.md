@@ -93,21 +93,26 @@ single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
 
-### Compact LLM response (v4)
+### Compact LLM response (v5; v4 decoding compatible)
 
-The default prompt is `prompt-extract-provisions-v4.md`. Its response adds
+The default prompt is `prompt-extract-provisions-v5.md`. Its response adds
 `"output_format": "compact-v1"` at the top level, alongside `language` and
 `provisions`. The versioned prompt owns the field schema for both chunk and block
 input; the processor does not append a second schema.
 
 Before normalization, restore omitted values only for responses marked
 `compact-v1`. Legacy responses (including explicitly selected v3/custom prompts)
-retain their existing interpretation. The expansion rules are:
+retain their existing interpretation, except that every extracted provision must
+now pass source-evidence validation regardless of prompt version. The expansion
+rules are:
 
 - Missing optional provision strings become `""`; missing `keywords` and
   `keywords_en` become `[]`; missing `objects` becomes `[]`.
-- Missing object `source_line_spans` and `confidence` inherit the parent provision's
-  values. Retain narrower/different spans and different confidence values.
+- Missing object `confidence` inherits the parent provision's value. Retain a
+  different confidence value. The decoder also supports missing object
+  `source_line_spans` inheriting the parent's spans for compatibility with v4;
+  v5 requires explicit nonempty spans on both provisions and objects and does not
+  request span compression.
 - For Chinese response languages (`zh`, `zh-*`, or `Chinese`, case-insensitive),
   missing `object_name_zh` inherits `object_name`. For other languages it becomes
   `""`. A different Chinese translation must be emitted explicitly.
@@ -124,6 +129,17 @@ Do not omit provision text, source spans, type, confidence, `is_explicit`, or
 `need_verify`. Descriptions, translations, evidence quotes, nonempty aliases,
 acronyms, and context remain part of extraction. Compression must not merge
 independent provisions.
+
+Every provision must have at least one usable source line span before compact
+expansion and before normalization/storage. Missing, null, empty, or wholly
+unusable spans make the whole unit's response invalid; do not fabricate source
+evidence or silently save/drop the affected provisions. The structured contract
+requires a `source_line_spans` array with at least one item on each provision,
+enabling schema-validation retries on the configured model. Common response
+validation also checks that the existing line-span normalizer produces nonempty
+spans, including for plain JSON clients and legacy prompts. Invalid primary
+responses follow the existing fallback path; if fallback evidence is also invalid,
+the unit fails rather than becoming a successful empty extraction.
 
 Expansion copies response maps so provider-captured data remains compact. The
 expanded response then follows the existing normalization, storage, object
