@@ -93,7 +93,7 @@ file, because scores are only comparable against the same answer key.
 - Database:
   - answer keys in `testbed.provision_benchmark_runs`, `testbed.provisions` and
     `testbed.provisions_dropped` (migration `20261106000101`);
-  - score history in `kb.provision_score_runs` (migration `20261106000102`).
+  - score history in `testbed.provision_score_runs` (created by migration `20261106000102` and moved by `20261107000001`).
 - Server:
   - `GET /api/v1/kb/provisions?source=testbed&…` and `GET /api/v1/kb/provisions/gold-options`
     for the Gold page;
