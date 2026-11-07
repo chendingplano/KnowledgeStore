@@ -2,6 +2,45 @@
 
 Date: 2026-05-08
 
+## Compact responses (2026-11-07)
+
+The default prompt is now `ChenWeb/prompts/prompt-extract-provisions-v4.md`.
+The compact wire format and its omission rules are defined in
+[`extract-provisions-spec.md`](extract-provisions-spec.md#compact-llm-response-v4).
+The sections below describe the original implementation; where response/schema
+details differ, the current specification and this section take precedence.
+
+`provisions_compact.go` expands responses marked `output_format: "compact-v1"`
+inside `extractProvisionPayloadFromText`, after compatibility normalization and
+array validation. This shared path covers chunks, blocks, per-chunk batching,
+primary/fallback models, and structured/plain JSON clients. Responses without the
+marker keep the legacy interpretation. Map copies prevent expansion from changing
+the provider's captured parsed response.
+
+Chunk instructions come directly from the configured prompt. Block input now
+contains just its index and document lines. Both duplicate Go response schemas
+were removed so they cannot require fields that the prompt allows the LLM to omit.
+The embedded prompt default is regenerated with
+`scripts/generate-doc-processor-prompt-defaults.py`; the local
+`EXTRACT_PROVISIONS_PROMPT` setting selects v4. Explicit old/custom prompt settings
+remain supported. Restart the processor to load a changed prompt/configuration.
+
+The deterministic regression fixture `testdata/provisions-run-258.json.gz`
+contains only parsed extraction content for record 416 / run 258, without account
+metadata. It replays all ten responses, simulates allowed omissions, and checks
+the real expansion and normalization paths. The 64 provisions retain identical
+storage rows, normalized objects, artifact records, and Chinese/bilingual search
+text. Serialized response size falls from **119,854 to 107,699 characters (10.14%)**,
+including the new format marker. Preserving absent-versus-empty category arrays
+accounts for the difference from the initial approximate 12% estimate.
+
+This measures an offline encoding opportunity, not new provider token counts or
+new LLM extraction quality. Record 416's stored extraction and its existing
+benchmark result were not replaced. Description removal (the proposed next
+experiment toward roughly 24%) is intentionally deferred; descriptions and other
+nonempty enrichment remain. No database migration or shared-library change is
+needed.
+
 ## Scope
 
 Implemented against:

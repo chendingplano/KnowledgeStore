@@ -59,7 +59,7 @@ Otherwise, upsert the following element to kb.inputs.status:
   },
 ```
 
-The LLM output format is:
+The expanded provision format is:
 ```json
 {
   "language": "<detected_language>",
@@ -92,6 +92,44 @@ The LLM output format is:
 single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
+
+### Compact LLM response (v4)
+
+The default prompt is `prompt-extract-provisions-v4.md`. Its response adds
+`"output_format": "compact-v1"` at the top level, alongside `language` and
+`provisions`. The versioned prompt owns the field schema for both chunk and block
+input; the processor does not append a second schema.
+
+Before normalization, restore omitted values only for responses marked
+`compact-v1`. Legacy responses (including explicitly selected v3/custom prompts)
+retain their existing interpretation. The expansion rules are:
+
+- Missing optional provision strings become `""`; missing `keywords` and
+  `keywords_en` become `[]`; missing `objects` becomes `[]`.
+- Missing object `source_line_spans` and `confidence` inherit the parent provision's
+  values. Retain narrower/different spans and different confidence values.
+- For Chinese response languages (`zh`, `zh-*`, or `Chinese`, case-insensitive),
+  missing `object_name_zh` inherits `object_name`. For other languages it becomes
+  `""`. A different Chinese translation must be emitted explicitly.
+- Other missing object strings become `""`; missing `aliases` and `acronyms`
+  become `[]`.
+- Presence controls expansion: explicit values, including empty strings, empty
+  arrays, zero, false, and null, are not replaced. The prompt forbids null as an
+  omission mechanism. Inherited fields whose intended value is empty must be
+  emitted explicitly to suppress inheritance.
+- Category lists retain their existing missing-versus-empty distinction. Do not
+  omit an explicitly empty `category_paths` or `category_path_en` array.
+
+Do not omit provision text, source spans, type, confidence, `is_explicit`, or
+`need_verify`. Descriptions, translations, evidence quotes, nonempty aliases,
+acronyms, and context remain part of extraction. Compression must not merge
+independent provisions.
+
+Expansion copies response maps so provider-captured data remains compact. The
+expanded response then follows the existing normalization, storage, object
+resolution, search, and artifact-writing paths. No storage schema changes are
+required. Existing downstream normalization rules still apply (for example,
+artifact-object normalization treats zero confidence as the parent's confidence).
 
 ## 3.1 Index Provisions
 Provision indexing runs after every doc processor for the record has finished.
