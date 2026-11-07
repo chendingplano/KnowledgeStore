@@ -1,7 +1,7 @@
 # Provisions Benchmark — an answer key and a quality score for extract_provisions
 
 **Date:** 2026-11-06 \
-**Updated:** 2026-11-07 (compact scoring requests and decisions) \
+**Updated:** 2026-11-07 (compact scoring requests and decisions; matching keeps reasoning) \
 **Scope:** What the provisions benchmark is, how its answer key is made and scored, and where
 its two ChenWeb pages are. Open this before you build gold provisions for a document, score
 `extract_provisions`, or change the provisions benchmark rules.
@@ -116,6 +116,14 @@ the existing score and report. The scoring formula and weights are unchanged.
 A missing decision is an error, not an assumed miss. The server can request one complete
 correction; a second invalid response fails the run. Raw responses stay in the evidence folder.
 Only successfully validated, expanded matches go into the API's matches snapshot.
+
+Matching keeps the model's reasoning even when `MODEL_DEFAULT_REASONING_POLICY=no-reasoning`
+switches it off elsewhere. Accounting for every row exactly once by number needs it: with
+reasoning off, deepseek-flash wrote pairs as a numeric progression (`[5,5]`, `[6,6]`, … past the
+end of both lists) rather than matching statements, and run 3 on record 416 failed. Without
+reasoning, 0 of 3 responses were valid (the run's two attempts and one replay); with it, 4 of 4
+replays were valid (scores 83–84, 40–80 seconds per call). Writing each row's number into the request did not help without
+reasoning (0 of 2).
 
 For command-line scoring, follow the skill: read `matching-input.json` and the complete available
 source, write compact `matches.json`, then run `score --require-compact`. The script writes
