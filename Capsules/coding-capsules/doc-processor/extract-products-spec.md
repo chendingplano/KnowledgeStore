@@ -324,10 +324,12 @@ a new version of the same model, can be A/B'd both ways without a code change.
 Deterministic Step A, and Pass 2 with a single per-chunk call that detects
 products and assigns their relations together, using
 `EXTRACT_PRODUCT_MERGED_PROMPT` (default
-`prompt-extract-products-merged-v1.md`: the v2 producthood gate verbatim, plus
-v4's relation-type catalogue and output schema, chunk-scoped). Deterministic
-Step B, Pass 3a, Pass 3b, and storage all run unchanged — the merged call
-reuses `normalizeProductList`, so its rows are shape-identical to Pass 2's.
+`prompt-extract-products-merged-v2.md`; v1 was the v2 producthood gate
+verbatim, plus v4's relation-type catalogue and output schema, chunk-scoped;
+v2 keeps those rules and switches to the compact response below).
+Deterministic Step B, Pass 3a, Pass 3b, and storage all run unchanged — the
+merged call reuses `normalizeProductList`, so its rows are shape-identical to
+Pass 2's.
 It sends the same `canonicalChunkInputText` document Pass 1 would have sent,
 so it rides the same cross-processor prompt cache.
 
@@ -336,6 +338,37 @@ The merged pass emits no mentions, so `MentionsCount` is 0 for such a run and
 warning and merged wins. Its LLM calls are logged as `extract_products merged`
 / `extract_products_merged` so a run's `llm_usage_event` rows can be told apart
 from a two-pass run's at a glance.
+
+#### Compact merged response (prompt v2, 2026-11-07)
+
+With `prompt-extract-products-merged-v2.md` the merged call returns
+`{"v":2,"p":[...]}`: short keys, short codes, empty optional fields omitted,
+and no model-written evidence quote. `products_v2.go` validates it against a
+v2-only schema and expands it to the long-name rows before
+`normalizeProductList`. The full wire contract, codes, and decisions are in
+[extract-products-compact-output-plan.md](extract-products-compact-output-plan.md).
+Behavior that differs from v1:
+
+- **Evidence spans are checked against the input.** Every row needs at least
+  one span: a line (`143`), a range (`"150-151"`), or a table row as the input
+  labels it (`"116#r3"`). A span naming a line or row the call did not send is
+  an error; a range may pass over image lines, which are never sent.
+  `evidence_lines` stores the spans unchanged.
+- **`evidence_quote` is rebuilt in Go** from the cited text as the model saw
+  it: whole lines, or only the cited rows of a table, in line order, without
+  row labels. It is longer than a v1 quote and flows into
+  `kb.product_search_document` as before.
+- **An invalid row fails the response.** Schema errors are retried by the
+  structured client; span errors go to the fallback model. If both fail, the
+  chunk fails as it would for any other merged error. Compact calls never take
+  the `isEmptyProductExtractionError` empty-success shortcut.
+- v1 and custom merged prompts keep the legacy contract and task suffix.
+  Pass 1, Pass 2, and Pass 3a translation are unaffected.
+
+Replaying record 416's run 261 (10 merged responses, 165 rows) through the
+decoder keeps every row's meaning and Step B result, and shrinks the response
+from 97,288 to 39,333 characters (-59.6%) and from 116,706 to 47,851 bytes
+(-59.0%). Those are offline figures, not billed tokens.
 
 **This is a permanent evaluation control, not a migration flag.** Whether
 merging is a win is a property of the model, and every new model or model

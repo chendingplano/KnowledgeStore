@@ -85,6 +85,10 @@ The result is a more stable pipeline that still writes the same final `kb.produc
 | `ChenWeb/prompts/prompt-categorize-products-v1.md` | Optional categorization prompt |
 | `ChenWeb/project_migrations/20260520000001_create_kb_products_table.sql` | `kb.products` table |
 | `ChenWeb/server/cmd/doc-processor/main.go` | Processor wired into `ControlService.Processors` |
+| `ChenWeb/server/api/doc-processing/products_v2.go` | Compact merged response: codes, v2 schema, span resolution, decoder (2026-11-07) |
+| `ChenWeb/server/api/doc-processing/products_v2_test.go` | Compact merged decoder, retry/fallback, and run 261 replay tests |
+| `ChenWeb/server/api/doc-processing/testdata/products-merged-run-261.json.gz` | Record 416 run 261: 10 captured merged responses plus the lines each call sent |
+| `ChenWeb/prompts/prompt-extract-products-merged-v2.md` | Merged-pass prompt with the compact v2 response |
 
 ---
 
@@ -271,6 +275,30 @@ the processor treats that unit as an empty successful extraction rather than a h
 
 For mention extraction this means empty `mentions`; for relation extraction it means empty `products`.
 
+Compact merged calls (prompt `prompt-extract-products-merged-v2.md`) never take
+this shortcut: their response must decode.
+
+---
+
+## Compact Merged Response
+
+When `productMergedPromptUsesV2(MergedPromptRef)` is true,
+`extractProductsMergedForChunk`:
+
+- sends `buildCompactMergedProductsTaskPrompt` (block index only; the prompt
+  owns the response format)
+- builds `productSourceLinesFromChunk(chunk.Lines)`: each sent line number to
+  its sent content, tables rendered as `<line>#<row>: …` rows, image lines absent
+- passes that lookup to `extractProductPayloadWithFallback`; a non-nil lookup
+  selects the `chenweb_product_extraction_merged_v2` contract
+
+`extractProductPayload` then requires `v`, and `decodeProductMergedV2`
+validates the same schema, resolves every span against the lookup, rebuilds
+`evidence_quote` from the cited lines or table rows, and returns fresh
+`{"products": [...]}` rows in the legacy long-name shape. Pass 1, Pass 2, and
+translation pass a nil lookup and are unchanged. The wire contract is in
+`extract-products-compact-output-plan.md`.
+
 ---
 
 ## Normalization
@@ -354,6 +382,11 @@ On re-extraction, old `<record_id>_` entries are removed before re-indexing.
 - end-to-end multi-pass processor execution
 - final row save and artifact writing behavior
 
+`products_v2_test.go` covers the compact merged response: every code and
+default, rebuilt evidence text, invalid wire records and spans, structured
+retries against a local HTTP server, fallback after a span error, and a replay
+of run 261 that compares every row with the legacy path.
+
 ---
 
 ## Status Entry
@@ -391,3 +424,4 @@ Example:
 | `MID_26052050–54` | Artifact file writing |
 | `MID_26052060–63` | Prompt loading |
 | `MID_26052070` | SQL store nil-DB guard |
+| `MID_20261107_841–844` | Compact merged response decoding (`products_v2.go`, `extractProductPayload`) |
