@@ -2,6 +2,46 @@
 
 Date: 2026-05-08
 
+## Single-pass v8: source review merged into extraction (2026-11-07)
+
+`prompt-extract-provisions-v8.md` is the default. It is v7 plus the four rules only
+the audit prompt carried (definitions with 应 stay definitions, technology
+descriptions excluded, aspirations are not checkable, alternative conditions of one
+obligation stay together). `reviewProvisionPayload` still runs only when the
+extraction prompt is v7, so v8 makes one call per unit; selecting v7 is how to get
+the review back. `provisionPromptUsesV2` lists v8, the built-in fallback and the
+embedded default are v8, and `TestProvisionsV8IsSinglePass` covers the path.
+
+Why: in production run 262 (record 416, 10 chunks, `deepseek-flash`, thinking
+disabled) the review took 70.9K input tokens (28.8K uncached) against 35.2K (1.9K
+uncached) for extraction, about 94% of all uncached input, and fired on 10 of 10
+chunks. It returned 74 of 94 draft rows verbatim and 5 of 10 chunks unchanged. Of
+the 20 rows it dropped, 18 had only overlap evidence, which `filterOwnedProvisions`
+removes anyway. Its only edits were three splits: line 126 was right, lines 89 and
+91 contradict gold and v7's own same-subject rule. The earlier 57 → 87 comparison
+never scored v7 without the review.
+
+Scores against gold `1.0.0 / claude-opus-5-5 / 20261106_143017`, same scorer:
+
+| Run | Score | Soft P / R | Matched / missed / FP | Calls | Matched by |
+|---|---:|---|---|---:|---|
+| v7 + review, isolated | 87 | 87.1% / 86.0% | 76 / 8 / 7 | 20 | gpt-6 |
+| v7 + review, run 262 (production) | 84 | 85.6% / 82.5% | 75 / 9 / 6 | 20 | claude-opus-5-5 |
+| v8, isolated | 84 | 89.4% / 79.8% | 73 / 11 / 2 | 10 | claude-opus-5-5 |
+
+V8 trades recall for precision: it keeps the same-subject sentences on lines 89, 91,
+125, 128 and 138 together (the review splits them), but merges the subject-change
+clauses on lines 101 and 126 and still extracts the 四分四定 definition on line 43.
+The line-121 table merges and the line-46 omission are common to all three runs.
+The isolated v8 run took 8.6 s against about 18 s for isolated v7. This is one
+document with single runs, so differences of a few points are within run variance.
+
+Evidence, outside Git, next to the document source:
+`Artifacts/0/416/extract-provisions-scores/1.0.0/claude-opus-5-5/20261106_143017/`
+`20261107_094622-v8/` (predictions, eval request, input, matches, score) and
+`20261107_094748-run262/`. Existing stored rows are not rewritten; rebuild/restart
+the doc-processor and rerun extraction to use v8.
+
 ## Statement extraction quality (2026-11-07)
 
 `prompt-extract-provisions-v7.md` makes statement boundaries, inclusion/exclusion,
@@ -91,7 +131,7 @@ retained as historical context, not additional current response requirements.
 
 ## Source-only short response format (2026-11-07)
 
-V6 introduced the source-only format now retained by default v7, requesting v2 JSON with
+V6 introduced the source-only format now retained by v7 and the default v8, requesting v2 JSON with
 source-language text, short keys, short enum codes, integer single-line spans,
 empty optional-field omission, and packed explicit/verification flags. Object
 evidence uses its explicit spans instead of an evidence quote. Descriptions,
@@ -101,7 +141,7 @@ older sections below describe the earlier formats.
 
 `provisions_v2.go` defines the short schema, enum expansion, strict validation,
 and decoder. The schema is compiled once using the existing jsonschema/v6
-dependency (now declared direct, without a version change). The built-in v6/v7
+dependency (now declared direct, without a version change). The built-in v6/v7/v8
 prompts use a v2-only structured contract; explicitly selected old/custom prompts
 accept the existing legacy shape or an explicitly versioned v2 response. The
 ordinary JSON path also validates v2 before decoding, so custom clients cannot
@@ -330,7 +370,7 @@ Prompt loading:
 
 - `EXTRACT_PROVISIONS_PROMPT`
 - fallback shared key: `PROMPT_FILE_NAME`
-- default prompt file: `prompt-extract-provisions-v6.md` (see current format above)
+- default prompt file: `prompt-extract-provisions-v8.md` (see current format above)
 
 Prompt search order:
 

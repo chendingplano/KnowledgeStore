@@ -93,9 +93,23 @@ single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
 
+### Single-pass extraction (v8, 2026-11-07)
+
+The default prompt is `prompt-extract-provisions-v8.md`. It is v7 plus the four
+rules that only the v7 source review carried: definitions containing 要/应/shall
+remain definitions; descriptions of what a treatment technology or method is are
+excluded, even in a technical table cell; general aspirations are not made
+checkable by containing a verb; alternative conditions for the same obligation
+stay together. V8 makes one LLM call per unit and never runs the source review.
+Wire format, normalization, ownership guard and deduplication are those of v7.
+
+Selecting `prompt-extract-provisions-v7.md` keeps the two-pass behavior below; this
+is the only way to enable the review. On record 416 the review doubled input tokens
+without improving the score (v7 + review 84, v8 84; see `extract-provisions-impl.md`).
+
 ### Statement boundaries and source review (v7, 2026-11-07)
 
-The default prompt is `prompt-extract-provisions-v7.md`. It retains v6's source-only
+`prompt-extract-provisions-v7.md` retains v6's source-only
 compact v2 wire format and existing storage fields. The normative unit follows the
 released provision benchmark rules (version 1.0.0): one normative statement per
 row, including imperative procedure steps and implicit requirements. Separate
@@ -106,7 +120,7 @@ definitions, scope, reference boilerplate and pure descriptive text are excluded
 Subjects identify the party bound or object constrained, independently of the
 regulated objects extracted in `objects`.
 
-V7 reviews units with multi-clause text, table/list-item input, or an empty draft
+When v7 is selected, it reviews units with multi-clause text, table/list-item input, or an empty draft
 with normative cues. `EXTRACT_PROVISIONS_REVIEW_PROMPT` defaults to
 `prompt-audit-provision-extraction-v1.md`. The same selected extraction model
 reviews the original source, draft and punctuation-separated source clause hints,
@@ -141,7 +155,7 @@ rerun extraction to replace them.
 
 ### Source-only short LLM response (v6)
 
-V6 introduced the source-only response; the default v7 retains this strict v2
+V6 introduced the source-only response; v7 and the default v8 retain this strict v2
 wire response: `{"v":2,"l":"zh","p":[...]}`. `l` is the source language and `p`
 is the provision array (including `[]` for a valid extraction with no provisions).
 The processor expands short fields before the existing normalization and storage
