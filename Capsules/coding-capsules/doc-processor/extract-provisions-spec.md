@@ -93,9 +93,55 @@ single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
 
+### Statement boundaries and source review (v7, 2026-11-07)
+
+The default prompt is `prompt-extract-provisions-v7.md`. It retains v6's source-only
+compact v2 wire format and existing storage fields. The normative unit follows the
+released provision benchmark rules (version 1.0.0): one normative statement per
+row, including imperative procedure steps and implicit requirements. Separate
+consecutive sentences and changes of bound subject or provision type; retain
+connected actions/properties and alternative conditions of the same subject.
+Requirement prose in table cells is included; invoked numeric value tables,
+definitions, scope, reference boilerplate and pure descriptive text are excluded.
+Subjects identify the party bound or object constrained, independently of the
+regulated objects extracted in `objects`.
+
+V7 reviews units with multi-clause text, table/list-item input, or an empty draft
+with normative cues. `EXTRACT_PROVISIONS_REVIEW_PROMPT` defaults to
+`prompt-audit-provision-extraction-v1.md`. The same selected extraction model
+reviews the original source, draft and punctuation-separated source clause hints,
+then replaces the draft with a complete corrected v2 response. Clause hints keep
+original line numbers and delimiters; they are not automatic provision splits.
+The review must group fragments about the same subject and preserve conditions.
+Legacy/custom extraction prompts retain single-pass behavior. Review configuration
+or response failure fails the unit rather than silently accepting the draft.
+
+Both initial extraction and review are logged under their own prompt/activity,
+with their own payload and cache counters. Review calls count in `llm_call_count`.
+The review always uses the compact contract regardless of its configured filename.
+This adds one logical call per reviewed unit; actual provider retries are separate.
+
+After normalization, discard rows with no evidence on a normal/owned source line;
+retain rows combining owned and overlap evidence. Apply this guard in chunk,
+block and batch paths. Deduplicate identical normalized text on the same canonical
+line spans, ignoring terminal sentence punctuation and repeated whitespace while
+preserving word boundaries. Different statements on the same line and identical
+wording at different locations remain separate.
+
+Batch results occupy their source chunk indexes, independent of completion order.
+A missing/failed payload is distinct from a successful response containing zero
+provisions. If every payload failed or is absent, do not finalize as a successful
+empty extraction.
+
+V7 improves model behavior but does not guarantee complete or correctly segmented
+output. The isolated record-416 evaluation and its remaining errors are documented
+in `extract-provisions-impl.md`. No schema migration or shared API change is needed.
+Existing stored rows are not rewritten; rebuild/restart the processor and explicitly
+rerun extraction to replace them.
+
 ### Source-only short LLM response (v6)
 
-The default prompt is `prompt-extract-provisions-v6.md`. It requests a strict v2
+V6 introduced the source-only response; the default v7 retains this strict v2
 wire response: `{"v":2,"l":"zh","p":[...]}`. `l` is the source language and `p`
 is the provision array (including `[]` for a valid extraction with no provisions).
 The processor expands short fields before the existing normalization and storage

@@ -2,9 +2,96 @@
 
 Date: 2026-05-08
 
+## Statement extraction quality (2026-11-07)
+
+`prompt-extract-provisions-v7.md` makes statement boundaries, inclusion/exclusion,
+subjects, explicitness and parser-based location labels explicit. It retains the
+compact v2 response without adding translations. The previous v6 prompt remains
+available. `provisions_quality.go` implements source ownership, bounded review and
+deduplication; `extract-provisions.go` uses these in all three extraction paths.
+
+The conditional source review uses `prompt-audit-provision-extraction-v1.md`,
+configured by `EXTRACT_PROVISIONS_REVIEW_PROMPT`. It is separate from the existing
+`prompt-review-provisions-v1.md` document-review prompt. Initial extraction is
+logged before review so its draft, timing and cache usage remain attributable.
+Review provenance uses its actual prompt reference, while a private force-v2 flag
+selects the compact contract even for an operator's custom audit filename. The
+review uses the model selected by the primary/fallback extraction. A review
+failure fails the unit; it does not use the successful draft as a silent fallback.
+
+Clause hints are derived from owned input lines. They preserve source characters,
+delimiters and canonical line numbers, and do not split decimal points. They help
+the model inspect dense sentences and table prose; grouping is still semantic.
+The original source remains authoritative, including section context and table
+row/cell context. This remains an LLM extraction rather than a deterministic
+normative-statement parser.
+
+The batch slice is allocated at chunk count, and ProcessChunk writes at chunkIdx.
+FinalizeChunkBatch skips failed slots, normalizes with that same source chunk,
+and checks that at least one payload succeeded before saving. Successful empty
+responses still finalize. Ownership filtering keeps statements supported by any
+owned line, including mixed overlap/owned evidence. Deduplication keys on canonical
+spans and normalized text, preserving internal word boundaries and the first row.
+Distinct provisions sharing one line are retained.
+
+### Evaluation against score run 2
+
+An isolated live evaluation used the same `deepseek-flash` model, source SHA-256
+and frozen gold run `1.0.0 / claude-opus-5-5 / 20261106_143017`. Gold was never sent
+to extraction or review. Matching was reviewed by Codex and scoring used the same
+`score-extract-provisions/scripts/score_io.py`, with no field overrides.
+The baseline match decisions were made by DeepSeek; this comparison shares the
+gold and scoring weights, but is not a controlled repeated-trial estimate.
+
+| Measure | Saved score run 2 (v6) | Isolated v7 |
+|---|---:|---:|
+| Score | 57 | 87 |
+| Predicted / matched rows | 70 / 52 | 83 / 76 |
+| Missed gold / false positives | 32 / 18 | 8 / 7 |
+| Matched-row precision / recall | 74.3% / 61.9% | 91.6% / 90.5% |
+| Soft precision / recall | 62.3% / 51.9% | 87.1% / 86.0% |
+| Instructions matched | 5 of 9 | 9 of 9 |
+
+V7 used 20 logical calls (10 extraction + 10 review), with no fallback, in about
+18 seconds in this local run. It still omitted the principle-plus-outcome on
+line 46 and merged seven further gold statements into table requirements. Its
+seven false positives are six extra split fragments and one descriptive table
+statement. This is an improvement, not a claim of full recall; model variability
+was visible during development trials. No production provisions or score run 2
+were modified.
+
+Evidence is outside Git, next to the document source:
+`Artifacts/0/416/extract-provisions-scores/1.0.0/claude-opus-5-5/20261106_143017/20261107_083015-v7/`.
+It includes the isolated predictions, source/prompt hashes, input/matches/score
+snapshots, evaluation request and report. `input.json` promotes the output row's
+`public_info.provision_type` to the same top-level field the SQL store persists.
+
+### Verification and rollout
+
+Regressions cover reversed completion order, missing/all-failed slots, successful
+empty results, chunk/block ownership, same-line distinct statements, different
+source locations, word-boundary preservation, source review replacement/failure,
+clause-hint evidence, custom audit schema selection, and separate draft/review
+log payloads and cache counters. V6 and v7 both retain structured retry coverage.
+Focused tests and race checks pass; the doc-processor binary builds. The package
+suite passes excluding the pre-existing `TestKBMetricsReadersExcludeResolvedRows`
+failure concerning `api/kbhandler/question_generator_worker.go:133`.
+
+`TestProvisionsQualityLive` is opt-in: set `PROVISIONS_EVAL_REQUEST` to a JSON file
+with record_id, source line-file path, chunks artifact path, output path, user_id,
+and the source DocMetadataInputRecord in record. Run under `mise exec -- go test
+./server/api/doc-processing -run '^TestProvisionsQualityLive$' -count=1 -v`.
+It writes isolated output, not production rows or benchmark tables.
+
+The ignored local `mise.local.toml` and regenerated embedded defaults select v7
+and its audit prompt. Rebuild/restart a running processor to activate these
+changes. No database migration or shared-library change is required. Existing
+rows remain until explicitly re-extracted. Legacy format descriptions below are
+retained as historical context, not additional current response requirements.
+
 ## Source-only short response format (2026-11-07)
 
-The default is now `prompt-extract-provisions-v6.md`, requesting v2 JSON with
+V6 introduced the source-only format now retained by default v7, requesting v2 JSON with
 source-language text, short keys, short enum codes, integer single-line spans,
 empty optional-field omission, and packed explicit/verification flags. Object
 evidence uses its explicit spans instead of an evidence quote. Descriptions,
@@ -14,8 +101,8 @@ older sections below describe the earlier formats.
 
 `provisions_v2.go` defines the short schema, enum expansion, strict validation,
 and decoder. The schema is compiled once using the existing jsonschema/v6
-dependency (now declared direct, without a version change). The built-in v6
-prompt uses a v2-only structured contract; explicitly selected old/custom prompts
+dependency (now declared direct, without a version change). The built-in v6/v7
+prompts use a v2-only structured contract; explicitly selected old/custom prompts
 accept the existing legacy shape or an explicitly versioned v2 response. The
 ordinary JSON path also validates v2 before decoding, so custom clients cannot
 bypass required evidence, flag, enum, or attribute checks.
@@ -49,7 +136,7 @@ Tests cover all four flag combinations, English-source persistence, missing/
 empty/invalid evidence at both levels, unknown enums/attributes, response-copy
 isolation, and actual HTTP structured retries of legacy-shaped, unanchored, or
 invalid-flag responses. The run 259 source-span regression remains covered.
-The local prompt setting and embedded default select v6. Rebuild/restart a
+The local prompt setting and embedded default now select v7 with source review. Rebuild/restart a
 running processor to load the new binary and prompt; existing document rows are
 not rewritten by this change.
 
