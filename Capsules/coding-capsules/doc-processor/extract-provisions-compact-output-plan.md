@@ -58,3 +58,40 @@ The full package run failed only on the pre-existing metrics-reader guard in
 unchanged `server/api/kbhandler/question_generator_worker.go:133`. The run excluding
 that guard passed, as did focused tests and the build. The command package has no
 test files. No new LLM calls or database writes were made.
+
+## Source-only short format (approved 2026-11-07)
+
+Implement the user's three requested changes plus the first four measured options:
+no generated translations; short keys; object evidence represented by explicit
+spans instead of quotes; short enum codes; omit only empty optional fields;
+integer single-line spans; and packed boolean flags (`f`: bit 0 explicit, bit 1
+needs verification). Keep descriptions/context/keywords/aliases when nonempty.
+
+Use a separately validated v2 wire shape (`v`, `l`, `p`) and decode it to the
+existing storage shape before normalizing provisions. Require evidence on every
+provision and object, reject malformed fields, and preserve legacy/v1 decoding.
+Map English source content into existing English storage fields server-side;
+never generate translated content or discard English source text.
+
+- [x] Add failing v2 decoding, flag, enum, evidence, and English-source tests.
+- [x] Implement decoder and structured contract; publish prompt v6 and regenerate
+  embedded defaults/select v6 locally.
+- [x] Replay run 258 with source-only expectations, verify span/text/flag/enum
+  preservation, and measure compact serialization against the captured baseline.
+- [x] Verify tests, source-span regression tests, build, and independent review.
+- [x] Update current capsule docs and commit task files separately through jj.
+
+No schema migration, shared-library change, live extraction, or edits to the
+user's unrelated files are needed.
+
+Result: run 258's 64 provisions and 152 objects preserve the expected source-only
+storage/artifact/object/search values. Size: 119,854 → 29,539 characters (75.35%)
+and 151,818 → 53,742 bytes (64.60%). This includes all four added methods, including
+packed flags, and keeps explicit spans at both levels. No new provider token
+measurement or live extraction was performed.
+
+Focused provision/contract tests pass, and the doc-processing package passes with
+the existing unrelated `TestKBMetricsReadersExcludeResolvedRows` guard excluded.
+The rebuilt processor binary is `.cache/doc-processor.exe`. Independent review
+found no blocking issues. Explicitly accepted decoder code `li` and the distinction
+between schema retries and semantic reversed-range fallback are documented.

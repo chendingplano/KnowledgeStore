@@ -93,9 +93,86 @@ single line number such as `"15"` or an inclusive line range such as `"15-18"`.
 Do not include page numbers or use `<page_number>:<line_number>` values such as
 `"4:48"`.
 
-### Compact LLM response (v5; v4 decoding compatible)
+### Source-only short LLM response (v6)
 
-The default prompt is `prompt-extract-provisions-v5.md`. Its response adds
+The default prompt is `prompt-extract-provisions-v6.md`. It requests a strict v2
+wire response: `{"v":2,"l":"zh","p":[...]}`. `l` is the source language and `p`
+is the provision array (including `[]` for a valid extraction with no provisions).
+The processor expands short fields before the existing normalization and storage
+paths. Database and artifact-file field names remain unchanged.
+
+No translations are generated. Text, descriptions, context, subjects, keywords,
+category paths, and object names/aliases/acronyms remain in the source language;
+foreign names and identifiers already in the source are retained. Nonempty
+descriptions, context, keywords, aliases, and acronyms are not discarded.
+
+Provision keys:
+
+| Key | Expanded field | Required |
+|---|---|---|
+| `n` | name | yes |
+| `t` | type | yes |
+| `x` | provision | yes |
+| `s` | source_line_spans | yes, nonempty |
+| `lt` | location_type | yes |
+| `q` | confidence, number in [0,1] | yes, including zero |
+| `f` | packed boolean flags | yes, including zero |
+| `d` | provision_desc | omit only when empty |
+| `c` | context | omit only when empty |
+| `u` | subject | omit only when empty |
+| `k` | keywords | omit only when empty |
+| `o` | objects | omit only when empty |
+| `g` | category_paths | omit if unavailable; preserve explicit `[]` |
+
+Object keys: required `n` = object_name, `t` = object_type, `r` = object_role,
+`s` = nonempty source_line_spans, `q` = confidence. Optional empty fields are
+`d` = description, `a` = aliases, and `y` = acronyms. There is no evidence quote
+field: the object's explicit spans are its evidence location, without a second
+duplicate span attribute. Object spans are never inherited in v2.
+
+Single-line spans are integers (e.g. `[143]`); ranges remain inclusive strings
+(e.g. `["150-151"]`). The decoder also accepts canonical quoted single-line
+numbers, but the prompt requests integers. Every supplied span must be valid;
+mixed valid/invalid spans, nulls, empty lists, nonpositive/fractional line numbers,
+and reversed ranges are rejected. Validation checks canonical positive line
+numbers, not that they occur in this particular input unit.
+
+Enum codes:
+
+- Provision type: `m` mandatory, `r` recommended, `o` optional.
+- Location: `s` sentence, `p` paragraph, `b` bullet, `tr` table_row,
+  `tc` table_cell, `hc` heading_context, `mx` mixed. Decoder compatibility code
+  `li` preserves the old `list-item` value; the current prompt requests `b`.
+- Object type: `eq` equipment, `mat` material, `sys` system, `proc` process,
+  `org` organization, `per` person, `loc` place, `doc` document, `con` concept,
+  `oth` other.
+- Object role: `reg` regulated_object, `tgt` requirement_target, `part` component,
+  `par` parent_system, `oth` other.
+
+`f` packs two booleans: bit 0 (value 1) is `is_explicit`; bit 1 (value 2) is
+`need_verify`. Thus 0 means neither, 1 explicit only, 2 verify only, 3 both.
+Flags outside 0–3, missing flags, unknown codes/attributes, translation attributes,
+object quote attributes, and invalid confidence values are rejected. Empty
+optional strings/lists expand to their existing empty equivalents. Presence of
+category lists retains its existing meaning.
+
+The same v2 schema validates both structured extraction (with provider retries)
+and ordinary JSON responses. The built-in v6 prompt requires v2 output; it cannot
+silently accept the old verbose/translated shape. Explicitly selected old/custom
+prompts keep legacy/v1 support. Versioned decoding copies data rather than mutating
+the captured provider response.
+
+Native English values are copied server-side into existing English storage
+fields (not translated), preserving English source text under the existing
+English storage convention. Native Chinese object names likewise fill the
+Chinese name field without asking the LLM to repeat them. Other-language
+translations remain absent. Object evidence quotes stay absent; citations use
+the retained spans.
+
+### Legacy compact LLM response (v4/v5)
+
+The previous prompt `prompt-extract-provisions-v5.md` remains supported when
+explicitly selected. Its response adds
 `"output_format": "compact-v1"` at the top level, alongside `language` and
 `provisions`. The versioned prompt owns the field schema for both chunk and block
 input; the processor does not append a second schema.
@@ -285,6 +362,10 @@ For each provision, add a record to `kb.artifact_connections`:
   - `source_record_id = kb.artifact_objects.source_record_id`
 
 ## 3.2 Output
+
+With the v6 source-only prompt, translated fields below remain empty unless the
+source itself is English and native values are copied into existing English
+fields server-side. Their definitions also cover legacy/enriched records.
 
 ### 3.2.1 Output Record
 
