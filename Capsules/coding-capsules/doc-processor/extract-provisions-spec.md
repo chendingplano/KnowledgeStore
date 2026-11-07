@@ -523,3 +523,7 @@ them (`testbed.provisions`, versioned rules), `score-extract-provisions` scores 
 against them (1–100), and ChenWeb shows both under System Admin › Benchmark › Provisions
 (development page). See devdoc
 `KnowledgeStore/doc-repo/devdocs/202611/2026110602-devdoc-provisions-benchmark.md`.
+Scoring sends a compact indexed matching view and expands decisions before applying the
+unchanged scoring formula. The full source and audit snapshot remain available. The formal
+contract is `ChenWeb/openspec/changes/extract-provisions-benchmark/specs/provision-benchmark-scoring/spec.md`;
+measurements are in [score-extract-provisions-compact-io-analysis.md](score-extract-provisions-compact-io-analysis.md).

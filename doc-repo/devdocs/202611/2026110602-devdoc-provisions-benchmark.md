@@ -1,6 +1,7 @@
 # Provisions Benchmark — an answer key and a quality score for extract_provisions
 
 **Date:** 2026-11-06 \
+**Updated:** 2026-11-07 (compact scoring requests and decisions) \
 **Scope:** What the provisions benchmark is, how its answer key is made and scored, and where
 its two ChenWeb pages are. Open this before you build gold provisions for a document, score
 `extract_provisions`, or change the provisions benchmark rules.
@@ -89,7 +90,8 @@ file, because scores are only comparable against the same answer key.
   rule books in `rules/` (listed with their checksums in `rules/versions.json`), field contracts in
   `references/benchmark-contract.md`, and the plain-language guide in `USER_MANUAL.md`.
 - Scoring skill: `.agents/skills/score-extract-provisions/`. The procedure is in `SKILL.md`, the
-  default weights in `weights.json`.
+  default weights in `weights.json`. Export saves both the full audit snapshot (`input.json`)
+  and the much smaller model view (`matching-input.json`).
 - Database:
   - answer keys in `testbed.provision_benchmark_runs`, `testbed.provisions` and
     `testbed.provisions_dropped` (migration `20261106000101`);
@@ -98,14 +100,44 @@ file, because scores are only comparable against the same answer key.
   - `GET /api/v1/kb/provisions?source=testbed&…` and `GET /api/v1/kb/provisions/gold-options`
     for the Gold page;
   - `/api/v1/kb/provision-scores` for the Benchmark page;
-  - matching prompt `ChenWeb/prompts/prompt-score-extract-provisions-v1.md`.
+  - matching prompt `ChenWeb/prompts/prompt-score-extract-provisions-v2.md`.
 - Browser smoke test: `ChenWeb/web/scripts/test-provision-benchmark-pages.py` (mocked data,
   English and Chinese).
 
+## Smaller scoring requests
+
+The matcher receives the statement text, subject and source lines for every gold and extracted
+row, the excluded/duplicate candidates with their reasons, and the complete available source
+document. It uses short local row numbers to return its decisions. Translations, names,
+confidence, computed suggestions and run metadata stay in the full saved evidence; they are
+not sent to the model. The script restores full IDs and routine explanations before producing
+the existing score and report. The scoring formula and weights are unchanged.
+
+A missing decision is an error, not an assumed miss. The server can request one complete
+correction; a second invalid response fails the run. Raw responses stay in the evidence folder.
+Only successfully validated, expanded matches go into the API's matches snapshot.
+
+For command-line scoring, follow the skill: read `matching-input.json` and the complete available
+source, write compact `matches.json`, then run `score --require-compact`. The script writes
+`matches-expanded.json`, `score.json` and `report.md`. `--lang zh-cn` generates routine diagnostic
+notes in Chinese; model-written exceptional reasons should use the same language. Old verbose
+matches remain replayable without `--require-compact`.
+
+UI runs save the exact matching request and projection beside the full source/provenance snapshot,
+raw compact decisions, expanded decisions and frozen implementation. Unavailable source and
+changed source are distinguished; both disable line checks. English/Chinese interface behavior
+and report data structures are unchanged.
+
+Offline replay of event `llm-6adc0b65` preserved its score of 57/100 and all scoring measures.
+For that captured case, total message content shrank by 72.2% in characters, and the saved
+decisions encoded 89.1% smaller. These are serialization measurements, not new provider token
+counts or proof of future matching accuracy. See the measured contract and verification details
+in `KnowledgeStore/Capsules/coding-capsules/doc-processor/score-extract-provisions-compact-io-analysis.md`.
+
 ## Known limitations
 
-- **Record 416 cannot be scored yet.** Its `kb.provisions` rows were deleted at some point, so
-  `extract_provisions` has to run on it once. Until then, scoring 416 reports "no predictions".
+- **Scoring needs active predictions.** Record 416 has been extracted and scored since the initial
+  benchmark was built. Documents with no active `kb.provisions` rows report "no predictions".
 - **Only some fields are graded.** The score checks strength, text, lines, subject, location and
   explicitness. Production rows store no "kind", so kind is reported only as recall (how many gold
   requirements, instructions … were found). Names, descriptions, keywords, categories and

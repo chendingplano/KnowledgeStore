@@ -1,6 +1,79 @@
 # Compact provision scoring input and output
 
-Analysis date: 2026-11-07. Status: measured proposal; scoring code, skill and prompt are unchanged.
+Analysis and implementation date: 2026-11-07. Status: implemented and verified offline.
+
+## Implementation checklist
+
+- [x] Add failing projection/decoder tests and a sanitized captured-event fixture.
+- [x] Implement `matching_view`, strict `expand_matches`, and CLI `project`; keep legacy scoring readable.
+- [x] Integrate projection and compact repair into the provision runner only; retain expanded API artifacts.
+- [x] Add prompt v2 and update skill instructions for CLI parity.
+- [x] Verify captured scoring parity, malformed responses and local HTTP repair; independent code review.
+
+## Implemented result
+
+The original analysis and alternatives follow below. The implemented projection uses
+indexed arrays, all rows and all available source lines. `sa` records source availability;
+`lc` records line comparability. Source warnings remain in the audit/report; these two flags
+carry their matching consequences without the warning prose. The UI finalizes source status
+before asking the frozen Python implementation to regenerate the projection.
+
+| Actual serialization of the captured case | Before | After | Reduction |
+|---|---:|---:|---:|
+| Scoring snapshot sent to matcher | 83,986 | 13,538 | 83.9% |
+| Total message content, including full source and prompt | 98,460 | 27,368 | 72.2% |
+| Captured decisions encoded in compact format | 9,852 | 1,071 | 89.1% |
+
+Counts are Unicode characters. The new prompt is 3,305 characters and the new user
+request is 24,063 characters. Output savings encode saved decisions; no fresh model
+response or new provider-token measurement is implied.
+
+CLI export writes `matching-input.json` alongside the full `input.json`; `project --dir`
+regenerates it without database access. `score --require-compact` expands and validates
+the model response. CLI callers can select `--lang en|zh-cn` for routine diagnostic notes;
+UI runs use their saved locale. Legacy verbose decisions remain replayable without
+`--require-compact`. The CLI skill reads the compact view plus the available canonical
+source file; the UI sends the same indexed rows with line/type/content source serialization.
+
+The UI persists `matching-input.json`, `matching-request.txt`, raw `matches.json`, expanded
+`matches-expanded.json`, plus the original full source/provenance snapshot and frozen scorer.
+A repair also preserves the first decisions and exact second request. Only successful
+expanded decisions are exposed through API matches snapshots. Invalid compact responses
+stay in evidence files and leave that API snapshot null. No provision-specific normalization
+silently resolves duplicate accounting or infers omissions. Other scorers retain their
+existing flow. No database migration or shared-library change is needed.
+
+Verification:
+
+- All 26 Python scorer tests pass, including the captured event fixture, strict wire errors,
+  changed/unavailable source flags, duplicate cycles, D1 candidates, zero gold, exceptional
+  notes, subject overrides, CLI projection, and legacy replay/strict-compact separation.
+- Five local HTTP runner cases pass: complete, repaired, invalid twice, unreadable source,
+  and changed source. They use the real Python projection/decoder and check full-ID API
+  output, audit preservation, source status, and bounded repair.
+- Captured decisions retain 57/100, overall/per-type metrics, per-kind recall, field
+  accuracy and weights. Routine explanation wording changes; exceptional reasons remain.
+- The `kbhandler` suite passes with four existing failures excluded. The same four failures
+  were reproduced using a Go overlay of the unchanged runner: `TestMetricScoreRunnerEndToEnd`,
+  `TestMetricScoreScorerParityAndInvalidMatches`,
+  `TestPlanInputDeletePathsRefusesFolderNotNamedAfterRecord`, and
+  `TestPlanInputDeletePathsRefusesUnrelatedRecordFolder`. No unrelated tests/code were edited.
+- The dataservice builds. Independent review found the failed-run snapshot issue and
+  missing source-availability signal; both were fixed and covered by regression tests.
+
+Commands from the workspace root (Go commands from `ChenWeb/`):
+
+```sh
+python3 -m unittest discover -s .agents/skills/score-extract-provisions/scripts -p 'test*.py'
+go test ./server/api/kbhandler -run '^TestProvisionCompactRunner$' -count=1
+go test ./server/api/kbhandler -skip '^(TestMetricScoreRunnerEndToEnd|TestMetricScoreScorerParityAndInvalidMatches|TestPlanInputDeletePathsRefusesFolderNotNamedAfterRecord|TestPlanInputDeletePathsRefusesUnrelatedRecordFolder)$' -count=1
+go build -buildvcs=false -o /tmp/provision-score-dataservice ./server/cmd/dataservice
+```
+
+Fresh provider matching quality and provider-token/retry savings remain unmeasured. The
+existing output-token ceiling is intentionally unchanged; compact instructions reduce
+actual output, while an unvalidated lower ceiling could cause truncation and retries.
+Rebuild/restart the API to activate the v2 selector. Existing score rows are not rewritten.
 
 ## Finding
 
@@ -52,7 +125,7 @@ It also already removes `source_text` from the LLM snapshot before appending
 SOURCE_LINES. There is no second complete source copy in this captured request.
 The saved audit snapshot does contain the source, as intended.
 
-## Code and prompt analysis
+## Original code and prompt analysis
 
 1. `.agents/skills/score-extract-provisions/SKILL.md` instructs the agent to read
    the entire export, including suggestions and the ledger. It uses full IDs,
@@ -203,6 +276,9 @@ arithmetic preservation for captured decisions, not future matching accuracy.
    row-count-based output budget only after contract validation. Lowering that
    ceiling alone does not reduce actual output, and truncation creates retries.
 
-No existing docs/specs become stale from this analysis because behavior has not
-changed. Implementation would require updating the scoring skill, its tests,
-versioned prompt, runner integration and applicable capsule contract docs.
+The implementation updates the scoring skill/tests, adds prompt v2, changes the
+provision runner, and updates the formal OpenSpec scoring contract, its task record,
+the benchmark devdoc and the capsule specification pointer. Prompt v1 is deliberately
+retained for old runs. Extraction formats, benchmark gold rules and score weights are
+unchanged. Broader fresh-model evaluation and output-cap tuning are intentionally deferred
+pending live evidence; serialization replay cannot establish their accuracy or savings.
