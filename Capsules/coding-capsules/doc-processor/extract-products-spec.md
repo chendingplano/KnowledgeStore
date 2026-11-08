@@ -324,9 +324,11 @@ a new version of the same model, can be A/B'd both ways without a code change.
 Deterministic Step A, and Pass 2 with a single per-chunk call that detects
 products and assigns their relations together, using
 `EXTRACT_PRODUCT_MERGED_PROMPT` (default
-`prompt-extract-products-merged-v2.md`; v1 was the v2 producthood gate
+`prompt-extract-products-merged-v3.md`; v1 was the v2 producthood gate
 verbatim, plus v4's relation-type catalogue and output schema, chunk-scoped;
-v2 keeps those rules and switches to the compact response below).
+v2 keeps those rules and switches to the compact response below; v3 keeps the
+v2 response and rewrites the detection, relation and field rules — see
+"Prompt v3 and merged-mode Step B" below).
 Deterministic Step B, Pass 3a, Pass 3b, and storage all run unchanged — the
 merged call reuses `normalizeProductList`, so its rows are shape-identical to
 Pass 2's.
@@ -420,6 +422,76 @@ two-pass input cost is the chunk being re-sent per candidate (179 calls ×
 would cut 179 calls to 10 and remove most of that duplication while leaving
 detection in its own pass. That has not been built or measured.
 
+#### Prompt v3 and merged-mode Step B (2026-11-08)
+
+The first products benchmark score of record 416 (66, run 264: merged v2,
+reasoning off) missed 61 of 188 gold rows and had 11 false positives. Its
+causes, and what changed:
+
+| Cause in run 264 | Change |
+|---|---|
+| Class terms of example lists ("…等废弃纸制品"), the defined term, products a definition excludes ("不包括…"), items in parentheses, articles named as a tool, waste streams and residues (废水, 渗滤液, 沼渣) never detected | v3 "Find Every Product In The Block" checklist; waste streams and residues listed as products; properties and emissions listed as non-products |
+| Waste categories named in deposit/collect/transport/treatment duties got no rows (chunks 92–121 returned only containers) | v3 "Choosing The Relation": handling duties → `stor`, treatment/disposal → `req`, licence regimes → `reg`; every requirement sentence gives each product it names a row |
+| 12 hazardous-waste example items labelled `reg` | `reg` only for a legal or compliance regime; category membership is `sc` |
+| Shared-head coordinations kept whole ("收集、运输车辆"), one sentence's marking/structure/function demands in one row | one product per conjunct; split one sentence's demands by kind (`cert`/`des`/`perf`); an equip duty does not add `des` |
+| `requirement_text` 57.5% similar to the source, `responsible_actor` 28.6%, `conditions` 0% | v3 Field Rules: requirement text as written with its modal verb, the obliged party as actor, conditions copied; obligation and product-type decision orders |
+| Four `design_requirement` rows from an overlap line whose owning chunk already had those products; the B.1 test-method rows taken from the overlap chunk's thin copy | Step B settle (below) |
+| `prompt_name` stored the Pass 2 prompt for merged rows | rows record the merged prompt |
+
+**Merged-mode Step B** (`settleMergedChunkRows`, before Step B's dedup):
+
+1. Rows are put in chunk order. Chunks finish in any order, and Step B keeps
+   the first row of a group, so before this the winner was whichever chunk
+   answered first.
+2. A row that cites only its chunk's overlap lines is dropped when the chunk
+   holding those lines as normal lines produced a row for the same product.
+   That chunk saw the lines in full context. An overlap-only row for a product
+   the owning chunk missed is kept, so no product is lost (this narrows the
+   2026-11-07 "no overlap rule" decision in the compact output plan).
+3. Rows with the same product and relation type are merged across the whole
+   document: evidence, conditions, exceptions, parameters and related products
+   united; distinct requirement texts joined with ` … `; strongest obligation
+   level, highest confidence, first non-empty actor. Each merged call sees one
+   chunk, so a product discussed in three chunks came back as three `scope`
+   rows; the two-pass pipeline gets one row per (product, relation) from Step A.
+
+**Span grounding** (`groundProductV2Spans`, compact decoder): when none of a
+row's cited text contains the product name but the line just before or after a
+cited line does, that line is added to the row's spans. With reasoning off,
+deepseek-flash cited a whole chunk's rows one line early in 3 of 10 v3 runs
+(the B.1 test steps cited the heading above them), losing about 10 rows each
+time. Cited spans are kept; names the source never writes whole (expanded
+conjuncts) and table-row spans are left alone.
+
+Record 416, deepseek-flash, gold run `20261108_110147`. Scores from an
+automatic matcher that reuses the scorer's field checks and arithmetic (it
+scores run 264 at 65 against the page's 66), so treat them as a proxy for the
+Benchmark page:
+
+| Arm | Runs | Score | Detection recall / precision |
+|---|---|---|---|
+| run 264: v2, old Step B, reasoning off | 1 | 65 (page: 66) | 75.6% / 93.8% |
+| v2, new Step B, reasoning off | 2 | 70, 67 | 79.4% / 95.6%, 76.9% / 96.1% |
+| v3, new Step B, reasoning off | 3 | 79, 78, 80 | ≈89% / ≈88% |
+| v3, new Step B, reasoning on | 2 | 86, 83 | 97.5% / 93.5%, 94.4% / 90.4% |
+
+With reasoning off, v3 still extracts facilities about 7 times per run (its
+recall push and the coordination rule split "…投放、…收集、…处理设施" into
+four), against 3–4 for v2; moving the exclusions ahead of the detection
+checklist did not change that (77/76/76). With reasoning on, about one
+facility remains. Reasoning on cost about 9× the merged pass's output tokens
+on record 416 (124,800 vs ≈14,000) and the slowest chunk took 187 s instead of
+12 s — still well below the two-pass default's ≈470k output tokens measured
+above. Both measurements come from the document the gold was built from and
+that earlier prompt versions were tuned on; v3's new examples avoid record
+416's own wording, but re-score another document before generalising.
+
+The evaluation harness is `TestProductsQualityLive`
+(`products_quality_integration_test.go`): it runs the merged pass on a
+record's saved `.chunks` artifact and writes `kb.products`-shaped rows to a
+file, without touching the database; given logged provider responses it
+replays them instead, which measures a Step B change exactly.
+
 ### Deterministic Step B: Final Dedup
 
 After relation enrichment:
@@ -431,6 +503,11 @@ Dedup key: `canonical_name + relation_type`, with rows in the same group
 merged when their `evidence_lines` overlap (share at least one line) — the
 merged row keeps the higher-`confidence` row's `requirement_text` and the
 union of `evidence_lines`.
+
+In merged-pass mode, rows reach this dedup already settled — chunk order,
+the overlap rule and the document-wide merge by `canonical_name +
+relation_type` (see "Prompt v3 and merged-mode Step B") — so it rarely merges
+anything there. Two-pass rows are not settled.
 
 **Bug found and fixed 2026-09-21** (`kb.products` rows `416_prd_37` /
 `416_prd_42`): the original implementation additionally required an exact
@@ -924,7 +1001,8 @@ per product-relation pair, like `kb.products`), the scorer `.agents/skills/score
 System Admin › Benchmark › Products (Gold Products, Benchmark). The prompt A/B requirement in
 "Pass 1" above and the per-model re-measurement of merged-pass mode should be scored against it.
 First gold: record 416, run `20261108_110147` (188 rows, 160 products); the 2026-11-07 extraction
-scores 66. See devdoc `2026110803-devdoc-products-benchmark.md` [5].
+scores 66. See devdoc `2026110803-devdoc-products-benchmark.md` [5]. The analysis of that score
+led to merged prompt v3 and the merged-mode Step B ("Prompt v3 and merged-mode Step B").
 
 ## References
 

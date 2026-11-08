@@ -89,6 +89,9 @@ The result is a more stable pipeline that still writes the same final `kb.produc
 | `ChenWeb/server/api/doc-processing/products_v2_test.go` | Compact merged decoder, retry/fallback, and run 261 replay tests |
 | `ChenWeb/server/api/doc-processing/testdata/products-merged-run-261.json.gz` | Record 416 run 261: 10 captured merged responses plus the lines each call sent |
 | `ChenWeb/prompts/prompt-extract-products-merged-v2.md` | Merged-pass prompt with the compact v2 response |
+| `ChenWeb/prompts/prompt-extract-products-merged-v3.md` | Default merged-pass prompt (2026-11-08): v2 response, rewritten detection, relation and field rules |
+| `ChenWeb/server/api/doc-processing/products_merged_settle_test.go` | Merged-mode Step B (`settleMergedChunkRows`, `mergeProductRelationRows`) and merged `prompt_name` |
+| `ChenWeb/server/api/doc-processing/products_quality_integration_test.go` | Opt-in `TestProductsQualityLive`: merged pass on a record's `.chunks`, rows to a file; replays logged responses |
 
 ---
 
@@ -275,8 +278,8 @@ the processor treats that unit as an empty successful extraction rather than a h
 
 For mention extraction this means empty `mentions`; for relation extraction it means empty `products`.
 
-Compact merged calls (prompt `prompt-extract-products-merged-v2.md`) never take
-this shortcut: their response must decode.
+Compact merged calls (prompts `prompt-extract-products-merged-v2.md` and
+`-v3.md`) never take this shortcut: their response must decode.
 
 ---
 
@@ -295,9 +298,17 @@ When `productMergedPromptUsesV2(MergedPromptRef)` is true,
 `extractProductPayload` then requires `v`, and `decodeProductMergedV2`
 validates the same schema, resolves every span against the lookup, rebuilds
 `evidence_quote` from the cited lines or table rows, and returns fresh
-`{"products": [...]}` rows in the legacy long-name shape. Pass 1, Pass 2, and
-translation pass a nil lookup and are unchanged. The wire contract is in
+`{"products": [...]}` rows in the legacy long-name shape. When none of a row's
+cited text contains its product name, `groundProductV2Spans` adds the
+adjacent line that does (a whole chunk cited one line off). Pass 1, Pass 2,
+and translation pass a nil lookup and are unchanged. The wire contract is in
 `extract-products-compact-output-plan.md`.
+
+`extractProductsMergedForChunk` tags each row with its chunk and whether it
+cites only overlap lines; `settleMergedChunkRows` (both merged paths) orders
+rows by chunk, drops an overlap-only row whose owning chunk produced the same
+product, removes the tags, and `mergeProductRelationRows` folds rows with the
+same product and relation type across the document before Step B.
 
 ---
 
