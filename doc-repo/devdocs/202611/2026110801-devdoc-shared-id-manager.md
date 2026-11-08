@@ -179,12 +179,15 @@ fetch and attach it to the usage event.
 for its context. Other executions store the decision in `llm_run_id` on:
 
 - `kb.doc_process_runs` and `kb.doc_review_runs`;
-- `kb.metric_score_runs`, `kb.reference_score_runs`, `kb.provision_score_runs`,
-  and `kb.summary_score_runs`;
-- `testbed.generated_question_runs`.
+- `kb.metric_score_runs`, `kb.reference_score_runs` and `kb.summary_score_runs`;
+- `testbed.provision_score_runs`, `testbed.product_score_runs` and
+  `testbed.generated_question_runs`.
 
 The new columns are defined by project migration
-`20261108000001_shared_llm_run_ids.sql`. NULL means a legacy execution; 0 means
+`20261108000001_shared_llm_run_ids.sql` (`testbed.product_score_runs` gets its
+column at creation, in `20261108000102`). Databases that applied an early text of
+`20261108000001`, before its score-run columns were added, get them from
+`20261108000201_repair_score_run_llm_run_ids.sql`. NULL means a legacy execution; 0 means
 allocation failed. The usage sink stores 0 as NULL. Model input JSON, findings,
 processing logs, plans and testbed result relationships keep their local table
 IDs. Operators querying usage must use the stored `llm_run_id`.
