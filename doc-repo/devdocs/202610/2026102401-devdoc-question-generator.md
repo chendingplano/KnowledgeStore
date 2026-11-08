@@ -230,9 +230,12 @@ All endpoints require an authenticated administrator or owner:
 
 Creation generates a saved numeric run ID (`testbed.generated_question_runs.id`),
 which all its `testbed.generated_questions.run_id` values reference. The generator
-page explicitly labels it **Run ID**. Every LLM call also carries that same ID in
-`JSONExtractionInput.RunID` plus the actual input record in `RecordID`, so **LLM
-Usage Logs → Run ID** can display and filter the corresponding calls.
+page explicitly labels it **Run ID**. Since 2026-11-08, LLM calls carry a separate
+ID from the shared `llm_run_id` sequence, stored in
+`testbed.generated_question_runs.llm_run_id`. Every document and correction call
+in that generation run shares the LLM ID, while model input and generated-question
+relationships keep the table run ID. Use the stored **LLM run ID** in **LLM Usage
+Logs → Run ID**, plus the actual input record in `RecordID`.
 
 | Method | Path under `/api/v1/kb/question-generator` | Result |
 |---|---|---|
@@ -385,7 +388,7 @@ questions that are actually retained, ignoring replacement candidates for accept
 A second invalid response leaves successful questions saved and reports the remaining
 failures. Provider/request errors do not trigger a further correction call or erase
 earlier accepted questions. Each call
-is recorded separately in LLM usage logs under the same run ID.
+is recorded separately in LLM usage logs under the same allocated LLM run ID.
 
 Reasoning errors report the actual counts, for example two reasoning steps but
 one citation array. Multiple explanations supported by one source line still

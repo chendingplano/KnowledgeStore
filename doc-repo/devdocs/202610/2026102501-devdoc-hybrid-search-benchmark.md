@@ -193,7 +193,8 @@ targets came first and the worst improved from 44 to 7.
   error) and `testbed.hybrid_search_benchmark_candidates` (one row per candidate per list:
   `stage` = `lexical_partition`|`lexical`|`semantic`|`fused`, `partition_name`, `stage_rank`,
   `partition_rank` on merged BM25 rows, `score`, and `lexical_rank`/`semantic_rank` on fused rows);
-  both cascade from their result. Sequence `kb.search_run_id_seq`. Migrations
+  both cascade from their result. Search LLM run IDs now come from shared sequence
+  `llm_run_id` (2026-11-08); `kb.search_run_id_seq` remains legacy schema. Migrations
   `20261024000014`–`20261024000016`, `20261025000001`, `20261025000002`, `20261025000004`.
 
 ## Known limitations
@@ -225,9 +226,10 @@ targets came first and the worst improved from 44 to 7.
 - **Keyword failures fall back silently in live search.** If the keyword model fails, search uses
   the raw question. The benchmark marks such questions, but scores still include them, with
   lexical ranks from the raw question.
-- **Run IDs are shared.** Each feature numbers its own runs, so a search run ID can equal an
-  unrelated run ID in LLM Usage Logs. Filter by Run ID *and* Call Reason (`search_query_embedding`,
-  `search_query_keywords`, `search_effort_analyze`, `search_effort_judge`).
+- **Historical run IDs can collide.** Before 2026-11-08 each feature numbered its
+  own runs. For legacy data, filter by Run ID and Call Reason
+  (`search_query_embedding`, `search_query_keywords`, `search_effort_analyze`,
+  `search_effort_judge`). New searches use the shared `llm_run_id` sequence.
 - **Selection limits.** The Tests to run dialog lists at most 2,000 matches per search, and a run
   takes at most 5,000 picked questions.
 - **Most indexed metrics have no metric record (found 2026-10-25).** 5,621 of the 8,281 rows in

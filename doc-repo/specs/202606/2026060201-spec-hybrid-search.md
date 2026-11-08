@@ -301,8 +301,8 @@ hybrid lexical CTE.
 
 ### 8.2 Search run IDs
 
-Each search takes one run ID from the sequence `kb.search_run_id_seq` (migration
-`20261024000015`): one per search API request (`searchRegistryArtifacts`, shared by its count and
+Each search takes one run ID from shared sequence `llm_run_id` (since 2026-11-08):
+one per search API request (`searchRegistryArtifacts`, shared by its count and
 result queries), one per agent search call (`SearchAgentKnowledge`) and one per benchmark question
 (§13.2). The ID and the user (when known) travel in the context (`searchCall`,
 `kbhandler/search_run.go`) to the search's LLM calls, which record them as `run_id` / `user_id` in
@@ -577,8 +577,9 @@ overall and by hop type and language.
   without keywords (the raw query, as live search falls back to) instead of calling the model
   again; the result row records `query keywords failed or empty`. On 2026-10-25 every
   `deepseek-flash` call returned HTTP 402 (account balance exhausted), which produced exactly this.
-- Run IDs are per feature, so a search run ID can equal another feature's run ID in
-  `llm_usage_event`; filter by Run ID *and* Call Reason (`search_query_*`).
+- Historical run IDs (before 2026-11-08) are per feature and can collide in
+  `llm_usage_event`; filter legacy data by Run ID and Call Reason (`search_query_*`).
+  New searches use the shared `llm_run_id` sequence.
 - The question generator writes each question from its target metric's own context, so these
   are easy known-item queries that favour vector search (as in §13.1). Only the exact target
   counts as a hit (no near-duplicate credit).

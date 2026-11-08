@@ -102,6 +102,13 @@ existing `RoutingAlarmSQLWriter` rules: keyed by `run_id` when a run row already
 exists, otherwise by `record_id` — so a redelivered/retried event for the same
 record doesn't spam duplicate alarm rows.
 
+Since 2026-11-08, alarm `run_id` and LLM usage `run_id` use the same allocation
+from the shared `llm_run_id` sequence. This is stored as
+`kb.doc_process_runs.llm_run_id`; the run table's `id` continues to identify
+processing records and `kb.doc_proc_logs.run_id`. An allocation failure keeps
+the execution's LLM run ID at 0 (usage stores NULL), without stopping processing.
+See [Shared ID Manager](../202611/2026110801-devdoc-shared-id-manager.md).
+
 ### Where to look
 
 | Concern | Location |

@@ -1,13 +1,13 @@
 # Shared ID Manager — Allocate unique IDs with cached database reservations
 
 **Date:** 2026-11-08 \
-**Status:** Proposed design; not implemented \
-**Scope:** Reusable ID allocation: sequences, provisioning, concurrency, caching, failure handling, conversion of the existing `shared.id_mgr` table, and an example integration for LLM task run IDs. PostgreSQL only. \
-**Proposed code root:** `shared/go/api/idmanager/`
+**Status:** Implemented; application database deployment pending \
+**Scope:** Reusable ID allocation: sequences, provisioning, concurrency, caching, failure handling, conversion of the existing `shared.id_mgr` table, and ChenWeb integration for LLM task run IDs. PostgreSQL only. \
+**Code root:** `shared/go/api/idmanager/`
 
 ## 1. Summary
 
-The ID manager is a reusable shared-library module that hands out numeric IDs. IDs come from named counters, called sequences, stored in the database table `shared.id_mgr`. That table already exists. Today it only supplies activity-log IDs, through a simpler mechanism that this module replaces (section 2.9).
+The ID manager is a reusable shared-library module that hands out numeric IDs. IDs come from named counters, called sequences, stored in the database table `shared.id_mgr`. It replaces the legacy activity-log counter in that table (section 2.9).
 
 An application chooses which sequence to draw from:
 
@@ -18,15 +18,15 @@ To save database work, a sequence can reserve a block of IDs at once and hand th
 
 When allocation fails, the manager returns 0, which is never a valid ID, together with an error. The caller decides what to do: carry on with 0, retry, or stop.
 
-The first new user is LLM usage logging. Today, tasks record their LLM calls under run IDs borrowed from their own tables, so different tasks can record the same run ID. With this module, every task takes its run ID from one sequence instead (section 2.8).
+The first new user is ChenWeb LLM usage logging. Previously, several tasks borrowed run IDs from their own tables, allowing unrelated executions to share a number. The migrated writers now allocate from `llm_run_id` (section 2.8).
 
-Nothing described here has been built. Reconcile this document with the implementation when that work is done. There is no OpenSpec contract for the module yet.
+The reusable module is catalogued as `20261108-01`; see [Shared ID Manager](../../modules/module-shared-id-manager.md). There is no OpenSpec contract for this module. Tests use isolated PostgreSQL; no application database migration or service deployment was performed during implementation.
 
 ## 2. Details
 
 ### 2.1 Motivation
 
-Several ChenWeb tasks write their LLM calls to `public.llm_usage_event` with a `run_id`, but each task takes that number from its own source:
+Before this change, these ChenWeb tasks wrote LLM calls to `public.llm_usage_event` using independent sources for `run_id`:
 
 | Task | Source of `run_id` | Where |
 |---|---|---|
@@ -34,9 +34,9 @@ Several ChenWeb tasks write their LLM calls to `public.llm_usage_event` with a `
 | Document processing | `kb.doc_process_runs.id`, via `withRunID` | `ChenWeb/server/api/doc-processing/control.go` |
 | Document review | `kb.doc_review_runs.id`, via `withLLMRunID` | `ChenWeb/server/api/doc-reviews/review-document.go` |
 
-These counters are independent, so two tasks can record the same run ID. Using a table's own ID as a run ID is a historical shortcut. The tables' IDs should keep serving their own tables, and run IDs should come from one allocator. More generally, applications need one place to obtain IDs with explicit ranges and batching, rather than each creating its own counter.
+Those counters were independent, so two tasks could record the same run ID. Using a table's own ID as a run ID is a historical shortcut. The tables' IDs should keep serving their own tables, and run IDs should come from one allocator. More generally, applications need one place to obtain IDs with explicit ranges and batching, rather than each creating its own counter.
 
-The shared library already has an ID table, `shared.id_mgr`, but it offers only a bare counter. It has no bounds, reuse setting, provisioning API or audit fields, and its stored value is not the next free ID (section 2.9). This module extends that table instead of adding a second one.
+The legacy `shared.id_mgr` table offered only a bare counter, without bounds, reuse settings, provisioning or reservation audit fields. Its stored value was not the next free ID (section 2.9). This module extends that table instead of adding a second one.
 
 ### 2.2 Database model
 
@@ -67,13 +67,13 @@ Requests for unknown names return an error rather than silently creating a new n
 | Choice | Use when | What you get |
 |---|---|---|
 | `global` | IDs must be unique across the modules and applications sharing the database, and no special range is needed. | Provisioned by the module's migration with `start_id=1`, `allocate_size=1` and `allow_reuse=false`. IDs are issued one at a time in increasing order, with gaps only after failures. Each ID costs one database transaction. |
-| Application sequence | The application wants its own numbering: a start value, an upper bound, batching to reduce database writes, or reuse within a finite range. | Provisioned by the application through `Provision` (section 2.4). IDs are unique only within that sequence. Examples: `activity_log_id` (section 2.9) and `llm_task_run` (section 2.8). |
+| Application sequence | The application wants its own numbering: a start value, an upper bound, batching to reduce database writes, or reuse within a finite range. | Provisioned by the application through `Provision` (section 2.4). IDs are unique only within that sequence. Examples: `activity_log_id` (section 2.9) and `llm_run_id` (section 2.8). |
 
 A native PostgreSQL sequence also produces unique numbers. The ID manager adds named provisioning with descriptions and audit fields, contiguous batches (`Generate`), application-side caching, an explicit failure value, and one Go API across applications.
 
-### 2.4 Proposed Go interface
+### 2.4 Go interface
 
-The following signatures describe the intended interface, not existing symbols:
+The public API is implemented in `shared/go/api/idmanager/manager.go`:
 
 ```go
 const GlobalSequence = "global"
@@ -144,7 +144,7 @@ The row lock prevents overlapping reservations across processes. The per-sequenc
 
 If reuse is enabled and fewer than `N` IDs remain before the upper bound, allocation wraps to `start_id` under the row lock and abandons that tail. A batch never crosses the wrap boundary. A request larger than the whole configured range returns an error without changing the counter. Reuse therefore provides neither historical uniqueness nor uniqueness among outstanding IDs.
 
-The `global`, `activity_log_id` and `llm_task_run` sequences must always have `allow_reuse=false`.
+The `global`, `activity_log_id` and `llm_run_id` sequences must always have `allow_reuse=false`.
 
 ### 2.7 Guarantees and limits
 
@@ -162,30 +162,77 @@ The `global`, `activity_log_id` and `llm_task_run` sequences must always have `a
 
 Uniqueness also depends on preserving counter history during database administration. Restoring an older database snapshot while newer IDs remain in external records requires recovery coordination before allocation resumes.
 
-### 2.8 Example: LLM task run IDs
+### 2.8 ChenWeb LLM task run IDs
 
-Every LLM call is logged in `public.llm_usage_event`. Its `run_id` groups the calls of one task execution: calls from the same execution share a run ID, and different executions have different run IDs. Under this design every task takes its run ID from one sequence, `llm_task_run`, instead of from its own table. The tables' own IDs (`kb.doc_process_runs.id`, `kb.doc_review_runs.id`) keep their meaning in those tables but are no longer written as run IDs.
+`public.llm_usage_event.run_id` groups the calls of one execution. The migrated
+writers use sequence **`llm_run_id`**. Activity logs independently use
+**`activity_log_id`**. Table primary keys retain their existing meanings.
 
-How a task uses the module:
+The migrated callers are search (including benchmark searches), document
+processing, document review, metric/reference/provision scoring, summary scoring,
+and question generation. Endpoints that previously supplied no run ID still
+emit unattributed usage; this cutover removes the independent numeric sources.
 
-- Call `Next(ctx, "llm_task_run")` once when an execution starts. Carry the ID in the context and in queued messages, and use it for every LLM call in the execution, including parallel calls, embeddings, model fallbacks, provider retries and tool loops.
-- Store the ID on the execution's own record, for example in a new column on `kb.doc_process_runs`. Queue redelivery and pause/resume then reuse it, and pages can find an execution's LLM calls. A new execution, including a user-requested rerun, gets a new ID.
-- If allocation fails, log it and continue with run ID 0; `ChenWeb/server/api/llmusage/sink.go` stores a run ID of 0 as NULL. The LLM call itself is not failed. Do not retry allocation partway through an execution, because calls before and after the retry would carry different run IDs.
+`server/api/llmrun` shares an ID manager per database pool. Search takes one ID
+for its context. Other executions store the decision in `llm_run_id` on:
 
-`llm_task_run` is an application sequence. ChenWeb provisions it in a migration so that it can start above the largest historical `llm_usage_event.run_id`.
+- `kb.doc_process_runs` and `kb.doc_review_runs`;
+- `kb.metric_score_runs`, `kb.reference_score_runs`, `kb.provision_score_runs`,
+  and `kb.summary_score_runs`;
+- `testbed.generated_question_runs`.
 
-Switching ChenWeb over touches more than the three writers listed in section 2.1:
+The new columns are defined by project migration
+`20261108000001_shared_llm_run_ids.sql`. NULL means a legacy execution; 0 means
+allocation failed. The usage sink stores 0 as NULL. Model input JSON, findings,
+processing logs, plans and testbed result relationships keep their local table
+IDs. Operators querying usage must use the stored `llm_run_id`.
 
-- Peak-hours hold events take their run ID from the document-processing context (`ChenWeb/server/api/doc-processing/task_engine_policy.go`) and must take the new run ID.
-- The "peak waiting" filter in `ChenWeb/server/api/kbhandler/handler.go` matches hold events to `kb.doc_process_runs.id` through `run_id`. It must match through the stored run ID instead.
-- `alarms_errors` de-duplicates on `(run_id, kind)`. Routing alarms write `kb.doc_process_runs.id` and the usage sink writes the usage run ID, both with kind `missing_user_id`. After the switch these are different ID spaces in one index, so the two alarm sources must use the same run ID or distinct kinds.
-- The LLM usage logs page filters by `run_id`. Operators who paste a document-processing run ID there will need the stored run ID instead.
+Queue producers stamp `llm_execution_key` before publishing. A command expanded
+into multiple documents keeps that key and adds each record ID when resolving
+its execution. Unstamped legacy messages use their JetStream stream and message
+sequence. `kb.llm_executions` durably maps each key to the allocation result,
+including 0. A transaction advisory lock serializes simultaneous deliveries of
+one key. Scoring and question-generation keys combine the run table and row ID.
 
-At cutover, stop the old writers, provision `llm_task_run` above the highest historical run ID, and switch every writer before traffic resumes. Keep ambiguous historical run IDs as legacy data; this module cannot tell which task an old collided or missing value belonged to.
+Within an execution, parallel calls, embeddings, corrective model calls,
+provider retries, fallbacks and tool loops carry the same LLM ID. Processing
+pause/resume retains the context; redelivery resolves the saved key; review
+workers reload the value from their run row. A new user-requested execution gets
+a new ID. Manual queue publishers must not reuse an old `llm_execution_key`
+when requesting a new execution.
+
+Allocation failure is nonfatal: persist 0 and continue without retrying allocation
+mid-execution. Failure to read or persist the execution binding is different:
+retry before starting LLM work, because proceeding with an unknown value could
+split attribution across redeliveries. Direct callers without a durable execution
+key keep their single allocation decision in their context.
+
+The existing asynchronous processing handler acknowledges dispatch before its
+background pipeline finishes. A later binding-persistence failure marks that
+attempt failed and performs no LLM work; recovery uses the existing event replay
+path, retaining its execution key. This change does not redesign queue
+acknowledgement or background-job retries.
+
+Peak-hour hold events use the LLM ID, and the peak-waiting query joins through
+`kb.doc_process_runs.llm_run_id`. Scoped routing alarms use that same ID, keeping
+`alarms_errors` de-duplication on `(run_id, kind)` consistent with the usage sink.
+Alarms before an execution starts retain their record-ID fallback.
+
+Startup preserves **project migrations, then shared migrations**: existing shared
+icon migrations depend on the vector extension established by project migrations.
+After both tracks, ChenWeb provisions `llm_run_id` with start equal to the largest
+historical `public.llm_usage_event.run_id` plus one (at least 1), batch size 100,
+and no reuse. Repeated startup preserves an existing counter. Provisioning failure
+prevents startup before writers accept work. Schema definitions remain in Goose;
+this final startup step only inserts the sequence row.
+
+At cutover, stop old writers, deploy both shared and ChenWeb changes, and run
+startup migrations/provisioning before traffic resumes. Historical collided or
+missing IDs remain legacy data; this module cannot reconstruct their ownership.
 
 ### 2.9 Moving from the current `shared.id_mgr`
 
-**Current users.** All code that uses the table is in the shared library; ChenWeb and tax never reference it directly.
+**Legacy users before the switch.** The old table readers were all in the shared library. They have been replaced or removed as described below.
 
 | Code | Callers | Status |
 |---|---|---|
@@ -194,7 +241,7 @@ At cutover, stop the old writers, provision `llm_task_run` above the highest his
 | `sysdatastores.AddOneID` | None | Unused |
 | `sysdatastores.UpsertActivityLogIDDef` | `libmanager.InitLib` | Creates the `activity_log_id` row |
 
-Current rows, as of 2026-11-08:
+Legacy rows observed before implementation on 2026-11-08:
 
 | Database | `activity_log_id` `crt_value` | Highest activity-log ID issued |
 |---|---|---|
@@ -231,11 +278,11 @@ The migration names `shared.id_mgr` directly; the table name is no longer config
 
 **Leftovers in tax.** The tax database also has `public.id_mgr` (counter 67000) and `public.activity_log`, left from before the `shared` schema existed. No code reads them, and the last write was on 2026-03-23. The migration does not touch them. Because `shared.activity_log` restarted at 10999, activity-log IDs overlap between the two tables. Dropping the old tables is a separate decision.
 
-### 2.10 Implementation and validation work
+### 2.10 Validation and implementation status
 
-Create and convert the table in the shared migration described in section 2.9; applications apply shared migrations at startup through `goose.RunSharedMigrations`. Use the centralized database pool and `loggerutil.CreateDefaultLogger` with a unique location. Log provisioning, reservations, exhaustion and failures with sequence and requester identities; do not log every cache hit.
+The migration `20261108000001_id_manager.sql` creates/converts the table. `goose.RunSharedMigrations` embeds it into each consumer's migration view, so application directories do not need a copied SQL file. Conflicting copies fail startup. Allocators use the centralized pool and `loggerutil.CreateDefaultLogger`, logging provisioning, reservations, exhaustion and failures with sequence and requester identities. Cache hits are silent.
 
-Validation should include actual PostgreSQL transactions with independent connections and managers, as well as Go race checks. Cover:
+The automated allocator tests cover actual PostgreSQL transactions using independent connections and managers, along with Go race checks:
 
 - concurrent allocation, cache refill and consumption, and different names;
 - batches larger than the allocation size, insufficient cache tails, and restart gaps;
@@ -247,14 +294,30 @@ Validation should include actual PostgreSQL transactions with independent connec
 - the migration on a fresh database, on the old shape (`next_id = crt_value + 1000`), and after `CreateSysTables` created the old shape;
 - activity-log IDs after the switch, which must be above every ID issued before it.
 
-Verify that a failed refill does not publish a new block. LLM integration tests must separately cover:
+Injected update failures and uncertain commits verify that no unconfirmed block is published. The ChenWeb LLM integration tests cover:
 
 - a shared run ID across an execution's calls;
 - a new ID on rerun, and the same ID after queue redelivery and resume;
 - continuing with run ID 0 when allocation fails;
 - the peak-waiting filter and alarm de-duplication after the switch.
 
-After implementation, document and catalogue the reusable module under `KnowledgeStore/doc-repo/modules/` and `kb.reusable_modules`. Update the affected document-processing run-ID documentation, shared LLM API documentation, and task propagation tests. Update `shared/CLAUDE.md`, which documents the removed `libconfig.toml` settings. Run shared-library tests, synchronize the Go workspace if dependencies change, and verify that ChenWeb and tax build. This design document adds no implementation or test results.
+Validation completed with full shared-library tests, targeted `go vet`, and
+`go test -race ./api/idmanager ./api/sysdatastores ./api/goose` against an isolated
+PostgreSQL database. Fresh schema, legacy schema, repeated Up, Down/Up, row-lock
+cancellation, concurrent managers, and trigger-induced update rollback were tested.
+`tax` builds with `mise build-server`. ChenWeb validation is recorded in the
+[implementation plan](2026110802-devdoc-shared-id-manager-implementation.md).
+
+The module documentation and `kb.reusable_modules` row agree on ID `20261108-01`,
+version `1.0.0`. Shared guidance, LLM API comments, and affected run-ID documentation
+were updated. No dependencies changed. Historical ADR decisions retain their
+original context, with explicit notes where run-ID semantics changed.
+
+Rollback preserves counter history by renaming `next_id` back to `crt_value`
+without subtracting the conversion offset. It keeps all namespaces, including
+`global`, and retains the creator column's TEXT capacity. It refuses rollback
+while reusing sequences exist. Stop all new writers first; a later Up adds another
+safe numbering gap rather than risking reuse.
 
 ## 3. Known limitations
 
@@ -267,3 +330,4 @@ After implementation, document and catalogue the reusable module under `Knowledg
 - `last_requester` cannot identify every consumer when IDs are served from cache.
 - The module is PostgreSQL only; the old ID code's MySQL support is removed.
 - Historical LLM run-ID collisions and missing values need a separate evidence-based migration.
+- Legacy activity-log tables still define `log_id` as PostgreSQL INTEGER. The allocator supports int64, but activity-log persistence has the existing 2,147,483,647 limit; widening that table is separate work.

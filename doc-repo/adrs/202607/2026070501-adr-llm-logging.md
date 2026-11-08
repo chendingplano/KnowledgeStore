@@ -6,6 +6,14 @@
 **Authors**: Chen Ding\
 
 ## Change Logs
+
+* 2026/11/08, Numeric execution correlation now uses shared ID manager sequence
+  `llm_run_id` for search, document processing/review, scoring and question
+  generation. Allocate once at execution start; keep the same ID for embeddings,
+  provider retries, model fallbacks and tool loops. A failure keeps 0 throughout
+  that execution (the sink persists NULL). Execution-table primary keys retain
+  their own meaning. Previously unattributed entry points can still emit NULL.
+  See [Shared ID Manager](../../devdocs/202611/2026110801-devdoc-shared-id-manager.md).
 * 2026/07/05, ADR Created
 * 2026/07/05, Admin UI added — "Add a Model" button, Model Profiles page, LLM Models page
 * 2026/07/05, LLM Usage Logs admin page added — paginated `llm_usage_event` viewer with body archive decompression

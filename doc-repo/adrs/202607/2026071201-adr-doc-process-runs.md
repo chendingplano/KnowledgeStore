@@ -6,6 +6,13 @@
 **Authors:** Chen Ding \
 **Tags:** doc processor, database, schema, run tracking, logging
 
+**2026-11-08 clarification:** `kb.doc_process_runs.id` and
+`kb.doc_proc_logs.run_id` retain the local processing-run identity described here.
+LLM usage correlation now has a separate `kb.doc_process_runs.llm_run_id`,
+allocated from the shared `llm_run_id` sequence and carried across queue
+redelivery and pause/resume. See
+[Shared ID Manager](../../devdocs/202611/2026110801-devdoc-shared-id-manager.md).
+
 ---
 
 ## Change Logs
