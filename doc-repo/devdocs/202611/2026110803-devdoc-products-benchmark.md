@@ -8,17 +8,17 @@ ChenWeb pages are. Open this before you build gold products for a document, scor
 `ChenWeb/server/api/kbhandler/gold_products.go`, `ChenWeb/server/api/kbhandler/product_score_handler.go`,
 `ChenWeb/web/src/lib/components/home3/product-score-view.svelte`
 
-**Traceability — openspec** (the change is not archived yet; after archiving, these paths move
-under `openspec/changes/archive/`, and the specs move to `openspec/specs/`):
-- `ChenWeb/openspec/changes/extract-products-benchmark/proposal.md`: why this exists.
-- `ChenWeb/openspec/changes/extract-products-benchmark/design.md`: decisions D1–D7, alternatives
-  considered, risks and trade-offs.
-- `ChenWeb/openspec/changes/extract-products-benchmark/tasks.md`: the implementation log, including
-  what was not verified live.
-- `ChenWeb/openspec/changes/extract-products-benchmark/specs/product-gold-benchmark/spec.md` and
-  `.../specs/product-benchmark-scoring/spec.md`: the requirements. **If behavior changes, update
-  these spec files, not just this doc.** This doc explains the feature for people; the spec is the
-  contract.
+**Traceability — openspec** (change `extract-products-benchmark`, archived 2026-11-08):
+- `ChenWeb/openspec/changes/archive/2026-11-08-extract-products-benchmark/proposal.md`: why this
+  exists.
+- `ChenWeb/openspec/changes/archive/2026-11-08-extract-products-benchmark/design.md`: decisions
+  D1–D7, alternatives considered, risks and trade-offs.
+- `ChenWeb/openspec/changes/archive/2026-11-08-extract-products-benchmark/tasks.md`: the
+  implementation log, including what was not verified live.
+- `ChenWeb/openspec/specs/product-gold-benchmark/spec.md` and
+  `ChenWeb/openspec/specs/product-benchmark-scoring/spec.md`: the requirements. **If behavior
+  changes, update these spec files, not just this doc.** This doc explains the feature for people;
+  the spec is the contract.
 
 ## Summary
 
