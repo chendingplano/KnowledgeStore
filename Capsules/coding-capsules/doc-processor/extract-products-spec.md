@@ -915,6 +915,17 @@ was already v3, because the pin was stale. When changing a prompt version,
 update the Go default **and** the `mise.local.toml` pin, and confirm
 afterwards via `kb.products.prompt_name` on a fresh run.
 
+## Benchmark
+
+Added 2026-11-08. An independently reviewed answer key and a 1–100 score for this processor's
+output: the gold skill `.agents/skills/extract-products-benchmark` (versioned rules; one gold row
+per product-relation pair, like `kb.products`), the scorer `.agents/skills/score-extract-products`
+(soft F1 over rows plus product-detection precision/recall, the Pass 1 producthood measure), and
+System Admin › Benchmark › Products (Gold Products, Benchmark). The prompt A/B requirement in
+"Pass 1" above and the per-model re-measurement of merged-pass mode should be scored against it.
+First gold: record 416, run `20261108_110147` (188 rows, 160 products); the 2026-11-07 extraction
+scores 66. See devdoc `2026110803-devdoc-products-benchmark.md` [5].
+
 ## References
 
 [1] `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md`
@@ -924,3 +935,5 @@ afterwards via `kb.products.prompt_name` on a fresh run.
 [3] `KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-categories-spec.md`
 
 [4] `Workspace/KnowledgeStore/Capsules/coding-capsules/doc-processor/extract-products-impl.md`
+
+[5] `KnowledgeStore/doc-repo/devdocs/202611/2026110803-devdoc-products-benchmark.md`
