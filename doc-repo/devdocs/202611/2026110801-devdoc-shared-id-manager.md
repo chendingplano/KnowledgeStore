@@ -2,12 +2,14 @@
 
 **Date:** 2026-11-08 \
 **Status:** Proposed design; not implemented \
-**Scope:** Reusable ID allocation: sequences, provisioning, concurrency, caching, failure handling, and an example integration for LLM task run IDs. PostgreSQL only. \
+**Scope:** Reusable ID allocation: sequences, provisioning, concurrency, caching, failure handling, conversion of the existing `shared.id_mgr` table, and an example integration for LLM task run IDs. PostgreSQL only. \
 **Proposed code root:** `shared/go/api/idmanager/`
 
 ## 1. Summary
 
-The ID manager is a reusable shared-library module that hands out numeric IDs. IDs come from named counters, called sequences, stored in the database table `shared.id_manager`. An application chooses which sequence to draw from:
+The ID manager is a reusable shared-library module that hands out numeric IDs. IDs come from named counters, called sequences, stored in the database table `shared.id_mgr`. That table already exists. Today it only supplies activity-log IDs, through a simpler mechanism that this module replaces (section 2.9).
+
+An application chooses which sequence to draw from:
 
 - **The global sequence** (`global`) is set up by the module itself. Any application or module using the same database can draw from it, and every ID it issues is unique across all of them. IDs are issued one at a time, in increasing order.
 - **An application's own sequence** is set up by that application, with its own number range, batch size and reuse setting. Its IDs are unique only within that sequence.
@@ -16,7 +18,7 @@ To save database work, a sequence can reserve a block of IDs at once and hand th
 
 When allocation fails, the manager returns 0, which is never a valid ID, together with an error. The caller decides what to do: carry on with 0, retry, or stop.
 
-The first intended user is LLM usage logging. Today, tasks record their LLM calls under run IDs borrowed from their own tables, so different tasks can record the same run ID. With this module, every task takes its run ID from one sequence instead (section 2.8).
+The first new user is LLM usage logging. Today, tasks record their LLM calls under run IDs borrowed from their own tables, so different tasks can record the same run ID. With this module, every task takes its run ID from one sequence instead (section 2.8).
 
 Nothing described here has been built. Reconcile this document with the implementation when that work is done. There is no OpenSpec contract for the module yet.
 
@@ -34,27 +36,29 @@ Several ChenWeb tasks write their LLM calls to `public.llm_usage_event` with a `
 
 These counters are independent, so two tasks can record the same run ID. Using a table's own ID as a run ID is a historical shortcut. The tables' IDs should keep serving their own tables, and run IDs should come from one allocator. More generally, applications need one place to obtain IDs with explicit ranges and batching, rather than each creating its own counter.
 
+The shared library already has an ID table, `shared.id_mgr`, but it offers only a bare counter. It has no bounds, reuse setting, provisioning API or audit fields, and its stored value is not the next free ID (section 2.9). This module extends that table instead of adding a second one.
+
 ### 2.2 Database model
 
-The table is **`shared.id_manager`**. Like other shared-library tables, it lives in the `shared` schema of each application's own database and is reached through `ApiTypes.SharedDBHandle`. ChenWeb and tax therefore have separate counters.
+The table is **`shared.id_mgr`**. Like other shared-library tables, it lives in the `shared` schema of each application's own database and is reached through `ApiTypes.SharedDBHandle`, so ChenWeb and tax have separate counters. The design keeps the existing table and the types of its existing columns, renames two columns, and adds the rest:
 
-| Column | Proposed type and default | Meaning |
-|---|---|---|
-| `id_name` | `TEXT PRIMARY KEY` | Nonempty sequence name; identifies the namespace. |
-| `id_desc` | `TEXT NOT NULL DEFAULT ''` | Description of what the sequence identifies. |
-| `next_id` | `BIGINT NOT NULL DEFAULT 1` | First ID not yet reserved. `max_id + 1` means a non-reusing sequence is exhausted. |
-| `start_id` | `BIGINT NOT NULL DEFAULT 1` | Inclusive lower bound. |
-| `max_id` | `BIGINT NOT NULL DEFAULT 9223372036854775806` | Inclusive upper bound; at most one below the largest 64-bit value. |
-| `allocate_size` | `INTEGER NOT NULL DEFAULT 1` | Preferred number of IDs reserved on a cache refill. |
-| `allow_reuse` | `BOOLEAN NOT NULL DEFAULT FALSE` | Whether allocation may cycle back to `start_id`. |
-| `creator` | `TEXT NOT NULL` | Identity that provisioned the sequence: the manager's requester, or the migration that inserted the row. |
-| `last_requester` | `TEXT NULL` | Identity that most recently reserved a database block. |
-| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Creation time. |
-| `last_allocated_at` | `TIMESTAMPTZ NULL` | Time of the latest database reservation. |
+| Column | Type and default | Origin | Meaning |
+|---|---|---|---|
+| `id_name` | `VARCHAR(128) PRIMARY KEY` | existing | Nonempty sequence name of at most 128 characters; identifies the namespace. |
+| `id_desc` | `TEXT NOT NULL` | existing | Description of what the sequence identifies. |
+| `next_id` | `BIGINT NOT NULL` | renamed from `crt_value` | First ID not yet reserved. `max_id + 1` means a non-reusing sequence is exhausted. |
+| `start_id` | `BIGINT NOT NULL DEFAULT 1` | new | Inclusive lower bound. |
+| `max_id` | `BIGINT NOT NULL DEFAULT 9223372036854775806` | new | Inclusive upper bound; at most one below the largest 64-bit value. |
+| `allocate_size` | `INTEGER NOT NULL DEFAULT 1` | new | Preferred number of IDs reserved on a cache refill. |
+| `allow_reuse` | `BOOLEAN NOT NULL DEFAULT FALSE` | new | Whether allocation may cycle back to `start_id`. |
+| `creator` | `TEXT NOT NULL` | renamed from `caller_loc`, widened from `VARCHAR(20)` | Identity that provisioned the sequence: the manager's requester or the migration that inserted the row. Old rows hold the code location that created them. |
+| `last_requester` | `TEXT NULL` | new | Identity that most recently reserved a database block. |
+| `created_at` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | existing | Creation time. |
+| `updated_at` | `TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | existing | Time of the latest database reservation. The old code never set it, so on old rows it equals `created_at` until the first new reservation. |
 
 Enforce `start_id >= 1`, `max_id >= start_id`, `max_id <= 9223372036854775806`, `allocate_size >= 1`, `start_id <= next_id <= max_id + 1`, and `next_id <= max_id` when `allow_reuse` is true. Capping `max_id` one below the largest 64-bit value lets `max_id + 1` be stored, so no separate exhausted flag is needed and no addition in the algorithm can overflow. IDs are positive, which leaves 0 free to signal failure.
 
-Provisioning sets `next_id` to `start_id`; the independent column defaults do not do this for a custom start value. Exhaustion describes database reservations only; a process may still hand out IDs from a block it reserved earlier.
+Provisioning sets `next_id` to `start_id`. Exhaustion describes database reservations only; a process may still hand out IDs from a block it reserved earlier.
 
 Requests for unknown names return an error rather than silently creating a new namespace after a spelling mistake. Changing `id_desc` or `allocate_size` is safe at any time; a new size applies from the next refill. Changing `start_id`, `max_id` or `allow_reuse`, resetting `next_id`, or deleting a sequence is unsafe while any process may hold a reserved block, and is outside the API.
 
@@ -63,7 +67,7 @@ Requests for unknown names return an error rather than silently creating a new n
 | Choice | Use when | What you get |
 |---|---|---|
 | `global` | IDs must be unique across the modules and applications sharing the database, and no special range is needed. | Provisioned by the module's migration with `start_id=1`, `allocate_size=1` and `allow_reuse=false`. IDs are issued one at a time in increasing order, with gaps only after failures. Each ID costs one database transaction. |
-| Application sequence | The application wants its own numbering: a start value, an upper bound, batching to reduce database writes, or reuse within a finite range. | Provisioned by the application through `Provision` (section 2.4). IDs are unique only within that sequence. |
+| Application sequence | The application wants its own numbering: a start value, an upper bound, batching to reduce database writes, or reuse within a finite range. | Provisioned by the application through `Provision` (section 2.4). IDs are unique only within that sequence. Examples: `activity_log_id` (section 2.9) and `llm_task_run` (section 2.8). |
 
 A native PostgreSQL sequence also produces unique numbers. The ID manager adds named provisioning with descriptions and audit fields, contiguous batches (`Generate`), application-side caching, an explicit failure value, and one Go API across applications.
 
@@ -116,7 +120,7 @@ For a request of `N` IDs:
    - For a reusing sequence, return an error without updating the row if `N` exceeds the whole range (`max_id − start_id + 1`). Otherwise wrap (section 2.6): set `V = start_id` and `C` to the whole range.
 5. Reserve `M = min(max(allocate_size, N), C)` IDs, from `V` through `V + M − 1`.
 6. Set `next_id` to `V + M`. For a reusing sequence whose block ends at `max_id`, set it to `start_id` instead. For a non-reusing sequence, `V + M = max_id + 1` marks exhaustion.
-7. Update `last_requester` and `last_allocated_at` in the same transaction, then commit.
+7. Update `last_requester` and `updated_at` in the same transaction, then commit.
 8. Only after a successful commit, replace any old insufficient cache: return the first `N` reserved IDs and cache the remaining `M − N`. The old remainder is abandoned and, for a non-reusing sequence, never reclaimed.
 9. Release the lock on every exit path.
 
@@ -140,7 +144,7 @@ The row lock prevents overlapping reservations across processes. The per-sequenc
 
 If reuse is enabled and fewer than `N` IDs remain before the upper bound, allocation wraps to `start_id` under the row lock and abandons that tail. A batch never crosses the wrap boundary. A request larger than the whole configured range returns an error without changing the counter. Reuse therefore provides neither historical uniqueness nor uniqueness among outstanding IDs.
 
-The `global` and `llm_task_run` sequences must always have `allow_reuse=false`.
+The `global`, `activity_log_id` and `llm_task_run` sequences must always have `allow_reuse=false`.
 
 ### 2.7 Guarantees and limits
 
@@ -153,7 +157,7 @@ The `global` and `llm_task_run` sequences must always have `allow_reuse=false`.
 | Ordering | Numbers increase within each reserved block. With `allocate_size=1`, as for `global`, IDs increase in reservation order. The order in which callers in different processes receive IDs is not guaranteed. |
 | Numbering gaps | Expected after crashes, abandoned remainders, failed delivery, and uncertain commits. |
 | Cross-sequence uniqueness | Not provided. Two names can both issue ID 1. |
-| Cross-database uniqueness | Not provided. Each application database has its own `shared.id_manager`. |
+| Cross-database uniqueness | Not provided. Each application database has its own `shared.id_mgr`. |
 | Audit precision | `last_requester` tracks database reservations, not every cache-served request. |
 
 Uniqueness also depends on preserving counter history during database administration. Restoring an older database snapshot while newer IDs remain in external records requires recovery coordination before allocation resumes.
@@ -179,15 +183,57 @@ Switching ChenWeb over touches more than the three writers listed in section 2.1
 
 At cutover, stop the old writers, provision `llm_task_run` above the highest historical run ID, and switch every writer before traffic resumes. Keep ambiguous historical run IDs as legacy data; this module cannot tell which task an old collided or missing value belonged to.
 
-### 2.9 Existing ID table `shared.id_mgr` (open question)
+### 2.9 Moving from the current `shared.id_mgr`
 
-The shared library already has a simpler ID table in the same schema, `shared.id_mgr` (its name comes from `table_name_id_mgr` in `shared/libconfig.toml`). It is created by `sysdatastores.CreateSysTables`, not by a Goose migration. It stores one counter per name and reserves blocks with a single `UPDATE ... RETURNING`: see `NextIDBlock` in `shared/go/api/sysdatastores/table-idmgr.go` and `InMemStore.NextIDBlock` in `shared/go/api/stores/mem-store.go`. It serves activity-log IDs (`activity_log_id`, in blocks of 1000) and the in-memory stores. It has no bounds, reuse setting, provisioning API or audit fields, and it also supports MySQL.
+**Current users.** All code that uses the table is in the shared library; ChenWeb and tax never reference it directly.
 
-Undecided: whether the new module replaces `id_mgr` or the two coexist. Replacing it would move both callers onto `shared.id_manager`, start each sequence above its old counter, and then retire the old table. The recommendation is to replace it, because two ID tables with nearly identical names in one schema invite the wrong choice. Moving the callers is separate work from building the module.
+| Code | Callers | Status |
+|---|---|---|
+| `sysdatastores.NextActivityLogID`, which reserves blocks of 1000 under `activity_log_id` through `NextIDBlock` (`shared/go/api/sysdatastores/table-idmgr.go`) | 38 call sites in `auth/email.go`, `auth/github.go`, `RequestHandlers` and `EchoFactory`. Started by `libmanager.InitLib`, which only ChenWeb `deepdoc` and tax `mirai` call. | The only live user |
+| `InMemStore.NextManagedID`, with keys from `[system_ids]` in `shared/libconfig.toml` (`shared/go/api/stores/mem-store.go`) | None | Unused. Its `prompt_store_id` row does not exist in either database, and `InMemStore` does nothing else. |
+| `sysdatastores.AddOneID` | None | Unused |
+| `sysdatastores.UpsertActivityLogIDDef` | `libmanager.InitLib` | Creates the `activity_log_id` row |
+
+Current rows, as of 2026-11-08:
+
+| Database | `activity_log_id` `crt_value` | Highest activity-log ID issued |
+|---|---|---|
+| ChenWeb (`miner`) | 43000 | 42999 |
+| tax | 14000 | 14001 |
+
+**The stored value is not the next free ID.** The old code reserves a block with `UPDATE ... SET crt_value = crt_value + n RETURNING crt_value`, which returns the counter after adding `n`. The activity log then issues IDs from that value minus 1 through that value plus 998, and `InMemStore` would have issued that value through that value plus 999. tax already holds ID 14001, above its stored 14000. Converting the column must therefore set `next_id = crt_value + 1000`; using `crt_value` unchanged would issue duplicate IDs. Both old code paths reserve 1000 at a time, and only `activity_log_id` rows exist today.
+
+**Migration.** One shared Goose migration in `shared/go/api/goose/shared_migrations/` converts the table. It must work whichever runs first, the migration or `CreateSysTables`, because both orders happen today: several ChenWeb programs (doc-service, doc-processor and others) run shared migrations without calling `CreateSysTables`, and `deepdoc` and `mirai` call `CreateSysTables` only when `NeedCreateTables()` is true. The migration:
+
+1. Creates `shared.id_mgr` in the new shape if it does not exist.
+2. If the table still has the old shape (a `crt_value` column), converts it in a conditional `DO` block:
+   - rename `crt_value` to `next_id` and add 1000 to every row;
+   - rename `caller_loc` to `creator` and widen it to `TEXT`;
+   - add the new columns;
+   - set `allocate_size = 1000` for `activity_log_id`.
+3. Adds the constraints from section 2.2.
+4. Inserts the `global` row if it is missing.
+
+The migration names `shared.id_mgr` directly; the table name is no longer configurable.
+
+**Shared-library code changes**, made in the same change as the module:
+
+- `CreateSysTables` stops creating `id_mgr`, so the migration is the only definition of the table.
+- `NextActivityLogID` keeps its signature, so its 38 call sites do not change, but takes IDs from the module's `activity_log_id` sequence. `libmanager.InitLib` provisions that sequence with `Provision` (`AllocateSize` 1000) instead of calling `UpsertActivityLogIDDef`.
+- Code with no remaining callers in shared, ChenWeb or tax is removed:
+  - `sysdatastores`: `NextIDBlock`, `AddOneID`, `UpsertActivityLogIDDef`, `CreateIDMgrTable` and `IDMgrDef`;
+  - `InMemStore` as a whole (`shared/go/api/stores/mem-store.go`), with its start and stop calls in `InitSharedStores` and `libmanager`;
+  - `ApiTypes`: `IDMgrDef`, `IDRecordDef`, `SystemIDs`, `IDStartValue`, `IDIncValue`, `TableNameIDMgr` and `GetIDMgrTableName`;
+  - the `id_start_value`, `id_inc_value`, `table_name_id_mgr` and `[system_ids]` settings in `shared/libconfig.toml`.
+- The old code's MySQL branches go with it. Both applications use PostgreSQL.
+
+**Deployment.** Once the migration has run, a `deepdoc` or `mirai` built before the change can no longer get activity-log IDs, because it still queries `crt_value`. In each environment, deploy the new builds of those two programs at the same time as the migration. Any of the application's programs may be the one that runs it at startup.
+
+**Leftovers in tax.** The tax database also has `public.id_mgr` (counter 67000) and `public.activity_log`, left from before the `shared` schema existed. No code reads them, and the last write was on 2026-03-23. The migration does not touch them. Because `shared.activity_log` restarted at 10999, activity-log IDs overlap between the two tables. Dropping the old tables is a separate decision.
 
 ### 2.10 Implementation and validation work
 
-Create the table, and insert the `global` row, in a migration under `shared/go/api/goose/shared_migrations/`; applications apply these at startup through `goose.RunSharedMigrations`. Use the centralized database pool and `loggerutil.CreateDefaultLogger` with a unique location. Log provisioning, reservations, exhaustion and failures with sequence and requester identities; do not log every cache hit.
+Create and convert the table in the shared migration described in section 2.9; applications apply shared migrations at startup through `goose.RunSharedMigrations`. Use the centralized database pool and `loggerutil.CreateDefaultLogger` with a unique location. Log provisioning, reservations, exhaustion and failures with sequence and requester identities; do not log every cache hit.
 
 Validation should include actual PostgreSQL transactions with independent connections and managers, as well as Go race checks. Cover:
 
@@ -197,7 +243,9 @@ Validation should include actual PostgreSQL transactions with independent connec
 - transaction rollback and uncertain commit handling;
 - final-ID exhaustion and cycling behavior;
 - provisioning that is repeated with the same settings, or conflicts with existing settings;
-- the failure values `0` and `Range{}`, always with an error.
+- the failure values `0` and `Range{}`, always with an error;
+- the migration on a fresh database, on the old shape (`next_id = crt_value + 1000`), and after `CreateSysTables` created the old shape;
+- activity-log IDs after the switch, which must be above every ID issued before it.
 
 Verify that a failed refill does not publish a new block. LLM integration tests must separately cover:
 
@@ -206,7 +254,7 @@ Verify that a failed refill does not publish a new block. LLM integration tests 
 - continuing with run ID 0 when allocation fails;
 - the peak-waiting filter and alarm de-duplication after the switch.
 
-After implementation, document and catalogue the reusable module under `KnowledgeStore/doc-repo/modules/` and `kb.reusable_modules`. Update the affected document-processing run-ID documentation, shared LLM API documentation, and task propagation tests. Run shared-library tests, synchronize the Go workspace if dependencies change, and verify dependent applications build. This design document adds no implementation or test results.
+After implementation, document and catalogue the reusable module under `KnowledgeStore/doc-repo/modules/` and `kb.reusable_modules`. Update the affected document-processing run-ID documentation, shared LLM API documentation, and task propagation tests. Update `shared/CLAUDE.md`, which documents the removed `libconfig.toml` settings. Run shared-library tests, synchronize the Go workspace if dependencies change, and verify that ChenWeb and tax build. This design document adds no implementation or test results.
 
 ## 3. Known limitations
 
@@ -217,4 +265,5 @@ After implementation, document and catalogue the reusable module under `Knowledg
 - A failed allocation returns 0. Callers that continue with it accept records without a usable ID.
 - Reuse intentionally allows duplicates and is unsuitable for trace-like identifiers.
 - `last_requester` cannot identify every consumer when IDs are served from cache.
+- The module is PostgreSQL only; the old ID code's MySQL support is removed.
 - Historical LLM run-ID collisions and missing values need a separate evidence-based migration.
