@@ -170,8 +170,10 @@ writers use sequence **`llm_run_id`**. Activity logs independently use
 
 The migrated callers are search (including benchmark searches), document
 processing, document review, metric/reference/provision scoring, summary scoring,
-and question generation. Endpoints that previously supplied no run ID still
-emit unattributed usage; this cutover removes the independent numeric sources.
+and question generation. This cutover removes the independent numeric sources;
+other endpoints that do not provide a run ID continue to emit unattributed usage.
+Provider balance reads (`LLM_BALANCE_001`) also allocate one `llm_run_id` per
+fetch and attach it to the usage event.
 
 `server/api/llmrun` shares an ID manager per database pool. Search takes one ID
 for its context. Other executions store the decision in `llm_run_id` on:
