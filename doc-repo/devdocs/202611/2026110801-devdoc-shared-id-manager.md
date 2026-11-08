@@ -2,92 +2,125 @@
 
 **Date:** 2026-11-08 \
 **Status:** Proposed design; not implemented \
-**Scope:** Reusable ID allocation, concurrency, caching, and integration with LLM task run IDs. \
+**Scope:** Reusable ID allocation: sequences, provisioning, concurrency, caching, failure handling, and an example integration for LLM task run IDs. PostgreSQL only. \
 **Proposed code root:** `shared/go/api/idmanager/`
 
-## Summary
+## 1. Summary
 
-The proposed ID manager gives applications one place to obtain numeric IDs. Each named sequence has its own counter in `shared.id_manager`. An application can reserve several IDs at once and serve later requests from memory, reducing database traffic. Applications using the same sequence in the same database receive distinct IDs when reuse is disabled.
+The ID manager is a reusable shared-library module that hands out numeric IDs. IDs come from named counters, called sequences, stored in the database table `shared.id_manager`. An application chooses which sequence to draw from:
 
-For LLM usage logging, every task type will use one sequence, `llm_task_run`. Each task execution obtains an ID once and carries it through all of its LLM calls. This addresses collisions between independent task counters. Task entry points and workers must also propagate the ID consistently to address missing run IDs.
+- **The global sequence** (`global`) is set up by the module itself. Any application or module using the same database can draw from it, and every ID it issues is unique across all of them. IDs are issued one at a time, in increasing order.
+- **An application's own sequence** is set up by that application, with its own number range, batch size and reuse setting. Its IDs are unique only within that sequence.
 
-Caching permits gaps and IDs can be returned out of numerical order across processes. Restarting a process abandons its unused reservations; those IDs are never reclaimed when reuse is disabled.
+To save database work, a sequence can reserve a block of IDs at once and hand them out from memory. The cost is that IDs left in a block are skipped when a process restarts, so numbers can have gaps and, across processes, can be handed out slightly out of order.
 
-This document records the reviewed proposal, including recommended amendments. No allocator API, migration, or application integration described here has shipped. It should be reconciled with the implementation when that work is completed. There is no dedicated OpenSpec contract for this module at the time of writing.
+When allocation fails, the manager returns 0, which is never a valid ID, together with an error. The caller decides what to do: carry on with 0, retry, or stop.
 
-## Details
+The first intended user is LLM usage logging. Today, tasks record their LLM calls under run IDs borrowed from their own tables, so different tasks can record the same run ID. With this module, every task takes its run ID from one sequence instead (section 2.8).
 
-### Motivation and existing behavior
+Nothing described here has been built. Reconcile this document with the implementation when that work is done. There is no OpenSpec contract for the module yet.
 
-Search currently allocates usage-log run IDs from `kb.search_run_id_seq` in `ChenWeb/server/api/kbhandler/search_run.go`. Document processing uses `kb.doc_process_runs.id` through `withRunID` in `ChenWeb/server/api/doc-processing/control.go`. Independent sources can issue the same number, even though both numbers are written to `public.llm_usage_event.run_id`.
+## 2. Details
 
-Search continues with zero if allocation fails. Document processing also continues if its run record cannot be created. `ChenWeb/server/api/llmusage/sink.go` stores nonpositive run IDs as NULL. A reusable allocator alone does not change these behaviors; application integration is a separate part of the fix.
+### 2.1 Motivation
 
-### Database model
+Several ChenWeb tasks write their LLM calls to `public.llm_usage_event` with a `run_id`, but each task takes that number from its own source:
 
-All reads and updates target **`shared.id_manager`**. The reference to `public.id_manager` in the original allocation algorithm is a naming error.
+| Task | Source of `run_id` | Where |
+|---|---|---|
+| Search | sequence `kb.search_run_id_seq` | `ChenWeb/server/api/kbhandler/search_run.go` |
+| Document processing | `kb.doc_process_runs.id`, via `withRunID` | `ChenWeb/server/api/doc-processing/control.go` |
+| Document review | `kb.doc_review_runs.id`, via `withLLMRunID` | `ChenWeb/server/api/doc-reviews/review-document.go` |
+
+These counters are independent, so two tasks can record the same run ID. Using a table's own ID as a run ID is a historical shortcut. The tables' IDs should keep serving their own tables, and run IDs should come from one allocator. More generally, applications need one place to obtain IDs with explicit ranges and batching, rather than each creating its own counter.
+
+### 2.2 Database model
+
+The table is **`shared.id_manager`**. Like other shared-library tables, it lives in the `shared` schema of each application's own database and is reached through `ApiTypes.SharedDBHandle`. ChenWeb and tax therefore have separate counters.
 
 | Column | Proposed type and default | Meaning |
 |---|---|---|
 | `id_name` | `TEXT PRIMARY KEY` | Nonempty sequence name; identifies the namespace. |
 | `id_desc` | `TEXT NOT NULL DEFAULT ''` | Description of what the sequence identifies. |
-| `next_id` | `BIGINT NOT NULL DEFAULT 1` | First ID not yet reserved, except when exhausted. |
+| `next_id` | `BIGINT NOT NULL DEFAULT 1` | First ID not yet reserved. `max_id + 1` means a non-reusing sequence is exhausted. |
 | `start_id` | `BIGINT NOT NULL DEFAULT 1` | Inclusive lower bound. |
-| `max_id` | `BIGINT NOT NULL DEFAULT 9223372036854775807` | Inclusive upper bound. |
+| `max_id` | `BIGINT NOT NULL DEFAULT 9223372036854775806` | Inclusive upper bound; at most one below the largest 64-bit value. |
 | `allocate_size` | `INTEGER NOT NULL DEFAULT 1` | Preferred number of IDs reserved on a cache refill. |
 | `allow_reuse` | `BOOLEAN NOT NULL DEFAULT FALSE` | Whether allocation may cycle back to `start_id`. |
-| `creator` | `TEXT NOT NULL` | Identity that provisioned the sequence. |
+| `creator` | `TEXT NOT NULL` | Identity that provisioned the sequence: the manager's requester, or the migration that inserted the row. |
 | `last_requester` | `TEXT NULL` | Identity that most recently reserved a database block. |
-| `exhausted` | `BOOLEAN NOT NULL DEFAULT FALSE` | Whether the final ID has been reserved without reuse. |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Creation time. |
 | `last_allocated_at` | `TIMESTAMPTZ NULL` | Time of the latest database reservation. |
 
-The last three fields are recommended additions to the requested schema. `exhausted` allows issuing `int64_max` without storing the unrepresentable value `int64_max + 1`.
+Enforce `start_id >= 1`, `max_id >= start_id`, `max_id <= 9223372036854775806`, `allocate_size >= 1`, `start_id <= next_id <= max_id + 1`, and `next_id <= max_id` when `allow_reuse` is true. Capping `max_id` one below the largest 64-bit value lets `max_id + 1` be stored, so no separate exhausted flag is needed and no addition in the algorithm can overflow. IDs are positive, which leaves 0 free to signal failure.
 
-Enforce `start_id >= 1`, `max_id >= start_id`, `allocate_size >= 1`, and `start_id <= next_id <= max_id`. IDs are positive. Sequence provisioning initializes `next_id` to `start_id` explicitly; the independent column defaults do not do this for a custom start value.
+Provisioning sets `next_id` to `start_id`; the independent column defaults do not do this for a custom start value. Exhaustion describes database reservations only; a process may still hand out IDs from a block it reserved earlier.
 
-When `exhausted=true`, `next_id` remains at `max_id` and cannot be allocated again from the database. An exhausted sequence must have `allow_reuse=false`. Exhaustion describes database reservations; a process may still return IDs from an earlier reservation.
+Requests for unknown names return an error rather than silently creating a new namespace after a spelling mistake. Changing `id_desc` or `allocate_size` is safe at any time; a new size applies from the next refill. Changing `start_id`, `max_id` or `allow_reuse`, resetting `next_id`, or deleting a sequence is unsafe while any process may hold a reserved block, and is outside the API.
 
-Provision sequences explicitly. Requests for unknown names return an error rather than silently creating a new namespace after a spelling mistake. Sequence deletion, counter resets, and allocation-setting changes after first use are outside the normal API. In particular, live processes may retain reservations that make a reset unsafe.
+### 2.3 Choosing a sequence
 
-### Proposed Go interface
+| Choice | Use when | What you get |
+|---|---|---|
+| `global` | IDs must be unique across the modules and applications sharing the database, and no special range is needed. | Provisioned by the module's migration with `start_id=1`, `allocate_size=1` and `allow_reuse=false`. IDs are issued one at a time in increasing order, with gaps only after failures. Each ID costs one database transaction. |
+| Application sequence | The application wants its own numbering: a start value, an upper bound, batching to reduce database writes, or reuse within a finite range. | Provisioned by the application through `Provision` (section 2.4). IDs are unique only within that sequence. |
+
+A native PostgreSQL sequence also produces unique numbers. The ID manager adds named provisioning with descriptions and audit fields, contiguous batches (`Generate`), application-side caching, an explicit failure value, and one Go API across applications.
+
+### 2.4 Proposed Go interface
 
 The following signatures describe the intended interface, not existing symbols:
 
 ```go
+const GlobalSequence = "global"
+
 type Range struct {
     FirstID int64
     NumIDs  int64
 }
 
+type Sequence struct {
+    Name         string // id_name
+    Desc         string // id_desc
+    StartID      int64  // 0 means 1
+    MaxID        int64  // 0 means the column default
+    AllocateSize int    // 0 means 1
+    AllowReuse   bool
+}
+
 func New(db *sql.DB, requester string) (*Manager, error)
+func (m *Manager) Provision(ctx context.Context, seq Sequence) error
 func (m *Manager) Next(ctx context.Context, idName string) (int64, error)
 func (m *Manager) Generate(ctx context.Context, idName string, numIDs int64) (Range, error)
 ```
 
-`Next` is the convenience API for the default count of one; Go has no default arguments. `Generate` requires a positive count and returns exactly that many contiguous IDs. For example, `{FirstID: 101, NumIDs: 3}` represents 101, 102, and 103. It never returns partial results.
+`New` takes an existing centralized pool, normally `ApiTypes.SharedDBHandle`, and does not open its own. Create one manager per process and share it: each manager keeps its own cache, so extra managers abandon more IDs on restart. `requester` identifies the application or worker reserving blocks, for example `chenweb-api@<host>:<pid>`. It is recorded in `last_requester`, and in `creator` for sequences this manager provisions. End-user attribution belongs on task and usage records, not here.
 
-The manager receives an existing centralized database pool and does not open its own connection pool. The trusted requester identity identifies the application or worker reserving blocks. End-user attribution belongs on task and usage records. `creator` is supplied when provisioning the sequence and is not overwritten by allocation.
+`Provision` creates a sequence if it does not exist, with `next_id` set to its start and `creator` set to the requester. If the sequence exists with the same `StartID`, `MaxID` and `AllowReuse`, it changes nothing and returns nil, so an application can call it at every startup. If those settings differ, it returns an error and changes nothing. It never alters `id_desc` or `allocate_size` of an existing sequence.
 
-Errors distinguish invalid input, unknown sequence, exhausted or insufficient range, and database failures. No allocation failure returns zero as a successful ID.
+`Next` returns one ID; Go has no default arguments, so it is the convenience form of `Generate` with a count of one. `Generate` requires a positive count and returns exactly that many contiguous IDs. For example, `{FirstID: 101, NumIDs: 3}` represents 101, 102 and 103. It never returns a partial result.
 
-### Reservation and cache algorithm
+**Failure.** On any failure, `Next` returns `0` and `Generate` returns `Range{}` (first ID 0, count 0), each with a non-nil error. Zero is never a valid ID. The manager logs the failure; the caller decides whether to continue with 0, retry, or stop. Errors distinguish invalid input, unknown sequence, provisioning conflict, exhausted or insufficient range, cancellation, and database failure, and can be tested with `errors.Is`.
 
-Each manager owns a cache scoped to its database. Each sequence entry stores a next cached ID and remaining count, protected by a mutex. The mutex covers both consumption and refill. Different sequence names can proceed independently.
+### 2.5 Reservation and cache algorithm
+
+For each sequence, a manager keeps a next cached ID and a remaining count, guarded by a per-sequence lock that covers both handing out cached IDs and refilling. Different sequences proceed independently. A caller waiting for the lock must be able to give up when its context is cancelled. Go's `sync.Mutex` cannot do this, so use a cancellable lock such as a one-slot channel.
 
 For a request of `N` IDs:
 
-1. Validate the name and positive count, then acquire the sequence mutex. Respect cancellation while waiting or performing database work.
-2. If at least `N` cached IDs remain, return that contiguous range and reduce the remaining count. Advance the cached cursor only if IDs remain, avoiding overflow when consuming the final possible ID.
-3. Otherwise begin a database transaction and read the sequence row with `SELECT ... FOR UPDATE`. A transaction without a row lock is insufficient: concurrent processes could otherwise read the same counter.
-4. Let `V` be the row's `next_id`. Check exhaustion and available capacity before computing any potentially overflowing addition. For a non-reusing sequence, fewer than `N` available IDs produces an error and no counter update.
-5. Set the reservation size to `M = min(max(allocate_size, N), available capacity)`. Reserve the inclusive range beginning at `V` with length `M`.
-6. If the reservation ends below `max_id`, store the following ID as `next_id`. If it ends at `max_id`, set `exhausted=true` for a non-reusing sequence. A reusing sequence instead sets its next counter to `start_id`.
+1. Validate the name and that `N` is positive, then acquire the sequence lock, giving up if the context is cancelled.
+2. If at least `N` cached IDs remain, return them as one contiguous range, advance the cursor by `N`, and reduce the remaining count.
+3. Otherwise begin a database transaction and read the sequence row with `SELECT ... FOR UPDATE`. A transaction without the row lock is insufficient: concurrent processes could otherwise read the same counter.
+4. Let `V` be the row's `next_id` and `C = max_id − V + 1` the IDs left before the upper bound (0 when exhausted). If `C < N`:
+   - For a non-reusing sequence, return an insufficient-range error without updating the row.
+   - For a reusing sequence, return an error without updating the row if `N` exceeds the whole range (`max_id − start_id + 1`). Otherwise wrap (section 2.6): set `V = start_id` and `C` to the whole range.
+5. Reserve `M = min(max(allocate_size, N), C)` IDs, from `V` through `V + M − 1`.
+6. Set `next_id` to `V + M`. For a reusing sequence whose block ends at `max_id`, set it to `start_id` instead. For a non-reusing sequence, `V + M = max_id + 1` marks exhaustion.
 7. Update `last_requester` and `last_allocated_at` in the same transaction, then commit.
-8. Only after successful commit, replace any old insufficient cached remainder. Return the first `N` reserved IDs and cache the remaining `M-N` IDs. An abandoned old remainder is never reclaimed for a non-reusing sequence.
-9. Release the mutex on every exit path.
+8. Only after a successful commit, replace any old insufficient cache: return the first `N` reserved IDs and cache the remaining `M − N`. The old remainder is abandoned and, for a non-reusing sequence, never reclaimed.
+9. Release the lock on every exit path.
 
-If refill fails, no IDs from that attempted reservation are returned or cached. An existing insufficient cache can remain available for a later smaller request. If commit success is uncertain, discard the attempted reservation; allowing a gap is safer than issuing IDs whose reservation is unconfirmed.
+If a refill fails, nothing from the attempted reservation is returned or cached, and the call returns `0` or `Range{}` with an error. An existing insufficient cache stays available for a later, smaller request. If it is uncertain whether the commit succeeded, discard the reservation; a gap is safer than issuing IDs whose reservation is unconfirmed.
 
 Example with `allocate_size=5`:
 
@@ -99,56 +132,89 @@ Generate(...,2)  -> reserves 6–10; returns 6–7; caches 8–10
                    old cached ID 5 is abandoned
 ```
 
-The database lock prevents overlapping reservations across processes. The local mutex prevents duplicate consumption within a manager. Multiple managers using the same database remain safe because each obtains its own committed, disjoint blocks.
+The row lock prevents overlapping reservations across processes. The per-sequence lock prevents a manager from handing out the same cached ID twice. Separate managers on the same database are safe because each obtains its own committed, disjoint blocks.
 
-### Reuse policy
+### 2.6 Reuse policy
 
 `allow_reuse=true` means cycling through a finite range. It deliberately permits returning numbers that were issued previously. It does not establish that old references have been deleted or that other processes have finished consuming older blocks.
 
 If reuse is enabled and fewer than `N` IDs remain before the upper bound, allocation wraps to `start_id` under the row lock and abandons that tail. A batch never crosses the wrap boundary. A request larger than the whole configured range returns an error without changing the counter. Reuse therefore provides neither historical uniqueness nor uniqueness among outstanding IDs.
 
-The `llm_task_run` sequence must always have `allow_reuse=false`.
+The `global` and `llm_task_run` sequences must always have `allow_reuse=false`.
 
-### Guarantees and limits
+### 2.7 Guarantees and limits
 
 | Property | Contract |
 |---|---|
-| Uniqueness | Within one sequence in one backing database, with reuse disabled and no counter reset. |
-| Batch result | Exactly the requested number of contiguous IDs, or an error. |
+| Uniqueness | Within one sequence in one database, with reuse disabled and no counter reset. `global` is one sequence, so its IDs are unique across all its users. |
+| Batch result | Exactly the requested number of contiguous IDs, or a failure. |
+| Failure result | `0` from `Next`, `Range{}` from `Generate`, always with an error. Zero is never a valid ID. |
 | Restart behavior | Unused cached reservations are lost and never reclaimed when reuse is disabled. |
-| Ordering | Numbers increase within each reserved block; return-time ordering across managers is not guaranteed. |
+| Ordering | Numbers increase within each reserved block. With `allocate_size=1`, as for `global`, IDs increase in reservation order. The order in which callers in different processes receive IDs is not guaranteed. |
 | Numbering gaps | Expected after crashes, abandoned remainders, failed delivery, and uncertain commits. |
 | Cross-sequence uniqueness | Not provided. Two names can both issue ID 1. |
-| Cross-database uniqueness | Not provided. Installing the same module in separate databases does not share counters. |
+| Cross-database uniqueness | Not provided. Each application database has its own `shared.id_manager`. |
 | Audit precision | `last_requester` tracks database reservations, not every cache-served request. |
 
 Uniqueness also depends on preserving counter history during database administration. Restoring an older database snapshot while newer IDs remain in external records requires recovery coordination before allocation resumes.
 
-### LLM task integration
+### 2.8 Example: LLM task run IDs
 
-All LLM-producing task types sharing the usage-event namespace must request `llm_task_run` from the same backing database. Names such as separate search and document-processing sequences would preserve the existing collision problem.
+Every LLM call is logged in `public.llm_usage_event`. Its `run_id` groups the calls of one task execution: calls from the same execution share a run ID, and different executions have different run IDs. Under this design every task takes its run ID from one sequence, `llm_task_run`, instead of from its own table. The tables' own IDs (`kb.doc_process_runs.id`, `kb.doc_review_runs.id`) keep their meaning in those tables but are no longer written as run IDs.
 
-Allocate once when creating an execution, persist the ID with that execution, and carry it through contexts and queued messages. Parallel calls, embeddings, model fallbacks, provider retries, and tool loops within the execution retain the ID. Queue redelivery and pause/resume recover the persisted ID. A new execution, including a user-requested rerun, receives a new ID.
+How a task uses the module:
 
-Keep existing domain IDs, such as `kb.doc_process_runs.id`, for their existing relationships. Map them explicitly to the canonical usage run ID rather than silently changing the meaning of existing foreign keys and context values.
+- Call `Next(ctx, "llm_task_run")` once when an execution starts. Carry the ID in the context and in queued messages, and use it for every LLM call in the execution, including parallel calls, embeddings, model fallbacks, provider retries and tool loops.
+- Store the ID on the execution's own record, for example in a new column on `kb.doc_process_runs`. Queue redelivery and pause/resume then reuse it, and pages can find an execution's LLM calls. A new execution, including a user-requested rerun, gets a new ID.
+- If allocation fails, log it and continue with run ID 0; `ChenWeb/server/api/llmusage/sink.go` stores a run ID of 0 as NULL. The LLM call itself is not failed. Do not retry allocation partway through an execution, because calls before and after the retry would carry different run IDs.
 
-Task startup must fail with a logged error when allocation fails. Shared LLM entry points must validate that a canonical run ID exists before making a provider request and reject conflicting identities. These integration requirements are separate from implementing the generic allocator.
+`llm_task_run` is an application sequence. ChenWeb provisions it in a migration so that it can start above the largest historical `llm_usage_event.run_id`.
 
-At cutover, quiesce old writers and initialize the new sequence above the highest historical usage-event run ID. All writers must switch to the canonical allocator before traffic resumes. Preserve ambiguous historical IDs as legacy data; this module cannot infer which task an old collided or missing value belonged to.
+Switching ChenWeb over touches more than the three writers listed in section 2.1:
 
-### Implementation and validation work
+- Peak-hours hold events take their run ID from the document-processing context (`ChenWeb/server/api/doc-processing/task_engine_policy.go`) and must take the new run ID.
+- The "peak waiting" filter in `ChenWeb/server/api/kbhandler/handler.go` matches hold events to `kb.doc_process_runs.id` through `run_id`. It must match through the stored run ID instead.
+- `alarms_errors` de-duplicates on `(run_id, kind)`. Routing alarms write `kb.doc_process_runs.id` and the usage sink writes the usage run ID, both with kind `missing_user_id`. After the switch these are different ID spaces in one index, so the two alarm sources must use the same run ID or distinct kinds.
+- The LLM usage logs page filters by `run_id`. Operators who paste a document-processing run ID there will need the stored run ID instead.
 
-Implement the schema through the shared Goose migration track and the workspace's startup migration path. Use the existing centralized database pool and `loggerutil.CreateDefaultLogger` with a unique location. Log provisioning, reservations, exhaustion, and database failures with sequence and requester identities; do not add a log entry for every cache hit.
+At cutover, stop the old writers, provision `llm_task_run` above the highest historical run ID, and switch every writer before traffic resumes. Keep ambiguous historical run IDs as legacy data; this module cannot tell which task an old collided or missing value belonged to.
 
-Validation should include actual PostgreSQL transactions with independent connections and managers, as well as Go race checks. Cover concurrent allocation, cache refill and consumption, different names, batches larger than the allocation size, insufficient cache tails, restart gaps, cancellation, transaction rollback, uncertain commit handling, final-ID exhaustion, and cycling behavior. Verify that a failed refill does not publish a new block. LLM integration tests must separately cover shared identity across calls, reruns, queue redelivery, and prevention of calls with missing IDs.
+### 2.9 Existing ID table `shared.id_mgr` (open question)
+
+The shared library already has a simpler ID table in the same schema, `shared.id_mgr` (its name comes from `table_name_id_mgr` in `shared/libconfig.toml`). It is created by `sysdatastores.CreateSysTables`, not by a Goose migration. It stores one counter per name and reserves blocks with a single `UPDATE ... RETURNING`: see `NextIDBlock` in `shared/go/api/sysdatastores/table-idmgr.go` and `InMemStore.NextIDBlock` in `shared/go/api/stores/mem-store.go`. It serves activity-log IDs (`activity_log_id`, in blocks of 1000) and the in-memory stores. It has no bounds, reuse setting, provisioning API or audit fields, and it also supports MySQL.
+
+Undecided: whether the new module replaces `id_mgr` or the two coexist. Replacing it would move both callers onto `shared.id_manager`, start each sequence above its old counter, and then retire the old table. The recommendation is to replace it, because two ID tables with nearly identical names in one schema invite the wrong choice. Moving the callers is separate work from building the module.
+
+### 2.10 Implementation and validation work
+
+Create the table, and insert the `global` row, in a migration under `shared/go/api/goose/shared_migrations/`; applications apply these at startup through `goose.RunSharedMigrations`. Use the centralized database pool and `loggerutil.CreateDefaultLogger` with a unique location. Log provisioning, reservations, exhaustion and failures with sequence and requester identities; do not log every cache hit.
+
+Validation should include actual PostgreSQL transactions with independent connections and managers, as well as Go race checks. Cover:
+
+- concurrent allocation, cache refill and consumption, and different names;
+- batches larger than the allocation size, insufficient cache tails, and restart gaps;
+- cancellation while waiting for the lock and during database work;
+- transaction rollback and uncertain commit handling;
+- final-ID exhaustion and cycling behavior;
+- provisioning that is repeated with the same settings, or conflicts with existing settings;
+- the failure values `0` and `Range{}`, always with an error.
+
+Verify that a failed refill does not publish a new block. LLM integration tests must separately cover:
+
+- a shared run ID across an execution's calls;
+- a new ID on rerun, and the same ID after queue redelivery and resume;
+- continuing with run ID 0 when allocation fails;
+- the peak-waiting filter and alarm de-duplication after the switch.
 
 After implementation, document and catalogue the reusable module under `KnowledgeStore/doc-repo/modules/` and `kb.reusable_modules`. Update the affected document-processing run-ID documentation, shared LLM API documentation, and task propagation tests. Run shared-library tests, synchronize the Go workspace if dependencies change, and verify dependent applications build. This design document adds no implementation or test results.
 
-## Known limitations
+## 3. Known limitations
 
 - Allocation does not provide a task registry, execution status tracking, or automatic run-ID propagation.
-- IDs are unique within a named sequence and database; the caller chooses the correct namespace.
-- Cached reservations trade gapless numbering and global return-time ordering for fewer database writes.
-- Reuse intentionally allows duplicates and is unsuitable for trace-like task identifiers.
-- `last_requester` cannot identify every consumer when requests are served from cache.
+- IDs are unique only within one sequence in one database; the caller chooses the sequence.
+- Cached reservations trade gapless numbering and overall hand-out order for fewer database writes.
+- The `global` sequence costs one database transaction per ID.
+- A failed allocation returns 0. Callers that continue with it accept records without a usable ID.
+- Reuse intentionally allows duplicates and is unsuitable for trace-like identifiers.
+- `last_requester` cannot identify every consumer when IDs are served from cache.
 - Historical LLM run-ID collisions and missing values need a separate evidence-based migration.
