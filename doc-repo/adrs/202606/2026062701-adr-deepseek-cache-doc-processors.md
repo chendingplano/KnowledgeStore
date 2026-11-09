@@ -11,6 +11,15 @@ implementation plan: `ChenWeb/docs/superpowers/plans/2026-07-01-deepseek-cache-p
 
 Extends: [2026062501-adr-deepseek-cache](2026062501-adr-deepseek-cache.md) (DeepSeek Prompt Cache for Document Reviewers)
 
+**Update, 2026-11-08:** `extract_references` and merged `extract_products` use task-first
+requests to cache their repeated instructions across chunks. When either runs as a non-seed
+processor, the coordinator completes its first chunk and waits `LLM_CALL_STAGGER` before
+launching its other chunks. A task-first reference or merged product seed also completes its
+first call before the existing stagger. The remaining document-first processors can still
+share a chunk prefix when their seed sends the same document-first envelope. Production run
+370 showed that a task-first provisions seed cannot warm the document-first prefixes of
+references or products, and their simultaneous fan-out produced zero cache hits.
+
 ## Context
 
 ADR 2026062501 (refer to [1]) optimized the **document reviewers** for DeepSeek prompt caching

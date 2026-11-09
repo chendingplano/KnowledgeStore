@@ -531,8 +531,10 @@ The openspec change lists every reader.
 | `extract_references` | Phase B (configurable) | `chunking` | D and R1–R3, outgoing and incoming (§5.4, first two events); step 5 through the registered resolvers |
 | `extract_metrics` (and every artifact extractor) | Phase B, as today | `chunking` | its own extraction, then step 6 through its own resolver (§5.4, third event) |
 
-- Detection uses `canonicalChunkInputText`, so it shares the DeepSeek cached prefix with the other
-  chunk processors (capsule §6.2). Reference lists and identifiers that a pattern can read exactly
+- Detection uses `canonicalChunkInputText` for the document input. The reference prompt is sent
+  first so its instructions form a stable DeepSeek cache prefix across chunks. The chunk scheduler
+  finishes one reference call and waits `LLM_CALL_STAGGER` before starting the remaining chunks.
+  Merged product extraction uses the same prompt-first warm-up. Reference lists and identifiers that a pattern can read exactly
   (DOI, URL, standard number) are parsed in code, and the LLM handles the rest.
 - `extract_references` depends on nothing but `chunking`, in line with its independence (§1).
 - **No ordering is needed** (§5.4). Step 5 can write resolved rows into A's `kb.metrics` while
