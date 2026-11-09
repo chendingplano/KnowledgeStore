@@ -6,6 +6,7 @@
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/name-value/`
 **Created:** 2026-10-24
+**Devdocs:** None
 
 ## 1. What it is
 
@@ -30,9 +31,9 @@ It is not a table: it shows one record, not many.
 
 | File | Purpose |
 |---|---|
-| `name-value-visualizer.svelte` | The component. Renders a `<dl>` grid inside a size-query container. |
-| `name-value.ts` | Types (`NameValueItem`, `NameValueField`, `NameValueInput`) and `normalizeFields()`. |
-| `name-value.test.ts` | Unit tests for `normalizeFields()` (`bun test`). |
+| `ChenWeb/web/src/lib/components/shared-ui/name-value/name-value-visualizer.svelte` | The component. Renders a `<dl>` grid inside a size-query container. |
+| `ChenWeb/web/src/lib/components/shared-ui/name-value/name-value.ts` | Types (`NameValueItem`, `NameValueField`, `NameValueInput`) and `normalizeFields()`. |
+| `ChenWeb/web/src/lib/components/shared-ui/name-value/name-value.test.ts` | Unit tests for `normalizeFields()` (`bun test`). |
 
 ## 3. Data model
 
@@ -70,6 +71,13 @@ Callers can therefore pass optional fields without filtering them first.
 
 `labelWidth` and `emptyText` are the module's settings (`config_json` in
 `kb.reusable_modules`); `fields` and `ariaLabel` are per-use data.
+
+### Configuration
+
+| Key | Default | Meaning |
+|---|---|---|
+| `labelWidth` | `13rem` | Maximum width of the name column. |
+| `emptyText` | unset | Text shown for fields without values; unset hides them. |
 
 ## 5. Usage
 

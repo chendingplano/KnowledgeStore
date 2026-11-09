@@ -5,7 +5,8 @@
 **Status:** active — used by the shared emoji picker and available to workspace projects  
 **Project:** shared  
 **Location:** `shared/go/api/emojilib/`  
-**Created:** 2026-11-02
+**Created:** 2026-11-02  
+**Devdocs:** [2026110202-devdoc-emoji-library](../devdocs/202611/2026110202-devdoc-emoji-library.md)
 
 ## 1. What it is
 

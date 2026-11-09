@@ -6,6 +6,7 @@
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/metric-detail/`
 **Created:** 2026-10-25
+**Devdocs:** None
 
 ## 1. What it is
 
@@ -41,9 +42,9 @@ a comparison table, and it does not edit the metric.
 
 | File | Purpose |
 |---|---|
-| `metric-detail-visualizer.svelte` | The component: toolbar, title and the five group cards. |
-| `metric-detail.ts` | `buildMetricDetailGroups()`, `attrToField()` and `metricTitle()`: turn a metric into groups of name-value fields. |
-| `metric-detail.test.ts` | Unit tests for `metric-detail.ts` (`bun test`). |
+| `ChenWeb/web/src/lib/components/shared-ui/metric-detail/metric-detail-visualizer.svelte` | The component: toolbar, title and the five group cards. |
+| `ChenWeb/web/src/lib/components/shared-ui/metric-detail/metric-detail.ts` | `buildMetricDetailGroups()`, `attrToField()` and `metricTitle()`: turn a metric into groups of name-value fields. |
+| `ChenWeb/web/src/lib/components/shared-ui/metric-detail/metric-detail.test.ts` | Unit tests for `metric-detail.ts` (`bun test`). |
 
 It builds on two modules that are not part of it:
 

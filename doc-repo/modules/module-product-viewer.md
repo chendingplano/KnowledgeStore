@@ -6,6 +6,7 @@
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/product-viewer/`
 **Created:** 2026-11-08
+**Devdocs:** None
 
 ## 1. What it is
 
@@ -22,9 +23,9 @@ Benchmark), which compares products against a gold run and does not use this com
 
 | File | Purpose |
 |---|---|
-| `product-viewer.svelte` | The module: layout, details-panel open/close, slider logic |
-| `product-details.svelte` | Name/value card for one product (all fields) |
-| `home3/products-view.svelte` | The product list/map/PDF view (a generic `kb-extraction-view.svelte` configured for products); the viewer wraps it |
+| `ChenWeb/web/src/lib/components/shared-ui/product-viewer/product-viewer.svelte` | The module: layout, details-panel open/close, slider logic |
+| `ChenWeb/web/src/lib/components/shared-ui/product-viewer/product-details.svelte` | Name/value card for one product (all fields) |
+| `ChenWeb/web/src/lib/components/home3/products-view.svelte` | The product list/map/PDF view (a generic `kb-extraction-view.svelte` configured for products); the viewer wraps it |
 
 ## 3. Interface
 

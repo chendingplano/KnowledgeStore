@@ -6,6 +6,7 @@
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/value-editors`
 **Created:** 2026-11-02
+**Devdocs:** [2026102701-devdoc-wpi-editor](../devdocs/202610/2026102701-devdoc-wpi-editor.md)
 
 ## 1. What it is
 

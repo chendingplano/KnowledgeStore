@@ -6,6 +6,7 @@
 **Project:** shared
 **Location:** `shared/go/api/idmanager/`
 **Created:** 2026-11-08
+**Devdocs:** [2026110801-devdoc-shared-id-manager](../devdocs/202611/2026110801-devdoc-shared-id-manager.md), [2026110802-devdoc-shared-id-manager-implementation](../devdocs/202611/2026110802-devdoc-shared-id-manager-implementation.md)
 
 ## 1. What it is
 

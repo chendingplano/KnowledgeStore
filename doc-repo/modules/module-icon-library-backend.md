@@ -6,6 +6,7 @@
 **Project:** shared
 **Location:** `shared/go/api/iconlib/`
 **Created:** 2026-11-02
+**Devdocs:** [2026110201-devdoc-icon-library](../devdocs/202611/2026110201-devdoc-icon-library.md)
 
 ## 1. What it is
 

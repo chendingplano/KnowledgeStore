@@ -10,6 +10,7 @@ serves the WPI frontend (module `20261026-01`)
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/wpi`
 **Created:** 2026-10-26
+**Devdocs:** [2026102601-devdoc-web-page-interpreter](../devdocs/202610/2026102601-devdoc-web-page-interpreter.md), [2026102603-devdoc-wpi-pilot](../devdocs/202610/2026102603-devdoc-wpi-pilot.md), [2026102701-devdoc-wpi-editor](../devdocs/202610/2026102701-devdoc-wpi-editor.md)
 
 Panes and panels support optional fixed or light/dark background and foreground colors; pane backgrounds take precedence over panel backgrounds.
 
