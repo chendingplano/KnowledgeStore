@@ -54,6 +54,9 @@ Command (run from `ChenWeb/`):
 go run ./server/cmd/docbuilder-classify -source user-manuals [-model <profile>] [-dry-run] [-force]
 ```
 
+Or through mise: `mise build-docs user-manuals [--dry-run] [--force] [--model <profile>]`
+(the task is in `ChenWeb/mise.toml`).
+
 `-dry-run` scans and reports without calling a model; `-force` reclassifies files that already have a category.
 
 ## 4. Configuration
