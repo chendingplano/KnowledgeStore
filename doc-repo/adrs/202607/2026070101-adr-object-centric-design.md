@@ -188,9 +188,16 @@ are produced by different processes:
   this measurement, rule, or inventory row apply to" — narrower, and
   extracted only when a metric/provision/inventory item already provides
   per-instance evidence that the LLM judged strong enough to synthesize an
-  object from (DR1). Their `object_type` is a **controlled enum**
+  object from (DR1). Their `object_type` was originally a **controlled enum**
   (`equipment|material|system|process|organization|person|place|document|concept|other`
   — see §Data Formats).
+
+  **2026-11-08 update:** broad object types now belong to the database registry
+  `kb.object_types`. The established enum members start approved; unfamiliar
+  nonblank names are accepted as proposed entries for human review. Approved
+  types alone receive deterministic type-based matching confidence and candidate
+  priority. Existing compact codes remain compatibility aliases. See
+  [object type registry](../../devdocs/202611/2026110804-devdoc-object-type-registry.md).
 
 Because `object_type` includes `concept`, it is tempting to read AD3's
 rejection as merely "concepts don't count." That is not the actual boundary:
@@ -200,7 +207,7 @@ an LLM made that call with the metric/provision's local evidence in hand. What
 AD3 rejects is treating *every* entity — including generic, corpus-wide,
 zero-instance-evidence entities like "quality management" — as an object
 candidate merely because it was named somewhere. Phase 3 (below) therefore
-does not gate on the `object_type` enum's permissiveness; it gates on which
+does not gate on the `object_type` vocabulary's permissiveness; it gates on which
 `entity_type` values are reliably concrete enough, corpus-wide, to attempt
 matching at all. See Phase 3 §Entity Type → Object Type Compatibility for the
 mapping and the reasoning behind each inclusion/exclusion.
@@ -347,7 +354,7 @@ persistence:
   "object_name_en": "string",
   "object_name_zh": "string",
   "language": "string",
-  "object_type": "equipment|material|system|process|organization|person|place|document|concept|other",
+  "object_type": "<canonical broad type; unfamiliar names are registered as proposed>",
   "object_role": "measured_object|regulated_object|requirement_target|inventory_item|component|parent_system|self|other",
   "aliases": ["string"],
   "acronyms": ["string"],
@@ -517,7 +524,8 @@ rejected). This is strictly additive: it reads `kb.entities` and
 #### Entity Type → Object Type Compatibility
 
 `entity_type` is open vocabulary (LLM free text); `object_type` is a
-controlled enum. A direct string match is therefore wrong on both sides: it
+reviewed registry (originally a controlled enum; see the 2026-11-08 update above).
+A direct string match is therefore wrong on both sides: it
 would miss synonyms (`software_system` vs. `system`) and, more importantly, it
 would not filter out entity types that are structurally unlikely to denote a
 reusable canonical object even when the LLM's wording happens to collide with
