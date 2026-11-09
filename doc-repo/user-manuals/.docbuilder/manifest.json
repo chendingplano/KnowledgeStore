@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "model": "deepseek-flash-processor",
+  "entries": [
+    {
+      "path": "class-contracts-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Class Contracts",
+      "hash": "223e0a9029845cd5",
+      "category": "Ontology"
+    },
+    {
+      "path": "database-tables.md",
+      "kind": "markdown",
+      "title": "Database Tables — SemOS Ontology \u0026 Keyword Lexicon",
+      "hash": "acfc4e052dca3198",
+      "category": "Technical Reference"
+    },
+    {
+      "path": "doc-processsors.md",
+      "kind": "markdown",
+      "title": "Document Processing Pipeline — User Manual",
+      "hash": "4bde47c527a84cd2",
+      "category": "Document Processing"
+    },
+    {
+      "path": "document-review-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Document Review — User Manual",
+      "hash": "024c46cf66cd42dd",
+      "category": "Document Processing"
+    },
+    {
+      "path": "external-terminology-resources.md",
+      "kind": "markdown",
+      "title": "External Terminology Resources — User Manual",
+      "hash": "b08bad68af84f5b2",
+      "category": "Administration"
+    },
+    {
+      "path": "keyword-rewrite-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Keyword Rewrite Rules",
+      "hash": "a2fb65027f5fe14e",
+      "category": "Administration"
+    },
+    {
+      "path": "metric-assertion-semantic-processing-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Metric Assertions and Semantic Processing",
+      "hash": "75ddc3548992ab1e",
+      "category": "Metrics"
+    },
+    {
+      "path": "metric-assertion-semantic-processing-v1.1-en.md",
+      "kind": "markdown",
+      "title": "Metric Assertions and Semantic Processing",
+      "hash": "f3c9f41b7b78b710",
+      "category": "Metrics"
+    },
+    {
+      "path": "metric-assertion-semantic-processing-v1.2-en.md",
+      "kind": "markdown",
+      "title": "Metric Assertions and Semantic Processing",
+      "hash": "4501eff3e112959d",
+      "category": "Metrics"
+    },
+    {
+      "path": "metric-assertion-semantic-processing-v1.3-en.md",
+      "kind": "markdown",
+      "title": "Metric Assertions and Semantic Processing",
+      "hash": "5c7b21d649cdc67c",
+      "category": "Metrics"
+    },
+    {
+      "path": "metric-keyword-and-governed-term-resolution-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Metric Name Resolution: Keyword Concepts and Governed Ontology Terms",
+      "hash": "0b61f6c40612e38f",
+      "category": "Metrics"
+    },
+    {
+      "path": "metric-ontology-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Metric Ontology",
+      "hash": "fe8f9babcdebe5d2",
+      "category": "Metrics"
+    },
+    {
+      "path": "ontology-labels-guide-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Ontology Labels Guide",
+      "hash": "2add013bde277213",
+      "category": "Ontology"
+    },
+    {
+      "path": "ontology-terms-guide-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Governed Ontology Terms Guide",
+      "hash": "21191579fdcf847b",
+      "category": "Ontology"
+    },
+    {
+      "path": "product-metric-reviewer-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Product Metric Reviewer — User Manual",
+      "hash": "a35bb71d8e6988eb",
+      "category": "Product Review"
+    },
+    {
+      "path": "product-metric-reviewer-v1.1-en.md",
+      "kind": "markdown",
+      "title": "Product Metric Reviewer — User Manual",
+      "hash": "b455663fad141cbf",
+      "category": "Product Review"
+    },
+    {
+      "path": "product-metric-reviewer-v1.2-en.md",
+      "kind": "markdown",
+      "title": "Product Metric Reviewer — User Manual",
+      "hash": "32922d2db0a5003b",
+      "category": "Product Review"
+    },
+    {
+      "path": "product-metric-reviewer-v1.3-en.md",
+      "kind": "markdown",
+      "title": "Product Metric Reviewer — User Manual",
+      "hash": "3549be8277f17283",
+      "category": "Product Review"
+    },
+    {
+      "path": "product-metric-reviewer-v1.5-en.md",
+      "kind": "markdown",
+      "title": "Product Review — User Manual",
+      "hash": "db6c56348941193c",
+      "category": "Product Review"
+    },
+    {
+      "path": "product-metric-reviewer-v1.5-zh.md",
+      "kind": "markdown",
+      "title": "产品评审（Product Review）— 用户手册",
+      "hash": "180066431a165da4",
+      "category": "Product Review"
+    },
+    {
+      "path": "semantic-web-standards-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Semantic-Web Standards in SemOS — User Manual",
+      "hash": "e671c3dce4dd7fce",
+      "category": "Ontology"
+    },
+    {
+      "path": "semos-platform-and-document-review-v1.0-en.md",
+      "kind": "markdown",
+      "title": "SemOS Platform and Document Review — User Manual",
+      "hash": "29d7c09bd524ba29",
+      "category": "Document Processing"
+    },
+    {
+      "path": "semos-semantic-layer-v1.0-en.md",
+      "kind": "markdown",
+      "title": "SemOS Semantic Layer User Manual",
+      "hash": "e5e3ea752e1d603a",
+      "category": "Ontology"
+    },
+    {
+      "path": "training-video-management-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Managing Training Videos",
+      "hash": "f5c6035e7a32efef",
+      "category": "Administration"
+    }
+  ]
+}
