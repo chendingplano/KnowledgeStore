@@ -1,7 +1,7 @@
 # Module: Document Builder (backend)
 
 **Module ID:** `20261109-02`
-**Type:** backend · **Language:** go · **Version:** 2.0.1
+**Type:** backend · **Language:** go · **Version:** 2.0.2
 **Status:** active — serves Resources › Documents (groups "Dev Documents", "User's Manuals")
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/docbuilder`
@@ -69,7 +69,7 @@ Go: `Store` (`SyncGroup`, `GroupDocs`, `AddMember`, `RemoveDocument`, `ClassifyG
 | `DOCUMENT_PDF_DIR` | `<root>/.doc-pdf` | Stored PDF exports |
 | `DOCUMENT_PDF_ENGINE` | `typst` | pandoc PDF engine |
 | `DOCUMENT_PDF_FONT` | `Helvetica` | Main font for the PDF; must be installed (Typst rejects an empty font list). Chinese text falls back to a system font. |
-| `DOCBUILDER_MODEL` | `deepseek-flash-processor` | `.models.toml` profile for classification |
+| `DOCBUILDER_MODEL` | (required) | `.models.toml` profile for classification; without it, classify answers 503 and `mise build-docs` names the variable |
 | `DOCBUILDER_PROMPT` | `prompt-docbuilder-classify-v1.md` | Classification prompt file |
 
 ## 5. Usage

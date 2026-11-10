@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: ChenWeb users who read documents, and administrators who add them
 create-time: 2026-11-10T09:00:00-05:00
-last-modify-time: 2026-11-10T16:00:00-05:00
+last-modify-time: 2026-11-10T15:50:00-06:00
 keywords: document builder, user manual, documents menu, categories, markdown, pdf, latest version, mise build-docs
 ---
 
@@ -118,17 +118,18 @@ documents that no one has sorted into a category yet. They still appear, in a ca
    (for the User's Manuals group: `KnowledgeStore/doc-repo/user-manuals`). Other file types and hidden
    files are ignored.
 2. Reload the page. The file appears under **Uncategorized**.
-3. From the `ChenWeb` folder, run:
+3. Press **Sync** on the group's card (see [3.5](#35-the-documents-overview-administrators)), or,
+   from the `ChenWeb` folder, run:
 
    ```bash
    mise build-docs user-manuals
    ```
 
-   An AI model reads the title and the first few hundred characters of each new file and picks a
+   Both do the same. An AI model reads the title and the first few hundred characters of each new file and picks a
    category for it. Reload the page and the document moves into its category.
 
-You do not need to restart the server for a new or removed file. You only need to rerun
-`mise build-docs` to give new files their category.
+You do not need to restart the server for a new or removed file. You only need to sync again
+(or rerun `mise build-docs`) to give new files their category.
 
 ### 3.2 How the title and category are chosen
 
@@ -162,9 +163,40 @@ Name versions with `-v` and a number before the language: `my-guide-v1.0-en.md`,
 number (1.10 is newer than 1.9) and hides the older ones, which stay on disk. This holds in every
 group the document belongs to.
 
-### 3.5 Manage groups (administrators)
+### 3.5 The Documents overview (administrators)
 
-Open **Development → System Admin → Document Groups**. You need the admin role.
+Open **Development → System Admin → Resources → Documents**. You need the admin role. Each document
+group is a card showing:
+
+- its label and key;
+- its page: *Page: Resources › Documents › …* once the page exists, otherwise *No page yet*;
+- how many documents it has and how many are not categorised yet;
+- the roles that may see it;
+- its directories and files, with *not found on disk* next to a path that does not exist.
+
+Each card has two buttons:
+
+- **Sync** re-reads the group's directories and files and gives new documents a category, the
+  same as `mise build-docs <group>`. Documents that already have a category keep it. If the card
+  then says that `DOCBUILDER_MODEL` must be set, the files were re-read but nothing was
+  categorised: the server has no AI model for categories. Set `DOCBUILDER_MODEL` in the server's
+  environment (next to `DOCUMENT_ROOT_DIR`) to a model profile, restart the server and sync again.
+- **Build Page** creates the group's page under **Resources → Documents**, at the group's position.
+  The button is greyed out once the page exists. Users see the page the next time they load the
+  Resources page, if they have one of the group's roles.
+
+**New group** (top right) opens a form: a key without spaces or slashes, English and Chinese
+labels, a position (the next free one is filled in), the roles that may see it, and one or more
+directories or files under the Document Root Directory. The group is created **without** a page,
+so you can sync it and check it before anyone sees it; then press **Build Page**. If a path does
+not exist, or a file is not `.md`/`.pdf`, nothing is created and the form says which path was
+refused.
+
+To change members, remove documents or delete a group, use the screen in the next section.
+
+### 3.6 Edit groups in detail (administrators)
+
+Open **Development → System Admin → System → Document Groups**. You need the admin role.
 
 - **New group:** choose a key (no spaces), English and Chinese labels, the parent menu
   (`documents` for Resources → Documents), a position number, and the roles that may see it.
@@ -192,3 +224,5 @@ Changes show in the Resources menu the next time the page is loaded.
 | `mise build-docs` fails with an authentication error | The model's API key in `.models.toml` is not valid. Use `--model` with another profile. |
 | The Documents menu has no groups | The server was started without `DOCUMENT_ROOT_DIR` (the feature is off), you have no group's role, or no group is enabled. |
 | A group is empty | It has no members, or its member paths hold no `.md`/`.pdf` files. |
+| A new group is not in the Resources menu | Its page has not been built. Press **Build Page** on its card, then reload the Resources page. |
+| Sync says `DOCBUILDER_MODEL` must be set | The server has no AI model for categories. Set `DOCBUILDER_MODEL` to a model profile, restart the server, and sync again. |

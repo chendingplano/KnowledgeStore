@@ -28,8 +28,8 @@ categories, once per document per group.
   that document in its directory). A group's documents are its members' documents minus its
   exclusions. A file can be in many groups.
 - **Categories** are per group and document (`kb.doc_group_categories`). Only documents with no
-  category are sent to the model (`docbuilder-classify`, `mise build-docs <group>`, or the admin
-  page); progress is saved after every batch of 25. Categories from the old directory manifests
+  category are sent to the model (`docbuilder-classify`, `mise build-docs <group>`, the admin
+  page, or **Sync** on the overview); progress is saved after every batch of 25. Categories from the old directory manifests
   were imported once per group.
 - **Menu and access.** `GET /api/v1/doc-groups/menu` returns the groups a user may see, ordered by
   parent, position number, then key. The Resources nav rail adds them as children of their parent
@@ -39,6 +39,15 @@ categories, once per document per group.
   are deleted only if no other group holds the document; then every version is **moved** to
   `DOCUMENT_ARCHIVE_DIR` (default `<root>/.doc-archive/<UTC time>/<path>`). The registry rows stay,
   so later comments cannot be orphaned.
+- **Overview page.** Development › System Admin › Resources › Documents (`DocGroupsCardsView`, on
+  the development page only) shows each group as a card. It uses the admin API and adds no
+  endpoint: **Sync** is `rescan` then `classify` (new documents only), so a 503 from a missing model
+  still leaves the rescan done; **Build Page** saves the group with `enabled: true`. A group's
+  *page* is its menu entry, which the menu shows exactly while the group is enabled, so there is no
+  separate page record: a second flag would allow a "built but hidden" state the button could not
+  explain. **New group** creates the group disabled under `documents`, then adds its members one by
+  one; if the server refuses one, the page deletes the new group again, so nothing half-made is
+  left.
 - **PDF.** Markdown only. Pandoc (GitHub-flavoured Markdown reader, so `#1-heading` links resolve) with the Typst engine makes the PDF on first request and stores it
   under `DOCUMENT_PDF_DIR`, keyed by the source file's hash; a change to the file deletes the PDF.
 
@@ -51,7 +60,7 @@ categories, once per document per group.
 | `DOCUMENT_PDF_DIR` | `<root>/.doc-pdf` | Stored PDF exports |
 | `DOCUMENT_PDF_ENGINE` | `typst` | pandoc `--pdf-engine` |
 | `DOCUMENT_PDF_FONT` | `Helvetica` | Main font; Typst 0.15 fails on an empty font list, so one installed font is always passed. On a Linux server set a font that exists there. |
-| `DOCBUILDER_MODEL` | `deepseek-flash-processor` | `.models.toml` profile used to classify |
+| `DOCBUILDER_MODEL` | none (required to classify) | `.models.toml` profile used to classify. Without it, syncing still works but nothing is classified; the overview's Sync says so. |
 | `DOCBUILDER_PROMPT` | `prompt-docbuilder-classify-v1.md` | Classification prompt |
 
 ## Things to know

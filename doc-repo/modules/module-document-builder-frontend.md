@@ -1,8 +1,8 @@
 # Module: Document Builder (frontend)
 
 **Module ID:** `20261109-03`
-**Type:** frontend · **Language:** svelte · **Version:** 2.0.0
-**Status:** active — Resources › Documents (one entry per group) and Development › System Admin › Document Groups
+**Type:** frontend · **Language:** svelte · **Version:** 2.1.0
+**Status:** active — Resources › Documents (one entry per group), Development › System Admin › Resources › Documents (overview cards) and Development › System Admin › System › Document Groups
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/document-builder`
 **Created:** 2026-11-09
@@ -18,6 +18,10 @@ The reader and the administrator's screen for document groups.
   a PDF opens in the browser's own viewer; Markdown has an **Export as PDF** link.
 - **Admin** (`DocGroupsAdminView`): create groups, set labels, parent menu, position and roles,
   add or remove members, remove or delete documents, rescan, classify.
+- **Overview** (`DocGroupsCardsView`): one card per group with its page status, counts, roles and
+  members; **Sync** (rescan, then classify new documents, as `mise build-docs <group>`), **Build
+  Page** (enable the group, so it appears at its menu location; disabled while the page exists) and
+  **New group** (created without a page; a refused member path removes the new group again).
 
 The Resources nav rail builds its Documents children from the groups the user may see.
 
@@ -29,17 +33,25 @@ The Resources nav rail builds its Documents children from the groups the user ma
 | `ChenWeb/web/src/lib/components/shared-ui/document-builder/document-builder-types.ts` | Tree types, URL builders, `firstLeaf`, `findLeaf`, `stripFrontMatter` |
 | `ChenWeb/web/src/lib/components/shared-ui/document-builder/document-builder-types.test.ts` | Tests for the helpers |
 | `ChenWeb/web/src/lib/components/home3/doc-groups-admin-view.svelte` | The admin screen |
-| `ChenWeb/web/src/lib/components/home3/doc-groups-client.ts` | Typed admin API calls, `parseRoles` |
-| `ChenWeb/web/src/lib/components/home3/doc-groups-client.test.ts` | Test for `parseRoles` |
+| `ChenWeb/web/src/lib/components/home3/doc-groups-cards-view.svelte` | The overview cards |
+| `ChenWeb/web/src/lib/components/home3/doc-groups-client.ts` | Typed admin API calls; `syncGroup`, `hasPage`, `buildPage`, `createGroup`, `nextPosition`, `groupLabel`, `parseRoles` |
+| `ChenWeb/web/src/lib/components/home3/doc-groups-client.test.ts` | Tests for the client (fetch stubbed) |
 
 Wiring (not part of the module): `home3/nav-rail.svelte` (menu from `/doc-groups/menu`,
-`docgroup-<key>` ids, System Admin entry) and `home3/content-panel.svelte` (renders both views).
+`docgroup-<key>` ids, the System Admin entries `sysadmin-doc-groups` and, on the development page
+only, `sysadmin-resources-documents`) and `home3/content-panel.svelte` (renders the three views).
 
 ## 3. Interface
 
 `DocumentBuilderView` props: `group: string` (group key), `darkMode?: boolean`,
-`leftWidthDefault?: number`. `DocGroupsAdminView` props: `darkMode?: boolean`.
-Text is in `messages/*.json` under `docbuilder_*`, `docgroups_*` and `nav_sysadmin_doc_groups`.
+`leftWidthDefault?: number`. `DocGroupsAdminView` and `DocGroupsCardsView` props: `darkMode?: boolean`.
+Text is in `messages/*.json` under `docbuilder_*`, `docgroups_*`, `nav_sysadmin_doc_groups` and
+`nav_sysadmin_resources_documents`.
+
+A group's *page* is its entry at its menu location. It exists exactly while the group is enabled
+(`hasPage`), so Build Page is a save with `enabled: true`; there is no separate page record. Sync
+returns `{ classified: null }` when the server has no classification model (HTTP 503 from
+`classify`); the rescan has still happened.
 
 ## 4. Configuration
 
@@ -55,8 +67,8 @@ Text is in `messages/*.json` under `docbuilder_*`, `docgroups_*` and `nav_sysadm
 <DocumentBuilderView group="user-manuals" {darkMode} />
 ```
 
-A new menu entry needs no code: create a group on the admin screen and it appears under its parent
-menu on the next page load.
+A new menu entry needs no code: create a group on the overview (or the admin screen), press Build
+Page, and it appears under its parent menu on the next page load.
 
 ## 6. Behaviour and conventions
 
@@ -71,5 +83,7 @@ menu on the next page load.
 
 - Not yet in the UI: comments, tickets, to-dos, upload, per-document category editing.
 - Admin roles are entered as comma-separated text; the server keeps only valid roles.
-- Browser-checked only as far as the type check and helper tests; see the OpenSpec tasks for the live check.
+- The overview was checked in a browser against a stubbed admin API (Sync, Build Page, refused member); the
+  reader and admin screen still await the live check in the OpenSpec tasks.
+- The overview creates groups under `documents` only; other parents and member edits are on the admin screen.
 - The old `home3/user-manual-viewer.svelte` is unused and can be deleted.
