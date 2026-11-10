@@ -1,7 +1,7 @@
 # Module: Document Builder (frontend)
 
 **Module ID:** `20261109-03`
-**Type:** frontend · **Language:** svelte · **Version:** 1.0.0
+**Type:** frontend · **Language:** svelte · **Version:** 1.1.0
 **Status:** active — new; not yet mounted on a page
 **Project:** ChenWeb (web front end)
 **Location:** `ChenWeb/web/src/lib/components/shared-ui/document-builder`
@@ -60,11 +60,14 @@ The page (for example Resources › User Manuals) only needs a source defined in
   (`sessionStorage`, guarded; the page works without it).
 - Text is selectable (`select-text` on the root); only the divider is `select-none`.
 - All interface text goes through Paraglide (English and Chinese).
+- Every entry has an icon: a folder (open when expanded) per category, a text-file icon per
+  Markdown document and a file icon per PDF.
+- A leading YAML front-matter block (`---` … `---`) is removed before the Markdown is rendered.
 - A banner line shows how many documents are not categorised yet.
 
 ## 7. Scope and limits
 
-- Not browser-verified yet: it is covered by the type check and helper tests, but has not been
-  mounted on a page and clicked through.
-- The existing `home3/user-manual-viewer.svelte` (hard-coded tree) is not replaced.
+- The tree shows only the latest version of each document (backend behaviour).
+- Mounted on Resources › Documents › User's Manual (`source="user-manuals"`).
+- The old `home3/user-manual-viewer.svelte` is no longer used by that page but still exists.
 - No search inside the tree; no deep links to a document.

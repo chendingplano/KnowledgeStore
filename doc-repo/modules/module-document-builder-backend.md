@@ -1,7 +1,7 @@
 # Module: Document Builder (backend)
 
 **Module ID:** `20261109-02`
-**Type:** backend · **Language:** go · **Version:** 1.0.0
+**Type:** backend · **Language:** go · **Version:** 1.1.0
 **Status:** active — new; not yet wired to a page (planned: Resources › User Manuals from `doc-repo/user-manuals`, Resources › Documents from `doc-repo/devdocs`)
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/docbuilder`
@@ -26,6 +26,7 @@ It does not render anything, and it does not edit documents. Files in other form
 | `ChenWeb/server/api/docbuilder/types.go` | `Entry`, `Manifest`, `TreeNode`, constants |
 | `ChenWeb/server/api/docbuilder/scan.go` | `Scan(dir)`: recursive .md/.pdf walk, title, content hash |
 | `ChenWeb/server/api/docbuilder/manifest.go` | `LoadManifest`, `SaveManifest`, `Refresh` (merge a scan, keep saved categories) |
+| `ChenWeb/server/api/docbuilder/latest.go` | `LatestVersions(entries)`: keep only the newest version of each versioned document |
 | `ChenWeb/server/api/docbuilder/tree.go` | `BuildTree(entries)`: category → document menu |
 | `ChenWeb/server/api/docbuilder/classify.go` | `ClassifyNew`, `Classifier`, `LLMClassifier` |
 | `ChenWeb/server/api/docbuilder/sources.go` | `LoadSources`: the `[[source]]` TOML file |
@@ -39,7 +40,7 @@ It does not render anything, and it does not edit documents. Files in other form
 
 HTTP (inside the authenticated `/api/v1` group, registered in `routes.go`):
 
-- `GET /api/v1/docbuilder/:source/tree` → `{ "title": string, "tree": TreeNode[], "uncategorized": number }`
+- `GET /api/v1/docbuilder/:source/tree[?all=1]` → `{ "title": string, "tree": TreeNode[], "uncategorized": number }`
   where `TreeNode = { id, label, kind?: "markdown"|"pdf", path?, children? }`. Category nodes have
   `children`; document leaves have `path` and `kind`.
 - `GET /api/v1/docbuilder/:source/file?path=<path from the tree>` → the Markdown text, or the PDF
@@ -95,6 +96,9 @@ Then show it with the [frontend module](module-document-builder-frontend.md).
   removed files drop out. Progress is saved after each batch of 25, so a failed run keeps what it got.
 - **The manifest is data in the documents' own repo:** `<dir>/.docbuilder/manifest.json`. Hidden
   files and directories are never scanned, so the manifest is not listed as a document.
+- **Latest version only.** `name-v1.0-en.md`, `-v1.1-`, `-v1.10-` … are one document; the tree lists the
+  highest version (compared number by number, so 1.10 > 1.9). The language part after the version
+  (`-en`, `-zh`) keeps languages apart, and files without a `-v<number>` are never hidden. Add `?all=1` to list every version. The manifest still holds all of them.
 - Files added since the last classification appear under "Uncategorized" until the command is rerun.
 - Category names come from the model, written in the language of the document titles; it prefers
   existing categories and aims for roughly 4–12 overall.
