@@ -10,7 +10,7 @@
 
 Document processors can discover a new kind of object without failing an entire chunk. Existing object types start approved; unfamiliar names are saved as proposed types for human review. Administrators review them at **System Admin → Database Maintenance → Object Types**, inspect their original wording and available source information, and approve suitable entries. Approval retains the same entry and references.
 
-The provision processor still validates response structure, required evidence, roles, and provision codes. Only object type names are open to discovery. Failed model attempts now log the complete response and identifying context so an operator can see exactly what violated the response contract.
+The provision processor still validates response structure, required evidence, nonblank object roles, and provision codes. Object types and roles can use descriptive names outside the compact code lists. Failed model attempts log the complete response and identifying context so an operator can see exactly what violated the response contract.
 
 ## Details
 
@@ -23,6 +23,8 @@ Names are normalized using the same trim, lowercase, whitespace/punctuation and 
 Provisions register types after successful response validation and before reconciliation. Their first observation includes record/run, processor, model, prompt and source spans. Other object writers preserve the available record, artifact kind and spans; historical rows and manual object nodes may have less provenance. Registry entries record first observation, not a complete occurrence history. Rediscovery does not replace it.
 
 Compact provision response `o[].t` accepts a nonblank string. The old code map is only a wire compatibility adapter, not an acceptance list. Prompt v8 explains that new broad type names may be returned. Its generated embedded fallback is refreshed with the prompt source. Unknown types remain usable while proposed; they do not become `other` or disappear.
+
+Compact provision object roles (`o[].r`) also accept nonblank descriptive names. Existing compact codes expand to their established names; `loc` expands to `location`, and other values are normalized and retained on the artifact object. This prevents a valid chunk from failing when the model describes an installation location, as happened for production input 280. Roles do not use the object type registry: unfamiliar roles are retained but do not receive a proposed/approved review workflow.
 
 ### Review and approval
 
