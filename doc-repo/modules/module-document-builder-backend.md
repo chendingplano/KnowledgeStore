@@ -94,6 +94,9 @@ Groups, members, order and roles are managed on Development › System Admin ›
   document. Categories are per group and never re-requested unless forced.
 - Delete is refused while another group holds the document; otherwise all versions are moved to the
   archive and the registry rows are kept.
+- A file is marked missing only if its member's directory is reachable; a wrong root or unmounted
+  disk hides nothing, and files return with the same IDs when the path is back. The admin member
+  list reports `exists`.
 - Editing a Markdown file deletes its stored PDF. PDFs are made from GitHub-flavoured Markdown, so
   `(#1-heading)` links work and the front-matter title becomes the PDF title.
 - Hidden files and directories are never scanned or served; paths are validated (no `..`, no absolute).

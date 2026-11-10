@@ -56,6 +56,10 @@ categories, once per document per group.
 
 ## Things to know
 
+- A file is marked missing only when the member that should hold it is reachable. If a member's
+  directory is absent (a wrong `DOCUMENT_ROOT_DIR`, an unmounted disk), its files keep their state,
+  the admin page flags the member "not found on disk", and fixing the root brings everything back
+  with the same document IDs. (A wrong root once hid every document before this rule existed.)
 - Hidden files and directories are never scanned, which is why the archive, the PDF cache and the
   old `.docbuilder/` manifests do not appear as documents.
 - A file renamed **and** edited before the next sync looks like a new document (the content
