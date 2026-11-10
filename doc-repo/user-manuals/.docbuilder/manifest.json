@@ -24,6 +24,13 @@
       "category": "Document Processing"
     },
     {
+      "path": "document-builder-v1.0-en.md",
+      "kind": "markdown",
+      "title": "Document Builder — Browsing and Maintaining Document Menus",
+      "hash": "51ad92b027b93e4d",
+      "category": "Document Processing"
+    },
+    {
       "path": "document-review-v1.0-en.md",
       "kind": "markdown",
       "title": "Document Review — User Manual",
