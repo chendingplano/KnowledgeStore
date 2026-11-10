@@ -39,7 +39,7 @@ categories, once per document per group.
   are deleted only if no other group holds the document; then every version is **moved** to
   `DOCUMENT_ARCHIVE_DIR` (default `<root>/.doc-archive/<UTC time>/<path>`). The registry rows stay,
   so later comments cannot be orphaned.
-- **PDF.** Markdown only. Pandoc with the Typst engine makes the PDF on first request and stores it
+- **PDF.** Markdown only. Pandoc (GitHub-flavoured Markdown reader, so `#1-heading` links resolve) with the Typst engine makes the PDF on first request and stores it
   under `DOCUMENT_PDF_DIR`, keyed by the source file's hash; a change to the file deletes the PDF.
 
 ## Settings
@@ -50,6 +50,7 @@ categories, once per document per group.
 | `DOCUMENT_ARCHIVE_DIR` | `<root>/.doc-archive` | Where deleted documents go |
 | `DOCUMENT_PDF_DIR` | `<root>/.doc-pdf` | Stored PDF exports |
 | `DOCUMENT_PDF_ENGINE` | `typst` | pandoc `--pdf-engine` |
+| `DOCUMENT_PDF_FONT` | `Helvetica` | Main font; Typst 0.15 fails on an empty font list, so one installed font is always passed. On a Linux server set a font that exists there. |
 | `DOCBUILDER_MODEL` | `deepseek-flash-processor` | `.models.toml` profile used to classify |
 | `DOCBUILDER_PROMPT` | `prompt-docbuilder-classify-v1.md` | Classification prompt |
 

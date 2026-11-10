@@ -1,7 +1,7 @@
 # Module: Document Builder (backend)
 
 **Module ID:** `20261109-02`
-**Type:** backend · **Language:** go · **Version:** 2.0.0
+**Type:** backend · **Language:** go · **Version:** 2.0.1
 **Status:** active — serves Resources › Documents (groups "Dev Documents", "User's Manuals")
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/docbuilder`
@@ -68,6 +68,7 @@ Go: `Store` (`SyncGroup`, `GroupDocs`, `AddMember`, `RemoveDocument`, `ClassifyG
 | `DOCUMENT_ARCHIVE_DIR` | `<root>/.doc-archive` | Deleted documents are moved here |
 | `DOCUMENT_PDF_DIR` | `<root>/.doc-pdf` | Stored PDF exports |
 | `DOCUMENT_PDF_ENGINE` | `typst` | pandoc PDF engine |
+| `DOCUMENT_PDF_FONT` | `Helvetica` | Main font for the PDF; must be installed (Typst rejects an empty font list). Chinese text falls back to a system font. |
 | `DOCBUILDER_MODEL` | `deepseek-flash-processor` | `.models.toml` profile for classification |
 | `DOCBUILDER_PROMPT` | `prompt-docbuilder-classify-v1.md` | Classification prompt file |
 
@@ -93,7 +94,8 @@ Groups, members, order and roles are managed on Development › System Admin ›
   document. Categories are per group and never re-requested unless forced.
 - Delete is refused while another group holds the document; otherwise all versions are moved to the
   archive and the registry rows are kept.
-- Editing a Markdown file deletes its stored PDF.
+- Editing a Markdown file deletes its stored PDF. PDFs are made from GitHub-flavoured Markdown, so
+  `(#1-heading)` links work and the front-matter title becomes the PDF title.
 - Hidden files and directories are never scanned or served; paths are validated (no `..`, no absolute).
 - Serving never calls an LLM; errors are JSON without absolute paths.
 
