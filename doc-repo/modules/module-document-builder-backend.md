@@ -1,117 +1,105 @@
 # Module: Document Builder (backend)
 
 **Module ID:** `20261109-02`
-**Type:** backend · **Language:** go · **Version:** 1.1.0
-**Status:** active — new; not yet wired to a page (planned: Resources › User Manuals from `doc-repo/user-manuals`, Resources › Documents from `doc-repo/devdocs`)
+**Type:** backend · **Language:** go · **Version:** 2.0.0
+**Status:** active — serves Resources › Documents (groups "Dev Documents", "User's Manuals")
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/docbuilder`
 **Created:** 2026-11-09
-**Devdocs:** None
+**Devdocs:** [2026111001-devdoc-document-groups](../devdocs/202611/2026111001-devdoc-document-groups.md)
 **Pairs with:** [Document Builder (frontend)](module-document-builder-frontend.md) `20261109-03`
 
 ## 1. What it is
 
-Give it a directory. It finds every Markdown and PDF file below it (any depth), and an LLM
-puts each file into a category such as "Getting Started" or "Operations". The categories are
-saved in a file next to the documents, so the model is asked **once per file**; after that the
-menu is built from the saved file and no model is called. The result is a menu tree
-(category → document) and the files themselves, served to the front end.
+Publishes documents as categorised menus. Documents are Markdown and PDF files under one
+Document Root Directory, registered in the database with permanent IDs. An administrator builds
+**groups** from directories and individual files; each group has one menu location (parent menu,
+labels, position number) and access roles. An LLM sorts a group's documents into categories once
+per document. A document always means its highest `-v<number>` version. Deleted documents are
+archived; Markdown can be exported to PDF.
 
-It does not render anything, and it does not edit documents. Files in other formats are ignored.
+It does not render anything and does not edit documents. Version 2.0.0 replaces 1.x (TOML sources,
+per-directory manifests, `/docbuilder/:source/*` routes); the old manifests are imported once.
 
 ## 2. Files
 
 | File | Purpose |
 |---|---|
-| `ChenWeb/server/api/docbuilder/types.go` | `Entry`, `Manifest`, `TreeNode`, constants |
-| `ChenWeb/server/api/docbuilder/scan.go` | `Scan(dir)`: recursive .md/.pdf walk, title, content hash |
-| `ChenWeb/server/api/docbuilder/manifest.go` | `LoadManifest`, `SaveManifest`, `Refresh` (merge a scan, keep saved categories) |
-| `ChenWeb/server/api/docbuilder/latest.go` | `LatestVersions(entries)`: keep only the newest version of each versioned document |
-| `ChenWeb/server/api/docbuilder/tree.go` | `BuildTree(entries)`: category → document menu |
-| `ChenWeb/server/api/docbuilder/classify.go` | `ClassifyNew`, `Classifier`, `LLMClassifier` |
-| `ChenWeb/server/api/docbuilder/sources.go` | `LoadSources`: the `[[source]]` TOML file |
-| `ChenWeb/server/api/docbuilder/handler.go` | `Register`: the two read-only routes |
-| `ChenWeb/server/api/docbuilder/docbuilder_test.go` | Tests |
-| `ChenWeb/server/cmd/docbuilder-classify/main.go` | The one-time classification command |
+| `ChenWeb/server/api/docbuilder/types.go` | `Entry`, `TreeNode`, constants |
+| `ChenWeb/server/api/docbuilder/scan.go` | File kind, hash, title (front matter, heading, file name) |
+| `ChenWeb/server/api/docbuilder/latest.go` | `ParsePath` (logical key + version), `Newer` |
+| `ChenWeb/server/api/docbuilder/tree.go` | `BuildTree`: category → document menu |
+| `ChenWeb/server/api/docbuilder/classify.go` | `Classifier`, `LLMClassifier`, `ClassifyBatches` |
+| `ChenWeb/server/api/docbuilder/store.go` | Registry sync, groups, members, exclusions, classification, removal/archive, PDF export |
+| `ChenWeb/server/api/docbuilder/handler.go` | HTTP: read routes, menu, admin routes |
+| `ChenWeb/server/api/docbuilder/env.go` | `NewStoreFromEnv`, `NewClassifierFromEnv` |
+| `ChenWeb/server/api/docbuilder/docbuilder_test.go` | Unit tests |
+| `ChenWeb/server/api/docbuilder/store_integration_test.go` | PostgreSQL tests (`TEST_DATABASE_URL`, never miner) |
+| `ChenWeb/server/cmd/docbuilder-classify/main.go` | `docbuilder-classify -group <key>` (also `mise build-docs`) |
 | `ChenWeb/prompts/prompt-docbuilder-classify-v1.md` | Classification prompt |
-| `ChenWeb/docbuilder.local.toml` | Sources: key, title, directory |
+| `ChenWeb/project_migrations/20261110000001_document_groups.sql` | Tables `kb.doc_*` and the two seeded groups |
+| `ChenWeb/project_migrations/20261110000002_doc_groups_legacy_imported.sql` | `legacy_imported` column |
+
+`pageconfighandler.RoleAllowed` (in `server/api/pageconfighandler/access.go`) is reused for group roles.
 
 ## 3. Interface
 
-HTTP (inside the authenticated `/api/v1` group, registered in `routes.go`):
+Read (login + a role of the group; admins see every group):
 
-- `GET /api/v1/docbuilder/:source/tree[?all=1]` → `{ "title": string, "tree": TreeNode[], "uncategorized": number }`
-  where `TreeNode = { id, label, kind?: "markdown"|"pdf", path?, children? }`. Category nodes have
-  `children`; document leaves have `path` and `kind`.
-- `GET /api/v1/docbuilder/:source/file?path=<path from the tree>` → the Markdown text, or the PDF
-  bytes with `Content-Disposition: inline`. Only paths the scan found are served; anything else is 404.
+- `GET /api/v1/doc-groups/menu[?lang=]` → `[{group_key, label, parent_menu_id, sort_order}]`, ordered
+  by parent, position, key.
+- `GET /api/v1/doc-groups/:key/tree` → `{title, tree, uncategorized}`; leaves have `doc_id`, `kind`.
+- `GET /api/v1/doc-groups/:key/documents/:docId/file` → Markdown text or PDF bytes (latest version).
+- `GET /api/v1/doc-groups/:key/documents/:docId/pdf` → PDF (made once, reused; Markdown only).
 
-Go: `Scan`, `LoadManifest`, `Refresh`, `SaveManifest`, `ClassifyNew(ctx, dir, m, classifier, model, force)`,
-`BuildTree`, `LoadSources`, `Register`. `Classifier` is an interface, so tests (and other models) plug in.
+Admin (admin role), under `/api/v1/doc-groups/admin/groups`: `GET` list; `POST`; `PUT|DELETE /:key`;
+`POST /:key/members {member_type, path}`; `DELETE /:key/members/:memberId`; `GET /:key/documents`;
+`POST /:key/documents/:docId/remove {delete}` (409 `{groups}` if another group holds it);
+`POST /:key/rescan`; `POST /:key/classify {force}`.
 
-Command (run from `ChenWeb/`):
-
-```bash
-go run ./server/cmd/docbuilder-classify -source user-manuals [-model <profile>] [-dry-run] [-force]
-```
-
-Or through mise: `mise build-docs user-manuals [--dry-run] [--force] [--model <profile>]`
-(the task is in `ChenWeb/mise.toml`).
-
-`-dry-run` scans and reports without calling a model; `-force` reclassifies files that already have a category.
+Go: `Store` (`SyncGroup`, `GroupDocs`, `AddMember`, `RemoveDocument`, `ClassifyGroup`, `ExportPDF`, …),
+`API{Store, ValidRoles, NewClassifier}.Register(group)`.
 
 ## 4. Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
-| `DOCBUILDER_CONFIG` | `docbuilder.local.toml` | Env var: path of the sources file |
-| `DOCBUILDER_MODEL` | `deepseek-flash-processor` | Env var (or `-model`): a profile in `.models.toml` used by the command |
-| `source.key` | none | `[[source]]` — name used in the URL and `-source` |
-| `source.dir` | none | `[[source]]` — directory; absolute or relative to the sources file |
-| `source.title` | none | `[[source]]` — display title returned by the tree endpoint |
+| `DOCUMENT_ROOT_DIR` | required | Root for all document paths; without it the feature is off |
+| `DOCUMENT_ARCHIVE_DIR` | `<root>/.doc-archive` | Deleted documents are moved here |
+| `DOCUMENT_PDF_DIR` | `<root>/.doc-pdf` | Stored PDF exports |
+| `DOCUMENT_PDF_ENGINE` | `typst` | pandoc PDF engine |
+| `DOCBUILDER_MODEL` | `deepseek-flash-processor` | `.models.toml` profile for classification |
+| `DOCBUILDER_PROMPT` | `prompt-docbuilder-classify-v1.md` | Classification prompt file |
 
 ## 5. Usage
 
-Add a source, classify once, and the endpoints work:
-
-```toml
-# ChenWeb/docbuilder.local.toml
-[[source]]
-key   = "user-manuals"
-title = "User Manuals"
-dir   = "../KnowledgeStore/doc-repo/user-manuals"
-```
-
 ```bash
-go run ./server/cmd/docbuilder-classify -source user-manuals
-curl -b cookies.txt localhost:8090/api/v1/docbuilder/user-manuals/tree
+cd ChenWeb
+mise build-docs user-manuals              # register + classify new documents of the group
+mise build-docs devdocs --dry-run         # report only
 ```
 
-Then show it with the [frontend module](module-document-builder-frontend.md).
+```go
+(&docbuilder.API{Store: store, ValidRoles: roles, NewClassifier: newClassifier}).Register(apiGroup)
+```
+
+Groups, members, order and roles are managed on Development › System Admin › Document Groups.
 
 ## 6. Behaviour and conventions
 
-- **One-time classification.** A file that has a category keeps it, even if its content changes
-  (the saved hash is refreshed, the category is not). Only new files are sent to the model;
-  removed files drop out. Progress is saved after each batch of 25, so a failed run keeps what it got.
-- **The manifest is data in the documents' own repo:** `<dir>/.docbuilder/manifest.json`. Hidden
-  files and directories are never scanned, so the manifest is not listed as a document.
-- **Latest version only.** `name-v1.0-en.md`, `-v1.1-`, `-v1.10-` … are one document; the tree lists the
-  highest version (compared number by number, so 1.10 > 1.9). The language part after the version
-  (`-en`, `-zh`) keeps languages apart, and files without a `-v<number>` are never hidden. Add `?all=1` to list every version. The manifest still holds all of them.
-- Files added since the last classification appear under "Uncategorized" until the command is rerun.
-- Category names come from the model, written in the language of the document titles; it prefers
-  existing categories and aims for roughly 4–12 overall.
-- Titles come from front-matter `title:`, else the first heading, else the file name.
-- Serving only reads the manifest and the directory; it never calls an LLM and never writes.
+- Document IDs come from the shared ID manager (sequence `doc_registry_id`); `file_id` and group
+  IDs are the tables' own primary keys.
+- A rename without edit keeps the document ID (matched by content hash); rename plus edit is a new
+  document. Categories are per group and never re-requested unless forced.
+- Delete is refused while another group holds the document; otherwise all versions are moved to the
+  archive and the registry rows are kept.
+- Editing a Markdown file deletes its stored PDF.
+- Hidden files and directories are never scanned or served; paths are validated (no `..`, no absolute).
+- Serving never calls an LLM; errors are JSON without absolute paths.
 
 ## 7. Scope and limits
 
-- A PDF is classified from its path and file name only (no text extraction), so a PDF named
-  `report-final.pdf` gets a weak category. Folder names help.
-- The tree is two levels (category → document); sub-directory structure is a hint to the model,
-  not a menu level.
-- Markdown excerpt sent to the model is the first 500 characters.
-- If a second project needs it, move the package to `shared/go`.
-- Verified: unit tests, and a real classification of `doc-repo/user-manuals` (24 files → 6 categories).
-  `doc-repo/devdocs` has not been classified yet.
+- Markdown and PDF only. A PDF is classified from its path and name.
+- Not built yet: comments, tickets, to-dos, upload into member directories; online editing is not planned yet.
+- One server process (a lock serialises syncs); sync walks member directories on each tree read.
+- Per-document category editing is not available (use reclassify).
