@@ -1,7 +1,7 @@
 # ADR 20260702 — Document Review: Artifact Reviewer Context, Prompt-Cache Layout, and Missing-Metric Detection
 
 **Date:** 2026-07-02 \
-**Status:** Accepted — Stages 1-5 implemented 2026/07/03; Stage 6 open \
+**Status:** Accepted — Stages 1-5 implemented 2026/07/03; Stage 6 open; AR2/AR3 amended 2026/11/10 \
 **Component:** ChenWeb — `server/api/doc-reviews`, `prompts`, `doc-review.local.toml` \
 **Authors:** Chen Ding \
 **Tags:** doc review, artifact reviewers, prompt cache, DeepSeek, metrics, provisions, inventory items, missing requirements
@@ -57,6 +57,12 @@
   `kb.object_nodes`; and a new `GET /api/v1/llm/usage-events/by-ids` endpoint
   (no id-list lookup existed previously for `public.llm_usage_event`). No
   schema migration — all columns already existed.
+* 2026/11/10, **AR2/AR3 amended** (see *AR2/AR3 Amendment — 2026-11-10*): an
+  artifact review call now carries the extraction chunk its artifact came from,
+  in a compact line format, instead of the 200-line JSON window. Cache reuse no
+  longer decides what a call contains. Applies to `metrics`, `provisions`,
+  `inventory_items` and `metrics_completeness` (openspec change
+  `artifact-review-source-chunk`).
 
 ---
 
@@ -178,6 +184,10 @@ reader is not misled again.
 
 ### AR2 — Source window auto-included, chunk-first, byte-identical to the scheduler windows
 
+> **Amended 2026-11-10.** The source passage is now the extraction chunk, in a
+> compact line format; see *AR2/AR3 Amendment — 2026-11-10*. The text below is
+> the original decision.
+
 Every artifact review call includes the source passage of the artifact under
 review, placed **first** in the user message (before the rubric), so that calls
 sharing a window share a cacheable prefix:
@@ -228,6 +238,9 @@ context:
 
 ### AR3 — Chunk-grouped scheduling for artifact review units
 
+> **Amended 2026-11-10.** Units are grouped by extraction chunk instead of
+> 200-line window; see *AR2/AR3 Amendment — 2026-11-10*.
+
 Artifact review units are grouped and ordered by their source window, and
 executed with the same seed → stagger (`LLM_CALL_STAGGER`) → remainder pattern
 the prompt-cache scheduler uses: one unit per window fires first to plant (or
@@ -244,6 +257,53 @@ Sibling bursts are already bounded by the run-level semaphore
 (`maxDocReviewerTasks` / `MaxConcurrent`) plus `LLM_CALL_STAGGER`. If cost
 control for pathological documents is ever needed, the right knob is a
 per-aspect unit budget (a separate config item), not a group-size cap.
+
+### AR2/AR3 Amendment — 2026-11-10: the extraction chunk, in compact form
+
+**Why.** AR2 sent the canonical 200-line window because the per-chunk reviewers
+had already cached it, so most of its tokens were cache hits. Review run 2874
+(`review_provisions`, record 416, 169 lines) showed the cost of that choice: each
+of 79 one-provision calls carried the whole 12-page document, about 8,000 of its
+12,000 input tokens, and nearly half of those were the JSON keys repeated on every
+line (`flag`, `line_number`, `page_number`, `line_type`). A cache hit is not a
+reason to send text the reviewer does not need: unrelated pages dilute the model's
+attention, and an uncached call pays for all of them.
+
+**Decision.**
+
+1. *Source passage.* Each call of `metrics`, `provisions`, `inventory_items` and
+   `metrics_completeness` carries the extraction chunk that contains its artifact:
+   the chunk the extractors read (`BuildChunks`, `CHUNK_SIZE` bytes with
+   `CHUNK_OVERLAP_PERCENT` overlap), loaded from the record's saved `.chunks`
+   file. The chunk is chosen as follows: the chunk whose regular lines contain the
+   artifact's first line and whose range contains its last line; else any chunk
+   whose range contains all its lines; else the chunk whose regular lines contain
+   its first line, with `context_truncated: true`. Without a saved file the chunks
+   are rebuilt with the current settings and a warning is logged.
+2. *Format.* The passage is plain text, one text line per document line:
+   `Document: <title | number>`, then `[<line_number>] <content>`, with a type tag
+   only for headings (`h1`, `h2`, …), tables, table captions and equations. Lines
+   that hold only an image path are dropped, and so are overlap flags and page
+   numbers. Table lines keep their numbered rows (`121#r1: …`).
+3. *Scheduling (AR3).* Units are grouped by chunk and still run seed → stagger →
+   remainder; calls sharing a chunk still share a prefix, but that no longer
+   decides the content.
+4. *Unchanged.* The per-chunk and per-block reviewers keep their 200-line JSON
+   windows; the matched artifacts' `source_context` and the tools are unchanged.
+   Moving the per-chunk reviewers and the extractors to the compact format is a
+   separate decision, because their prompts and the extractors' gold benchmarks
+   would have to be re-validated.
+
+**Effect.** For record 416, provision 416_prv_1 now gets lines 22–50 (clause 3,
+terms and definitions, where it was extracted) instead of lines 1–169: about 460
+instead of about 8,000 tokens of source text (estimated from character counts).
+The extraction-error check keeps working, against the same lines the extractor
+read. The window-sharing benefit listed under *Consequences* no longer applies to
+these four reviewers.
+
+New prompt versions describe the input: `prompt-review-metrics-v7.md`,
+`prompt-review-metrics-missing-v2.md`, `prompt-review-inventory-items-v4.md`,
+`prompt-review-provisions-v6.md`.
 
 ### AR4 — Matched-artifact context on demand via a cross-record tool
 
