@@ -1,9 +1,9 @@
 # Handoff: search engine package and provisions reviewer
 
 **Date:** 2026-11-11
-**Status:** Reviewer fixes and the new `searchengine` package are done and committed. The other
-`FindSimilarArtifactsOnTheFly` callers have moved onto the engine (2026-11-11, **uncommitted**). Moving
-`kbhandler`'s own search code onto the engine is open.
+**Status:** All of ChenWeb now searches through the `searchengine` package, and `kbhandler`'s copy of the hybrid
+search SQL is deleted (2026-11-11, third session, committed). Open: the `search-query-keywords` scenario tests on the
+engine path, a disposable-database test for the criteria, and a benchmark-page run before and after.
 **Scope:** `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/doc-reviews/review-provisions.go`,
 `ChenWeb/server/api/kbhandler/searchengine_hooks.go`.
 **Specs and docs:** OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (proposal, design,
@@ -37,7 +37,7 @@ specs, `tasks.md` with a status note under sections 2 and 4); devdoc
    `searchQueryKeywords` ([search_query_keywords.go](../../../../ChenWeb/server/api/kbhandler/search_query_keywords.go)),
    forcing keywords on when the request asks for them.
 
-## Second session: similar-artifact callers moved (uncommitted)
+## Second session: similar-artifact callers moved (committed in jj `tnov`)
 
 All callers of `docprocessing.FindSimilarArtifactsOnTheFly` now use the engine, and the function is deleted.
 
@@ -72,21 +72,49 @@ the `kbhandler` graph tests pass. `doc-processing` has one failing test,
 `kb.metrics` reader without `ref_mention_id IS NULL`). **Not run:** a live review or clustering run comparing old and
 new matches; `SEARCHENGINE_TEST_DATABASE_URL` was not set.
 
+## Third session: `kbhandler` moved onto the engine, old SQL deleted
+
+1. **Golden baseline (task 1.2).** `kbhandler/search_golden_live_test.go` (live, read-only, `SEARCH_GOLDEN_MODE=record|compare`,
+   `SEARCH_GOLDEN_FILE`) records 65 queries: four questions per generated-question purpose, free text typed and all-types,
+   page 2, type and record filters, a provision facet; total, order, score and snippet. Recorded in four configurations
+   (hybrid or lexical-only × ParadeDB or Postgres) from the old code. Files are local, in the session scratchpad, not committed;
+   re-record before the next change to search with `SEARCH_QUERY_KEYWORDS=off` (the test sets it).
+2. **Engine additions** so one implementation serves the HTTP search: `Options.Offset`, `Options.Trace` → `Response.Trace`,
+   `Count`, `Config.CandidateLimit`, `MinLexicalScore`, `PhraseFriendly`, `PreviewWords`, the Chinese substring fallback and
+   `ts_headline` snippets on the Postgres backend, `ErrNoQueryVector`, `BackendFromEnv`, `PartitionTypes`.
+3. **`kbhandler/search_registry.go` is an adapter**: `queryRegistrySearchResults` (retries once keyword-only if the engine
+   fails), `queryRegistrySearchResultsCtx` (strict; the benchmark uses it), `countRegistrySearchResults`, and the swappable
+   `registrySearchCount` / `registrySearchQuery` the handlers call. `withPrecomputedEmbedding` hands the benchmark's own query
+   vector to the searches that follow (the engine never takes vectors in a request). `search_trace.go` builds trace rows from
+   `Response.Trace`; the second trace statement and its `REPEATABLE READ` transaction are gone.
+4. **Deleted:** `queryHybridSearchResults*`, `queryRegistrySearchResults{Postgres,ParadeDB}`, the WHERE/filter/CTE builders,
+   `queryWithVectorIndexScan`, `hybridTraceQuery`/`hybridTraceSelect`, and the tests that asserted that SQL. Handler tests now
+   stub the search layer; `search_trace_test.go` tests the conversion.
+5. **Result (task 2.4):** default config (hybrid, ParadeDB) 65/65 identical incl. scores, snippets and totals; hybrid Postgres
+   65/65; keyword-only Postgres 65/65 (order); keyword-only ParadeDB 58/65, the 7 others are long Chinese questions where the
+   old ParadeDB statement failed silently and the old code returned nothing. Intended keyword-only differences: fused score
+   instead of raw BM25, stored-text snippet on ParadeDB, 200-result paging cap.
+6. **Spike (task 1.1):** reference search about 100 ms on entity (43k rows), relation, metric and provision, more-like-this
+   and stored keywords alike.
+7. **Docs:** capsule rewritten, Artifact Search row and doc at 1.1.0 (catalogue check in sync), devdoc
+   `devdocs/202611/2026111104-devdoc-search-engine-api.md`, `tasks.md` updated.
+
+**Verification:** `go build ./...`; `go vet` for the touched packages; `searchengine` unit and integration tests (against `miner`,
+read-only); the chunk integration test on a throwaway database (both backends; the database is dropped); golden comparison above.
+Failing tests, none in code touched here: `kbhandler` `TestPlanInputDeletePaths…` (2), `TestMetricScore…` (2) and
+`doc-processing` `TestKBMetricsReadersExcludeResolvedRows` (`question_generator_worker.go:133` has no `ref_mention_id IS NULL`).
+**Not run:** the benchmark page before and after; `SearchAgentKnowledge` against a knowledge store (same code path as the HTTP
+search, covered by the golden lists).
+
 ## Commits
 
-- ChenWeb jj `sotp` (git `eba3`): "Provisions reviewer: search engine package, no model call without
-  matches". Explicit paths only. Working copy is now `tnov`.
-- **Not committed (second session):** `searchengine/similar.go`, `similar_test.go`, `engine.go`/`types.go`
-  (`ErrNoQueryVector`), `doc-reviews/similar.go`, the four `review-*.go` files, the two clustering files,
-  `doc-processing/artifact_indexing.go`, `metric_indexing.go`, `metric_indexing_test.go` and
-  `kbhandler/object_graph_handler.go`. Commit with explicit paths; the working copy also holds the other session's
-  files.
-- **Not committed:** the edit to the provisions-reviewer devdoc in KnowledgeStore (summary, step 2,
-  steps 6 and 7, known limitations, files table). The same file holds another session's unrelated
-  uncommitted rewrite, so commit it by hunk, not as a whole.
-- `kbhandler/hybrid_search_benchmark*.go`, two migrations
-  (`20261111000011`, `20261111000012`) and web files are dirty from **another session**. Do not
-  commit or reformat them.
+- ChenWeb jj `sotp` (git `eba3`): "Provisions reviewer: search engine package, no model call without matches".
+- ChenWeb jj `tnov` (6205): the second session's work (similar-artifact callers), committed together with the other
+  session's benchmark changes.
+- ChenWeb jj `wslt` (67df): "Search engine: move kbhandler search onto searchengine, remove the old hybrid SQL".
+- KnowledgeStore: devdoc, module doc, capsule (`2026060201-spec-hybrid-search.md`) and this hand-off, one commit.
+- The edit to the provisions-reviewer devdoc (summary, step 2, steps 6 and 7, known limitations, files table) was
+  committed in the daily update; the doc may still mention `FindSimilarArtifactsOnTheFly`.
 
 ## Verification
 
@@ -102,16 +130,15 @@ new matches; `SEARCHENGINE_TEST_DATABASE_URL` was not set.
 
 | # | Item | Notes |
 |---|---|---|
-| 1 | Tasks 1.1, 1.2 | Spike `pdb.more_like_this` latency on entity/relation/metric partitions; record a golden result set (benchmark questions plus provision and chunk queries via `/kb/search` and `SearchAgentKnowledge`). **Needed before any move.** |
-| 2 | Tasks 2.2, 2.4 | Move `kbhandler`'s lexical/vector/fusion/embedding/keyword SQL, HTTP routes, `SearchAgentKnowledge`, effort loop and benchmark worker/trace onto the engine; golden set must match exactly; then delete the duplicates. Blocked on the other session's benchmark edits landing. Until then two copies of the SQL exist. |
-| 3 | Tasks 4.1–4.3 | `search-query-keywords` scenarios on the engine path; disposable-DB integration test (exclusion before ranking, required keyword removing a vector-only result, cosine floor on a lexical-only result); benchmark before and after. |
-| 4 | Tasks 5.1–5.3 | Hybrid-search capsule; Artifact Search catalogue row `20261111-01` plus `module-artifact-search.md` (v1.1.0) and the catalogue check; devdoc for the engine API (create-devdoc skill). |
-| 5 | ~~Follow-up changes~~ | Done, uncommitted; see "Second session" above. |
+| 1 | Tasks 4.1–4.3 | Separate tests for the `search-query-keywords` scenarios on the engine path; disposable-database test for the criteria (exclusion before ranking, required keyword removing a vector-only result, cosine floor on a lexical-only result); a benchmark-page run before and after. |
+| 2 | Archive the change | `openspec archive hybrid-search-engine-api` once 4.x is done; then point the devdoc at `openspec/specs/hybrid-search-engine/`. |
+| 3 | Cosine floor | `ARTIFACT_CONNECT_MIN_COSINE` (0.75) was tuned for text-embedding-3-small; recalibrate for bge-m3. |
+| 4 | Stale-index metric rows | 5,621 of 8,281 metric index rows belong to records with no `kb.metrics` rows (capsule §13.2); search still returns them. |
 
 ## Decisions and pitfalls
 
-- **Additive, not a move.** The engine was written beside `kbhandler` to avoid colliding with the other
-  session's dirty files. That is a deviation from tasks 2.2/2.4 as written; `tasks.md` says so.
+- **Not a literal move.** The engine had its own queries from the first session; the third session extended it until it
+  matched `kbhandler`'s results on the golden set, then deleted `kbhandler`'s copy.
 - **Cosine floor.** The reviewer keeps `MinCosine` 0.75 to preserve the old effective behaviour. It drops
   keyword-only matches below 0.75 cosine (for example provisions that only share a standard number).
   Dropping `Criteria.MinCosine` in `findSimilarProvisions` lifts that, at the cost of weaker matches.
@@ -125,11 +152,13 @@ new matches; `SEARCHENGINE_TEST_DATABASE_URL` was not set.
 
 ## Documentation status
 
-- **Changed knowledge:** reviewer matching path and no-match behaviour; new engine package and its contract;
-  `Similar` and the cosine floor replace `FindSimilarArtifactsOnTheFly` everywhere.
-- **Updated:** `tasks.md`, the provisions-reviewer devdoc (uncommitted).
-- **Stale:** code comments in `inventory_item_indexing.go` and `metric_indexing.go` (~lines 85, 153) still name
-  `FindSimilarArtifactsOnTheFly`; the provisions-reviewer devdoc and the reviewer devdocs may too.
-- **Stale or missing:** the Artifact Search module doc and catalogue row, the hybrid-search capsule, and a
-  devdoc for the engine API (tasks 5.1–5.3). Nothing about the engine is yet in the `hybrid-search-benchmark` docs.
-- **Reusable modules:** the engine is not registered in the catalogue yet (task 5.2).
+- **Changed knowledge:** one search engine for every server module; `Similar` and the cosine floor replace
+  `FindSimilarArtifactsOnTheFly`; `kbhandler` is an adapter; traces come from the engine's lists.
+- **Updated:** `tasks.md`, the hybrid-search capsule, Artifact Search row and doc (1.1.0, catalogue check in sync),
+  the new engine devdoc, this hand-off.
+- **Stale:** the provisions-reviewer devdoc and the other reviewer devdocs may still name
+  `FindSimilarArtifactsOnTheFly`; other openspec `design.md` files (hybrid-search-benchmark,
+  hybrid-search-benchmark-trace, analysis-node-related-metrics) describe the removed SQL and CTE trace as history.
+  `docs`/`HowTo.md` were not searched.
+- **Intentionally left:** the golden result files (local, data-dependent); the old design text of archived changes.
+- **Reusable modules:** the engine is part of Artifact Search (`20261111-01`), registered.

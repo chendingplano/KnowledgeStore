@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-11-11 (chunk indexing, embedding windows, backfill and configuration/SQL corrections)
+- **Last Updated**: 2026-11-11 (search engine package: one retrieval implementation for the HTTP search and every server module)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -237,56 +237,75 @@ search when `EmbeddingText` is not separately set.
 
 ## 8. Read path (RRF fusion)
 
-`ChenWeb/server/api/kbhandler/search_registry.go`. The handler entry
-`queryRegistrySearchResults` branches:
+Since 2026-11-11 one package, `ChenWeb/server/api/searchengine` (openspec `hybrid-search-engine-api`),
+runs every search; `kbhandler/search_registry.go` only maps HTTP parameters onto it. It imports neither
+`kbhandler` nor `doc-processing`, so the document reviewers, the clustering steps and the object graph
+call it too. The embedder and the query-keyword extractor stay in `kbhandler` and are registered with the
+engine at startup (`SetEmbedder`, `SetKeywordExtractor`, `kbhandler/searchengine_hooks.go`); a process that
+does not link `kbhandler` has neither, and its searches run on the keyword list alone.
 
-- If `SemanticSearchEnabled()` **and** the query can be embedded
-  (`computeQueryEmbedding`, `search_embedding_query.go`):
-  - If lexical backend is paradedb (the default; override with `SEARCH_LEXICAL_BACKEND=postgres`) → `queryHybridSearchResultsParadeDB` (BM25 + pgvector RRF).
-  - Otherwise → `queryHybridSearchResults` (tsvector + pgvector RRF, described below).
-- Otherwise → the original lexical-only query (unchanged, still used as the fallback when
-  the query can't be embedded).
+**Entry points**
 
-Both `queryHybridSearchResults` (Postgres) and `queryHybridSearchResultsParadeDB` share
-the same two-CTE RRF structure. The semantic CTE and fusion formula are identical; the
-lexical CTE differs by backend:
+- `searchengine.Search(ctx, db, cfg, Request)` — `Request` = `Query` (a text, or a reference to an indexed
+  artifact; exactly one), `Filters`, `Criteria`, `Options` (`Limit`, `Offset`, `KeywordExtraction`, `Trace`).
+- `searchengine.Count` — the number of keyword-list matches (the HTTP `total`).
+- `searchengine.Similar(ctx, db, ref, SimilarOptions)` — artifacts similar to an indexed one: the reference
+  itself excluded, filters applied before ranking, cosine floor (`ARTIFACT_CONNECT_MIN_COSINE`, default
+  0.75), at most `ARTIFACT_CONNECT_MAX_LINKS` (10). Used by the metrics, inventory-item, entity and
+  provisions reviewers, the entity and inventory-item clustering steps and the object graph.
+- `kbhandler.queryRegistrySearchResults` / `countRegistrySearchResults` — the HTTP routes, `SearchAgentKnowledge`,
+  the effort loop and the benchmark go through these.
+
+**Reference queries.** The engine reads the referenced row: its stored embedding (else it embeds the stored
+text), its stored keywords (else `pdb.more_like_this` on the stored text on ParadeDB, or its most frequent
+terms on Postgres). About 100 ms on every partition, including the 43k-row entity one, whichever source.
+
+**Filters** (both lists, before fusion): artifact types, record IDs, excluded record IDs, excluded artifact IDs,
+knowledge store, document group and the structural facets. An exclusion therefore never takes a result slot.
+
+**Criteria** (caller keywords with weights, required, excluded; minimum matched keywords; minimum cosine) are
+evaluated on the fused candidates; `Response.Removed` counts what each removed. `Diag` on each result gives the
+lexical rank and score, vector rank, cosine and matched keywords.
+
+**Score contract.** `Score = wl/(60 + lexical_rank) + ws/(60 + vector_rank)`, a missing rank adding 0. It orders
+one response; it is not comparable across queries and is not a relevance probability (the top result of a query
+with nothing relevant still scores about 0.033 at weights 1.0/1.0). For "is anything similar enough?" use
+`Criteria.MinCosine` or `Diag.Cosine`.
+
+**Keyword-only fallback.** When the query has no vector (semantic search off, no embedding model, or the call
+failed) the keyword list alone is fused: scores are then `wl/(60+rank)`, hits below `[artifact_search] min_rank`
+are dropped, and the snippet is the stored text (ParadeDB) or a `ts_headline` highlight (Postgres). At most 200
+results can be paged. If the engine errors, `queryRegistrySearchResults` retries once on the keyword list.
+
+Both lists, the filters and the fusion:
 
 ```
-$1 = query text (or first keyword)   $2 = query embedding (::vector)
-$3.. = structural filters, then any further keywords, then page size and offset
+$vec = query embedding (::vector)      keyword list = keywords, else the raw query text
 ```
 
-- **lexical CTE**
-  - *Postgres:* rows matching `tsvector @@ tsquery` (+ CJK ILIKE fallback), ranked by
-    `ts_rank_cd`, `ROW_NUMBER()` → `rnk`, `LIMIT hybridCandidateLimit` (200).
-  - *ParadeDB:* reads the `kb.search_artifacts_<type>` partitions, never the parent:
-    the requested type's partition, or a `UNION ALL` with one branch per partition (all
-    12, or those named in `artifact_types`), each branch taking its own top 200 by
-    `pdb.score(artifact_id)`. Partition names come only from a fixed list of types
-    (`searchArtifactPartitionTypes`). The match clause covers the registry fields
-    `search_document`, `primary_label`, `secondary_label`, `snippet_basis`,
-    `source_title` and `source_filename`, never raw source-table columns:
-    - without keywords: `field ||| $1` — any token of the raw query;
-    - with keywords (see below): `field &&& $k` — every token of one keyword in one
-      field — OR-ed over keywords, so artifacts matching more keywords score higher.
-    No CJK ILIKE fallback is needed because the BM25 index uses the Jieba tokenizer.
-    In a mixed-type search each branch scores with its own partition's statistics.
-- **semantic CTE** — `ORDER BY embedding <=> $2::vector LIMIT 200` on the parent
-  (pgvector merges the per-partition HNSW scans), then `ROW_NUMBER()` over the distance.
-  The plain `ORDER BY … LIMIT` is the only shape pgvector serves from the index; the
-  earlier `ROW_NUMBER() OVER (ORDER BY distance)` computed every distance first. The query
-  runs in a transaction with `SET LOCAL hnsw.iterative_scan = relaxed_order`; without it an
-  HNSW scan returns at most `hnsw.ef_search` rows (40 by default), not 200. Identical in
-  both backends.
-  An additional bounded nearest-window scan over `kb.chunk_search_windows` applies the same structural filters. Both lists are grouped by `(artifact_type, artifact_id)` using minimum distance, reranked and capped at 200 before fusion. A chunk appears once even when multiple windows match. Repeated windows can consume candidate capacity and reduce distinct recall within the bounded scan.
-- **fused** — `FULL OUTER JOIN` on `(artifact_type, artifact_id)`; score =
-  `COALESCE(wl/(rrfK + rnk_lex), 0) + COALESCE(ws/(rrfK + rnk_sem), 0)` with `rrfK = 60`
-  and `wl`, `ws` from `[artifact_search] hybrid_lexical_weight` / `hybrid_semantic_weight`
-  (default 1.0 each; 0 drops a list). The weights are written as `float8` literals; a bare
-  `1` made the division integer and every score 0.
-- **Final SELECT** joins back to `kb.search_artifacts` for display columns. Snippet is
-  `ts_headline(...)` on the Postgres path; raw `snippet_basis` / `search_document` on the
-  ParadeDB path (no equivalent of `ts_headline` in pg_search).
+- **keyword list**
+  - *Postgres:* rows matching `tsvector @@ tsquery`, ranked by `ts_rank_cd` (a weighted sum over keywords), top
+    200. A raw query with Chinese, Japanese or Korean text also matches by `ILIKE` in the labels and document
+    and scores label hits higher.
+  - *ParadeDB:* reads the `kb.search_artifacts_<type>` partitions, never the parent: the requested type's
+    partition, or one branch per partition (all 12, or those in `Filters.ArtifactTypes`), each taking its own
+    top 200 by `pdb.score(artifact_id)`, merged by score and cut to 200. Partition names come only from a fixed
+    list (`searchengine.PartitionTypes`). The match clause covers the registry fields `search_document`,
+    `primary_label`, `secondary_label`, `snippet_basis`, `source_title` and `source_filename`:
+    - without keywords: `field ||| $q` — any token of the raw query;
+    - with keywords: `field &&& $k` (optionally `::pdb.boost(w)`) — every token of one keyword in one field —
+      OR-ed over keywords, so artifacts matching more keywords score higher.
+    No CJK `ILIKE` fallback is needed because the BM25 index uses the Jieba tokenizer.
+- **vector list** — `ORDER BY embedding <=> $vec LIMIT 200` on the parent (pgvector merges the per-partition
+  HNSW scans), inside a transaction with `SET LOCAL hnsw.iterative_scan = relaxed_order` (without it an HNSW scan
+  returns at most `hnsw.ef_search` rows, 40 by default). The plain `ORDER BY … LIMIT` is the only shape pgvector
+  serves from the index. A bounded nearest-window scan over `kb.chunk_search_windows` applies the same filters;
+  both are grouped by `(artifact_type, artifact_id)` using the minimum distance, reranked and capped at 200, so a
+  chunk appears once even when several windows match.
+- **fusion** (in Go) — per `(artifact_type, artifact_id)` the sum above, ordered by score then artifact ID, with
+  `wl`, `ws` from `[artifact_search] hybrid_lexical_weight` / `hybrid_semantic_weight` (default 1.0 each; 0 drops
+  a list).
+- **display fields** — one `SELECT` for the kept page.
 
 ### 8.1 Query keywords for BM25
 
@@ -359,7 +378,7 @@ On the all-types route, `artifact_types=a,b` (comma-separated) narrows the set; 
 value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
 
 **Artifact types.** There are 12, one partition `kb.search_artifacts_<type>` each (the list is
-`searchArtifactPartitionTypes` in `search_registry.go`; the partitions come from the migrations
+`searchengine.PartitionTypes()`, in `searchengine/filters.go`; the partitions come from the migrations
 `20260522000002`, `20260526000001`, `20260526000004`, `20260527000010`, `20260531000001`):
 
 | `artifact_type` | Per-type route | Also in `artifact_types=` |
@@ -378,28 +397,25 @@ value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
 | `relation` | none | yes |
 
 All types are searched together by `/kb/search`. A new type needs a partition, a BM25 index,
-an HNSW embedding index and an entry in `searchArtifactPartitionTypes`.
+an HNSW embedding index and an entry in `partitionTypes` (`searchengine/filters.go`).
 
 **Candidate counts.** Each lexical partition supplies up to 200 rows, then the merged lexical list is capped at 200 before RRF. The merged, deduplicated semantic list is also capped at 200. The final page is cut after RRF fusion. Candidate limits can be overridden by benchmark configuration.
 
-**Structural filters** (`artifact_type`, `input_record_id`, category, `semantic_payload`
-facets) apply to **both** CTEs. The hybrid path uses `buildStructuralFilterClauses`
-(filters only, no FTS clause); the lexical path uses `appendArtifactFilterClauses` inside
-`buildRegistrySearchWhereClause` (filters + FTS clause). Both encode the same filter set.
-The FTS clause constrains **only** the lexical list, so semantically-similar artifacts
-that share no query terms can still surface.
+**Structural filters** (`artifact_type`, `input_record_id`, category, `semantic_payload` facets) are
+`searchengine.Filters`; one function (`filterClauses`) renders them for the keyword list, the registry vector
+scan and the chunk-window scan. The keyword clause constrains **only** the keyword list, so semantically-similar
+artifacts that share no query terms can still surface.
 
-> **Known limitation:** the result `total` reported by the handler still comes from the
-> lexical `countRegistrySearchResults`, so it can undercount semantic-only matches.
-> Acceptable for the interim; revisit if exact hybrid totals are needed.
+> **Known limitation:** the result `total` is the keyword-list match count (`searchengine.Count`), so it can
+> undercount semantic-only matches. Acceptable for the interim; revisit if exact hybrid totals are needed.
 
 ## 9. Key tunables
 
 | Name | Location | Value | Meaning |
 |---|---|---|---|
 | `EmbeddingDim` | kbsearch/semantic.go | 1024 (was 1536) | Vector dim; must match `vector(N)` + model |
-| `rrfK` | kbhandler/search_registry.go | 60 | RRF constant |
-| `hybridCandidateLimit` | kbhandler/search_registry.go | 200 | Per-list candidate cap before fusion |
+| `rrfK` | searchengine/types.go | 60 | RRF constant |
+| `candidateLimit` | searchengine/types.go | 200 | Per-list candidate cap before fusion (a benchmark run can override it) |
 | `hybrid_lexical_weight`, `hybrid_semantic_weight` | config.toml `[artifact_search]` | 1.0, 1.0 | RRF weights of the lexical and semantic lists; 0 drops a list |
 | `hnsw.iterative_scan` | `SET LOCAL` in hybrid queries | `relaxed_order` | Lets an HNSW scan return the full 200 candidates |
 | `SEARCH_QUERY_KEYWORDS` | env | `off` (dev: `on`) | LLM query keywords for the ParadeDB clause |
@@ -445,12 +461,14 @@ Rollout order: install pgvector → restart Postgres (migration auto-applies) �
 | Embedding-on-reindex | `ChenWeb/server/api/doc-processing/search_indexing_embedding.go` |
 | Reindex choke point + weighted registry document builders | `ChenWeb/server/api/doc-processing/search_indexing.go` |
 | Search weight config | `ChenWeb/config.toml`, `ChenWeb/server/cmd/config/config.go` |
-| Hybrid RRF query + filters, ParadeDB partition reads | `ChenWeb/server/api/kbhandler/search_registry.go` |
+| Search engine: types, hooks, config, filters, keyword list, vector list, fusion, `Similar` | `ChenWeb/server/api/searchengine/` (`engine.go`, `lexical.go`, `vector.go`, `filters.go`, `similar.go`, `types.go`) |
+| HTTP / agent adapter over the engine (`queryRegistrySearchResults`, `countRegistrySearchResults`) | `ChenWeb/server/api/kbhandler/search_registry.go` |
+| Embedder and keyword-extractor registration | `ChenWeb/server/api/kbhandler/searchengine_hooks.go` |
 | Query keyword extraction + cache | `ChenWeb/server/api/kbhandler/search_query_keywords.go`, `ChenWeb/prompts/prompt-search-query-keywords-v1.md` |
 | BM25 index maintenance job | `ChenWeb/server/api/kbsearch/bm25_maintenance.go`, registered in `ChenWeb/server/api/kbhandler/scheduler_jobs.go`; schedule seed `ChenWeb/project_migrations/20261024000010_seed_bm25_index_maintenance_schedule.sql` |
 | Specs | `ChenWeb/openspec/specs/search-query-keywords/`, `…/search-index-maintenance/` |
 | Live benchmark page (generated questions) | `ChenWeb/server/api/kbhandler/hybrid_search_benchmark*.go`, `ChenWeb/server/api/kbhandler/search_trace.go` (candidate traces), `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-view.svelte`, `…/hybrid-search-benchmark-analyze.svelte` |
-| Backend default + startup check | `ChenWeb/server/api/kbhandler/search_registry.go` (`registryLexicalBackend`, `CheckSearchBackend`, `CheckParadeDBInstalled`) |
+| Backend default + startup check | `ChenWeb/server/api/searchengine/config.go` (`BackendFromEnv`), `kbhandler/search_registry.go` (`CheckSearchBackend`, `CheckParadeDBInstalled`) |
 | Query embedding + embedder builder | `ChenWeb/server/api/kbhandler/search_embedding_query.go` |
 | Search run IDs (usage-log correlation) | `ChenWeb/server/api/kbhandler/search_run.go` |
 | Effort levels (analyse → search → judge loop) | `ChenWeb/server/api/kbhandler/search_effort.go`, `ChenWeb/prompts/prompt-search-effort-*-v1.md` |
@@ -466,8 +484,8 @@ tsvector.
 
 - Migrations: `20260603000002_add_paradedb_bm25_to_search_artifacts.sql`,
   `20260603000003_ensure_paradedb_bm25_search_artifacts.sql`
-- Read path branches into `queryRegistrySearchResultsParadeDB` /
-  `queryHybridSearchResultsParadeDB` unless `SEARCH_LEXICAL_BACKEND=postgres`.
+- The engine's keyword list reads the partitions with BM25 unless `SEARCH_LEXICAL_BACKEND=postgres`, and
+  falls back to Postgres full text when a ParadeDB statement fails.
 - Startup check: `kbhandler.CheckSearchBackend` verifies `pg_search` is installed
   after migrations; process exits with a fatal error if it is not.
 - **Partitions only.** pg_search 0.21.8 accepts BM25 operators (`|||`, `&&&`, `pdb.score`)
@@ -548,11 +566,11 @@ openspec change `hybrid-search-benchmark`) measures the live search instead of t
 run takes the `testbed.generated_questions` rows of a purpose — all of them, or those picked in the *Tests to run* dialog — (the benchmark accepts only `search_metrics`;
 each question targets one metric, `metric_id` = `artifact_id`. The generator also writes questions
 for the other artifact types and Mix since 2026-11-11 — devdoc `2026102401` — not yet benchmarked) and searches artifact type `metric`
-over the whole corpus three times with the production hybrid query
-(`queryHybridSearchResultsParadeDB`, or the tsvector variant): weights 1/0 (lexical only), 0/1
+over the whole corpus three times with the production search
+(`searchengine.Search`): weights 1/0 (lexical only), 0/1
 (semantic only) and the configured `[artifact_search]` weights (hybrid). A zero weight leaves the
 other list's order unchanged; results with fused score 0 count as misses. It records the target's
-rank in the first 200 results (`hybridCandidateLimit`) and reports R@1/5/10 and MRR per mode,
+rank in the first 200 results (the candidate limit) and reports R@1/5/10 and MRR per mode,
 overall and by hop type and language.
 
 - Tables: `testbed.hybrid_search_benchmark_runs` (status, progress and the settings in force:
@@ -596,20 +614,17 @@ overall and by hop type and language.
   counts as a hit (no near-duplicate credit).
 - **Candidate traces** (openspec `hybrid-search-benchmark-trace`, migration `20261025000004`). A
   benchmark search can carry a `searchTraceSink` (`registrySearchConfig.trace`, set only by the
-  benchmark worker). Both hybrid queries are built from shared CTEs — ParadeDB:
-  `lexical_partitions` (the per-partition BM25 branches) → `lexical` (merged by raw score) →
-  `semantic` → `fused`; tsvector: `lexical` → `semantic` → `fused` — and with a sink
-  `queryWithVectorIndexScan` runs, in the same `REPEATABLE READ, READ ONLY` transaction right after
-  the production statement, a trace statement: the same CTEs plus `hybridTraceSelect`, one row per
-  candidate per stage. The production statement's text gained the extra CTE and columns but its
-  plan is unchanged (`EXPLAIN` compared). The fused order is checked against the returned results
-  (`trace differs from the search results` otherwise); a failed trace never fails the search.
-  Traced: each question's hybrid-mode search (`seq` 1) and every effort-loop search (matched to
-  its attempt by query text). Stored in `testbed.hybrid_search_benchmark_queries` and
+  benchmark worker). Since 2026-11-11 the trace is the engine's own: `Options.Trace` returns
+  `Response.Trace` — each partition's BM25 list before merging (ParadeDB only), the merged keyword list the
+  fusion used, the vector list and the fused list — and `searchTraceSink.add` turns it into the rows below.
+  (Before, a second statement of the same CTEs ran in a `REPEATABLE READ` transaction.) The fused order is
+  checked against the returned results (`trace differs from the search results` otherwise). Traced: each
+  question's hybrid-mode search (`seq` 1) and every effort-loop search (matched to its attempt by query text).
+  Stored in `testbed.hybrid_search_benchmark_queries` and
   `testbed.hybrid_search_benchmark_candidates`: `lexical_partition` (BM25 `pdb.score`, rank within
   the partition), `lexical` (BM25 or `ts_rank_cd`, merged rank + `partition_rank`), `semantic`
   (similarity = 1 − cosine distance), `fused` (RRF score, final rank, `lexical_rank`,
-  `semantic_rank`). `hybrid_ms`/`effort_ms` exclude trace time. Read through
+  `semantic_rank`). Tracing costs no extra statement, so `hybrid_ms`/`effort_ms` need no correction. Read through
   `GET …/results/:id/trace?limit=` (the result, its run's lexical backend, and per query the first
   `limit` rows per stage + the target's rows), shown in the *Analyze* tab (openspec
   `hybrid-search-benchmark-analyze-page`): a new browser tab on the same development page
