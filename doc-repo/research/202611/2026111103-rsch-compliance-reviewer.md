@@ -3,6 +3,7 @@
 **Date:** 2026-11-11 (America/Chicago) \
 **Status:** Research and design proposal; the proposed reviewer is not implemented. Formerly filed as `devdocs/202611/2026111103-devdoc-compliance-reviewer-research.md`. \
 **Scope:** Reviewing a document against applicable laws, regulations, standards, contracts, and organizational policies, including obligations the document never names. \
+**First iteration:** Ground sources are limited to the existing knowledge base, which is mostly Chinese standards, searched through the hybrid search engine. Other source types come in later iterations (decided 2026-11-11). \
 **Code roots:** `ChenWeb/server/api/doc-reviews`, `ChenWeb/server/api/doc-processing`, `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/kbsearch`.
 
 ## 1. Summary
@@ -12,6 +13,8 @@ A useful compliance reviewer must discover which rules might govern the activiti
 The recommendation is a shared, evidence-grounded assessment engine, initially exposed as one new optional **Compliance Review** aspect. It should search in both directions: from described activities to potentially applicable requirements, and from a selected set of applicable requirements back into the document. The second direction catches omissions that sentence-by-sentence review cannot find.
 
 Every assessment should distinguish applicability, document evidence, and execution completeness. “No contradiction found,” “requirement not documented,” “applicability unknown,” and “search failed” are different outcomes. The engine should report scoped document assessments, with source versions and evidence, rather than declare that an organization or deployed system is compliant.
+
+The first iteration grounds every source-side conclusion in one place: the existing knowledge base, which is mostly Chinese standards, searched through the server’s hybrid search engine (`searchengine`). Laws, regulations, company policies, contracts, and externally acquired sources come in later iterations. §5.1 sets out what that decision changes: binding force is read from a standard’s type and its adoption, modal wording separates requirements from recommendations, editions are selected by identity and date, and the logging example remains an illustration rather than the first profile.
 
 The inspection also found two defects in the existing reviewers that make their results misleading today and do not depend on the new engine (§2.2): a failed model call becomes an empty, successful result, and the reference documents a user selects never reach the reviewers. Delivery phase 0 (§12) fixes them first.
 
@@ -23,13 +26,14 @@ The design deliberately leaves these choices to the profile owner. Work on a pro
 
 | Decision | Why it blocks | Current position |
 |---|---|---|
-| Target jurisdiction(s) for the first profile | Applicability, source acquisition, and gold labels all depend on it | The documents used in this workspace's existing extraction benchmarks are mostly Chinese national standards (GB/T), which favours a China-first profile: the Cybersecurity Law, the Personal Information Protection Law, and related GB standards. The corpus inventory below should confirm this. |
-| Organization role and legal entities | Decides whether duties such as network-operator log retention apply at all | Not supplied; must come from the owner |
-| Adopted standards and company policy inventory | A profile can only check obligations it holds | Not supplied |
+| Source scope | Applicability, retrieval, and gold labels all depend on it | **Decided 2026-11-11:** the existing knowledge base, which is mostly Chinese standards, searched through the hybrid search engine; other source types in later iterations (§5.1) |
+| Subject of the first profile | A profile can only be checked against standards the knowledge base holds | Open. Pick a subject the production knowledge base covers densely, ideally a chain of a product or enterprise standard, the mandatory standard it must meet, and related industry or group standards (§5.1) |
+| Organization role and products or services in scope | Decides which standards govern, for example a manufacturer versus a service provider | Not supplied; must come from the owner |
+| Adopted recommended standards | Recommended, group, and enterprise standards bind only through adoption; the reviewed document’s normative references supply part of this | Not supplied; company policies are deferred to a later iteration |
 | Profile owner | Approved obligations need an accountable reviewer | Not decided |
 | Annotation budget | Sets the size of the gold set, and therefore which release gates in §11.3 can be measured | Not estimated |
 
-The first piece of work is a corpus inventory, which is cheap: count which laws, regulations, standards, and company policies are actually held as `kb.inputs` records with usable chunks, broken down by jurisdiction, language, and edition. This research did not do it. §7 explains why source coverage limits everything downstream.
+The first piece of work is an inventory of the production knowledge base, which is cheap. Count standards by type (mandatory, recommended, group, enterprise, local, industry), subject, and edition. Count how many are search-ready, with indexed provisions and original chunks, and how many have extracted references. Almost every production record carries a document number (over 99%), so the count can be made from identifiers. This research looked only at a development database, which is not representative of production. §7 explains why source coverage limits everything downstream.
 
 ### 1.2 Terms used in this document
 
@@ -43,6 +47,8 @@ The first piece of work is a corpus inventory, which is cheap: count which laws,
 | Lexical search, BM25 | Keyword search; BM25 is the ranking formula it uses |
 | Semantic search, cosine | Search by embedding similarity; cosine is the similarity score |
 | Recall@K | The share of relevant items that appear in the top K results |
+| Mandatory, recommended standard | Chinese standard types: a mandatory standard (such as `GB`) must be implemented; a recommended one (such as `GB/T`) binds only when adopted |
+| Normative references | The list of documents a standard declares indispensable for applying it (规范性引用文件) |
 | Obligation | One assessable requirement taken from a governing source |
 | Profile | An approved, versioned set of obligations for one jurisdiction, organization role, and document type |
 | Evidence boundary | The documents a review may look in: the reviewed document alone, or it plus named supporting documents |
@@ -88,7 +94,7 @@ The local TOML selects `per-chunk` for legal/regulatory/standards and `per-block
 
 The legal rubric asks the model to infer legal context and covers potentially missing disclosures, privacy requirements, and contractual terms. It also mixes legally required terms with customary terms. This can produce useful concerns, but custom and legal obligation must become different categories in a rigorous assessment. A missing copyright notice or disclaimer is not automatically a legal violation merely because it is commonly seen.
 
-**Defect: failed model calls disappear on both paths.** On the normal configured path, the chunk reviewer interface in `review-document.go` is `processChunk(ctx, recordID, index, cfg, input) []ReviewFinding`. It has no error return, so no chunk reviewer can report a failure. The legal reviewer’s `processChunk` logs a failed JSON extraction and returns no findings; a failed tool loop is logged and whatever partial findings it produced are returned as if complete. The page-block fallback behaves the same way: `processBlock` returns no findings on failure, and the concurrent callback in `ReviewDocument` wraps that result with a nil error. An empty or short finding list therefore cannot establish that all units were reviewed. Twenty reviewers implement `processChunk`, so the fix is an interface change across all of them, not a patch to one reviewer. It is independent of the model’s reasoning accuracy.
+**Defect: failed model calls disappear on both paths.** On the normal configured path, the chunk reviewer interface in `review-document.go` is `processChunk(ctx, recordID, index, cfg, input) []ReviewFinding`. It has no error return, so no chunk reviewer can report a failure. The legal reviewer’s `processChunk` logs a failed JSON extraction and returns no findings; a failed tool loop is logged and whatever partial findings it produced are returned as if complete. The page-block fallback behaves the same way: `processBlock` returns no findings on failure, and the concurrent callback in `ReviewDocument` wraps that result with a nil error. An empty or short finding list therefore cannot establish that all units were reviewed. Twenty reviewers implement `processChunk`, so the fix is an interface change across all of them, not a patch to one reviewer. The artifact reviewers, including Provision Consistency, follow the same pattern: `runArtifactUnitsChunkGrouped` in `review-artifact-window.go` documents that each unit handles its own model errors by returning no findings. It is independent of the model’s reasoning accuracy.
 
 **Defect: selected reference documents are dropped.** The request’s selected `reference_docs` are accepted, stored, and printed in reports, but `controller.go::RunReview` does not pass that selection into `ReviewProcessor`. It sets run IDs, depth, requested aspects, and stores before calling `PostProcessIndex`. A user who selects reference documents today gets a report that lists them, although no reviewer received them. The future reviewer also needs explicit, tested propagation of the selected authority/evidence set.
 
@@ -195,13 +201,34 @@ The local engine should retain its native IDs and records. If an export format n
 
 ## 5. Proposed scope and product behavior
 
-### 5.1 Initial scope
+### 5.1 Initial scope and ground sources
 
-Begin with a **logging and personal-information review profile** because it exercises the user’s example and exposes discovery, privacy, security, numeric retention, and conflicting-purpose issues. The first operational profile must name its jurisdiction, organization role, document types, approved authorities, and effective editions. This document supplies conditional examples, not a universal legal checklist.
+**Decision (2026-11-11).** The first iteration grounds every source-side conclusion in the existing knowledge base, which is mostly Chinese standards, and retrieves those sources only through the hybrid search engine (`ChenWeb/server/api/searchengine`). Laws, regulations, company policies, contracts, and externally acquired sources are added in later iterations. Until then, a requirement that would need one of them becomes an unresolved question naming the missing source, never a finding.
 
-Support English and Chinese source text and findings from the outset. Keep original quotes unchanged; translated queries and explanations are derived artifacts. An English benchmark does not establish Chinese-language performance.
+That decision changes the design in seven ways.
 
-The first release should support curated local sources, activity extraction from all source passages, profile-led omission checks, deterministic citation validation, and explicit uncertainty. Defer autonomous legal corpus crawling, broad case-law analysis, company-wide implementation certification, and automatic document corrections.
+1. **The first profile comes from what the knowledge base covers.** The logging sentence remains this document’s running example because it exercises discovery, applicability, numeric retention, and conflicting purposes. Its governing sources (§8.3) are laws and foreign standards, outside the first iteration. Pick the first profile from a subject the production inventory (§1.1) shows is densely covered. A good shape is a chain the knowledge base already holds: a product or enterprise standard, the mandatory standard it must meet, and related industry or group standards. The development data, for example, contains an enterprise standard for automatic blood-pressure monitors alongside the medical electrical equipment standard for automatic non-invasive sphygmomanometers (YY 9706.230—2023). The profile must name its subject, organization role, document types, approved source standards, and effective editions.
+
+2. **Binding force comes from the standard’s type, then from adoption.** Article 2 of the Standardization Law (2017 revision) divides national standards into mandatory and recommended ones, makes industry and local standards recommended, requires mandatory standards to be implemented, and encourages adoption of recommended ones. Group and enterprise standards bind only through adoption, such as a contract or a product’s declared standard. The document number gives a first signal: `GB` (mandatory national), `GB/T` (recommended national), `GB/Z` (guidance), `T/` (group), `Q/` (enterprise), `DB` (local), and industry codes with or without `/T`. That signal proposes binding force; it does not decide it. Sector rules can override the default: published medical-device standard lists from the National Medical Products Administration mark many unsuffixed `YY` standards as mandatory, a legal basis this research did not verify. Record binding force per source together with its basis. Do not reuse `docAuthorityClass` for this decision: its pattern `GB/?T?` puts `GB` and `GB/T` in one class and does not recognise `GB/Z`, group, enterprise, or most industry prefixes.
+
+3. **Normative references are the main adoption signal.** A recommended standard that the reviewed document lists under normative references (规范性引用文件) is adopted by that document for the clauses that cite it. `extract_references` already produces these lists and resolves them to held editions where it can. Its coverage of the production knowledge base belongs in the inventory.
+
+4. **Modal wording separates requirements from advice.** Chinese standards distinguish requirements (应, 不应: shall, shall not), recommendations (宜, 不宜), permissions (可, 不必), and capability or possibility (能, 可能). Only a requirement can ground an adverse finding; a 宜 clause produces advice. This follows the national drafting rules, GB/T 1.1-2020, whose exact clause was not consulted in this research; pin the mapping against an authorized copy before encoding it.
+
+5. **Editions are selected by identity and date.** Almost every production record carries a document number (over 99%), and the number includes the edition year, so retrieval results can be grouped by standard identity. When several editions are held, select the one in force on the assessment date, using the replacement statement (代替) in the foreword and the publication and implementation dates (发布, 实施). A superseded edition that ranks above the current one stays a candidate, never the governing text.
+
+6. **The reviewed document is often a standard too.** In a standards knowledge base, other standards are both peers and candidate authorities. Exclude the reviewed record from source results, and treat another standard as governing only when its binding force or adoption is established; otherwise it remains comparison material for Provision Consistency.
+
+7. **All source retrieval goes through `searchengine.Search`.**
+   * Bound the source set with `Filters.KnowledgeStoreID` and `Filters.DocumentGroup`, which apply before ranking, and exclude the reviewed record with `Filters.ExcludeRecordIDs`.
+   * Request both `provision` and `chunk` artifacts, so a rule that provision extraction missed can still be found in the original text.
+   * Leave `Criteria.MinCosine` unset for authority discovery (§2.3); use the per-list ranks the response reports instead.
+   * Record the engine’s limits in the retrieval trace: the fused score is not comparable between queries, `total` counts keyword matches only, and each list returns at most 200 candidates. Treat that cap as truncation in coverage reports.
+   * Readiness requires the source set to be indexed: chunk search rows exist only after the [chunk backfill](../../devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md) has run for those records, and provision rows only after `extract_provisions` and indexing. The inventory counts both.
+
+Most first-iteration sources are Chinese. Support English and Chinese source text and findings from the outset. Keep original quotes unchanged; translated queries and explanations are derived artifacts. An English benchmark does not establish Chinese-language performance.
+
+The first release should support curated sources from the knowledge base, activity extraction from all source passages, profile-led omission checks, deterministic citation validation, and explicit uncertainty. Defer autonomous legal corpus crawling, broad case-law analysis, company-wide implementation certification, and automatic document corrections.
 
 ### 5.2 User workflow
 
@@ -257,7 +284,7 @@ Do not silently drop low-scoring passages. Record which were screened out and sa
 
 ### 6.3 Discover candidate authorities through multiple channels
 
-Use a bounded union of:
+In the first iteration every channel below runs through the hybrid search engine over the knowledge base (§5.1). Use a bounded union of:
 
 * Exact citations, document numbers, clause identifiers, and explicit policy references.
 * BM25/lexical queries over original chunks and extracted provisions.
@@ -324,6 +351,8 @@ Source quality is a product capability. A better reasoner cannot retrieve a rule
 
 Maintain approved source sets with an owner, jurisdiction/domain, coverage statement, acquisition method, update schedule, licensing, and effective editions. Official publications establish source authenticity; company policy owners establish internal approval and applicable organization scope. A source’s title or domain name alone is insufficient.
 
+In the first iteration the approved source set is a declared subset of the existing knowledge base, bounded by knowledge store and document group (§5.1). External acquisition waits for a later iteration.
+
 Reuse `kb.ref_resources` and `kb.ref_resource_versions` for identity where their actual interfaces fit. Add assessment-specific metadata or links rather than create a competing resource catalog. Distinguish publish date, effective date, applicability interval, retrieval time, language, translation status, and superseded edition. Preserve immutable source content or hashes plus retrievable snapshots.
 
 Normalized obligations need actor, modality, action, object, conditions, exceptions, parameters, temporal rules, source fragments, and approval state. Machine-extracted obligations begin as candidates. Approved profiles use reviewed obligations. A profile can intentionally include guidance, but labels it as advisory and prevents advice from becoming a statutory violation.
@@ -335,6 +364,8 @@ On a source update, calculate affected obligation/profile versions and mark depe
 External acquisition should be a separate, logged workflow that approves and versions sources before assessment use. Send public search queries containing generalized issues, never private document passages by default. Licensed standards require authorized holdings; a public abstract is insufficient for clause-level conclusions.
 
 ## 8. Worked example: “Log user activities in a database table”
+
+This example illustrates the general method. Its governing sources in §8.3 are laws and foreign standards, which are outside the first iteration’s ground sources (§5.1). In the first iteration they would appear as unresolved questions naming the missing source, not as findings.
 
 ### 8.1 What can be concluded immediately
 
@@ -492,6 +523,8 @@ Create an independently annotated corpus of document snapshots, organization con
 Include at least these slices:
 
 * Explicit references versus implicit activities; ordinary declarative statements without modal words.
+* Mandatory, recommended, group, enterprise, and local standards; requirement (应) versus recommendation (宜) clauses.
+* Standards the reviewed document lists as normative references versus related standards it does not cite.
 * Missing obligations with no triggering sentence.
 * Applicable and deliberately inapplicable near-neighbor authorities.
 * Correct and superseded editions, future effective dates, transition periods, and historical review dates.
@@ -540,13 +573,13 @@ Delivery phases are numbered to keep them distinct from the doc-processor’s Ph
 
 | Delivery phase | Concrete output | Exit evidence |
 |---|---|---|
-| 0: fix current defects | `processChunk` gains an error return across all twenty implementing reviewers; block-path unit errors propagate; a failed or partial unit marks the aspect partial or failed. Selected reference documents reach `ReviewProcessor`, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. | Tests showing a failed model call yields a failed unit, not an empty success; a test showing selected references reach the reviewer |
-| 1: corpus inventory and thin slice | The decisions in §1.1; the corpus inventory; one hand-curated profile of about 20 obligations; profile-led omission checks on 10–15 documents, judged by the profile owner | Evidence that omission checks find gaps the current reviewers miss, at acceptable cost; a go/no-go decision for the full gold set |
-| 2: baseline and gold set | Snapshot current reviewers; approve the logging/privacy source profile and organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
+| 0: fix current defects | `processChunk` gains an error return across all twenty implementing reviewers; block-path and artifact-review unit errors propagate; a failed or partial unit marks the aspect partial or failed. Selected reference documents reach `ReviewProcessor`, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. | Tests showing a failed model call yields a failed unit, not an empty success; a test showing selected references reach the reviewer |
+| 1: corpus inventory and thin slice | The decisions in §1.1; the production knowledge-base inventory; chunk backfill and provision indexing for the chosen source standards; one hand-curated profile of about 20 obligations drawn from held standards; profile-led omission checks on 10–15 documents, judged by the profile owner | Evidence that omission checks find gaps the current reviewers miss, at acceptable cost; a go/no-go decision for the full gold set |
+| 2: baseline and gold set | Snapshot current reviewers; approve the first profile’s source standards and organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
 | 3: discovery and applicability | Activity records, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics and adversarial access tests |
 | 4: assessment | Profile-led omission search, source-grounded comparisons, deterministic verifier, coverage records | Stage metrics, failure propagation, golden example cases |
 | 5: pilot | Optional new aspect, bilingual views/reporting, human dispositions; compare with existing reviewers | Held-out evaluation, precision/recall/abstention, operating cost |
-| 6: expansion | Additional organization/jurisdiction profiles, corpus change impact, selected formal predicates | New profile-specific evaluation; no assumed transfer from pilot |
+| 6: expansion | Additional source types (laws, regulations, company policies, contracts, external acquisition), organization/jurisdiction profiles, corpus change impact, selected formal predicates | New profile-specific evaluation; no assumed transfer from pilot |
 
 Phase 0 is ordinary bug fixing and needs no proposal. Phase 1 is small enough to run before the full annotation effort and shows whether that effort is worth funding. From phase 2 onward, implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
 
@@ -556,16 +589,16 @@ Key decisions recommended now:
 2. Make the §1.1 decisions and run the corpus inventory before annotating a gold set.
 3. Build one common assessment engine and one initial optional aspect.
 4. Combine activity-led discovery with profile-led omission checks.
-5. Start with approved local authority sets; separate external acquisition.
+5. Ground the first iteration in the existing knowledge base through the hybrid search engine (decided 2026-11-11); add other source types and external acquisition later.
 6. Keep applicability, evidence, and execution as distinct states.
 7. Treat existing artifacts as accelerators, with original chunks as evidence fallback.
 8. Require measured local performance before broad legal or cross-jurisdiction claims.
 
 ## 13. Known limitations and outstanding choices
 
-No target jurisdiction, legal entity, adopted standard list, or company policy inventory was supplied. The architecture accommodates them; the initial operational profile still needs its owner to select them, and §1.1 lists them as the decisions needed before delivery phase 1. The logging examples deliberately do not choose these facts for the user.
+The first iteration’s source scope is decided (§5.1), but no profile subject, organization role, product or service scope, or adopted standard list was supplied. The architecture accommodates them; the initial operational profile still needs its owner to select them, and §1.1 lists them as the decisions needed before delivery phase 1. The logging examples deliberately do not choose these facts for the user.
 
-This inspection describes the working-tree code, not a production deployment. It did not inventory live database holdings (§1.1 makes that the first piece of work), verify deployed prompt versions, run model-backed compliance tests, measure the deployed system, or inspect licensed standard clauses. It identifies code-level limits and proposes measurable remedies. Research examples are not a complete legal analysis of logging in every jurisdiction.
+This inspection describes the working-tree code, not a production deployment. It did not inventory the production knowledge base (§1.1 makes that the first piece of work; the development database is not representative), verify deployed prompt versions, run model-backed compliance tests, measure the deployed system, or inspect licensed standard clauses. It identifies code-level limits and proposes measurable remedies. Research examples are not a complete legal analysis of logging in every jurisdiction.
 
 EUR-Lex exposed relevant GDPR material through search, but direct full-text retrieval encountered a JavaScript verification page. The linked official act is supplied for traceability; no complete new GDPR source snapshot was captured in this task. An implementation must acquire and verify its approved edition before using it as a run’s governing text. The official Chinese law pages and eCFR provisions were readable; a successful read still does not replace edition pinning in an operational assessment.
 
@@ -575,7 +608,7 @@ Implementation choices still needing an explicit contract include profile owners
 
 ## 14. Documentation impact
 
-**Knowledge added:** Current compliance reviewers assess independent chunks or blocks; provision comparison is source-grounded but begins from extracted provisions. Reliable compliance review requires separate discovery, applicability, evidence assessment, source governance, and coverage accounting.
+**Knowledge added:** Current compliance reviewers assess independent chunks or blocks; provision comparison is source-grounded but begins from extracted provisions. Reliable compliance review requires separate discovery, applicability, evidence assessment, source governance, and coverage accounting. The first iteration grounds sources only in the existing Chinese standards-heavy knowledge base through the hybrid search engine (decided 2026-11-11), which makes standard type, adoption through normative references, modal wording, and edition selection central to applicability.
 
 **Documents/specs/tests affected by a future implementation:** The doc-processor capsule and document-review spec, existing document-review ADRs, reviewer configuration documentation, the provision reviewer’s boundary description, source/version and authorization contracts, report schema, user manual, module catalog, and stage/end-to-end tests described above.
 
@@ -609,5 +642,6 @@ Sources below were consulted for this research on 2026-11-11. Dates refer to the
 | [PRC Personal Information Protection Law](https://www.cac.gov.cn/2021-08/20/c_1631050028355286.htm) | Scope, minimization, processing grounds, and retention exceptions |
 | [45 CFR 164.312](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.312), [164.316](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.316) | Audit mechanisms versus defined documentation-retention duties |
 | [ISO normative expressions/status](https://www.iso.org/foreword-supplementary-information.html), [regulatory incorporation](https://www.iso.org/sites/ConsumersStandards/1_standards.html) | Standard wording versus the reason a requirement binds the subject |
+| [PRC Standardization Law, 2017 revision (CNIPA reprint)](https://www.cnipa.gov.cn/art/2019/7/29/art_104_67809.html) | Article 2: mandatory versus recommended standards, industry and local standards recommended; checked against government reprints, not the NPC gazette |
 
 Local orientation: [doc-processor capsule](../../../Capsules/coding-capsules/doc-processor/+CAPSULE.md), [document-review spec](../../specs/202606/2026062104-spec-document-review.md), [provisions reviewer](../../devdocs/202611/2026111002-devdoc-provisions-reviewer.md), [chunk hybrid search](../../devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md), [Artifact Search module](../../modules/module-artifact-search.md), and [Compact Document Lines module](../../modules/module-compact-document-lines.md).
