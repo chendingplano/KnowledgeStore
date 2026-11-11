@@ -5,10 +5,10 @@
 **Code root:** `ChenWeb/server/api/searchengine`
 
 **Traceability — openspec:**
-- `ChenWeb/openspec/changes/hybrid-search-engine-api/proposal.md` — why this exists
-- `ChenWeb/openspec/changes/hybrid-search-engine-api/design.md` — rationale, alternatives considered, risks
-- `ChenWeb/openspec/changes/hybrid-search-engine-api/tasks.md` — implementation log, with the golden-comparison result and the open items
-- `ChenWeb/openspec/changes/hybrid-search-engine-api/specs/hybrid-search-engine/spec.md` — the requirements. **The change is not archived yet, so there is no `openspec/specs/` copy.** Update the spec, not just this doc, if behaviour changes — this doc explains the feature for humans and points at code; the spec is the contract for agents.
+- `ChenWeb/openspec/changes/archive/2026-11-11-hybrid-search-engine-api/proposal.md` — why this exists
+- `ChenWeb/openspec/changes/archive/2026-11-11-hybrid-search-engine-api/design.md` — rationale, alternatives considered, risks
+- `ChenWeb/openspec/changes/archive/2026-11-11-hybrid-search-engine-api/tasks.md` — implementation log, with the golden-comparison result; task 4.3 was archived open
+- `ChenWeb/openspec/specs/hybrid-search-engine/spec.md` — the canonical, currently-in-force requirements (the `search-query-keywords` spec was amended too). **Update this spec file, not just this doc, if behaviour changes** — this doc explains the feature for humans and points at code; the spec is the contract for agents.
 
 Related: [Hybrid Search capsule](../../../Capsules/coding-capsules/llm-wiki/hybrid-search.md) (how the search works end to end, tunables, benchmark), [Artifact Search module](../../modules/module-artifact-search.md), [Provisions reviewer](2026111002-devdoc-provisions-reviewer.md).
 
@@ -47,4 +47,4 @@ Before any code moved, 65 queries (generated benchmark questions of every artifa
 - **Filter conditions can return fewer results than asked for,** because they are checked on the fused candidates (at most 200 per list). The response counts what each condition removed.
 - **The embedder and keyword extractor are registered by `kbhandler` at start-up.** A program that does not link `kbhandler` searches by keywords only.
 - **Traces are rebuilt from the engine's lists,** not read in a separate database snapshot as before, so a trace can differ from the search only through bugs in the conversion, which the benchmark flags ("trace differs from the search results").
-- **Not yet done** (see `tasks.md`): separate tests for each `search-query-keywords` scenario on the engine path, a disposable-database test for the criteria, and a run of the benchmark page before and after.
+- **Not yet done:** a run of the benchmark page before and after (task 4.3, archived open); the golden comparison stands in for it.

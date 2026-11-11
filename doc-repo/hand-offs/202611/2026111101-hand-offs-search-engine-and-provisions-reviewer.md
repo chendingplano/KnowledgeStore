@@ -1,14 +1,13 @@
 # Handoff: search engine package, similar-artifact callers and the move of `kbhandler`
 
 **Date:** 2026-11-11
-**Status:** All of ChenWeb now searches through the `searchengine` package, and `kbhandler`'s copy of the hybrid
-search SQL is deleted (2026-11-11, third session, committed). Open: the `search-query-keywords` scenario tests on the
-engine path, a disposable-database test for the criteria, and a benchmark-page run before and after.
+**Status:** The OpenSpec change is archived (2026-11-11) and the previously failing tests are fixed (fourth session). All of ChenWeb now searches through the `searchengine` package, and `kbhandler`'s copy of the hybrid
+search SQL is deleted (2026-11-11, third session, committed). Open: a benchmark-page run before and after.
 **Scope:** `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/kbhandler/search_registry.go` (now an adapter) and
 `searchengine_hooks.go`, `ChenWeb/server/api/doc-reviews` (`similar.go`, `review-*.go`), the two clustering steps in
 `ChenWeb/server/api/doc-processing`.
-**Specs and docs:** OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (proposal, design,
-specs, `tasks.md`); devdocs `KnowledgeStore/doc-repo/devdocs/202611/2026111104-devdoc-search-engine-api.md` (the engine)
+**Specs and docs:** OpenSpec change `ChenWeb/openspec/changes/archive/2026-11-11-hybrid-search-engine-api/` (archived; proposal, design,
+specs, `tasks.md`; the specs are now `ChenWeb/openspec/specs/hybrid-search-engine/` and `search-query-keywords/`); devdocs `KnowledgeStore/doc-repo/devdocs/202611/2026111104-devdoc-search-engine-api.md` (the engine)
 and `2026111002-devdoc-provisions-reviewer.md`; capsule `KnowledgeStore/Capsules/coding-capsules/llm-wiki/hybrid-search.md`.
 
 Three sessions wrote this document, oldest first: the provisions reviewer and the engine package ("What was done"), the
@@ -116,6 +115,27 @@ Failing tests, none in code touched here: `kbhandler` `TestPlanInputDeletePaths�
 **Not run:** the benchmark page before and after; `SearchAgentKnowledge` against a knowledge store (same code path as the HTTP
 search, covered by the golden lists).
 
+## Fourth session: archive and test fixes
+
+- **Archived** with `openspec archive hybrid-search-engine-api --yes`: delta specs applied (`hybrid-search-engine` created,
+  `search-query-keywords` amended; the placeholder Purpose was written by hand). Task 4.3 was archived open (4.1 and 4.2 are covered by tests committed in `vqxy`).
+- **Failing tests fixed.** Most were outdated tests, not broken code:
+  - `kbhandler` `TestPlanInputDeletePaths…` (2): the code skips a result file in a foreign folder instead of refusing; the tests
+    now assert the skip (`SkippedFiles`, folder not scheduled).
+  - `kbhandler` `TestMetricScoreScorerParityAndInvalidMatches`, `TestMetricScoreRunnerEndToEnd`: the freeze step also captures
+    `weights.json` and every `rules/` file; the fixture copies them and the parity test checks the tool set instead of "2 hashes".
+  - `doc-processing` `TestKBMetricsReadersExcludeResolvedRows`: a real finding. `readQuestionMetricEnglishNames`
+    (`question_generator_worker.go`) now has `ref_mention_id IS NULL`.
+  - `kbhandler` `TestArtifactQuestionDocumentWithoutTargets`: flaky, it looped over a map and asserted order; now a slice.
+  - `agentservicehandler` `TestSQLKnowledgeBackendSearchShapesBoundedEvidence`: mine from the third session (it mocked the old
+    search SQL); it now expects the engine's statements and sets `SEARCH_QUERY_KEYWORDS=off`.
+  - `product-reviews` `TestEnsureProfileDrawingGeneratesWhenMissing`: needs a model variable (`QWEN_IMAGE_GEN_MODEL`, synthetic).
+  - `api` route tests (2): need `PI_KNOWLEDGE_GUIDE_MODEL` / `PI_PROBLEM_DIAGNOSTICS_MODEL` (synthetic); they passed only under `mise env`.
+- **Still red, environment only.** With the project's `mise env` loaded, `TEST_DATABASE_URL` points at `chenweb_test` and tests in
+  `api/cdm/store`, `api/cdmhandler` and `api/datasync` fail because that database is behind on migrations (for example
+  `kb.inputs.user_id` is missing). Without those variables they skip. Fix by applying migrations to `chenweb_test`
+  (`doc-service --migrate-only`, see the ChenWeb migrations note); not done here.
+
 ## Commits
 
 - ChenWeb jj `sotp` (git `eba3`): "Provisions reviewer: search engine package, no model call without matches".
@@ -140,10 +160,9 @@ search, covered by the golden lists).
 
 | # | Item | Notes |
 |---|---|---|
-| 1 | Tasks 4.1–4.3 | Separate tests for the `search-query-keywords` scenarios on the engine path; disposable-database test for the criteria (exclusion before ranking, required keyword removing a vector-only result, cosine floor on a lexical-only result); a benchmark-page run before and after. |
-| 2 | Archive the change | `openspec archive hybrid-search-engine-api` once 4.x is done; then point the devdoc at `openspec/specs/hybrid-search-engine/`. |
-| 3 | Cosine floor | `ARTIFACT_CONNECT_MIN_COSINE` (0.75) was tuned for text-embedding-3-small; recalibrate for bge-m3. |
-| 4 | Stale-index metric rows | 5,621 of 8,281 metric index rows belong to records with no `kb.metrics` rows (capsule §13.2); search still returns them. |
+| 1 | Task 4.3 (archived open) | A benchmark-page run before and after (the golden comparison stands in). Tasks 4.1 and 4.2 are covered by `TestKeywordExtractionFallbackAndClause`, `TestKeywordClauseCombinesWholeTermsAndWeights` and `TestDisposableCriteria` (jj `vqxy`, written by someone else during the fourth session; the disposable test needs `SEARCHENGINE_DISPOSABLE_INTEGRATION=1` and an empty database, and passed on a throwaway one). |
+| 2 | Cosine floor | `ARTIFACT_CONNECT_MIN_COSINE` (0.75) was tuned for text-embedding-3-small; recalibrate for bge-m3. |
+| 3 | Stale-index metric rows | 5,621 of 8,281 metric index rows belong to records with no `kb.metrics` rows (capsule §13.2); search still returns them. |
 
 ## Decisions and pitfalls
 
