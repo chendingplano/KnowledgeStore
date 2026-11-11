@@ -7,6 +7,8 @@
 **Reviewed baseline:** ChenWeb commit `06c4fa452ff7bc234e01e1b05ad00eb3bdeb8da9`; KnowledgeStore hybrid search design commit `e65f2db12d3d8498383e6d634256dd87ee0b3887`. Working source was also inspected; no application code was changed. \
 **Cost scope:** 1 million, 10 million, and 100 million searchable units; CPU-only ingestion with optional shared GPU embedding service. These scenarios were accepted by the owner. Workload sizes, throughput, and budgets below are planning assumptions, not measurements.
 
+> **Implementation update (2026-11-11):** Original chunks are now indexed in the existing hybrid-search registry, with long-passage embedding windows and saved-artifact backfill. See [Chunk hybrid search](../202611/2026111102-devdoc-chunk-hybrid-search.md) for current behavior. This document remains a historical research proposal; its broader queue, context-enrichment, deduplication and corpus-scale plans have not all been implemented.
+
 ## Summary
 
 A chunk should carry enough information to explain where it came from: the document, edition, section, nearby heading, and any table caption or headers it needs. Most of that information already exists in the parsed document and can be attached with ordinary software. Keyword extraction can also run without a generative model. Categories should come from existing document metadata and a small, controlled vocabulary, with uncertain classifications left explicitly uncertain.

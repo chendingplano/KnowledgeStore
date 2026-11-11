@@ -1,8 +1,8 @@
 # Module: Compact Document Lines
 
 **Module ID:** `20261110-01`
-**Type:** backend · **Language:** go · **Version:** 1.0.0
-**Status:** active — used by the artifact reviewers (`metrics`, `provisions`, `inventory_items`, `metrics_completeness`)
+**Type:** backend · **Language:** go · **Version:** 1.0.1
+**Status:** active — used by artifact reviewers and chunk search indexing
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/doc-processing`
 **Created:** 2026-11-10
@@ -33,6 +33,8 @@ prompt caching relies on.
 | `ChenWeb/server/api/doc-processing/input_lines.go` | `RenderLinesCompact` and its tag rule `compactLineTag` (beside the JSON serializers) |
 | `ChenWeb/server/api/doc-processing/render_lines_compact_test.go` | Tests of the format: tags, tables, image lines, newlines, document line |
 | `ChenWeb/server/api/doc-processing/review_exports.go` | `LoadRecordChunks` (exported for the `docreviews` package) |
+| `ChenWeb/server/api/doc-processing/fix-size-chunking.go` | Shared saved-chunk parser; each explicit `lines:` row finishes one chunk, with optional blank separators |
+| `ChenWeb/server/api/doc-processing/search_indexing_chunks_test.go` | Saved-boundary regression and chunk search integration tests |
 
 ## 3. Interface
 
@@ -91,6 +93,7 @@ Plain lines without overlap marks can be wrapped as `MarkedLine{Line: l}`.
 - `LoadRecordChunks` reads the same file the doc-processor's per-chunk batching coordinator
   reads, so its chunks match what the extractors saw unless the line file was re-parsed
   after chunking (missing lines are skipped).
+- Saved chunk entries are separated by their explicit `lines:` rows; blank lines are optional. Chunk search uses the same parser but rejects missing artifacts and missing referenced lines before parsing rather than taking the review loader's rebuild/skip fallback.
 
 ## 7. Scope and limits
 

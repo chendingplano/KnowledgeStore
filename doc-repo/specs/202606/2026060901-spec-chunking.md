@@ -1,5 +1,7 @@
 ## 1. Overview
-The `chunking` processor builds fixed-size chunks from parsed line records and persists the `.chunks` artifact, a chunk-run record, and `kb.inputs.status`. Topic extraction and summary generation are separate processor operations that consume those chunks. The shared service implementation is in `ChenWeb/server/api/doc-processing/fix-size-chunking.go`; chunk/topic artifact helpers are in `topic_chunking_shared.go` and summary helpers are in `chunk_summary_shared.go`.
+The `chunking` processor builds fixed-size chunks from parsed line records and persists the `.chunks` artifact, a chunk-run record, chunk search registry rows, and `kb.inputs.status`. Topic extraction and summary generation are separate processor operations that consume those chunks. The shared service implementation is in `ChenWeb/server/api/doc-processing/fix-size-chunking.go`; chunk/topic artifact helpers are in `topic_chunking_shared.go`, search indexing is in `search_indexing_chunks.go`, and summary helpers are in `chunk_summary_shared.go`.
+
+Last verified against code: 2026-11-11.
 
 - Language: Go
 - Implementation target:
@@ -20,7 +22,7 @@ Input file line format:
 Pipeline ordering requirement:
 - Finalize the canonical line file before chunking so persisted line numbers match the lines downstream consumers read.
 - When the line file comes from the PDF converter, run the static analyzer first; corrections/removals can change line numbering.
-- The event pipeline may pass the finalized records as a `BlockBuffer` rather than rereading a `.txt` file. Both paths must describe the same finalized canonical lines.
+- The event pipeline may pass the finalized records as a `BlockBuffer`. Before publishing chunk search rows, the service validates these lines against the current canonical file under a per-record source lock. Both paths must describe the same finalized canonical lines.
 - A `.chunks` artifact made against earlier line numbering is stale and must be rebuilt.
 
 ## 3. Environment Variables
@@ -28,15 +30,16 @@ Pipeline ordering requirement:
 - CHUNK_OVERLAP_PERCENT: optional, the overlap percent, default: 20%
 - ARTIFACT_DIR: required, the directory in which chunk files are stored.
 - ARTIFACT_WEB_DIR: required by the service, the root directory for topic and summary category trees.
-- EXTRACT_TOPIC_MODEL_NAME: optional model profile for topic extraction; if unset, the default model name is `deepseek-v4-flash`.
+- EXTRACT_TOPIC_MODEL_NAME: required model profile for topic extraction; no built-in model default.
 - EXTRACT_TOPIC_PROMPT: required, the prompt for extracting topics from the chunk.
-- CHUNK_SUMMARY_MODEL_NAME: optional summary model profile; falls back to `EXTRACT_TOPIC_MODEL_NAME`, then the default model name.
+- CHUNK_SUMMARY_MODEL_NAME: optional summary model profile; falls back only to `EXTRACT_TOPIC_MODEL_NAME`. One of those variables must be configured.
 - GENERATE_SUMMARY_PROMPT: required summary prompt configuration used by summary generation.
 - EMBEDDING_MODEL_NAME: required at service construction; used for topic and summary embeddings.
 - EXTRACT_TOPIC_FALLBACK: optional fallback model profile for topic extraction.
 - CHUNK_EXTRACT_TOPIC_MODELS_FILE, CHUNK_SUMMARY_MODELS_FILE, MODEL_DEF_FILE, PROMPT_DIR: optional model/prompt configuration locations used by the loaders.
 - SUMMARY_GROUP_SIZE: optional number of child summaries grouped per parent, default 5.
 - CATEGORY_SIMILARITY_MIN_SCORE: retained configuration/default, but topic category directory matching currently uses normalized exact names; embedding similarity matching is disabled in the topic tree writer.
+- SEARCH_SEMANTIC_ENABLED: explicitly configured service flag; when true, chunk search indexing computes embeddings, including overlapping windows for long passages. When false, chunks are indexed lexically.
 
 ## 4. Retrieve Record
 Load the source record from `kb.inputs` where `kb.inputs.id = record_id`.
@@ -133,6 +136,7 @@ Consumer parsing requirements:
 UI expectation for `ChenWeb::/home3/knowledge -> Chunks`:
 
 - The `Chunks` page MUST display only entries parsed from `.chunks`.
+- Existing entries may be enriched with leaf-summary text and keywords from `summary_0_*.txt`; this never creates extra chunk entries or changes their source-line boundaries.
 - It MUST NOT enrich, replace, or fall back to `.topics` or `topics.txt`.
 - Topic extraction artifacts belong to `Semantic Web`, not to the `Chunks` list.
 - When the UI shows source-line coverage for a chunk, continuous lines on the same page should be compressed into page-aware ranges such as `P8:183-192`.
@@ -309,6 +313,7 @@ Chunking processor:
 2. Parse input, build chunks, filter TOC lines, and enforce byte-size and protected-block rules.
 3. Write the `.chunks` index file under `ARTIFACT_DIR/<group_id>/<record_id>/`.
 4. Insert the chunking run into `kb.chunks` and upsert the `chunked` status entry.
+   Before reporting success, publish chunk search rows and embedding windows transactionally; database indexing failures mark the operation failed. Embedding-service failures retain lexical search.
 
 Topic extraction processor (separate operation):
 1. Load and validate the `.chunks` artifact against canonical source lines.
@@ -320,3 +325,19 @@ Summary generation processor (separate operation):
 
 ## 11. Failure Semantics
 Each processor records its own operation status. If chunk construction or persistence fails, the `chunked` status is written as failed with a non-empty error where status persistence is possible. Topic extraction and summary generation have their own failure/status paths; they do not run inside the chunking handler.
+
+## 12. Chunk Hybrid Search
+
+Each saved chunk has one `artifact_type = 'chunk'` row in `kb.search_artifacts`, in partition `kb.search_artifacts_chunk`. Its ID is the existing connection address `<record_id>_chk_<chunk_seqno>`. `kb.chunks` continues to store run summaries, not individual chunks.
+
+The index contains compact original source text (including overlap), filename/title, regular `source_line_spans`, and `semantic_payload` fields `chunk_seqno`, `source_line_refs`, `overlap_line_spans`, and `overlap_line_refs`. Line spans use the registry's line-only convention; the reference objects carry `page_number` and `line_number`. Image-only passages with no searchable text produce no search row. Topic and summary extraction are not prerequisites.
+
+Search through `GET /api/v1/kb/search?q=...&artifact_types=chunk` or `GET /api/v1/kb/chunks/search?q=...`; optional `input_record_id` limits results to one document. The existing BM25/FTS, pgvector, RRF and effort-level behavior applies.
+
+Chunk embedding input is split into at most 6,000-rune windows with 300-rune overlap. The first vector lives on the registry row; additional exact window texts/vectors live in `kb.chunk_search_windows`. Retrieval uses the best matching window and returns each chunk once. If any window fails, all vectors of that chunk remain NULL and extra window texts are retained for retry. The ordinary embedding backfill and `search-embedding-backfill` command repair all chunk windows from the complete searchable text.
+
+Rechunking replaces all rows/windows of a record in one transaction. `kb.chunk_search_state.generation` prevents delayed indexing from restoring obsolete rows after replacement or invalidation. Static-analysis source rewrites invalidate the index before writing, alongside stale `.chunks` cleanup; changes to input result/staging paths or parser invalidate through a database trigger. Direct file edits outside the pipeline require rechunking or explicit reindexing.
+
+Existing saved chunks are indexed with authenticated `POST /api/v1/kb/search/backfill-chunks?limit=20&after_record_id=0`. Optional `input_record_id` targets one record; `limit` is 1–100. The response's `result` has `scanned`, `indexed`, `failed`, `next_record_id`, `has_more`, and per-record `errors`. Continue with the returned cursor while `has_more`; retry failures explicitly by record ID. The backfill requires `.chunks` and canonical lines, rejects missing referenced lines, and never rebuilds boundaries. `indexed` means registry publication succeeded; embeddings remain best-effort.
+
+Requires project migration `20261111000001_add_chunk_hybrid_search.sql`. See `KnowledgeStore/Capsules/coding-capsules/llm-wiki/hybrid-search.md` and `KnowledgeStore/doc-repo/devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md`.

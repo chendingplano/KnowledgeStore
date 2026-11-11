@@ -3,7 +3,7 @@
 - DocID: `doc-2026060201`
 - **Status:** Accepted
 - **Date:** 2026-06-02
-- **Last Updated**: 2026-10-25 (by Claude Code; §8.3 effort levels, metric route correction, §13.2 candidate traces)
+- **Last Updated**: 2026-11-11 (chunk indexing, embedding windows, backfill and configuration/SQL corrections)
 - **Deciders:** Chen Ding
 - **Tags:** Search Engine, Hybrid Search
 
@@ -23,7 +23,7 @@ independent, complementary retrieval paths fused with Reciprocal Rank Fusion (RR
 This is the **pgvector + ParadeDB** implementation of the larger design in
 `KnowledgeStore/Research/PostgreSQLIndex.typ`. Graph-traversal expansion remains
 **deferred** (see [Future Work](#future-work)). Everything below describes what is actually
-implemented today (updated 2026-10-24).
+implemented today (verified 2026-11-11).
 
 > **History note (2026-10-24).** Until openspec `search-query-keywords`, the ParadeDB
 > queries read the partitioned parent `kb.search_artifacts`, which pg_search rejects
@@ -76,7 +76,7 @@ Migration: `ChenWeb/project_migrations/20260603000001_add_pgvector_embedding_to_
 
 `kb.search_artifacts` is a LIST-partitioned table (one partition per `artifact_type`:
 summary, topic, scene_block, metric, provision, product, semantic_projection, knowledge,
-entity, relation, inventory_item). The migration:
+entity, relation, inventory_item, chunk). The chunk partition and extra-window storage were added by migration `20261111000001`; the earlier migration below created the original embedding columns:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -147,15 +147,25 @@ ReindexXxxSearchForRecord
   the processor.
 - `kbsearch.RegistryRow` carries `EmbeddingText` and `Embedding []float64`.
 - `InsertSearchRegistryRows` (`registry.go`) branches on the flag:
-  - flag OFF → `insertStmtLexical` (13 args, no embedding columns — identical to the
+  - flag OFF → `insertStmtLexical` (14 args, including keywords; no embedding columns — identical to the
     original behavior).
-  - flag ON → `insertStmtSemantic` (adds `embedding_text` = `$14`, `embedding` =
-    `$15::vector`). The vector is bound as the text literal `[v1,v2,...]` via
+  - flag ON → `insertStmtSemantic` (adds `embedding_text` = `$15`, `embedding` =
+    `$16::vector`). The vector is bound as the text literal `[v1,v2,...]` via
     `kbsearch.FormatVectorLiteral`.
 
 **Scope:** the write path only embeds rows a processor re-indexes *from now on*. Running
 `extract_metrics` on record X embeds only record X's metrics, not the rest of the corpus.
 Use the backfill endpoint for pre-existing rows.
+
+### 6.1 Original source chunks
+
+Chunking publishes one registry row per chunk directly through `indexChunkSearch` / `kbsearch.ReplaceChunkSearchRows`, rather than the non-transactional `replaceRegistryRows` path above. IDs are `<record_id>_chk_<sequence>`, matching chunk connection endpoints. Search text is the compact original passage including overlap, independent of topic/summary generation. `source_line_spans` are regular line numbers; `semantic_payload.source_line_refs` preserves pages and `overlap_line_spans` / `overlap_line_refs` keeps overlap separate.
+
+Long passages use at most 6,000-rune embedding windows with 300-rune overlap. The first embedding stays on the registry row; additional texts/vectors are in `kb.chunk_search_windows`, with cascading removal. All windows must embed successfully before any vector of a chunk is published; failures leave lexical search available and retain window texts for retry. The full text always remains in `search_document`.
+
+Chunk publication deletes/inserts rows and windows in one transaction. A locked generation check against `kb.chunk_search_state` rejects stale writers. Source rewrites by static analysis and input path/parser changes invalidate rows and advance that generation. Direct filesystem edits outside the pipeline require explicit rechunking/reindexing.
+
+To create registry rows for existing saved chunks, use authenticated `POST /api/v1/kb/search/backfill-chunks?limit=20&after_record_id=0`, optionally `input_record_id=<id>`. Limit is 1–100. Read `result.next_record_id` / `has_more` to continue; errors are per record and the cursor advances past failures, which can be retried explicitly. Missing/stale `.chunks` files fail without reconstructing boundaries. This operation uses `SEARCH_SEMANTIC_ENABLED` like normal indexing; `indexed` counts published records, even when embeddings fail. Embedding-only backfill repairs vectors of existing rows and is window-aware for chunks, but cannot create missing registry rows.
 
 ## 7. Registry search documents and weights
 
@@ -251,7 +261,7 @@ $3.. = structural filters, then any further keywords, then page size and offset
     `ts_rank_cd`, `ROW_NUMBER()` → `rnk`, `LIMIT hybridCandidateLimit` (200).
   - *ParadeDB:* reads the `kb.search_artifacts_<type>` partitions, never the parent:
     the requested type's partition, or a `UNION ALL` with one branch per partition (all
-    11, or those named in `artifact_types`), each branch taking its own top 200 by
+    12, or those named in `artifact_types`), each branch taking its own top 200 by
     `pdb.score(artifact_id)`. Partition names come only from a fixed list of types
     (`searchArtifactPartitionTypes`). The match clause covers the registry fields
     `search_document`, `primary_label`, `secondary_label`, `snippet_basis`,
@@ -268,6 +278,7 @@ $3.. = structural filters, then any further keywords, then page size and offset
   runs in a transaction with `SET LOCAL hnsw.iterative_scan = relaxed_order`; without it an
   HNSW scan returns at most `hnsw.ef_search` rows (40 by default), not 200. Identical in
   both backends.
+  An additional bounded nearest-window scan over `kb.chunk_search_windows` applies the same structural filters. Both lists are grouped by `(artifact_type, artifact_id)` using minimum distance, reranked and capped at 200 before fusion. A chunk appears once even when multiple windows match. Repeated windows can consume candidate capacity and reduce distinct recall within the bounded scan.
 - **fused** — `FULL OUTER JOIN` on `(artifact_type, artifact_id)`; score =
   `COALESCE(wl/(rrfK + rnk_lex), 0) + COALESCE(ws/(rrfK + rnk_sem), 0)` with `rrfK = 60`
   and `wl`, `ws` from `[artifact_search] hybrid_lexical_weight` / `hybrid_semantic_weight`
@@ -287,8 +298,7 @@ added (`prompts/prompt-search-query-keywords-v1.md`). The cleaned list (at most 
 replaces the raw query in the ParadeDB clause of the count, the lexical-only search and the
 hybrid lexical CTE.
 
-- Model: the `.models.toml` profile in `SEARCH_QUERY_KEYWORDS_MODEL_NAME` (default
-  `deepseek-flash-processor`), always with reasoning disabled (about 1 s per call; with
+- Model: the required `.models.toml` profile in `SEARCH_QUERY_KEYWORDS_MODEL_NAME` (no built-in model default), always with reasoning disabled (about 1 s per call; with
   reasoning DeepSeek Flash takes about 70 s).
 - Cache: in memory per trimmed query string, 24 hours, 2,000 entries; failures are not
   cached.
@@ -348,12 +358,13 @@ Code: `kbhandler/search_effort.go`; openspec change `hybrid-search-effort-levels
 On the all-types route, `artifact_types=a,b` (comma-separated) narrows the set; an unknown
 value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
 
-**Artifact types.** There are 11, one partition `kb.search_artifacts_<type>` each (the list is
+**Artifact types.** There are 12, one partition `kb.search_artifacts_<type>` each (the list is
 `searchArtifactPartitionTypes` in `search_registry.go`; the partitions come from the migrations
 `20260522000002`, `20260526000001`, `20260526000004`, `20260527000010`, `20260531000001`):
 
 | `artifact_type` | Per-type route | Also in `artifact_types=` |
 |---|---|---|
+| `chunk` | `/kb/chunks/search` | yes |
 | `summary` | `/kb/summaries/search` | yes |
 | `topic` | `/kb/topics/search` | yes |
 | `scene_block` | `/kb/scene-blocks/search` | yes |
@@ -369,9 +380,7 @@ value is rejected with HTTP 400 (`CWB_KB_GSR_014`).
 All types are searched together by `/kb/search`. A new type needs a partition, a BM25 index,
 an HNSW embedding index and an entry in `searchArtifactPartitionTypes`.
 
-**Candidate counts.** The 200-row cap applies per branch, not per query: a lexical search
-over N partitions can feed up to 200 × N rows into the fusion step (the semantic list is
-always one list of 200). The final page is cut after RRF fusion.
+**Candidate counts.** Each lexical partition supplies up to 200 rows, then the merged lexical list is capped at 200 before RRF. The merged, deduplicated semantic list is also capped at 200. The final page is cut after RRF fusion. Candidate limits can be overridden by benchmark configuration.
 
 **Structural filters** (`artifact_type`, `input_record_id`, category, `semantic_payload`
 facets) apply to **both** CTEs. The hybrid path uses `buildStructuralFilterClauses`
@@ -394,9 +403,10 @@ that share no query terms can still surface.
 | `hybrid_lexical_weight`, `hybrid_semantic_weight` | config.toml `[artifact_search]` | 1.0, 1.0 | RRF weights of the lexical and semantic lists; 0 drops a list |
 | `hnsw.iterative_scan` | `SET LOCAL` in hybrid queries | `relaxed_order` | Lets an HNSW scan return the full 200 candidates |
 | `SEARCH_QUERY_KEYWORDS` | env | `off` (dev: `on`) | LLM query keywords for the ParadeDB clause |
-| `SEARCH_QUERY_KEYWORDS_MODEL_NAME`, `_PROMPT`, `_TIMEOUT_MS` | env | `deepseek-flash-processor`, `prompt-search-query-keywords-v1.md`, 3000 | Keyword model, prompt and timeout |
+| `SEARCH_QUERY_KEYWORDS_MODEL_NAME`, `_PROMPT`, `_TIMEOUT_MS` | env | required model profile, `prompt-search-query-keywords-v1.md`, 3000 | Keyword model, prompt and timeout |
 | `max_mutable_docs`, `max_deleted_ratio` | `maintain_bm25_indexes` schedule params | 500, 0.5 | When the maintenance job rebuilds a BM25 index |
 | `maxEmbeddingRunes` | doc-processing/search_indexing_embedding.go | 6000 | Index-time embed text cap |
+| `ChunkEmbeddingMaxRunes` | kbsearch/chunk_embeddings.go | 6000 | Per-window cap for chunk embeddings; all windows cover the full passage |
 | `embeddingQueryMaxRunes` | kbhandler/search_embedding_query.go | 6000 | Query/backfill embed text cap |
 | `*_search_weights` | config.toml | artifact-specific | Registry `search_document` repeat weights |
 
@@ -609,7 +619,7 @@ overall and by hop type and language.
   ~1,000 rows per traced search, ~280 bytes per row.
 
 ### 13.3 Artifact types
-Currently, there are 11 artifact types. More types may be added in the future.
+Currently, there are 12 artifact types. More types may be added in the future.
 Table 'kb.search_artifacts' is partitioned by artifact types. When querying, 
 it queries all the involved types, one per query, and each returns 200 candidates.
 If there are too many types, it will affect performance.
