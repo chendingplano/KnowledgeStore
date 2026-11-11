@@ -35,7 +35,8 @@ v3 question style).
 
 ## Summary
 
-The knowledge base search finds items (metrics, provisions, summaries, entities and so on) in two ways and combines them:
+The knowledge base search finds items (metrics, provisions, summaries, entities and so on) in two
+ways and combines them:
 
 - **Lexical** search matches words, like a classic search engine (BM25). When *query keywords* are
   on, a language model first rewrites the question into short English and Chinese keywords.
@@ -125,15 +126,15 @@ side (drag the bar between them to resize), and the right panel shows metric det
 The left panel is the question's **log**, in the order the search happened: the question's
 target and ranks; the search of the question as written; and, for Medium/High runs, the effort
 analysis (its strategy and what it thinks the user needs) followed by every attempt — the queries
-it wrote, then the judge's verdict, its reason and the metrics it accepted — and finally the
+it wrote, then the judge's verdict, its reason and the items it accepted — and finally the
 target's Effort loop rank. For each query the log shows the BM25 keywords used and four candidate
 lists, with the target highlighted wherever it appears:
 
-- **BM25 per partition** — what each table partition's keyword index returned (today only the
-  metric partition), with the BM25 score and the rank inside that partition;
+- **BM25 per partition** — what each table partition's keyword index returned (one partition per
+  searched type; all of them when the scope is mixed), with the BM25 score and the rank inside that partition;
 - **BM25 merged** — the keyword list after merging the partitions, with two ranks: the merged rank
   and the rank inside the candidate's own partition;
-- **Semantic** — the closest metrics by meaning, with their similarity (1 = identical direction);
+- **Semantic** — the closest items by meaning, with their similarity (1 = identical direction);
 - **Fused (RRF)** — the final list, with each candidate's RRF score and its ranks in the BM25 and
   semantic lists, so each score can be checked by hand.
 
@@ -268,7 +269,8 @@ targets came first and the worst improved from 44 to 7.
   as the search. Timings exclude it, but with parallel queries the other questions feel it.
 - **BM25 scores of different partitions are not comparable.** Each partition has its own keyword
   index, so merging partitions by raw score (what live search does) can favour one partition. The
-  trace shows this; it does not correct it. Today only the metric partition is searched.
+  trace shows this; it does not correct it. It matters when the scope is mixed (several partitions);
+  a one-type run searches a single partition.
 - **No list for the effort loop's own merge.** The effort loop combines its queries' first 20
   fused candidates; that combined list is not stored, but every input to it is.
 
@@ -296,6 +298,9 @@ targets came first and the worst improved from 44 to 7.
 - **New questions still name the metric.** The server may be running an old prompt: check
   `PROMPT_GENERATE_METRIC_QUESTIONS` (should be `prompt-question-generator-search-metrics-v3.md`)
   in the server's environment.
+- **Start fails: "selected questions have targets that the chosen search type cannot return".** You
+  ticked questions whose target type differs from the Search scope. Untick them, or pick the scope
+  "Purpose's own type" or "All types (mixed)".
 - **Analyze says "No trace was stored".** The run was started before tracing existed, or the
   server running it had not yet been rebuilt with it. Run the question again.
 - **Clicking a metric says it is in the search index but not in `kb.metrics`.** A stale index
