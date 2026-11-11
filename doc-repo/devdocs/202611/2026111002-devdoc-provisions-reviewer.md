@@ -1,6 +1,6 @@
 # Provisions Reviewer (`review_provisions`) — checks a document's provisions against other documents
 
-**Date:** 2026-11-10 \
+**Date:** 2026-11-10 (updated 2026-11-11: how the similarity search really behaves) \
 **Scope:** What the provisions reviewer does during a document review, what it needs in the
 database to be useful, how to configure it, and how to read its LLM calls when a run looks
 wrong. Open it before changing the reviewer or when a review's provision findings look odd.
@@ -25,6 +25,12 @@ a reader can see what was compared and why nothing was flagged.
 The reviewer can only compare against documents whose provisions have been extracted
 (`extract_provisions`) and indexed. With no such documents, it still makes one call per
 provision, but all it can check is the extraction.
+
+To find similar provisions it does **not** use the knowledge base's search engine. It uses
+an older private copy of it, which in practice matches by meaning only (word matching never
+finds anything) and looks across all documents regardless of knowledge store. A proposed
+change, `hybrid-search-engine-api`, makes the search engine callable by reviewers so this
+copy can be retired.
 
 ## Details
 
@@ -51,6 +57,16 @@ provision, but all it can check is the extraction.
      merged by reciprocal rank fusion (k = 60). A candidate is kept when cosine ≥
      `ARTIFACT_CONNECT_MIN_COSINE` or lexical rank ≥ `artifact_search.min_rank`. The first
      `PROVISION_REVIEW_MAX_MATCHES` kept candidates are returned.
+
+     This is **not** the knowledge-base search engine (`kbhandler/search_registry.go`:
+     ParadeDB BM25 with the Jieba tokenizer, query keywords, scope filters). It is a copy made
+     in June 2026 for the index-time linking step, which `doc-processing` could not import
+     from `kbhandler`; on 2026-07-01 it became this read-time function. Its full-text leg
+     passes the whole search document (50–400 words) to `plainto_tsquery`, which requires
+     every word, and the `simple` dictionary does not split Chinese into words. On 2026-11-10
+     the full-text leg found no candidate for any of the 205 provisions, so **matching is
+     embedding-only** (cosine ≥ 0.75). The search excludes only the provision itself: no
+     knowledge-store, document-group or record filters.
    - *Object anchors* (`loadObjectAnchoredPeerIDs`): provision → `kb.artifact_objects`
      object → the object node plus up to 20 comparable nodes (same type, shared normalized
      name) → `kb.artifact_connections` `object_id` edges → provisions of other documents.
@@ -194,7 +210,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
 | `ChenWeb/server/api/doc-reviews/review-object-anchor-matches.go` | object-anchor matches |
 | `ChenWeb/server/api/doc-reviews/review-tool-loop.go`, `review-tools.go` | tool loop and tools |
 | `ChenWeb/server/api/doc-reviews/review-match-limit.go`, `review-output-limits.go` | `MAX_MATCHES_TO_LLM`; output-limit gate |
-| `ChenWeb/server/api/doc-processing/artifact_indexing.go` | `FindSimilarArtifactsOnTheFly` |
+| `ChenWeb/server/api/doc-processing/artifact_indexing.go` | `FindSimilarArtifactsOnTheFly` and `queryArtifactHybridCandidates` (the private search copy) |
 | `ChenWeb/server/api/doc-processing/search_indexing.go` | provision index rows, `provisionArtifactID` |
 | `ChenWeb/prompts/prompt-review-provisions-v6.md` | current rubric (earlier versions kept for old runs) |
 | `ChenWeb/project_migrations/20260706000001_create_doc_review_provision_analyses.sql` | analyses table |
@@ -210,6 +226,12 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   passage contract (`specs/artifact-review-input/spec.md`).
 - Module doc `modules/module-compact-document-lines.md` — `RenderLinesCompact`,
   `LoadRecordChunks`.
+- OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (proposed, not
+  implemented) — makes the search engine callable by server modules, with reference queries,
+  exclusion filters, keyword and similarity criteria and a documented score; moving this
+  reviewer onto it is a follow-up change.
+- Capsule `Capsules/coding-capsules/llm-wiki/hybrid-search.md` — the knowledge-base search
+  engine.
 
 ## Known limitations
 
@@ -222,8 +244,18 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   returns its top `PROVISION_REVIEW_MAX_MATCHES` candidates before the reviewer removes the
   document's own provisions, so a document with many similar provisions of its own can
   leave few or no slots for other documents.
-- **Candidates are noisy.** With `min_rank = 0.0` any word overlap qualifies a candidate;
-  the model is told to screen candidates and record unrelated ones as `unrelated`.
+- **It does not use the search engine.** The similarity search is a private copy of the
+  knowledge-base search from June 2026. It lacks everything added since (BM25 with Chinese
+  word splitting, query keywords), and it is maintained separately from the engine.
+- **Matching is by meaning only.** The copy's word-matching half requires every word of the
+  provision's search document, so it never finds a candidate. Provisions that share an exact
+  standard number, clause number or limit but are worded differently are found only if their
+  embeddings are close (cosine ≥ 0.75).
+- **No scope.** Candidates come from every document in the database, whatever its knowledge
+  store or document group, and their text and file names are quoted into the report.
+- **Candidates can still be loose.** Embedding similarity of 0.75 groups provisions on the
+  same topic, not only the same obligation; the model is told to screen candidates and record
+  unrelated ones as `unrelated`.
 - **The passage is local.** The model sees the chunk the provision came from, not the
   document's scope clause or definitions elsewhere in the document; its tools fetch only
   lines around an artifact and document metadata.
