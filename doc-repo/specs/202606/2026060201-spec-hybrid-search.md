@@ -545,8 +545,9 @@ page below for current evaluations.
 
 **System Admin → Benchmark → Hybrid Search Benchmark → Run Benchmark** (development page;
 openspec change `hybrid-search-benchmark`) measures the live search instead of testbed copies. A
-run takes the `testbed.generated_questions` rows of a purpose — all of them, or those picked in the *Tests to run* dialog — (only `search_metrics` today; each
-question targets one metric, `metric_id` = `artifact_id`) and searches artifact type `metric`
+run takes the `testbed.generated_questions` rows of a purpose — all of them, or those picked in the *Tests to run* dialog — (the benchmark accepts only `search_metrics`;
+each question targets one metric, `metric_id` = `artifact_id`. The generator also writes questions
+for the other artifact types and Mix since 2026-11-11 — devdoc `2026102401` — not yet benchmarked) and searches artifact type `metric`
 over the whole corpus three times with the production hybrid query
 (`queryHybridSearchResultsParadeDB`, or the tsvector variant): weights 1/0 (lexical only), 0/1
 (semantic only) and the configured `[artifact_search]` weights (hybrid). A zero weight leaves the

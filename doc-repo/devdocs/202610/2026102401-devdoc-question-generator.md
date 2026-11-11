@@ -1,13 +1,14 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: preserve valid questions on partial failure, questions/jobs tabs and count-based sampling) \
-**Scope:** Generating, saving, and inspecting metric-search questions for one document or a random batch. \
+**Date:** 2026-10-24 (updated 2026-10-25: preserve valid questions on partial failure, questions/jobs tabs and count-based sampling; 2026-11-11: questions for every search artifact type, and Mix) \
+**Scope:** Generating, saving, and inspecting search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
 ## Summary
 
-Question Generator creates and browses candidate questions for evaluating metric
-search. Open **System Admin → Benchmark → Question Generator** to see saved
+Question Generator creates and browses candidate questions for evaluating search.
+A question's answer, its *target*, is one item that hybrid search can return: a
+metric, a provision, a summary, an entity, an original passage and so on. Open **System Admin → Benchmark → Question Generator** to see saved
 questions immediately. Filter by Purpose, Run ID, Record ID, Language, and creation
 time, then click **Search**. **Reset** clears the conditions and reloads all
 questions. The results panel has two tabs: **Generated questions** (selected by
@@ -41,20 +42,26 @@ progress, model/prompt, and failure details. Starting a new job refreshes the vi
 jobs list to its first page. Both tabs support keyboard navigation and English/Chinese.
 
 Click **Generate Questions** to open the generation dialog. Enter an input record
-ID or leave it blank to sample documents randomly. Select **Search Metrics**, add
-an optional Description, and set **Questions to generate** for a specific document
-(default thirty, range 1–3,000). The server loads all the document's metrics, keeps
-those linked to usable source lines, and randomly selects distinct metrics. Each
-selected metric produces one-hop, two-hop, and multi-hop questions, so the count
+ID or leave it blank to sample documents randomly. Choose a **Purpose**: it decides
+what the questions are about. **Search Metrics** asks about metrics, and **Search
+Provisions**, **Search Summaries**, **Search Entities** and the other "Search …"
+purposes ask about that kind of item. **Mix** draws a random kind for each target,
+so one run contains questions about different kinds of items. Add an optional
+Description, and set **Questions to generate** for a specific document (default
+thirty, range 1–3,000). The server loads the document's items of the chosen kind,
+keeps those linked to usable source lines, and randomly selects distinct targets.
+Each selected target produces one-hop, two-hop, and multi-hop questions, so the count
 rounds up to a complete group of three: requesting ten questions selects four
-metrics and produces twelve questions. The dialog shows this plan before submission.
-If there are too few usable metrics, a confirmation prompt states how many questions
-can be generated. Confirming uses all the available metrics once; cancelling keeps
-the settings and starts no run. With no usable metrics, the page reports zero
-available questions and starts no run. The confirmed metric pool and source lines
+targets and produces twelve questions. The dialog shows this plan before submission.
+If there are too few usable targets, a confirmation prompt states how many questions
+can be generated. Confirming uses all the available targets once; cancelling keeps
+the settings and starts no run. With no usable targets, the page reports zero
+available questions and starts no run. The confirmed target pool and source lines
 are retained for the worker, so generation uses the same pool that was checked.
+Each question card shows its **Target** as the kind of item and its ID, for example
+"Provision · 416_prv_40".
 
-For random batch mode, choose **Metrics per document** and **Total metrics** instead.
+For random batch mode, choose **Targets per document** and **Total targets** instead.
 Both counts start at ten; batch mode reduces the final document's count to reach
 the target. The single-document count and confirmation flow do not change batch mode.
 Close the dialog with **Close**, Escape, or a press starting on the backdrop.
@@ -71,17 +78,67 @@ saved before the correction attempt, and newly corrected questions are added aft
 If some questions still fail, the job is marked Failed but the status panel states
 how many successful questions were saved; they remain in Generated questions and
 can be filtered by Run ID. The progress counts show actual saved questions.
-Only each sampled metric's surrounding source context is sent to the model.
+Only each sampled target's surrounding source context is sent to the model.
 Question language is independently chosen as English or Chinese. These are
 candidates that need human review before use as a benchmark.
 
 ## Details
 
+### Purposes and targets
+
+The contract for this section is the OpenSpec change
+`ChenWeb/openspec/changes/question-generator-artifact-types/` (`proposal.md`, `design.md`,
+`tasks.md`, `specs/question-generator-artifact-types/spec.md`). Update that spec when
+changing this behaviour.
+
+| Purpose | Target type | Target source |
+|---|---|---|
+| `search_metrics` (Search Metrics) | `metric` | `kb.metrics` (unchanged path, prompt v3) |
+| `search_chunks`, `search_summaries`, `search_topics`, `search_scene_blocks`, `search_provisions`, `search_products`, `search_inventory_items`, `search_semantic_projections`, `search_knowledge`, `search_entities`, `search_relations` | the matching search artifact type | `kb.search_artifacts` rows of that type |
+| `search_mixed` (Mix) | every search artifact type, `metric` included | `kb.search_artifacts` rows of all types |
+
+The purpose table is `questionPurposes` in `question_generator.go`; a unit test keeps it
+equal to the search registry's partition types (`searchArtifactPartitionTypes`).
+
+**Registry targets** (every purpose except Search Metrics) come from the search registry, so
+each target is exactly something hybrid search can return. A row is eligible when it has an
+artifact ID, at least one source line span, every span's endpoints exist among the document's
+non-empty canonical lines, and its formatted source context is at most 20,000 characters.
+The size limit mainly excludes level-0 summaries that cover a whole document. Duplicate IDs
+count once. Code: `question_generator_artifacts.go`.
+
+**Mix** keeps one pool per type. For each target it first picks a type with equal probability
+among the types that still have unused targets in the document, then a target of that type.
+A small type (two provisions) is therefore drawn as often as a large one (700 entities). Pools
+refill only when every type is used up. Each question keeps `purpose = search_mixed` and
+stores its own target type.
+
+**Model input** for a registry target set: `artifact_type`, `artifact_id`, `primary_label`,
+`secondary_label`, `snippet` (the first 1,000 characters of `snippet_basis`), `semantic_payload`
+with empty values removed, `source_line_spans`, `context` and `context_line_ranges`. The context
+is built exactly as for metrics (below). The prompt is `PROMPT_GENERATE_ARTIFACT_QUESTIONS`,
+default `prompt-question-generator-search-artifacts-v1.md`. It keeps the metric prompt's hop,
+language, single-target and citation rules and adds one paragraph per type on what a question
+asks for (for a relation: the missing end of the fact; for a provision: what is required and
+when). It also requires the answer to come from the target's own lines; neighbouring lines may
+only describe the situation.
+
+**Validation** is shared with metrics (`question_generator_targets.go`): citations must stay in
+the target's context and at least one must fall inside its spans. A two- or multi-hop question
+may not contain the target's `primary_label` (and, for an inventory item, its `secondary_label`,
+the English name). Other types' secondary labels are codes such as `mandatory` and are not
+checked. Messages name the target type ("does not cite its selected entity's source lines
+(source_line_spans 44)"), which the correction round passes back to the model.
+
+LLM calls of registry purposes use `call_reason = question_generation_<purpose>` and call
+location `20261111-742`. Search Metrics keeps `question_generation_search_metrics` and
+`20261024-741`.
+
 ### Browsing and filters
 
-The page loads up to 50 questions per page. Purpose, Run ID, Record ID, and Language
-menus contain all distinct values stored in `testbed.generated_questions`, including
-historical purposes. The API provides these values independently of active filters.
+The page loads up to 50 questions per page. The Purpose menu lists every current purpose
+plus any historical purpose found in saved questions. Run ID, Record ID, and Language
+menus contain all distinct values stored in `testbed.generated_questions`. The API provides these values independently of active filters.
 Time From and Time To are local date/time pickers, converted to timezone-aware
 RFC3339 timestamps by the client. Either bound can be omitted; both are inclusive
 and filter each question's `created_at`. Reversed ranges are rejected.
@@ -139,20 +196,21 @@ There is no archive browser or per-question restore action in this change.
 - `input_record_id`: positive `kb.inputs.id` for one document. Omitted, null, or
   zero means random batch mode. Negative values are invalid. Source comes from
   the record's canonical line file via `docprocessing.LoadRecordLinesByID`.
-- `purpose`: required stable ID `search_metrics`, displayed as Search Metrics.
-  Each supported purpose resolves to its own versioned prompt; unknown purposes
-  fail validation. Historical free-text purposes remain readable.
+- `purpose`: required; one of the thirteen IDs in *Purposes and targets*. Search
+  Metrics uses the metric prompt and every other purpose the artifact prompt; unknown
+  purposes fail validation with HTTP 400. Historical free-text purposes remain readable.
 - `description`: optional additional context, up to 10,000 characters.
 - `num_questions_to_generate`: integer 1–3,000 for a specified document. Takes
-  precedence over metric and legacy hop counts; the sample size is `ceil(count / 3)`.
-  Every selected metric is distinct within this run.
+  precedence over target and legacy hop counts; the sample size is `ceil(count / 3)`.
+  Every selected target is distinct within this run.
 - `confirmed_available_questions`: the reduced question count accepted by the user
   after a shortage response. The server rechecks capacity on resubmission; a changed
   capacity requires a new confirmation. No run is inserted and no model is called
   before this check succeeds.
-- `metrics_per_document`: optional integer, default ten, range 1–50.
-- `total_metrics`: optional batch target, default ten, range 1–1,000. A specified
-  input ID ignores this value and uses Metrics per document instead.
+- `metrics_per_document`: optional integer, default ten, range 1–50. Despite the
+  name it counts targets of the chosen purpose (Targets per document on the page).
+- `total_metrics`: optional batch target, default ten, range 1–1,000, also counting
+  targets. A specified input ID ignores this value and uses the per-document count.
 - Legacy per-hop count request fields remain accepted when equal; unequal values
   fail validation because a metric always generates one question of each hop type.
   The new metric count fields take precedence over legacy fields.
@@ -168,6 +226,8 @@ There is no archive browser or per-question restore action in this change.
   `prompt-question-generator-search-metrics-v3.md` (v2 until 2026-10-25). Loaded through the existing
   prompt resolver (`PROMPT_DIR`, an absolute path, or the project's prompts directory).
   The resolved reference is saved on the run and its LLM usage events.
+- `PROMPT_GENERATE_ARTIFACT_QUESTIONS`: prompt for every other purpose, default
+  `prompt-question-generator-search-artifacts-v1.md`, resolved the same way.
 
 Only sampled metric contexts are sent. For each metric, `context` joins the source
 content with newline separators: up to ten actual canonical lines before its first
@@ -184,10 +244,12 @@ source hashing. Unrelated document content is neither included in the prompt nor
 subject to the context size limit. Empty contexts or assembled inputs over 600,000
 characters fail without truncation. A model's context/output limits may be lower.
 
-### Document and metric sampling
+### Document and target sampling
 
 Batch mode samples `kb.inputs` in random order, directly filtering to documents
-that have primary `kb.metrics` rows (`ref_mention_id IS NULL`). This is equivalent
+that have targets: primary `kb.metrics` rows (`ref_mention_id IS NULL`) for Search
+Metrics, or `kb.search_artifacts` rows of the purpose's types otherwise (any type for
+Mix). The metric details below apply to registry targets in the same way. This is equivalent
 to random draws followed by skipping metric-free inputs. Metrics are loaded for
 each selected document; a document whose metrics disappeared is skipped as well.
 Missing line files or insufficient metric grounding skip the candidate in batch mode
@@ -254,8 +316,9 @@ records. The implementation is `question-generation-jobs.svelte` and
 `listQuestionJobs` in `questionGeneratorService.ts`; the existing status panel remains
 in `question-generator-view.svelte`.
 
-The shortage response is `{confirmation_required, available_metrics, available_questions,
-requested_questions}`. `confirmation_required` is false at zero capacity; otherwise
+The shortage response is `{confirmation_required, available_targets, available_questions,
+requested_questions}` for every purpose (`available_targets` replaced `available_metrics`
+on 2026-11-11). `confirmation_required` is false at zero capacity; otherwise
 the client asks the user and resubmits with `confirmed_available_questions` only after
 acceptance. Missing canonical files and database errors remain failures, not shortages.
 
@@ -289,7 +352,11 @@ and their total targets each equal Total metrics. Existing run rows are unchange
 `testbed.generated_questions` holds one row per question: `run_id`,
 `input_record_id`, `purpose`, `prompt_name`, `model_name`, `created_at`, `hop_type`, `question`, `answer`, `reasoning_steps`,
 `step_line_ids`, `evidence` (objects containing `line_id` and `text`), `set_no`,
-`metric_id`, `metric_snapshot`, `lang`, and `source_sha256`. Each question keeps its
+`metric_id`, `metric_snapshot`, `artifact_type`, `artifact_id`, `artifact_snapshot`, `lang`,
+and `source_sha256`. `artifact_type` / `artifact_id` identify the target for every purpose
+(metric questions store `metric` and their metric ID). Registry targets store the registry
+row (type, ID, labels, `snippet_basis`, source title, spans, semantic payload) as
+`artifact_snapshot` and leave `metric_id` empty and `metric_snapshot` `{}`. Each question keeps its
 actual input ID even when its run samples many documents. Its non-null `purpose`
 is copied from the saved run when inserted and included in question API responses;
 model-supplied purpose is ignored. `prompt_name` and `model_name` are also copied
@@ -321,7 +388,9 @@ Migrations: `20261024000001_create_generated_questions.sql` (initial schema) and
 and `20261024000012_add_generated_questions_purpose.sql` (question-level purpose
 and historical backfill), plus
 `20261024000013_add_generated_questions_model_prompt.sql` (question-level model
-and prompt provenance).
+and prompt provenance), and `20261111000010_generated_questions_artifact_target.sql`
+(the three `artifact_*` columns on the live and archive tables, metric backfill; its
+rollback refuses while non-metric questions exist).
 The existing startup project migrator applies them before routes are served. The
 second migration retains historical rows and backfills their counts and languages.
 Its rollback refuses to proceed while batch runs exist, because the original schema
@@ -419,6 +488,17 @@ unknown or repeated evidence lines, and unsupported reasoning steps.
 
 ## Known limitations
 
+- The Hybrid Search Benchmark still runs only Search Metrics questions. Running the
+  other purposes there is a follow-up change.
+- Chunk and knowledge rows are not in the search registry yet, so those purposes report
+  that no document has such items; Mix includes them automatically once rows exist.
+- Registry targets inherit the quality of the extracted items. In the first live check
+  (record 416, 2026-11-11) entity and relation questions were only as good as their rows
+  (a relation "this standard specifies separate collection" gives a thin question), and
+  summary questions tend to ask about several points the summary covers.
+- Entity and relation rows have no embeddings (`EMBED_ENTITY_RELATION` off), so semantic
+  search cannot find them; this matters once the benchmark runs those questions.
+
 - Validation checks structure and citation existence. It cannot establish that an
   answer is correct or that the requested reasoning actually needs multiple facts.
 - The model may fail to produce supported questions for all targets. Batch mode
@@ -446,5 +526,6 @@ reloader. The frontend may already have updated independently.
 ## Related documents
 
 - [Hybrid search](../../../Capsules/coding-capsules/llm-wiki/hybrid-search.md)
+- OpenSpec change `ChenWeb/openspec/changes/question-generator-artifact-types/` (purposes, registry targets, Mix)
 - [Input and line-file management](../../../Capsules/coding-capsules/input-management/+CAPSULE.md)
 - [Implementation plan](../../../Capsules/coding-capsules/llm-wiki/question-generator-implementation.md)
