@@ -1,7 +1,7 @@
 # Compliance reviewer — research, current implementation, and proposed design
 
 **Date:** 2026-11-11 (America/Chicago) \
-**Status:** Research and design proposal; the proposed reviewer is not implemented. \
+**Status:** Research and design proposal; the proposed reviewer is not implemented. Formerly filed as `devdocs/202611/2026111103-devdoc-compliance-reviewer-research.md`. \
 **Scope:** Reviewing a document against applicable laws, regulations, standards, contracts, and organizational policies, including obligations the document never names. \
 **Code roots:** `ChenWeb/server/api/doc-reviews`, `ChenWeb/server/api/doc-processing`, `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/kbsearch`.
 
@@ -13,13 +13,47 @@ The recommendation is a shared, evidence-grounded assessment engine, initially e
 
 Every assessment should distinguish applicability, document evidence, and execution completeness. “No contradiction found,” “requirement not documented,” “applicability unknown,” and “search failed” are different outcomes. The engine should report scoped document assessments, with source versions and evidence, rather than declare that an organization or deployed system is compliant.
 
-This document records a source-code inspection and primary-source research. Existing behavior is described in §2; everything from §5 onward is proposed unless explicitly identified as an existing integration. No new reviewer, database schema, runtime configuration, or authoritative legal interpretation was deployed for this research.
+The inspection also found two defects in the existing reviewers that make their results misleading today and do not depend on the new engine (§2.2): a failed model call becomes an empty, successful result, and the reference documents a user selects never reach the reviewers. Delivery phase 0 (§12) fixes them first.
+
+This document records a source-code inspection and primary-source research. Existing behavior is described in §2; everything from §5 onward is proposed unless explicitly identified as an existing integration. Nothing was deployed for this research; §13 lists what it did not check.
+
+### 1.1 Decisions needed before delivery phase 1
+
+The design deliberately leaves these choices to the profile owner. Work on a profile cannot start until they are made.
+
+| Decision | Why it blocks | Current position |
+|---|---|---|
+| Target jurisdiction(s) for the first profile | Applicability, source acquisition, and gold labels all depend on it | The documents used in this workspace's existing extraction benchmarks are mostly Chinese national standards (GB/T), which favours a China-first profile: the Cybersecurity Law, the Personal Information Protection Law, and related GB standards. The corpus inventory below should confirm this. |
+| Organization role and legal entities | Decides whether duties such as network-operator log retention apply at all | Not supplied; must come from the owner |
+| Adopted standards and company policy inventory | A profile can only check obligations it holds | Not supplied |
+| Profile owner | Approved obligations need an accountable reviewer | Not decided |
+| Annotation budget | Sets the size of the gold set, and therefore which release gates in §11.3 can be measured | Not estimated |
+
+The first piece of work is a corpus inventory, which is cheap: count which laws, regulations, standards, and company policies are actually held as `kb.inputs` records with usable chunks, broken down by jurisdiction, language, and edition. This research did not do it. §7 explains why source coverage limits everything downstream.
+
+### 1.2 Terms used in this document
+
+| Term | Meaning here |
+|---|---|
+| Aspect | One checkbox in the document-review UI; each aspect runs one reviewer |
+| Capsule | The doc-processor orientation file, `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md` |
+| Chunk, page block | The units reviewers send to the model: chunks come from the chunking processor; page blocks are fixed-size groups of lines |
+| P5 | The internal group name of the legal, regulatory, internal-policy, and standards reviewers |
+| Doc-processor Phase B, Phase C | Pipeline stages, not delivery phases: Phase B runs extraction processors concurrently; Phase C (post-process) indexes their output |
+| Lexical search, BM25 | Keyword search; BM25 is the ranking formula it uses |
+| Semantic search, cosine | Search by embedding similarity; cosine is the similarity score |
+| Recall@K | The share of relevant items that appear in the top K results |
+| Obligation | One assessable requirement taken from a governing source |
+| Profile | An approved, versioned set of obligations for one jurisdiction, organization role, and document type |
+| Evidence boundary | The documents a review may look in: the reviewed document alone, or it plus named supporting documents |
+| ePHI | Electronic protected health information under the US HIPAA rules |
+| OSCAL | NIST's machine-readable format for security assessment records |
 
 ## 2. What exists today
 
 ### 2.1 What was inspected
 
-The starting point was the [doc-processor capsule](../../../Capsules/coding-capsules/doc-processor/+CAPSULE.md), followed by actual Go implementations, prompts, reviewer configuration, module records, and related devdocs. The local repositories had unrelated uncommitted changes. This inspection describes the working-tree snapshot on the date above, including those changes; it is not a claim about a particular production deployment.
+The starting point was the [doc-processor capsule](../../../Capsules/coding-capsules/doc-processor/+CAPSULE.md), followed by actual Go implementations, prompts, reviewer configuration, module records, and related devdocs. It describes the working-tree snapshot on the date above, including unrelated uncommitted changes in the local repositories.
 
 Important source locations, relative to the workspace root:
 
@@ -54,18 +88,20 @@ The local TOML selects `per-chunk` for legal/regulatory/standards and `per-block
 
 The legal rubric asks the model to infer legal context and covers potentially missing disclosures, privacy requirements, and contractual terms. It also mixes legally required terms with customary terms. This can produce useful concerns, but custom and legal obligation must become different categories in a rigorous assessment. A missing copyright notice or disclaimer is not automatically a legal violation merely because it is commonly seen.
 
-Several existing processing methods log a failed LLM call and return no findings for that unit. In the legal block path, the concurrent callback returns the resulting findings with a nil error. Therefore an empty finding list alone cannot establish that all units were successfully reviewed. This is a specific execution gap to address, independent of the model’s reasoning accuracy.
+**Defect: failed model calls disappear on both paths.** On the normal configured path, the chunk reviewer interface in `review-document.go` is `processChunk(ctx, recordID, index, cfg, input) []ReviewFinding`. It has no error return, so no chunk reviewer can report a failure. The legal reviewer’s `processChunk` logs a failed JSON extraction and returns no findings; a failed tool loop is logged and whatever partial findings it produced are returned as if complete. The page-block fallback behaves the same way: `processBlock` returns no findings on failure, and the concurrent callback in `ReviewDocument` wraps that result with a nil error. An empty or short finding list therefore cannot establish that all units were reviewed. Twenty reviewers implement `processChunk`, so the fix is an interface change across all of them, not a patch to one reviewer. It is independent of the model’s reasoning accuracy.
 
-The request model’s selected `reference_docs` are accepted, stored, and printed in reports, but the inspected `controller.go::RunReview` does not pass that selection into `ReviewProcessor`. It passes run IDs, depth, requested aspects, and stores before calling `PostProcessIndex`. A listed reference document therefore does not establish that the reviewer assessed against it. The future reviewer needs explicit, tested propagation of the selected authority/evidence set.
+**Defect: selected reference documents are dropped.** The request’s selected `reference_docs` are accepted, stored, and printed in reports, but `controller.go::RunReview` does not pass that selection into `ReviewProcessor`. It sets run IDs, depth, requested aspects, and stores before calling `PostProcessIndex`. A user who selects reference documents today gets a report that lists them, although no reviewer received them. The future reviewer also needs explicit, tested propagation of the selected authority/evidence set.
+
+Both defects affect the current reviewers now. Delivery phase 0 (§12) fixes them before any new engine work.
 
 ### 2.3 What Provision Consistency already does well
 
-The [provisions reviewer devdoc](2026111002-devdoc-provisions-reviewer.md) describes the current implementation in detail. The inspected code confirms these useful seams:
+The [provisions reviewer devdoc](../../devdocs/202611/2026111002-devdoc-provisions-reviewer.md) describes the current implementation in detail. The inspected code confirms these useful seams:
 
 * Similarity search calls `searchengine.Search` using an indexed provision reference, excludes the document under review, and combines lexical and vector results. Object-anchor peers provide another candidate route.
 * Matches carry source documents, original line context, and identifiers. The reviewed provision is shown with its extraction chunk.
 * A provision with no matches finishes without a model call. That means “no comparison candidates,” not “compliant.”
-* `ARTIFACT_CONNECT_MIN_COSINE` defaults to 0.75 for this path. Its minimum-cosine condition can remove lexical matches. Copying that condition into authority discovery would risk losing exact clause identifiers or semantically distant obligations.
+* `ARTIFACT_CONNECT_MIN_COSINE` defaults to 0.75 for this path. Its minimum-cosine condition can remove lexical matches. Copying that condition into authority discovery would risk losing exact clause identifiers or semantically distant obligations. The value is also out of date: the code comment in `searchengine/similar.go` says 0.75 was tuned for text-embedding-3-small and needs recalibrating for bge-m3, the embedding model the workspace now uses.
 * `docAuthorityClass` uses document numbers, titles, and filenames to classify standards, regulations, and peers. It is explicitly heuristic. It does not establish legal force, authentic publication, jurisdiction, effective edition, or applicability.
 * The similarity lookup supplies exclusion/type filters but no knowledge-store or document-group boundary in that call. The new assessment engine must provide explicit authorization filtering; retrieval capability alone is not an access policy.
 
@@ -93,9 +129,7 @@ The [reference processor orientation](../../../Capsules/coding-capsules/doc-proc
 
 ### 2.5 What the existing tests establish
 
-`TestLegalComplianceReviewerProcessBlockDefaults`, `TestRegulatoryComplianceReviewerProcessBlockDefaults`, and `TestInternalPolicyReviewerProcessBlockDefaults` use fake model outputs and check fields such as aspect, severity, and finding type. They establish output plumbing, not correct law discovery or legal reasoning. Other review tests exercise tools and scheduling, but this inspection did not establish a representative, expert-adjudicated end-to-end compliance benchmark.
-
-No production accuracy percentage can be justified from these tests. This research did not execute model-backed evaluations or measure the deployed system.
+`TestStandardsComplianceReviewerProcessBlockDefaults`, `TestLegalComplianceReviewerProcessBlockDefaults`, `TestRegulatoryComplianceReviewerProcessBlockDefaults`, and `TestInternalPolicyReviewerProcessBlockDefaults` (all in `review-p5_test.go`) use fake model outputs and check fields such as aspect, severity, and finding type. They establish output plumbing, not correct law discovery or legal reasoning. Other review tests exercise tools and scheduling. No representative, expert-adjudicated end-to-end compliance benchmark exists, so no accuracy figure can be justified from these tests.
 
 ## 3. Why the problem is larger than provision matching
 
@@ -325,7 +359,7 @@ For EU personal-data processing, [GDPR](https://eur-lex.europa.eu/eli/reg/2016/6
 
 For an adopted security-control profile, the [NIST SP 800-53 Rev. 5 control catalog](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf) supplies separate candidate controls: AU-2 event logging, AU-3 record content, AU-9 protection, AU-11 retention, and AU-12 generation. AU-11 uses an organization-defined retention period. The applicable profile and assigned parameters must be known before the reviewer can assess a specific period.
 
-For a qualifying network operator and relevant network logs, China’s amended [Cybersecurity Law](https://www.cac.gov.cn/2025-12/29/c_1768735112911946.htm) Article **23(3)** supplies a minimum six-month retention requirement. The [2025 amendment](https://www.cac.gov.cn/2025-10/29/c_1763461514768457.htm) took effect on 2026-01-01; older editions place this provision in Article 21(3). Do not apply this duration to every user-activity row merely because it is called a log. This is also a concrete regression case: source identity must survive renumbering while citations remain correct for the assessment date.
+For a qualifying network operator and relevant network logs, China’s amended [Cybersecurity Law](https://www.cac.gov.cn/2025-12/29/c_1768735112911946.htm) Article **23(3)** supplies a minimum six-month retention requirement. The [2025 amendment](https://www.cac.gov.cn/2025-10/29/c_1763461514768457.htm) took effect on 2026-01-01; older editions place this provision in Article 21(3). Do not apply this duration to every user-activity row merely because it is called a log. This is also a concrete regression case: source identity must survive renumbering while citations remain correct for the assessment date. A second trap sits in the same source: the official amended text still ends with the original clause “本法自2017年6月1日起施行” (in force from 2017-06-01), while the amending decision takes effect on 2026-01-01. An engine that reads the effective date from the law’s own final article picks the wrong date for the amended edition.
 
 China’s [Personal Information Protection Law](https://www.cac.gov.cn/2021-08/20/c_1631050028355286.htm) supplies another conditional branch: Articles 3–4 address scope and personal information/processing; Articles 6 and 13 address minimization and processing grounds; Article 19 addresses necessary retention with exceptions for laws and administrative regulations. A security-retention duty and a privacy constraint are not automatically inconsistent. Compare the same record category, purpose, required period, and exception before declaring a conflict.
 
@@ -353,7 +387,7 @@ The important pattern is conditional branching: “If this logging activity fall
 }
 ```
 
-This is an illustrative proposed payload, not the existing API schema. A production payload must add real source anchors and the run manifest; none are invented here.
+Illustrative only, not the existing API schema; a production payload adds real source anchors and the run manifest.
 
 ### 8.5 Example after a company profile is supplied
 
@@ -392,7 +426,7 @@ Proposed logical records, with physical names deliberately left to implementatio
 
 Reuse `kb.doc_review_findings` for presentation where appropriate, but retain the full assessment and coverage records separately. JSON metadata alone is a poor long-term home for queryable source/version and obligation relationships. An informational analysis or unknown applicability must not inflate the adverse-finding count.
 
-Use table-owned identity primary keys and `shared/go/api/idmanager` for run/correlation IDs shared across tables. Any eventual schema work uses goose and normal startup migration paths, centralized connection pools, parameterized queries, indexes on run/source/obligation versions, and explicit lifecycle/retention rules. No database change is part of this research.
+Use table-owned identity primary keys and `shared/go/api/idmanager` for run/correlation IDs shared across tables. Any eventual schema work uses goose and normal startup migration paths, centralized connection pools, parameterized queries, indexes on run/source/obligation versions, and explicit lifecycle/retention rules.
 
 ### 9.3 Coverage report
 
@@ -419,9 +453,9 @@ No new reusable code was created or registered. During implementation, register 
 
 ### 10.2 Add an aspect before adding a processor
 
-The first integration should be a new on-demand reviewer within `review_document`, not another automatic Phase B processor. Authority discovery and applicability depend on review context and user scope; they are not universal extraction properties of a document.
+The first integration should be a new on-demand reviewer within `review_document`, not another automatic doc-processor Phase B processor. Authority discovery and applicability depend on review context and user scope; they are not universal extraction properties of a document.
 
-Ordinary submissions already use the request/run lifecycle and `kb.doc-review.start`; the controller directly invokes `ReviewProcessor.PostProcessIndex`. Its `HandleEvent` is a no-op. Reuse this lifecycle, adding frozen context and readiness at the controller seam, rather than interpreting the Phase C method name as evidence that all preprocessing has run.
+Ordinary submissions already use the request/run lifecycle and `kb.doc-review.start`; the controller directly invokes `ReviewProcessor.PostProcessIndex`. Its `HandleEvent` is a no-op. Reuse this lifecycle, adding frozen context and readiness at the controller seam, rather than interpreting the doc-processor Phase C method name (`PostProcessIndex`) as evidence that all preprocessing has run.
 
 Its readiness check requires a pinned canonical document and approved profile/source versions. Provision, entity, metric, reference, and semantic artifacts are optional accelerators unless the selected profile explicitly requires them. If missing, either run the authorized preprocessing step or use direct chunk discovery and record the limitation. Do not silently initiate all extraction processors or treat their absence as no obligations.
 
@@ -431,13 +465,13 @@ If repeated activity discovery proves expensive, later propose a configurable ac
 
 The nine core review tools in `review-tools.go` are document-intrinsic. `search_provisions` searches the current record, so it is not an authority discovery tool. Cross-record `get_artifact_context` and `get_document_metadata` are explicitly selected additions. Their mere presence does not supply a complete source authorization or applicability layer.
 
-`review-tools_test.go` explicitly excludes the old names `search_reference_docs`, `get_reference_roster`, and `check_entity_in_reference` from the registry; a standards-reviewer comment naming them is stale. The inspected cross-record context implementation does not itself perform a document authorization check. This is a local implementation finding, not proof that no outer authorization exists. The new path must supply its own enforceable boundary and test it.
+`review-tools_test.go` explicitly excludes the old names `search_reference_docs`, `get_reference_roster`, and `check_entity_in_reference` from the registry; a standards-reviewer comment naming them is stale. The cross-record context implementation does not itself check document authorization; an outer check may exist, but the new path must supply its own enforceable boundary and test it.
 
 The reference store’s `accessibleHoldings` provides a useful precedent: same user, same knowledge store, or an active grant. Its subject is the citing record’s owner. A review must explicitly decide whether access is evaluated for the initiating user, document owner, or approved service identity; never substitute one for another implicitly.
 
 Introduce narrow authorized operations: search approved authorities, retrieve a pinned clause with context, inspect applicability facts, and search the evidence boundary. Tools accept run-bound source scope rather than arbitrary store/record arguments chosen by the model. Validate authorization again when dereferencing results. Treat source text and tool content as untrusted data; instructions embedded in a document cannot change tool permissions or the review rubric.
 
-Use the current scheduler, cancellation, budgets, and usage accounting where possible. Add explicit per-unit error and partial-completion propagation so failures cannot disappear into a successful empty result. Budget exhaustion should preserve completed assessments and mark unassessed obligations; finding caps must not masquerade as full coverage.
+Use the current scheduler, cancellation, budgets, and usage accounting where possible. Delivery phase 0 gives `processChunk` an error return and makes the block path propagate unit errors (§2.2); the new reviewer builds on that so failures cannot disappear into a successful empty result. Budget exhaustion should preserve completed assessments and mark unassessed obligations; finding caps must not masquerade as full coverage.
 
 Current status progression can mark a fully progressed aspect successful even when output limits caused work to be skipped. `GetRequestWithFindings` also exposes findings through completed effective runs. Design partial-run retrieval and reporting explicitly so an overall failure neither hides valid completed assessments nor presents them as complete coverage.
 
@@ -498,34 +532,40 @@ These are proposed engineering gates, not measured results or legal assurance th
 * Expert-adjudicated precision at least 95% for high-severity findings in the pilot, with confidence intervals and denominators. Recall and abstention must be reported alongside precision.
 * No known error in edition selection or applicability in the release’s mandatory critical regression cases.
 
-A handful of successful examples cannot establish the statistical precision gate. Choose sample size from the desired uncertainty interval and expected error rate. If a gate is missed, narrow the approved profile, improve the deficient stage, or expose the result as assisted triage with unresolved conclusions; do not hide hard cases by raising a model confidence cutoff.
+A handful of successful examples cannot establish the statistical precision gate. Choose sample size from the desired uncertainty interval and expected error rate. For scale: if the gate means the point estimate must reach 95% with an interval of about ±5 points, roughly 75 adjudicated high-severity findings are needed when true precision is near 95%. If it means the lower bound of a one-sided 95% interval must reach 95%, even a run with zero errors needs about 60 findings, and each error raises that number substantially. Every finding is labelled twice and adjudicated (§11.1), so the OpenSpec proposal must say which reading applies and budget annotation accordingly. If a gate is missed, narrow the approved profile, improve the deficient stage, or expose the result as assisted triage with unresolved conclusions; do not hide hard cases by raising a model confidence cutoff.
 
 ## 12. Delivery sequence and decisions
 
-| Phase | Concrete output | Exit evidence |
-|---|---|---|
-| A: baseline and corpus | Snapshot current reviewers; approve one logging/privacy source profile and organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
-| B: discovery and applicability | Activity records, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics and adversarial access tests |
-| C: assessment | Profile-led omission search, source-grounded comparisons, deterministic verifier, coverage records | Stage metrics, failure propagation, golden example cases |
-| D: pilot | Optional new aspect, bilingual views/reporting, human dispositions; compare with existing reviewers | Held-out evaluation, precision/recall/abstention, operating cost |
-| E: expansion | Additional organization/jurisdiction profiles, corpus change impact, selected formal predicates | New profile-specific evaluation; no assumed transfer from pilot |
+Delivery phases are numbered to keep them distinct from the doc-processor’s Phase A–D pipeline stages.
 
-The first implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
+| Delivery phase | Concrete output | Exit evidence |
+|---|---|---|
+| 0: fix current defects | `processChunk` gains an error return across all twenty implementing reviewers; block-path unit errors propagate; a failed or partial unit marks the aspect partial or failed. Selected reference documents reach `ReviewProcessor`, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. | Tests showing a failed model call yields a failed unit, not an empty success; a test showing selected references reach the reviewer |
+| 1: corpus inventory and thin slice | The decisions in §1.1; the corpus inventory; one hand-curated profile of about 20 obligations; profile-led omission checks on 10–15 documents, judged by the profile owner | Evidence that omission checks find gaps the current reviewers miss, at acceptable cost; a go/no-go decision for the full gold set |
+| 2: baseline and gold set | Snapshot current reviewers; approve the logging/privacy source profile and organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
+| 3: discovery and applicability | Activity records, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics and adversarial access tests |
+| 4: assessment | Profile-led omission search, source-grounded comparisons, deterministic verifier, coverage records | Stage metrics, failure propagation, golden example cases |
+| 5: pilot | Optional new aspect, bilingual views/reporting, human dispositions; compare with existing reviewers | Held-out evaluation, precision/recall/abstention, operating cost |
+| 6: expansion | Additional organization/jurisdiction profiles, corpus change impact, selected formal predicates | New profile-specific evaluation; no assumed transfer from pilot |
+
+Phase 0 is ordinary bug fixing and needs no proposal. Phase 1 is small enough to run before the full annotation effort and shows whether that effort is worth funding. From phase 2 onward, implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
 
 Key decisions recommended now:
 
-1. Build one common assessment engine and one initial optional aspect.
-2. Combine activity-led discovery with profile-led omission checks.
-3. Start with approved local authority sets; separate external acquisition.
-4. Keep applicability, evidence, and execution as distinct states.
-5. Treat existing artifacts as accelerators, with original chunks as evidence fallback.
-6. Require measured local performance before broad legal or cross-jurisdiction claims.
+1. Fix the two current reviewer defects (§2.2) before new engine work.
+2. Make the §1.1 decisions and run the corpus inventory before annotating a gold set.
+3. Build one common assessment engine and one initial optional aspect.
+4. Combine activity-led discovery with profile-led omission checks.
+5. Start with approved local authority sets; separate external acquisition.
+6. Keep applicability, evidence, and execution as distinct states.
+7. Treat existing artifacts as accelerators, with original chunks as evidence fallback.
+8. Require measured local performance before broad legal or cross-jurisdiction claims.
 
 ## 13. Known limitations and outstanding choices
 
-No target jurisdiction, legal entity, adopted standard list, or company policy inventory was supplied. The architecture accommodates them; the initial operational profile still needs its owner to select them. The logging examples deliberately do not choose these facts for the user.
+No target jurisdiction, legal entity, adopted standard list, or company policy inventory was supplied. The architecture accommodates them; the initial operational profile still needs its owner to select them, and §1.1 lists them as the decisions needed before delivery phase 1. The logging examples deliberately do not choose these facts for the user.
 
-This inspection did not inventory live database holdings, verify deployed prompt versions, run model-backed compliance tests, or inspect licensed standard clauses. It identifies code-level limits and proposes measurable remedies. Research examples are not a complete legal analysis of logging in every jurisdiction.
+This inspection describes the working-tree code, not a production deployment. It did not inventory live database holdings (§1.1 makes that the first piece of work), verify deployed prompt versions, run model-backed compliance tests, measure the deployed system, or inspect licensed standard clauses. It identifies code-level limits and proposes measurable remedies. Research examples are not a complete legal analysis of logging in every jurisdiction.
 
 EUR-Lex exposed relevant GDPR material through search, but direct full-text retrieval encountered a JavaScript verification page. The linked official act is supplied for traceability; no complete new GDPR source snapshot was captured in this task. An implementation must acquire and verify its approved edition before using it as a run’s governing text. The official Chinese law pages and eCFR provisions were readable; a successful read still does not replace edition pinning in an operational assessment.
 
@@ -539,11 +579,11 @@ Implementation choices still needing an explicit contract include profile owners
 
 **Documents/specs/tests affected by a future implementation:** The doc-processor capsule and document-review spec, existing document-review ADRs, reviewer configuration documentation, the provision reviewer’s boundary description, source/version and authorization contracts, report schema, user manual, module catalog, and stage/end-to-end tests described above.
 
-**Documents updated in this task:** This research devdoc only. Existing runtime specs were not changed to imply the proposed reviewer exists. No application code or module interfaces changed.
+**Documents updated in this task:** This research document only. It was first filed as a devdoc and moved to `research/` on 2026-11-11, because it proposes a design rather than recording built behavior. Existing runtime specs were not changed to imply the proposed reviewer exists. No application code or module interfaces changed.
 
 **Known documentation drift:** The capsule’s line-array requirement is appropriate to extraction/per-chunk paths but should be read alongside the compact-line module’s documented artifact-review exception. The capsule also explicitly labels its dashboard-addition checklist as stale. The new implementation should reconcile relevant guidance in its own change rather than copy stale steps.
 
-The standards-reviewer source comment also names obsolete reference tools that the current registry deliberately excludes. The future change should correct that comment and test the actual selected-reference contract.
+The standards-reviewer source comment also names obsolete reference tools that the current registry deliberately excludes. Delivery phase 0 should correct that comment and test the actual selected-reference contract.
 
 The capsule also links a missing `doc-processor/document-review-spec.md`; the existing [document-review specification](../../specs/202606/2026062104-spec-document-review.md) is filed under `doc-repo/specs/202606/`. Its older service paths and summary claims need reconciliation against current code. The [compliance ADR draft](../../adrs/202606/2026063006-adr-doc-reviewer-compliance.md) contains placeholder sections and should not be treated as an implemented compliance contract.
 
@@ -570,4 +610,4 @@ Sources below were consulted for this research on 2026-11-11. Dates refer to the
 | [45 CFR 164.312](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.312), [164.316](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.316) | Audit mechanisms versus defined documentation-retention duties |
 | [ISO normative expressions/status](https://www.iso.org/foreword-supplementary-information.html), [regulatory incorporation](https://www.iso.org/sites/ConsumersStandards/1_standards.html) | Standard wording versus the reason a requirement binds the subject |
 
-Local orientation: [doc-processor capsule](../../../Capsules/coding-capsules/doc-processor/+CAPSULE.md), [document-review spec](../../specs/202606/2026062104-spec-document-review.md), [provisions reviewer](2026111002-devdoc-provisions-reviewer.md), [chunk hybrid search](2026111102-devdoc-chunk-hybrid-search.md), [Artifact Search module](../../modules/module-artifact-search.md), and [Compact Document Lines module](../../modules/module-compact-document-lines.md).
+Local orientation: [doc-processor capsule](../../../Capsules/coding-capsules/doc-processor/+CAPSULE.md), [document-review spec](../../specs/202606/2026062104-spec-document-review.md), [provisions reviewer](../../devdocs/202611/2026111002-devdoc-provisions-reviewer.md), [chunk hybrid search](../../devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md), [Artifact Search module](../../modules/module-artifact-search.md), and [Compact Document Lines module](../../modules/module-compact-document-lines.md).
