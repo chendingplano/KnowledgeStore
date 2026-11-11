@@ -30,8 +30,8 @@ extraction is not checked in that case).
 To find similar provisions it calls the knowledge base's search engine
 (`ChenWeb/server/api/searchengine`, openspec change `hybrid-search-engine-api`) with the
 provision as a *reference query*, leaving the document's own provisions out before ranking. The
-other reviewers (metrics, inventory items, entities) still use the older private copy,
-`FindSimilarArtifactsOnTheFly`.
+other reviewers (metrics, inventory items, entities), clustering steps, HTTP search, agent search
+and benchmark also use this engine.
 
 ## 2. Details
 
@@ -50,7 +50,7 @@ other reviewers (metrics, inventory items, entities) still use the older private
 1. **Load provisions** of the record from `kb.provisions` (ordered by `id`); keep the first
    `PROVISION_REVIEW_MAX_PROVISIONS` when set.
 2. **Find matches** for each provision, from two sources:
-   - *Similarity search* (`searchengine.Search`, `findSimilarProvisions`): a reference query
+   - *Similarity search* (`searchengine.Similar`, through `findSimilarMatches`): a reference query
      for `(provision, prov_id)`, filtered to provision rows of **other records** (the record's own
      provisions are excluded in both lists before ranking, so they cannot take slots), limited to
      `PROVISION_REVIEW_MAX_MATCHES`, with a minimum cosine of `ARTIFACT_CONNECT_MIN_COSINE`
@@ -60,8 +60,8 @@ other reviewers (metrics, inventory items, entities) still use the older private
      (pgvector cosine, 200 candidates each), and fuses them by reciprocal rank (k = 60).
      A provision with no index row gets no similarity matches and a warning in the log.
      Because of the cosine floor, a candidate found only by keywords is dropped when its
-     embedding is below 0.75; drop `Criteria.MinCosine` in `findSimilarProvisions` to let
-     keyword-only matches (for example a shared standard number) through. There are no
+     embedding is below 0.75; lower the `MinCosine` passed by the reviewer to let
+     more keyword-only matches (for example a shared standard number) through. There are no
      knowledge-store, document-group or record-scope filters other than the exclusion above.
    - *Object anchors* (`loadObjectAnchoredPeerIDs`): provision → `kb.artifact_objects`
      object → the object node plus up to 20 comparable nodes (same type, shared normalized
@@ -210,7 +210,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
 | `ChenWeb/server/api/doc-reviews/review-match-limit.go`, `review-output-limits.go` | `MAX_MATCHES_TO_LLM`; output-limit gate |
 | `ChenWeb/server/api/searchengine/` | the search engine: `Search`, reference queries, filters, criteria, fusion (`engine.go`, `lexical.go`, `vector.go`) |
 | `ChenWeb/server/api/kbhandler/searchengine_hooks.go` | registers the query embedder and keyword extractor with the engine |
-| `ChenWeb/server/api/doc-processing/artifact_indexing.go` | `FindSimilarArtifactsOnTheFly` (private search copy, still used by the other reviewers) |
+| `ChenWeb/server/api/doc-reviews/similar.go` | shared reviewer adapter to `searchengine.Similar` |
 | `ChenWeb/server/api/doc-processing/search_indexing.go` | provision index rows, `provisionArtifactID` |
 | `ChenWeb/prompts/prompt-review-provisions-v6.md` | current rubric (earlier versions kept for old runs) |
 | `ChenWeb/project_migrations/20260706000001_create_doc_review_provision_analyses.sql` | analyses table |
@@ -226,8 +226,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   passage contract (`specs/artifact-review-input/spec.md`).
 - Module doc `modules/module-compact-document-lines.md` — `RenderLinesCompact`,
   `LoadRecordChunks`.
-- OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (engine package and
-  this reviewer done 2026-11-11; moving `kbhandler` and the other reviewers onto it open) —
+- OpenSpec change `ChenWeb/openspec/changes/archive/2026-11-11-hybrid-search-engine-api/` —
   the search engine callable by server modules, with reference queries, exclusion filters,
   keyword and similarity criteria and a documented score.
 - Capsule `Capsules/coding-capsules/llm-wiki/hybrid-search.md` — the knowledge-base search
@@ -240,10 +239,6 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   documents go through `extract_provisions`.
 - **No extraction check without matches.** A provision with no matches gets no model call, so
   a wrong extraction (a definition taken as a provision) is not caught for it.
-- **The search engine move is partial.** Only this reviewer uses `searchengine`. The metrics,
-  inventory-item and entity reviewers and two clustering steps still use
-  `FindSimilarArtifactsOnTheFly`, and `kbhandler` (HTTP search, agent search, benchmark) still
-  has its own copy of the SQL; both are open tasks of `hybrid-search-engine-api` (2.2, 2.4).
 - **The cosine floor limits keyword matches.** See step 2: provisions that share an exact
   standard number but are worded differently are found only when their embeddings reach 0.75,
   unless the floor is removed.
