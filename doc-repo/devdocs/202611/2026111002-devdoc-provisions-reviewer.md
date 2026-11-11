@@ -1,12 +1,12 @@
 # Provisions Reviewer (`review_provisions`) — checks a document's provisions against other documents
 
-**Date:** 2026-11-10 (updated 2026-11-11: how the similarity search really behaves) \
+**Date:** 2026-11-10 (updated 2026-11-11: now uses the search engine; no model call without matches) \
 **Scope:** What the provisions reviewer does during a document review, what it needs in the
 database to be useful, how to configure it, and how to read its LLM calls when a run looks
 wrong. Open it before changing the reviewer or when a review's provision findings look odd.
 **Code root:** `ChenWeb/server/api/doc-reviews` (`review-provisions.go`)
 
-## Summary
+## 1. Summary
 
 A *provision* is a rule stated in a document: a requirement ("shall"), a prohibition, a
 permission or a condition. When someone reviews a document and ticks **Provision
@@ -23,18 +23,19 @@ short comparison note for every similar provision found, even when there is no p
 a reader can see what was compared and why nothing was flagged.
 
 The reviewer can only compare against documents whose provisions have been extracted
-(`extract_provisions`) and indexed. With no such documents, it still makes one call per
-provision, but all it can check is the extraction.
+(`extract_provisions`) and indexed. With no matches for a provision it makes no model call; the
+analysis records that no relevant provisions were found (since 2026-11-11, so the provision's own
+extraction is not checked in that case).
 
-To find similar provisions it does **not** use the knowledge base's search engine. It uses
-an older private copy of it, which in practice matches by meaning only (word matching never
-finds anything) and looks across all documents regardless of knowledge store. A proposed
-change, `hybrid-search-engine-api`, makes the search engine callable by reviewers so this
-copy can be retired.
+To find similar provisions it calls the knowledge base's search engine
+(`ChenWeb/server/api/searchengine`, openspec change `hybrid-search-engine-api`) with the
+provision as a *reference query*, leaving the document's own provisions out before ranking. The
+other reviewers (metrics, inventory items, entities) still use the older private copy,
+`FindSimilarArtifactsOnTheFly`.
 
-## Details
+## 2. Details
 
-### Where it runs
+### 2.1 Where it runs
 
 - **Started from:** Applications → Document Review in the web app, or
   `POST /api/v1/doc-review/requests` with `"provisions"` in `aspects` (P5 group). The
@@ -44,29 +45,24 @@ copy can be retired.
 - **Configuration:** `[reviewers.provisions]` in `ChenWeb/doc-review.local.toml`, read once
   at startup (restart the server after editing).
 
-### Steps of one run
+### 2.2 Steps of one run
 
 1. **Load provisions** of the record from `kb.provisions` (ordered by `id`); keep the first
    `PROVISION_REVIEW_MAX_PROVISIONS` when set.
 2. **Find matches** for each provision, from two sources:
-   - *Similarity search* (`docprocessing.FindSimilarArtifactsOnTheFly`): reads the
-     provision's own row in `kb.search_artifacts` (`artifact_type = 'provision'`,
-     `artifact_id = prov_id`) and runs a hybrid search over other provision rows. One leg is
-     Postgres full text (`ts_rank_cd`, dictionary from `[artifact_search]`), the other is
-     pgvector cosine on the 1024-dimension embedding; each leg takes up to 200 candidates,
-     merged by reciprocal rank fusion (k = 60). A candidate is kept when cosine ≥
-     `ARTIFACT_CONNECT_MIN_COSINE` or lexical rank ≥ `artifact_search.min_rank`. The first
-     `PROVISION_REVIEW_MAX_MATCHES` kept candidates are returned.
-
-     This is **not** the knowledge-base search engine (`kbhandler/search_registry.go`:
-     ParadeDB BM25 with the Jieba tokenizer, query keywords, scope filters). It is a copy made
-     in June 2026 for the index-time linking step, which `doc-processing` could not import
-     from `kbhandler`; on 2026-07-01 it became this read-time function. Its full-text leg
-     passes the whole search document (50–400 words) to `plainto_tsquery`, which requires
-     every word, and the `simple` dictionary does not split Chinese into words. On 2026-11-10
-     the full-text leg found no candidate for any of the 205 provisions, so **matching is
-     embedding-only** (cosine ≥ 0.75). The search excludes only the provision itself: no
-     knowledge-store, document-group or record filters.
+   - *Similarity search* (`searchengine.Search`, `findSimilarProvisions`): a reference query
+     for `(provision, prov_id)`, filtered to provision rows of **other records** (the record's own
+     provisions are excluded in both lists before ranking, so they cannot take slots), limited to
+     `PROVISION_REVIEW_MAX_MATCHES`, with a minimum cosine of `ARTIFACT_CONNECT_MIN_COSINE`
+     (default 0.75). The engine takes the provision's stored embedding and stored keywords from
+     `kb.search_artifacts` (more-like-this on the stored text when there are no keywords),
+     runs a keyword list (ParadeDB BM25 with the Jieba tokenizer, keywords OR-ed) and a vector list
+     (pgvector cosine, 200 candidates each), and fuses them by reciprocal rank (k = 60).
+     A provision with no index row gets no similarity matches and a warning in the log.
+     Because of the cosine floor, a candidate found only by keywords is dropped when its
+     embedding is below 0.75; drop `Criteria.MinCosine` in `findSimilarProvisions` to let
+     keyword-only matches (for example a shared standard number) through. There are no
+     knowledge-store, document-group or record-scope filters other than the exclusion above.
    - *Object anchors* (`loadObjectAnchoredPeerIDs`): provision → `kb.artifact_objects`
      object → the object node plus up to 20 comparable nodes (same type, shared normalized
      name) → `kb.artifact_connections` `object_id` edges → provisions of other documents.
@@ -82,12 +78,14 @@ copy can be retired.
    provision gets the chunk it was extracted from (rule in openspec change
    `artifact-review-source-chunk`, design §2). If the spans run past that chunk, the payload
    sets `context_truncated: true`.
-6. **Schedule:** one unit per provision, **including provisions with no matches**. Units
+6. **Schedule:** one unit per provision, including provisions with no matches (those finish
+   without a model call, see step 7). Units
    are grouped by chunk: one unit per chunk starts first, then after `LLM_CALL_STAGGER` the
    rest, at most `MAX_DOC_REVIEWER_TASKS` at a time. The output-limit gate stops starting
    new units once the run reaches `max_findings` findings or `max_analyses` analyses for its
    depth; unstarted units are logged as skipped.
-7. **Call the model** (next section) and parse its JSON.
+7. **Call the model** (next section) and parse its JSON. A provision with no matches skips the
+   call: its only output is one analysis (`relationship = 'unrelated'`, summary "未找到相关条款…").
 8. **Store the results:** `analyses` are written to `kb.doc_review_provision_analyses` (only
    when the call has a `run_id`) and also turned into findings with `finding_type =
    'analysis'`, `severity = 'info'` and `metadata.result_kind = 'provision_analysis'`. All
@@ -98,7 +96,7 @@ copy can be retired.
    `location` = the provision's line spans. The framework saves them to
    `kb.doc_review_findings`; the report (`typst_report.go`) reads the analyses by run.
 
-### The model call
+### 2.3 The model call
 
 With `max_tool_turns > 0` and a tool-capable client, the call runs the shared tool loop
 (`runToolUseReviewWithPayload`, `review-tool-loop.go`); otherwise it is a single JSON
@@ -149,7 +147,7 @@ contradiction, conflicting values, scope or condition conflict, definitional con
 outlier, currency (newer edition), systematic pattern, and extraction error (including a
 "provision" taken from a term's definition).
 
-### Configuration
+### 2.4 Configuration
 
 | Setting | Where | Value (default / local) | Effect |
 |---|---|---|---|
@@ -167,7 +165,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
 | `MAX_DOC_REVIEWER_TASKS`, `LLM_CALL_STAGGER` | env | run concurrency / `1` s | scheduling |
 | `ARTIFACT_DIR`, `CHUNK_SIZE`, `CHUNK_OVERLAP_PERCENT` | env | — | where `.chunks` files live; rebuild settings when a file is missing |
 
-### Data it depends on
+### 2.5 Data it depends on
 
 - `kb.provisions` rows for the reviewed record and for other documents.
 - The provision search index: `kb.search_artifacts` partition `provision`, one row per
@@ -180,7 +178,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   `kb.artifact_connections`, for object-anchor matches.
 - The record's line file and its `.chunks` file under `ARTIFACT_DIR`.
 
-### Logs and debugging
+### 2.6 Logs and debugging
 
 - **LLM calls** (`public.llm_usage_event`):
   - tool loop: `call_reason = 'review_provisions'`, `call_loc = 'MID-20260706-014'`, one row
@@ -201,7 +199,7 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   `kb.search_artifacts` with `artifact_id = prov_id`, and that other documents have
   provisions at all.
 
-### Files
+### 2.7 Files
 
 | File | Purpose |
 |---|---|
@@ -210,12 +208,14 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
 | `ChenWeb/server/api/doc-reviews/review-object-anchor-matches.go` | object-anchor matches |
 | `ChenWeb/server/api/doc-reviews/review-tool-loop.go`, `review-tools.go` | tool loop and tools |
 | `ChenWeb/server/api/doc-reviews/review-match-limit.go`, `review-output-limits.go` | `MAX_MATCHES_TO_LLM`; output-limit gate |
-| `ChenWeb/server/api/doc-processing/artifact_indexing.go` | `FindSimilarArtifactsOnTheFly` and `queryArtifactHybridCandidates` (the private search copy) |
+| `ChenWeb/server/api/searchengine/` | the search engine: `Search`, reference queries, filters, criteria, fusion (`engine.go`, `lexical.go`, `vector.go`) |
+| `ChenWeb/server/api/kbhandler/searchengine_hooks.go` | registers the query embedder and keyword extractor with the engine |
+| `ChenWeb/server/api/doc-processing/artifact_indexing.go` | `FindSimilarArtifactsOnTheFly` (private search copy, still used by the other reviewers) |
 | `ChenWeb/server/api/doc-processing/search_indexing.go` | provision index rows, `provisionArtifactID` |
 | `ChenWeb/prompts/prompt-review-provisions-v6.md` | current rubric (earlier versions kept for old runs) |
 | `ChenWeb/project_migrations/20260706000001_create_doc_review_provision_analyses.sql` | analyses table |
 
-### Related documents
+### 2.8 Related documents
 
 - ADR 2026063003 — the provisions reviewer (`adrs/202606/2026063003-adr-doc-reviewer-provisions.md`).
 - ADR 2026070201 — source passage, scheduling, tool use, prompt v2; AR2/AR3 amended
@@ -226,31 +226,29 @@ outlier, currency (newer edition), systematic pattern, and extraction error (inc
   passage contract (`specs/artifact-review-input/spec.md`).
 - Module doc `modules/module-compact-document-lines.md` — `RenderLinesCompact`,
   `LoadRecordChunks`.
-- OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (proposed, not
-  implemented) — makes the search engine callable by server modules, with reference queries,
-  exclusion filters, keyword and similarity criteria and a documented score; moving this
-  reviewer onto it is a follow-up change.
+- OpenSpec change `ChenWeb/openspec/changes/hybrid-search-engine-api/` (engine package and
+  this reviewer done 2026-11-11; moving `kbhandler` and the other reviewers onto it open) —
+  the search engine callable by server modules, with reference queries, exclusion filters,
+  keyword and similarity criteria and a documented score.
 - Capsule `Capsules/coding-capsules/llm-wiki/hybrid-search.md` — the knowledge-base search
   engine.
 
-## Known limitations
+## 2.9 Known limitations
 
 - **It needs other documents' provisions.** As of 2026-11-10 only two documents (records
   416 and 638) have extracted provisions, so most reviews find no matches until more
   documents go through `extract_provisions`.
-- **Every provision costs a call, matches or not.** Without matches the call can only check
-  the extraction.
-- **The document's own provisions can crowd out other documents'.** The similarity search
-  returns its top `PROVISION_REVIEW_MAX_MATCHES` candidates before the reviewer removes the
-  document's own provisions, so a document with many similar provisions of its own can
-  leave few or no slots for other documents.
-- **It does not use the search engine.** The similarity search is a private copy of the
-  knowledge-base search from June 2026. It lacks everything added since (BM25 with Chinese
-  word splitting, query keywords), and it is maintained separately from the engine.
-- **Matching is by meaning only.** The copy's word-matching half requires every word of the
-  provision's search document, so it never finds a candidate. Provisions that share an exact
-  standard number, clause number or limit but are worded differently are found only if their
-  embeddings are close (cosine ≥ 0.75).
+- **No extraction check without matches.** A provision with no matches gets no model call, so
+  a wrong extraction (a definition taken as a provision) is not caught for it.
+- **The search engine move is partial.** Only this reviewer uses `searchengine`. The metrics,
+  inventory-item and entity reviewers and two clustering steps still use
+  `FindSimilarArtifactsOnTheFly`, and `kbhandler` (HTTP search, agent search, benchmark) still
+  has its own copy of the SQL; both are open tasks of `hybrid-search-engine-api` (2.2, 2.4).
+- **The cosine floor limits keyword matches.** See step 2: provisions that share an exact
+  standard number but are worded differently are found only when their embeddings reach 0.75,
+  unless the floor is removed.
+- **Not yet measured:** the first live review with the engine has not been compared with the
+  old matches; check `matching_provisions` in the request bodies after the first run.
 - **No scope.** Candidates come from every document in the database, whatever its knowledge
   store or document group, and their text and file names are quoted into the report.
 - **Candidates can still be loose.** Embedding similarity of 0.75 groups provisions on the

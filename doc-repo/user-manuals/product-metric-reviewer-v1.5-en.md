@@ -315,43 +315,43 @@ with the previous run. Earlier runs are not changed or removed.
 
 Short recipes for common tasks. Each step names the control as it appears on screen.
 
-### Review a new product
+### 13.1 How to review a new product
 
 1. Open **Development → Applications → Product Review**.
 2. Type the product name. Pick a suggestion if one fits.
 3. Optionally add keywords, a description and notes, and choose an **Image Generation Model**.
 4. Select **Start** and wait for the results page to open.
 
-### Reopen a past review without running it again
+### 13.2 How to reopen a past review without running it again
 
 1. On the start screen, find the product in **Past reviews**. Use **Filter by name** or
    **Filter by keywords** if the list is long.
 2. Select **View results** on its card.
 
-### Re-run a past review
+### 13.3 How to re-run a past review
 
 1. Select the product's card. The form fills in and the button reads **Re-Run**.
 2. Optionally edit the notes. Only notes carry into the new run.
 3. Select **Re-Run**.
 
-### Find a product that dropped out of Past reviews
+### 13.4 How to find a product that dropped out of Past reviews
 
 Type its exact name in **Product name** and select **Start**. You get the **Already reviewed**
 card. Choose **View results** or **Re-run**. No duplicate is created.
 
-### Find the most relevant metrics quickly
+### 13.5 How to find the most relevant metrics quickly
 
 1. On the Results tab, set **Tier** to `direct` or `part`. These are metrics tied to the product
    or one of its parts.
 2. Leave the **Document scope** group collapsed.
 3. Use the score shown on each row to decide which to open first.
 
-### Review one part of the product only
+### 13.6 How to review one part of the product only
 
 1. In the scope tree, click the part's row. The results list shows only that node.
 2. Click the row again, or **Clear**, to see everything.
 
-### Check where a metric came from
+### 13.7 How to check where a metric came from
 
 1. Click the result row.
 2. Read the highlighted lines in the PDF pane. Zoom or change page in the viewer if needed.
@@ -359,47 +359,47 @@ card. Choose **View results** or **Re-run**. No duplicate is created.
 4. Click the **Document** number to see the document's record and metadata, or **Full Details**
    for the whole metric record.
 
-### Read only the metrics from one document
+### 13.8 How to read only the metrics from one document
 
 Set **Document** above the results list to the document you want, for example `#123 · standard`.
 
-### Correct a wrong or missing part, then see the effect
+### 13.9 How to correct a wrong or missing part, then see the effect
 
 1. In the scope tree, use the row actions: **✕** to reject a wrong node, the pencil to rename,
    **+** to add a missing part or module, or the trash icon to delete.
 2. Select **Re-run** in the header. The results on screen don't change until you do.
 3. Open the Report tab and read **Change since run N** to see what your edits added or removed.
 
-### Find what is missing for a product
+### 13.10 How to find what is missing for a product
 
 1. Open the **Report** tab.
 2. Read **Coverage gaps**. Each entry is an accepted node with no metrics.
 3. For a gap whose grounding is text-only, curate the node (rename it to the term the documents
    use) and **Re-run**.
 
-### Compare two runs
+### 13.11 How to compare two runs
 
 Re-run the review, then open the Report tab of the newer run. **Change since run N** lists the
 added, removed and re-tiered results. If it warns that the profile version changed, part of the
 difference comes from your edits.
 
-### Export the results
+### 13.12 How to export the results
 
 Select **Export CSV** in the results header. The file holds every result of that run,
 regardless of the filters you have set on screen.
 
-### Add or replace the product drawing
+### 13.13 How to add or replace the product drawing
 
 1. On the Results tab, edit the **Drawing prompt** if you want, and choose a **Model**.
 2. Select **Generate 3D Drawing**, then **Keep** to save it or **Discard** to try again.
 3. To replace a kept drawing later, select **Regenerate** and repeat.
 
-### Get more room for the results
+### 13.14 How to get more room for the results
 
 Collapse the scope tree with the panel icon in its header, drag the dividers, or drag the
 divider under the drawing to make the drawing shorter. Your layout is remembered in this browser.
 
-### Start a review for a related product
+### 13.15 How to start a review for a related product
 
 Enter the new product's own name and **Start**. Each product gets its own profile. A closely
 related product is a separate review, not a variant of an existing one.

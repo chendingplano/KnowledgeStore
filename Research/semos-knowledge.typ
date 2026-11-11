@@ -53,11 +53,20 @@ This chapter focuses on:
 - Knowledge mining
 - Knowledge and applications
 
-== Knowledge
+= Knowledge
 
 *Knowledge and Facts*
 
 Facts are not knowledge. 
+
+= Facts
+
+- Facts are normally buried in unstructured data
+- The same fact can be expressed differently
+- Facts can be stored, structrually, in different formats
+- Facts can be expressed as triples
+- Most facts do not have names
+- Fact mining is the process of extract facts from raw data
 
 == Knowledge and Semantics
 
@@ -80,7 +89,22 @@ similar vectors. The semantic similarity can be calculated by their vectors
 cosine or dot-product. The importance and limitations are obvious.
 
 *Keyword View*
+
 Keywords can relate content with similar semantics. 
+
+*Name View*
+
+Names can be semantic objects, such as device names, human names, company
+names, object names, etc. 
+
+Names themselves do not have any meaning. `Human Names` does have. They
+are names of humans. The semantics is identifying persons. If one says
+"xxx is the the king of Qing dynasty", we instantly know `xxx` is not
+alive now; he/she was born and died on some days.
+
+When computers (or LLMs) see human names, they understand they represent
+persons, having date of birth, which may be known or unknown.
+
 
 *Tags*
 
@@ -92,9 +116,58 @@ Keywords can relate content with similar semantics.
 
 == Knowledge Mining
 
+Knowledge is normally buried in unstructured content. Knowledge mining
+extracts/discovers knowledge from the raw data.
+
 Knowledge mining requires deep understanding of knowledge.
 One form of knowledge is to set a goal and collect all the information
 that may affect the goal.
 
 In [review-rag-MatSeek], it extracts 
 
+= Ontology - Knowledge Models
+
+Below is from (@ref-from-data-eng-2-knowledge-eng)
+- Palantir: Knowledge + Actions 
+- Semantic View: such as Snowflake Semantic View
+  focus on extracting semantics, turn unstructured data into structured
+  knowledge, facts, properties, classes, instances, relations
+- Apache Ossie: from dbt, Snowflake, focus on the openness of knowledge
+  system, separating ontology and semantics, mapping between them.
+  Ontology defines the model, mapping combines knowledge model to
+  businesses. Ontology stays relatively stable, knowledge is more
+  dynamic.
+- Genie Ontology: combines ontology and semantics. There is no clear
+  boundary between ontology and knowledge. It may be closer to 
+  specific implementations, closer to businesses.
+- Agent Memory: unstructured text is also a form of knowledge.
+  When users interact with agents, users are constantly outputs
+  knowledge, so do agents. These are very important sources of
+  knowledge.
+
+= Knowledge Sources
+
+- Structured data, such as databases, spreadsheets, JSON documents,
+  XML documents, etc.
+- Dialogs between users and agents
+- Unstructured content, such as documents
+- Videos
+- Audios
+- Social medias
+- Websites
+
+= Knowledge, Experiences, Judgements
+
+Experiences and judgements can be the most difficult form of knowledge.
+
+= Knowledge in Production
+
+- "Agents in Dev, Artifacts in Prod" (@ref-from-data-eng-2-knowledge-eng)
+- Humans in the loop: LLMs extract artifacts, humans review them
+- Knowledge systems need continuous maintenance. New knowledge comes in
+  every day; existing knowledge may no longer be valid, may be
+  updated by new knowledge
+- Categorize/classify knowledge based on domains, purpose, freshness, etc.
+- Loop: facts => relations => knowledge => facts
+
+#bibliography("../references/references.bib")

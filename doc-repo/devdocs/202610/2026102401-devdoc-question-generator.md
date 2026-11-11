@@ -1,6 +1,6 @@
 # Question Generator — document-grounded search benchmark candidates
 
-**Date:** 2026-10-24 (updated 2026-10-25: preserve valid questions on partial failure, questions/jobs tabs and count-based sampling; 2026-11-11: questions for every search artifact type, and Mix) \
+**Date:** 2026-10-24 (updated 2026-10-25: preserve valid questions on partial failure, questions/jobs tabs and count-based sampling; 2026-11-11: questions for every search artifact type, and Mix; benchmark runs them) \
 **Scope:** Generating, saving, and inspecting search questions for one document or a random batch. \
 **Code root:** `ChenWeb/server/api/kbhandler/question_generator*.go`
 
@@ -488,16 +488,17 @@ unknown or repeated evidence lines, and unsupported reasoning steps.
 
 ## Known limitations
 
-- The Hybrid Search Benchmark still runs only Search Metrics questions. Running the
-  other purposes there is a follow-up change.
-- Chunk and knowledge rows are not in the search registry yet, so those purposes report
-  that no document has such items; Mix includes them automatically once rows exist.
+- The Hybrid Search Benchmark runs questions of every purpose (devdoc
+  `2026102501-devdoc-hybrid-search-benchmark.md`; Mix questions are searched across all types).
+- Chunk and knowledge partitions exist in the search registry but held no rows on 2026-11-11
+  (chunks need the backfill of devdoc `2026111102-devdoc-chunk-hybrid-search.md`), so those
+  purposes report that no document has such items; Mix includes them automatically once rows exist.
 - Registry targets inherit the quality of the extracted items. In the first live check
   (record 416, 2026-11-11) entity and relation questions were only as good as their rows
   (a relation "this standard specifies separate collection" gives a thin question), and
   summary questions tend to ask about several points the summary covers.
 - Entity and relation rows have no embeddings (`EMBED_ENTITY_RELATION` off), so semantic
-  search cannot find them; this matters once the benchmark runs those questions.
+  search cannot find them; their benchmark questions show a semantic rank of "miss".
 
 - Validation checks structure and citation existence. It cannot establish that an
   answer is correct or that the requested reasoning actually needs multiple facts.

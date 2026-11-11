@@ -1,7 +1,7 @@
-# Hybrid Search Benchmark — measure the live metric search with generated questions
+# Hybrid Search Benchmark — measure the live search with generated questions
 
 **Date:** 2026-10-25 (updated the same day: effort levels, prompt-v3 questions, candidate traces
-and the Analyze dialog) \
+and the Analyze dialog; 2026-11-11: questions for every search artifact type, stale limitations removed) \
 **Scope:** What the Hybrid Search Benchmark page does, how to read its numbers, and what to check
 when a result looks wrong. Open it before changing search (keywords, weights, embeddings, indexes,
 effort levels) or before trusting a benchmark score. \
@@ -9,7 +9,7 @@ effort levels) or before trusting a benchmark score. \
 `ChenWeb/server/api/kbhandler/search_effort.go`, `ChenWeb/server/api/kbhandler/search_trace.go`,
 `ChenWeb/web/src/lib/components/home3/hybrid-search-benchmark-*.svelte`
 
-**Traceability — openspec** (all three changes implemented, not yet archived; when archived, each
+**Traceability — openspec** (all four changes implemented, not yet archived; when archived, each
 change folder moves to `openspec/changes/archive/<date>-<change>/` and its spec to
 `openspec/specs/<capability>/spec.md`):
 - `ChenWeb/openspec/changes/hybrid-search-benchmark/` — the benchmark page itself:
@@ -35,7 +35,7 @@ v3 question style).
 
 ## Summary
 
-The knowledge base search finds metrics in two ways and combines them:
+The knowledge base search finds items (metrics, provisions, summaries, entities and so on) in two ways and combines them:
 
 - **Lexical** search matches words, like a classic search engine (BM25). When *query keywords* are
   on, a language model first rewrites the question into short English and Chinese keywords.
@@ -50,16 +50,27 @@ for, writes its own search queries when the request describes a situation instea
 metric, checks whether the results answer the request, and if not tries again from another angle
 — up to 2 attempts at Medium and 5 at High by default.
 
-The Question Generator writes test questions, each meant to find one specific metric. *One-hop*
-questions name the metric; *two-hop* and *multi-hop* questions (from prompt v3 on) describe a
-situation without naming it, so the searcher has to work out what to look for. This page sends the
-questions through the real search code and records, for each question, where its target metric
-ended up. That turns "is search good?" into numbers you can compare before and after a change.
+The Question Generator writes test questions, each meant to find one specific item, its *target*
+(a metric, a provision, a summary, an entity and so on). *One-hop* questions name the target;
+*two-hop* and *multi-hop* questions (from prompt v3 on) describe a situation without naming it, so
+the searcher has to work out what to look for. This page sends the questions through the real
+search code and records, for each question, where its target ended up. That turns "is search good?" into numbers you can compare before and after a change.
 
 **Running a benchmark.** Open **Development → System Admin → Benchmark → Hybrid Search Benchmark →
 Run Benchmark**. In *Start a benchmark run*:
 
-- Choose the *Purpose* (today only **Search Metrics**) and optionally describe what changed.
+- Choose the *Purpose* and optionally describe what changed. Every Question Generator purpose is
+  available (Search Metrics, Search Provisions, Search Summaries, Search Entities … and **Mix**).
+  The questions come from the purpose; *what is searched* is a separate choice, **Search scope**:
+  - *Purpose's own type* (default) — a Search Provisions question is searched among provisions
+    only. **Mix** questions have targets of different types, so they are searched across every type.
+  - *All types (mixed)* — every question is searched across every type, so the target competes
+    with items of other types (closer to real use).
+  - *One type* (for example "Search Metrics only") — every question is searched among that type.
+    Without ticked questions, only questions whose target has that type are run (for Mix, its
+    metric questions); a ticked question with a target of another type is refused.
+
+  Only the exact target (type and ID) counts as found, whatever the scope.
 - Adjust the search settings for this run. Each starts at the server's current configuration:
   - **Query keywords** on/off.
   - **Lexical weight** and **Semantic weight** — how much each list counts when merged; 0 ignores
@@ -71,7 +82,7 @@ Run Benchmark**. In *Start a benchmark run*:
     for every question and take several seconds per question.
 - Optionally press **Tests to run** to pick questions. Its label shows what is selected. The
   dialog searches the questions by creation time, generating run, hop type, language, source
-  document, words in the question or answer, and metric ID; tick individual questions or select
+  document, words in the question or answer, and target ID; tick individual questions or select
   every match. Ticks survive new searches. With nothing ticked, the run uses every question of the
   purpose. Filtering by generating run is how you benchmark old (v1/v2) and new (v3) questions
   separately.
@@ -83,7 +94,7 @@ Run Benchmark**. In *Start a benchmark run*:
 Time includes all work in the run, including parallel searches and trace storage; it is not the
 sum of the per-question query times. Runs without a finish timestamp show “—”. **View** opens
 one. A run shows its settings in two groups — *Run* (purpose, progress, start and
-finish time, description) and *Search settings* (lexical backend, query keywords, the keyword
+finish time, description) and *Search settings* (search scope, lexical backend, query keywords, the keyword
 prompt and model, embedding model, weights, candidates per list, parallel queries, effort and its
 attempt limit) — then:
 
@@ -93,7 +104,7 @@ attempt limit) — then:
   every target came second; a miss counts as 0. MRR rewards putting the target near the top, not
   just on the page. Medium and High runs add an **Effort loop** row.
 - **Questions**: one row per question, with
-  - the target metric, hop type and language;
+  - the target (shown as `type/ID`), hop type and language;
   - its rank in the **Lexical**, **Semantic** and **Hybrid** lists ("miss" when not found) — these
     three are always a single search of the question as written;
   - for Medium/High runs, its **Effort loop** rank, with the number of attempts, whether the model
@@ -131,7 +142,8 @@ jump. Everything shown was recorded from the actual search, not recomputed: the 
 ones that produced the question's ranks. Runs started before tracing have no trace, and the log
 says so.
 
-**Every metric ID in the log is clickable.** Clicking one opens that metric's source document in
+**Every metric ID in the log is clickable.** (IDs of other types, such as provisions or entities,
+are shown as plain text: there is no details panel for them yet.) Clicking one opens that metric's source document in
 the right-hand panel of the working area, at the page of its first source line, with its source
 lines (or the table rows it cites) highlighted; it also shows the metric's full details in the
 page's right panel, the same panel the Metrics page uses. The clicked metric stays marked in every
@@ -186,16 +198,18 @@ targets came first and the worst improved from 44 to 7.
 - **Configuration:** `HYBRID_SEARCH_MEDIUM_EFFORTS` (default 2), `HYBRID_SEARCH_HIGH_EFFORTS`
   (default 5), `HYBRID_SEARCH_EFFORT_MODEL_NAME` (default `deepseek-flash-processor`),
   `HYBRID_SEARCH_EFFORT_TIMEOUT_MS` (default 20000); query keywords use `SEARCH_QUERY_KEYWORDS*`.
-- **Data:** `testbed.hybrid_search_benchmark_runs` (one row per run, with its settings),
-  `testbed.hybrid_search_benchmark_results` (one row per question: ranks, keywords, timings,
-  effort loop result and trace, errors); `testbed.hybrid_search_benchmark_queries` (one row per
+- **Data:** `testbed.hybrid_search_benchmark_runs` (one row per run, with its settings incl. search scope),
+  `testbed.hybrid_search_benchmark_results` (one row per question: target type and ID, ranks,
+  keywords, timings, effort loop result and trace, errors); `testbed.hybrid_search_benchmark_queries` (one row per
   query a question searched: `seq`, `source` = `question`|`effort`, `attempt`, text, keywords,
   error) and `testbed.hybrid_search_benchmark_candidates` (one row per candidate per list:
   `stage` = `lexical_partition`|`lexical`|`semantic`|`fused`, `partition_name`, `stage_rank`,
   `partition_rank` on merged BM25 rows, `score`, and `lexical_rank`/`semantic_rank` on fused rows);
   both cascade from their result. Search LLM run IDs now come from shared sequence
   `llm_run_id` (2026-11-08); `kb.search_run_id_seq` remains legacy schema. Migrations
-  `20261024000014`–`20261024000016`, `20261025000001`, `20261025000002`, `20261025000004`.
+  `20261024000014`–`20261024000016`, `20261025000001`, `20261025000002`, `20261025000004`,
+  `20261111000011` (`target_artifact_type`, default `metric` for older results), `20261111000012`
+  (`search_type` on runs, default `metric`).
 
 ## Known limitations
 
@@ -216,8 +230,16 @@ targets came first and the worst improved from 44 to 7.
   time, so ranks can move a little when the same questions are run again.
 - **Exact target only.** A near-duplicate of the target (the same metric in another document)
   counts as a miss.
-- **Metrics only.** The only purpose is *Search Metrics*, and every query searches only metrics
-  (the metric partition of `kb.search_artifacts`), across all documents.
+- **Scores depend on the scope.** Each query searches the chosen scope across all documents.
+  A wider scope (all types, Mix) lowers scores because other types compete; compare runs only with
+  the same scope (the run page shows it).
+- **Entities and relations cannot be found by meaning.** Their rows have no embeddings
+  (`EMBED_ENTITY_RELATION` off; 0 of 42,888 entity and 0 of 23,933 relation rows on 2026-11-11), so
+  those purposes get a semantic rank of "miss" and rely on keywords. About 200 of 2,400 metric rows
+  also have no embedding. Chunk and knowledge questions need rows in the search index first (no
+  rows on 2026-11-11).
+- **Non-metric questions are not live-checked yet.** The multi-purpose change is covered by unit
+  tests; a full run per purpose has not been done.
 - **Parallel load is in the timings.** With several parallel queries, each question's times include
   the load of the others. For clean per-query timings, run with Parallel queries = 1.
 - **Restarts end a run.** A run lives in the server process. If the server restarts (the dev
@@ -232,13 +254,10 @@ targets came first and the worst improved from 44 to 7.
   `search_effort_judge`). New searches use the shared `llm_run_id` sequence.
 - **Selection limits.** The Tests to run dialog lists at most 2,000 matches per search, and a run
   takes at most 5,000 picked questions.
-- **Most indexed metrics have no metric record (found 2026-10-25).** 5,621 of the 8,281 rows in
-  the metric search index belong to 49 documents that have no rows in `kb.metrics` at all (for
-  example record 359: 830 indexed, 0 metrics), although the documents still exist. Search returns
-  these stale entries, so they compete with real metrics in every benchmark run, and clicking one
-  in the Analyze tab says it is not in `kb.metrics` (no document or details). Either re-extract
-  those documents' metrics or remove their stale index rows; until then, scores mix in stale
-  candidates. Check with:
+- **Stale index rows (resolved 2026-11-10).** The metric search index once held thousands of rows
+  for documents with no rows in `kb.metrics`, which competed in every run and could not be opened in
+  the Analyze tab; they were removed (migration `20261110000006`, 0 left on 2026-11-11). Runs
+  before that date mix in stale candidates, so do not compare them with newer runs. Check with:
   `SELECT sa.input_record_id, count(*) FROM kb.search_artifacts_metric sa WHERE NOT EXISTS
   (SELECT 1 FROM kb.metrics k WHERE k.metric_id = sa.artifact_id) GROUP BY 1 ORDER BY 2 DESC;`
 - **Traces take space.** Every traced search stores all its candidates, about 1,000 rows at 200
@@ -280,7 +299,8 @@ targets came first and the worst improved from 44 to 7.
 - **Analyze says "No trace was stored".** The run was started before tracing existed, or the
   server running it had not yet been rebuilt with it. Run the question again.
 - **Clicking a metric says it is in the search index but not in `kb.metrics`.** A stale index
-  entry (see Known limitations): the document's metrics were removed but its search rows were not.
+  entry: the document's metrics were removed but its search rows were not. Should not happen since
+  2026-11-10; re-run the check query in Known limitations.
 - **The Analyze tab shows the run page instead.** The URL lost its `analyze` parameter (choosing
   another page in the tab's menu drops it). Press Analyze again on the run page.
 - **A query in Analyze says "trace differs from the search results" or "trace failed".** The
