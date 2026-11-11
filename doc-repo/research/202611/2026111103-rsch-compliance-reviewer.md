@@ -10,13 +10,13 @@
 
 A useful compliance reviewer must discover which rules might govern the activities described in a document, establish which rules actually apply, and compare their requirements with evidence in that document. Finding similar sentences is only one part of that work. A design sentence such as “Log user activities in a database table” can raise questions about auditability, personal information, access, retention, and deletion without naming a law or standard.
 
-The recommendation is a shared, evidence-grounded assessment engine, initially exposed as one new optional **Compliance Review** aspect. It detects the activities a document describes, including the activity the document itself performs, such as specifying a product. It then searches the knowledge base for artifacts that could govern each activity, analyzes the ones it finds, and reports per activity. A requirement of a found artifact that the document never addresses is reported as a gap, which catches omissions that sentence-by-sentence review cannot find.
+The recommendation is one new, independent, evidence-grounded **Compliance Review** reviewer, exposed as an optional aspect. It runs per chunk, with no block or document-level fallback. It neither invokes nor depends on the existing legal, regulatory, internal-policy, standards, or provision reviewers; shared search and review infrastructure may be reused. It detects the activities a document describes, including the activity the document itself performs, such as specifying a product. It then searches the knowledge base for artifacts that could govern each activity, analyzes the ones it finds, and reports per activity. A requirement of a found artifact that the document never addresses is reported as a gap, which catches omissions that sentence-by-sentence review cannot find.
 
 Every assessment should distinguish grounding, applicability, document evidence, and execution completeness. “No grounding artifact found,” “no contradiction found,” “requirement not documented,” “applicability unknown,” and “search failed” are different outcomes. The engine should report scoped document assessments, with source versions and evidence, rather than declare that an organization or deployed system is compliant.
 
-The knowledge base is the reviewer’s only source of grounding, and it is searched only through the server’s hybrid search engine (`searchengine`). How the reviewer detects activities, searches, analyzes, and reports does not depend on what the knowledge base contains; only the results do. With an empty knowledge base, the report lists every activity as “no grounding artifacts found.” With a knowledge base holding every potentially governing artifact, it lists the artifacts that govern each activity, or says none does. Today’s production knowledge base is mostly Chinese standards. Adding laws, regulations, company policies, or contracts later improves the results without changing the reviewer. §5.1 sets out the design rules that follow from this.
+The knowledge base is the reviewer’s only source of grounding, searched only through the server’s hybrid search engine (`searchengine`). Activity detection, search, analysis, and reporting do not depend on its contents; only their results do. An empty knowledge base still yields an activity list, with each activity reported as “no grounding artifacts found.” A richer knowledge base supplies more potentially governing artifacts without changing the algorithm. Today’s production knowledge base is mostly Chinese standards; laws, regulations, company policies, and contracts can be added later. §5.1 sets out the design rules. Finding no grounding after a successful search is normal, never an error or a compliance verdict.
 
-The inspection also found two defects in the existing reviewers that make their results misleading today and do not depend on the new engine (§2.2): a failed model call becomes an empty, successful result, and the reference documents a user selects never reach the reviewers. Delivery phase 0 (§12) fixes them first.
+The inspection also found two defects in the existing reviewers that make their results misleading today and do not depend on the new engine (§2.2): a failed model call becomes an empty, successful result, and the reference documents a user selects never reach the reviewers. These are separate bugs in existing review infrastructure (§12), not prerequisites or dependencies of the new compliance reviewer.
 
 This document records a source-code inspection and primary-source research. Existing behavior is described in §2; everything from §5 onward is proposed unless explicitly identified as an existing integration. Nothing was deployed for this research; §13 lists what it did not check.
 
@@ -40,7 +40,7 @@ The first piece of work is an inventory of the production knowledge base, which 
 |---|---|
 | Aspect | One checkbox in the document-review UI; each aspect runs one reviewer |
 | Capsule | The doc-processor orientation file, `KnowledgeStore/Capsules/coding-capsules/doc-processor/+CAPSULE.md` |
-| Chunk, page block | The units reviewers send to the model: chunks come from the chunking processor; page blocks are fixed-size groups of lines |
+| Chunk, page block | Distinct input units. Extraction chunks are saved by the chunking processor; the current review scheduler also creates fixed-size line chunks. Existing page blocks group whole pages. The new compliance reviewer runs per chunk only, without fallback; its chunk source must be pinned in its implementation contract. |
 | P5 | The internal group name of the legal, regulatory, internal-policy, and standards reviewers |
 | Doc-processor Phase B, Phase C | Pipeline stages, not delivery phases: Phase B runs extraction processors concurrently; Phase C (post-process) indexes their output |
 | Lexical search, BM25 | Keyword search; BM25 is the ranking formula it uses |
@@ -56,7 +56,7 @@ The first piece of work is an inventory of the production knowledge base, which 
 | ePHI | Electronic protected health information under the US HIPAA rules |
 | OSCAL | NIST's machine-readable format for security assessment records |
 
-## 2. What exists today
+## 2. Existing reviewers and the inspected defects
 
 ### 2.1 What was inspected
 
@@ -68,7 +68,7 @@ Important source locations, relative to the workspace root:
 |---|---|
 | `ChenWeb/server/api/doc-reviews/aspects.go` | Existing aspect names, labels, groups, and tool-use flags |
 | `ChenWeb/server/api/doc-reviews/review-document.go` | Reviewer runtime resolution and dispatch |
-| `ChenWeb/server/api/doc-reviews/review-legal-compliance.go` | Legal reviewer’s chunk implementation, fallback page-block entry point, tool loop, and errors |
+| `ChenWeb/server/api/doc-reviews/review-legal-compliance.go` | Existing legal reviewer’s chunk implementation, separate page-block entry point, tool loop, and errors |
 | `ChenWeb/server/api/doc-reviews/review_cache_scheduler.go` | Effective configured chunk versus document dispatch |
 | `ChenWeb/server/api/doc-reviews/review-regulatory-compliance.go` | Corresponding regulatory reviewer |
 | `ChenWeb/server/api/doc-reviews/review-internal-policy.go` | Internal policy reviewer |
@@ -81,25 +81,45 @@ Important source locations, relative to the workspace root:
 | `ChenWeb/prompts/prompt-review-{legal-compliance,regulatory-compliance,internal-policy,standards-compliance}.md` | The existing review rubrics |
 | `ChenWeb/server/api/searchengine/{types,engine,filters}.go` | Server-side hybrid retrieval interface and filters |
 
-### 2.2 Existing reviewers and their limits
+### 2.2 Existing reviewers and their limits (inspection before bug fixes)
 
 | Reviewer | Existing mechanism | Consequence for the proposed work |
 |---|---|---|
-| `legal_compliance` | Locally configured `per-chunk`; the normal scheduler calls `processChunk` directly. Its `StrategyDocument`/`ReviewDocument` fallback builds page blocks. Optional tool loop or one JSON extraction per unit. | Neither independent chunks nor fallback blocks establish complete-document legal assessment. Missing context outside a unit remains a problem. |
+| `legal_compliance` | Locally configured `per-chunk`; the normal scheduler calls `processChunk` directly. Its separate `StrategyDocument`/`ReviewDocument` entry point builds page blocks. Optional tool loop or one JSON extraction per unit. | Existing behavior does not define the new compliance reviewer’s processing unit; cross-chunk evidence must be explicitly retrieved. Missing context outside a unit remains a problem. |
 | `regulatory_compliance` | Similar prompt-driven checking, normally per chunk under local configuration, with optional tools. | Needs a verified source corpus and explicit applicability decisions, not only a more detailed rubric. |
 | `internal_policy` | Prompt asks for deviations from explicitly stated or referenced policies and tells the model not to invent policies. | This restraint is useful, but unreferenced company policies will not reliably be discovered. |
-| `standards_compliance` | Separate existing aspect for standards. | Include standards as a source category in the common engine; avoid creating a competing retrieval stack. |
+| `standards_compliance` | Separate existing aspect for standards. | The independent new reviewer may discover standards through shared search; it does not call this existing reviewer. |
 | `provisions` / Provision Consistency | Loads extracted `kb.provisions`, retrieves peers from other documents, adds original context, and asks the model to compare. | Useful comparison infrastructure, but its starting population is extracted provisions, not all activities or all applicable obligations. |
 
-The local TOML selects `per-chunk` for legal/regulatory/standards and `per-block` for internal policy. `PostProcessIndex` uses `runReviewersPromptCacheOptimized`; `buildPromptCacheReviewTasks` directly schedules `processChunk` for configured chunk reviewers. The legal reviewer implements that interface, so its page-block `ReviewDocument` is the fallback entry point rather than the normal configured path. Preserve both paths in dispatch tests when introducing the new strategy.
+The local TOML selects `per-chunk` for legal/regulatory/standards and `per-block` for internal policy. `PostProcessIndex` uses `runReviewersPromptCacheOptimized`; `buildPromptCacheReviewTasks` directly schedules `processChunk` for configured chunk reviewers. The legal reviewer implements that interface. The scheduler currently sends unsupported input/interface combinations to `ReviewDocument`, which can select a different processing unit. This is an existing dispatch defect: a configured per-chunk reviewer must either run per chunk or return an error, never fall back to blocks or another strategy. The new compliance reviewer has no fallback entry point.
 
 The legal rubric asks the model to infer legal context and covers potentially missing disclosures, privacy requirements, and contractual terms. It also mixes legally required terms with customary terms. This can produce useful concerns, but custom and legal obligation must become different categories in a rigorous assessment. A missing copyright notice or disclaimer is not automatically a legal violation merely because it is commonly seen.
 
-**Defect: failed model calls disappear on both paths.** On the normal configured path, the chunk reviewer interface in `review-document.go` is `processChunk(ctx, recordID, index, cfg, input) []ReviewFinding`. It has no error return, so no chunk reviewer can report a failure. The legal reviewer’s `processChunk` logs a failed JSON extraction and returns no findings; a failed tool loop is logged and whatever partial findings it produced are returned as if complete. The page-block fallback behaves the same way: `processBlock` returns no findings on failure, and the concurrent callback in `ReviewDocument` wraps that result with a nil error. An empty or short finding list therefore cannot establish that all units were reviewed. Twenty reviewers implement `processChunk`, so the fix is an interface change across all of them, not a patch to one reviewer. The artifact reviewers, including Provision Consistency, follow the same pattern: `runArtifactUnitsChunkGrouped` in `review-artifact-window.go` documents that each unit handles its own model errors by returning no findings. It is independent of the model’s reasoning accuracy.
+**Defect: failed model calls disappear.** On the normal configured path, the chunk reviewer interface in `review-document.go` is `processChunk(ctx, recordID, index, cfg, input) []ReviewFinding`. It has no error return, so no chunk reviewer can report a failure. The legal reviewer’s `processChunk` logs a failed JSON extraction and returns no findings; a failed tool loop is logged and whatever partial findings it produced are returned as if complete. Existing page-block entry points behave the same way: `processBlock` returns no findings on failure, and the concurrent callback in `ReviewDocument` wraps that result with a nil error. An empty or short finding list therefore cannot establish that all units were reviewed. Twenty reviewers implement `processChunk`, so the fix is an interface change across all of them, not a patch to one reviewer. The artifact reviewers, including Provision Consistency, follow the same pattern: `runArtifactUnitsChunkGrouped` in `review-artifact-window.go` documents that each unit handles its own model errors by returning no findings. It is independent of the model’s reasoning accuracy.
 
 **Defect: selected reference documents are dropped.** The request’s selected `reference_docs` are accepted, stored, and printed in reports, but `controller.go::RunReview` does not pass that selection into `ReviewProcessor`. It sets run IDs, depth, requested aspects, and stores before calling `PostProcessIndex`. A user who selects reference documents today gets a report that lists them, although no reviewer received them. The future reviewer also needs explicit, tested propagation of the selected authority/evidence set.
 
-Both defects affect the current reviewers now. Delivery phase 0 (§12) fixes them before any new engine work.
+Both defects affect existing reviewers. Fix them as independent bugs; neither makes the new compliance reviewer depend on another reviewer. Any actual execution error must be logged and abort the affected reviewer, including a failed model call, tool loop, retrieval, parsing, or persistence operation. Cancel that reviewer’s outstanding work, propagate the original error, and mark it failed. Other independent reviewers may continue. A completed search with no accepted grounding artifact is a normal result, not an execution error.
+
+### 2.2.1 Which existing reviewers use blocks?
+
+Not all existing reviewers are per chunk. The inspected `ChenWeb/doc-review.local.toml` explicitly configures these 20 aspects as `per-block`:
+
+* `formatting_consistency`, `logical_flow`, `heading_hierarchy`, `toc_accuracy`, `navigability`, `section_balance`, `modularity`.
+* `relevance`, `currency`, `internal_contradictions`, `terminology_consistency`, `cross_reference_correctness`, `requirement_traceability`.
+* `prerequisites`, `internal_policy`, `limitations`, `version_history`, `review_status`, `ownership`, `references`.
+
+Configuration alone does not prove a reviewer is implemented or enabled: `toc_accuracy` and the P6 entries require checking against runtime registration. The actual block-capable implementations are `formatting_consistency`, `logical_flow`, `heading_hierarchy`, `navigability`, `section_balance`, `modularity`, `relevance`, `currency`, `internal_contradictions`, `terminology_consistency`, `cross_reference_correctness`, `requirement_traceability`, `prerequisites`, `internal_policy`, and `limitations`. Legal, regulatory, and standards reviewers also contain block entry points, although configured per chunk. Metrics, provisions, entities, inventory items, and metrics completeness use artifact-oriented processing, not ordinary line-chunk or page-block dispatch.
+
+This inventory describes existing code and local configuration, not deployed settings or a decision to convert every reviewer. The new compliance reviewer is independently specified as per chunk only.
+
+### 2.2.2 Bug-fix implementation boundary (2026-11-11)
+
+The follow-up bug fix changes the chunk/block/artifact methods to return errors and cancels an affected reviewer on its first failure. Tool execution, malformed model output, retrieval, and persistence errors propagate; a failed loop is not repaired by another model call or forced to produce a successful result. Findings from failed reviewers are not returned as successful output. Successful independent reviewers can finish, and aspect success is recorded only after findings are saved. Configured per-chunk processing cannot silently dispatch to a block/document method.
+
+Selected supporting documents remain unsupported by existing reviewer inputs. The current correction disables their selection in the UI and rejects new nonempty `reference_docs` with HTTP 422. Previously accepted requests with such selections fail explicitly. Historical selections remain readable; re-enabling the feature requires tested access checks and evidence delivery. The proposed supporting-document workflow in §5.2 is future behavior, not a claim that this fix implements it.
+
+The new independent compliance reviewer remains unimplemented. See [the bug-fix devdoc](../../devdocs/202611/2026111105-devdoc-reviewer-error-handling.md) for code and verification details.
 
 ### 2.3 What Provision Consistency already does well
 
@@ -259,7 +279,7 @@ The summary should say, for example: “9 activities detected; 6 with grounding 
 
 ### 5.3 Relationship to existing checkboxes
 
-Initially run the new aspect alongside existing reviewers for comparison. Tag sources as law, regulation, standard, contract, company policy, guidance, or peer material. Existing legal/regulatory/policy/standards views can eventually become filters over a common assessment, avoiding repeated discovery and inconsistent answers. Provision Consistency stays a comparison view with different semantics.
+The new compliance reviewer has its own aspect, configuration, prompts, execution, and results. It can run alone. Selecting an existing reviewer is never required to run it. Existing reviewers may be run separately for evaluation comparisons. Tag sources as law, regulation, standard, contract, company policy, guidance, or peer material. Existing legal/regulatory/policy/standards aspects retain their own execution and semantics; this proposal does not merge or replace them. Provision Consistency stays a comparison view with different semantics.
 
 Do not remove existing options until benchmark evidence and compatibility decisions support migration. Deduplicate shared findings by obligation version and assessment subject while retaining all contributing authorities. If two sources genuinely impose distinct requirements, preserve both.
 
@@ -289,7 +309,7 @@ An unknown can trigger candidate discovery without triggering a definitive compl
 
 ### 6.2 Discover activities without a modal-word gate
 
-Process every substantive passage, including tables and declarative statements. Use lightweight lexical/concept triggers to prioritize work, then a constrained model extraction for activity candidates. Explicit provisions are additional seeds, not a prerequisite. Detection reads only the evidence boundary, never the knowledge base (§5.1, rule 1).
+Process every input chunk, including tables and declarative statements, without a block or document-level fallback. Cross-chunk context is explicit evidence retrieval, not a change in processing strategy. Process every substantive passage. Use lightweight lexical/concept triggers to prioritize work, then a constrained model extraction for activity candidates. Explicit provisions are additional seeds, not a prerequisite. Detection reads only the evidence boundary, never the knowledge base (§5.1, rule 1).
 
 Also record one document-level activity (§3.3): the document’s type, its subject product, service, or process, and its purpose, each with the passages that establish it.
 
@@ -448,7 +468,7 @@ Do not prescribe “append-only database table” as the sole legal solution unl
 | Grounding (per activity) | `found`, `none_found` | Whether a completed search of the recorded knowledge-base scope produced any artifact that analysis accepted as possibly governing this activity. `none_found` is relative to that scope; a failed or truncated search is an execution state, not `none_found` |
 | Applicability | `applicable`, `not_applicable`, `unknown` | Whether this obligation governs this subject in this context |
 | Document evidence | `supported`, `contradicted`, `partially_supported`, `not_documented`, `insufficient_evidence`, `not_assessed` | What the reviewed evidence establishes; `supported` remains documentary support, not implementation certification |
-| Execution | `completed`, `partial`, `failed`, `stopped`, `skipped` | Whether the required assessment work ran successfully |
+| Execution | `completed`, `partial`, `failed`, `stopped`, `skipped` | Any execution error logs and aborts the reviewer with `failed`; `partial` can describe retained incomplete output, never successful continuation after error. User cancellation is `stopped`. A successful no-grounding result is `completed`. |
 
 `not_documented` requires a completed search over the declared boundary and a reason the document should cover the requirement. Use `insufficient_evidence` when sources, references, or context are missing. Never map `none_found`, `not_applicable`, `unknown`, and tool failures to the same empty finding list.
 
@@ -488,7 +508,7 @@ The reusable-module skill was used to list capabilities and search `search revie
 * [Artifact Search, `20261111-01`](../../modules/module-artifact-search.md): reuse indexed chunks/provisions, source spans, and hybrid retrieval. The lower-level `searchengine.Search` package is an existing code seam; its `Filters` include record IDs, exclusions, store, group, and structural filters. The caller still has to enforce authorization and legal source selection.
 * [Compact Document Lines, `20261110-01`](../../modules/module-compact-document-lines.md): reuse artifact-review rendering and source chunk loading. It preserves line numbers but omits page numbers and overlap flags in rendered text; keep those separately in evidence references.
 
-The compact loader can rebuild chunks when saved artifacts are absent. For a reproducible assessment, treat rebuilds as an explicit new input generation or refuse the run; never silently claim the rebuilt passages are the original extraction snapshot. Original chunk indexing already has stricter generation/source validation that should inform this check.
+The compact loader can rebuild chunks when saved artifacts are absent, but the compliance reviewer must not take that fallback. Missing or invalid required chunk input is an error: log it and abort the reviewer. A separately requested preprocessing run may create a new pinned generation before a later review. Original chunk indexing already has stricter generation/source validation that should inform this check.
 
 Existing code candidates also include the review scheduler/tool loop, finding translation/reporting, explicit reference catalog, facets, object anchors, and processor run isolation. Reuse them within ChenWeb where interfaces fit; do not move project-specific legal logic into `shared/`.
 
@@ -498,11 +518,11 @@ No new reusable code was created or registered. During implementation, register 
 
 ### 10.2 Add an aspect before adding a processor
 
-The first integration should be a new on-demand reviewer within `review_document`, not another automatic doc-processor Phase B processor. Authority discovery and applicability depend on review context and user scope; they are not universal extraction properties of a document.
+The first integration is a new independent on-demand, per-chunk reviewer within `review_document`, with no block or document-level fallback, rather than another automatic doc-processor Phase B processor. Authority discovery and applicability depend on review context and user scope; they are not universal extraction properties of a document.
 
 Ordinary submissions already use the request/run lifecycle and `kb.doc-review.start`; the controller directly invokes `ReviewProcessor.PostProcessIndex`. Its `HandleEvent` is a no-op. Reuse this lifecycle, adding frozen context and readiness at the controller seam, rather than interpreting the doc-processor Phase C method name (`PostProcessIndex`) as evidence that all preprocessing has run.
 
-Its readiness check requires a pinned canonical document and a recorded knowledge-base scope with its index state. Provision, entity, metric, reference, and semantic artifacts are optional accelerators. If missing, either run the authorized preprocessing step or use direct chunk discovery and record the limitation. Do not silently initiate all extraction processors or treat their absence as no obligations.
+Its readiness check requires a pinned canonical document and a recorded knowledge-base scope with its index state. Provision, entity, metric, reference, and semantic artifacts are optional accelerators. Their absence does not select a fallback strategy: the reviewer still runs per chunk. Missing required canonical/chunk input is an execution error and aborts the reviewer; optional extracted artifacts are not required. Do not silently initiate extraction processors or treat their absence as no obligations.
 
 If repeated activity discovery proves expensive, later propose a configurable activity-extraction processor using shared chunk batching. Only then add its processor spec, runtime registration, dependencies, status, indexing, deployment prompts, and capsule entry. This is a measured optimization, not a prerequisite.
 
@@ -516,7 +536,7 @@ The reference store’s `accessibleHoldings` provides a useful precedent: same u
 
 Introduce narrow authorized operations: search the run’s knowledge-base scope, retrieve a pinned clause with context, inspect applicability facts, and search the evidence boundary. Tools accept run-bound source scope rather than arbitrary store/record arguments chosen by the model. Validate authorization again when dereferencing results. Treat source text and tool content as untrusted data; instructions embedded in a document cannot change tool permissions or the review rubric.
 
-Use the current scheduler, cancellation, budgets, and usage accounting where possible. Delivery phase 0 gives `processChunk` an error return and makes the block path propagate unit errors (§2.2); the new reviewer builds on that so failures cannot disappear into a successful empty result. Budget exhaustion should preserve completed assessments and mark unsearched activities and unassessed obligations; finding caps must not masquerade as full coverage, and an unsearched activity must never be reported as “no grounding artifacts found.”
+Reuse scheduler, cancellation, budgets, and usage accounting where suitable, while keeping the reviewer independent. Chunk methods return findings and an error. Every actual error is logged and aborts the affected reviewer; cancel its outstanding units and propagate the error to run/aspect status. A failed tool loop must never return its partial findings as a successful result. Required-work budget exhaustion is an error and aborts the reviewer; completed diagnostics may be retained only as incomplete output. A configured per-chunk reviewer must not enter block or document dispatch, even when chunks or its interface are unavailable. A completed search with no grounding artifacts is normal and records `none_found`, without aborting. Finding caps must not masquerade as full coverage, and an unsearched activity must never be reported as “no grounding artifacts found.”
 
 Current status progression can mark a fully progressed aspect successful even when output limits caused work to be skipped. `GetRequestWithFindings` also exposes findings through completed effective runs. Design partial-run retrieval and reporting explicitly so an overall failure neither hides valid completed assessments nor presents them as complete coverage.
 
@@ -571,7 +591,7 @@ Split by document family, organization/policy family, and source edition lineage
 
 For a gold set with no relevant obligation, retrieval recall has no denominator; score false positives and correct abstention instead. Label sets may be incomplete for open-ended discovery, so adjudicate novel findings rather than automatically calling every unlabelled finding false.
 
-Use paired comparisons on the same cases: current legal/policy prompts; current provision reviewer; proposed engine. Ablate activity expansion, the document-level activity, chunk fallback, exact citations, applicability filtering, and exception retrieval. This identifies which additional complexity pays for itself.
+Use paired comparisons on the same cases: current legal/policy prompts; current provision reviewer; proposed engine. Ablate activity expansion, the document-level activity, original-chunk source retrieval, exact citations, applicability filtering, and exception retrieval. This identifies which additional complexity pays for itself.
 
 ### 11.3 Proposed release gates
 
@@ -592,7 +612,7 @@ Delivery phases are numbered to keep them distinct from the doc-processor’s Ph
 
 | Delivery phase | Concrete output | Exit evidence |
 |---|---|---|
-| 0: fix current defects | `processChunk` gains an error return across all twenty implementing reviewers; block-path and artifact-review unit errors propagate; a failed or partial unit marks the aspect partial or failed. Selected reference documents reach `ReviewProcessor`, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. | Tests showing a failed model call yields a failed unit, not an empty success; a test showing selected references reach the reviewer |
+| Independent existing bug fixes | Chunk, existing block, and artifact-unit errors are logged and abort the affected reviewer; its outstanding work is cancelled and its aspect fails. Configured per-chunk dispatch never falls back. Selected reference documents reach the reviewers that support them, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. These fixes do not couple the new compliance reviewer to existing reviewers. | Tests for model/tool/unit failure, reviewer-local cancellation, no per-chunk fallback, normal empty grounding, and the selected-reference contract |
 | 1: corpus inventory and thin slice | The decisions in §1.1; the production knowledge-base inventory; chunk backfill and provision indexing across the knowledge base; activity detection, knowledge-base search, and per-activity reports on 10–15 documents chosen to include activities the knowledge base covers and activities it does not; each run repeated with a narrowed scope; judged by the adjudicator | Per-activity grounding finds artifacts and gaps the current reviewers miss, at acceptable cost; activity lists unchanged across scopes; a go/no-go decision for the full gold set |
 | 2: baseline and gold set | Snapshot current reviewers; freeze a knowledge-base snapshot and scope for the gold set; record organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
 | 3: discovery and applicability | Activity records including the document-level activity, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics, knowledge-base independence tests, adversarial access tests |
@@ -600,17 +620,17 @@ Delivery phases are numbered to keep them distinct from the doc-processor’s Ph
 | 5: pilot | Optional new aspect, bilingual views/reporting, human dispositions; compare with existing reviewers | Held-out evaluation, precision/recall/abstention, operating cost |
 | 6: expansion | More sources in the knowledge base (laws, regulations, company policies, contracts) and an external acquisition workflow, none of which needs reviewer changes; organization and jurisdiction facts; corpus change impact; selected formal predicates | Evaluation on the new content; no assumed transfer from pilot |
 
-Phase 0 is ordinary bug fixing and needs no proposal. Phase 1 is small enough to run before the full annotation effort and shows whether that effort is worth funding. From phase 2 onward, implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
+The independent existing bug fixes are ordinary bug fixing and need no proposal. They are not a delivery dependency of the new reviewer. Phase 1 is small enough to run before the full annotation effort and shows whether that effort is worth funding. From phase 2 onward, implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
 
 Key decisions recommended now:
 
-1. Fix the two current reviewer defects (§2.2) before new engine work.
+1. Fix existing review error handling and selected-reference bugs (§2.2) independently of the new reviewer; an execution error logs and aborts its reviewer.
 2. Make the §1.1 decisions and run the corpus inventory before annotating a gold set.
-3. Build one common assessment engine and one initial optional aspect.
+3. Build one new independent compliance reviewer and optional aspect, processing per chunk only with no fallback.
 4. Find omissions through activities, including the document’s own, rather than through curated profiles.
 5. Ground every result in the knowledge base through the hybrid search engine, with an algorithm that does not depend on what the knowledge base holds (decided 2026-11-11). Adding sources improves results without changing the reviewer.
 6. Keep grounding, applicability, evidence, and execution as distinct states.
-7. Treat existing artifacts as accelerators, with original chunks as evidence fallback.
+7. Treat extracted artifacts as optional accelerators and original chunks as evidence; retrieval of original text is not a processing fallback. No grounding found after successful search is normal.
 8. Require measured local performance before broad legal or cross-jurisdiction claims.
 
 ## 13. Known limitations and outstanding choices
@@ -633,13 +653,13 @@ Implementation choices still needing an explicit contract include who decides th
 
 **Documents/specs/tests affected by a future implementation:** The doc-processor capsule and document-review spec, existing document-review ADRs, reviewer configuration documentation, the provision reviewer’s boundary description, source/version and authorization contracts, report schema, user manual, module catalog, and stage/end-to-end tests described above.
 
-**Documents updated in this task:** This research document only. It was first filed as a devdoc and moved to `research/` on 2026-11-11, because it proposes a design rather than recording built behavior. Existing runtime specs were not changed to imply the proposed reviewer exists. No application code or module interfaces changed.
+**Documents updated:** This research document, the doc-processor capsule, the document-review specification, and a bug-fix devdoc. It was first filed as a devdoc and moved to `research/` on 2026-11-11, because it proposes a design rather than recording built behavior. The later bug-fix implementation updates existing reviewer error contracts and selected-reference handling; it does not implement the new compliance reviewer. Existing runtime specifications must not imply the proposed reviewer exists.
 
 **Known documentation drift:** The capsule’s line-array requirement is appropriate to extraction/per-chunk paths but should be read alongside the compact-line module’s documented artifact-review exception. The capsule also explicitly labels its dashboard-addition checklist as stale. The new implementation should reconcile relevant guidance in its own change rather than copy stale steps.
 
-The standards-reviewer source comment also names obsolete reference tools that the current registry deliberately excludes. Delivery phase 0 should correct that comment and test the actual selected-reference contract.
+The inspected standards-reviewer comment named obsolete reference tools excluded by the registry; the independent bug fix corrects it. Selected-reference behavior is now explicit (§2.2.2).
 
-The capsule also links a missing `doc-processor/document-review-spec.md`; the existing [document-review specification](../../specs/202606/2026062104-spec-document-review.md) is filed under `doc-repo/specs/202606/`. Its older service paths and summary claims need reconciliation against current code. The [compliance ADR draft](../../adrs/202606/2026063006-adr-doc-reviewer-compliance.md) contains placeholder sections and should not be treated as an implemented compliance contract.
+The capsule previously linked a missing `doc-processor/document-review-spec.md`; its link now points to the existing [document-review specification](../../specs/202606/2026062104-spec-document-review.md) is filed under `doc-repo/specs/202606/`. Its older service paths and summary claims need reconciliation against current code. The [compliance ADR draft](../../adrs/202606/2026063006-adr-doc-reviewer-compliance.md) contains placeholder sections and should not be treated as an implemented compliance contract.
 
 **Intentionally left undocumented as a contract:** Final table/endpoint names, exact model choices, prompt text, and deployment settings. They do not exist yet and should be established by OpenSpec and implementation. The proposed payload and thresholds are clearly identified as illustrative or provisional.
 

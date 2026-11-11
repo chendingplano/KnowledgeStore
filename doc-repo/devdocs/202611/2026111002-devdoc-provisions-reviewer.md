@@ -6,6 +6,12 @@ database to be useful, how to configure it, and how to read its LLM calls when a
 wrong. Open it before changing the reviewer or when a review's provision findings look odd.
 **Code root:** `ChenWeb/server/api/doc-reviews` (`review-provisions.go`)
 
+
+**Error-handling update (2026-11-11):** Retrieval, context loading, model, tool,
+analysis persistence, and unit errors now abort the reviewer; they no longer
+become successful empty results. A completed search with no candidates remains
+normal. See [reviewer error handling](2026111105-devdoc-reviewer-error-handling.md).
+
 ## 1. Summary
 
 A *provision* is a rule stated in a document: a requirement ("shall"), a prohibition, a

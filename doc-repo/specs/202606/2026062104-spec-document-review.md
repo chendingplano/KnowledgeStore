@@ -4,6 +4,34 @@
 **Status:** Implemented (Phase VI)
 **Date:** 2026-06-21
 
+## Reviewer failure semantics (2026-11-11)
+
+This section supersedes older completion/fallback descriptions below. Current
+server code is in `ChenWeb/server/api/doc-reviews/`.
+
+- Chunk, existing block, and artifact review units return errors. Any execution
+  error is logged and aborts its reviewer; outstanding units are cancelled. Other
+  independent reviewers may finish. Failed-reviewer findings are not published as
+  successful output.
+- Tool failures, malformed model results, missing required input, retrieval errors,
+  and persistence errors must propagate. Do not recover an error by switching
+  processing strategy, repairing it with another model call, or force-finalizing
+  an incomplete investigation as success.
+- Configured `per-chunk` dispatch requires the chunk interface. Unsupported
+  dispatch is an error; it never falls through to a block/document entry point.
+  Existing explicitly configured block and artifact reviewers keep their strategies.
+- A completed search with no grounding or comparison candidates is normal. A
+  valid `{"findings":[]}` response is normal. Neither establishes compliance.
+- Unit progress, including 100%, remains provisional. Aspect success is recorded
+  after findings are saved; progress/status persistence failures propagate.
+- Supporting-document selection is temporarily unavailable. The UI explains this;
+  new nonempty `reference_docs` requests return HTTP 422. Previously accepted
+  requests with selections fail explicitly; historical selections remain readable.
+- The proposed new compliance reviewer is independent and per chunk only, with no
+  fallback. It is not implemented by this bug fix.
+
+Implementation and checks: [reviewer error-handling devdoc](../../devdocs/202611/2026111105-devdoc-reviewer-error-handling.md).
+
 ## Scope
 
 This document describes the architecture and implementation of the Document Review feature — an LLM-powered multi-aspect review pipeline built on top of the SemOS document processor. The full design is in ADR 2026061801; this spec covers the service layer (DR11–DR13) that makes the review accessible to end users.

@@ -235,6 +235,40 @@ bad heuristic or a metadata-extraction bug — not to change default production 
 
 About SEMANTIC_ASSOCIATION_ENABLED: it defaults to true.
 
+### 7.0 Document-review execution contract (2026-11-11)
+
+The proposed **Compliance Review** is a new independent reviewer within
+`review_document`, not an extension of or dependency on the existing legal,
+regulatory, standards, internal-policy, or provision reviewers. It runs per chunk
+only. There is no fallback from per-chunk processing to blocks, a whole-document
+call, another reviewer, or rebuilt input. Cross-chunk evidence retrieval does not
+change its processing unit. See the [compliance reviewer research/design](../../../doc-repo/research/202611/2026111103-rsch-compliance-reviewer.md).
+
+For document reviewers, any execution error must be logged and abort the affected
+reviewer. This includes model calls, tool loops, retrieval, required input parsing,
+and persistence. Propagate the error, cancel that reviewer’s outstanding work, and
+mark it failed; other independent reviewers may continue. Do not swallow a failed
+loop, publish its partial findings as success, or use a fallback to conceal an
+error. User cancellation remains `stopped`.
+
+A successful knowledge-base search that finds no grounding artifact is normal.
+Record that outcome as `none_found` in the searched scope, with completed execution;
+it is neither an error nor proof of compliance. A failed search is an error and
+must never be reported as no grounding found.
+
+**Existing code/configuration differs from the new reviewer’s design:** the local
+`ChenWeb/doc-review.local.toml` has 20 `per-block` entries: formatting consistency;
+logical flow; heading hierarchy; TOC accuracy; navigability; section balance;
+modularity; relevance; currency; internal contradictions; terminology consistency;
+cross-reference correctness; requirement traceability; prerequisites; internal
+policy; limitations; version history; review status; ownership; references. Some
+entries are not implemented/enabled; configuration is not deployment evidence.
+Legal, regulatory, and standards reviewers are configured per chunk but still have
+separate block entry points. Metrics, provisions, entities, inventory items, and
+metrics completeness use artifact-oriented processing. This inventory does not
+change existing reviewers’ input strategies; it establishes that they are not all
+per chunk. The new compliance reviewer remains per chunk only.
+
 ### 7.1 Processor Categories
 
 **Mandatory processors** (`blocking`, `structure_analyzer`, `chunking`, `extract_metadata`) are always executed regardless of configuration or the `operation` field in the event payload.
@@ -971,7 +1005,7 @@ Also update [14] to reflect the updated `PIPELINE_FINAL_OPS` and `ALL_PROCESSOR_
 [16] ADR 2026061801 — Document Review: LLM-Powered Multi-Aspect Review Pipeline:
   `KnowledgeStore/doc-repo/adrs/202606/2026061801-adr-document-review.md`
   
-[17] Document Review Spec: `KnowledgeStore/Capsules/coding-capsules/doc-processor/document-review-spec.md`
+[17] Document Review Spec: `KnowledgeStore/doc-repo/specs/202606/2026062104-spec-document-review.md`
 
 [18] ADR 2026072901 — Ontology Platform and Adaptive Pipeline, §8.2 (the Phase D stage
   declarations `normalize_assertions`/`associate_semantics`/`project_semantics`):

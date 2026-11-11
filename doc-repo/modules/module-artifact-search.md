@@ -1,7 +1,7 @@
 # Module: Artifact Search
 
 **Module ID:** `20261111-01`
-**Type:** backend · **Language:** go · **Version:** 1.1.0
+**Type:** backend · **Language:** go · **Version:** 1.1.1
 **Status:** active — used by document processors, public search, agents and search benchmarks
 **Project:** ChenWeb (server)
 **Location:** `ChenWeb/server/api/kbsearch`, `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/doc-processing`, `ChenWeb/server/api/kbhandler`, `ChenWeb/server/api/doc-reviews`
@@ -96,6 +96,11 @@ These routes use the application's existing authentication middleware. Backfill 
 ## 6. Behaviour and conventions
 
 Use centralized database pools, configured models, goose migrations, existing artifact addresses and attributed embedding calls. Additional chunk windows collapse to their parent before fusion. Source spans retain the registry's line-only format; chunk payload reference objects add page numbers and distinguish overlap.
+
+The reviewer adapter in `doc-reviews/similar.go` calls `searchengine.Search`
+directly so a missing source index remains an execution error. A completed search
+with no matches remains normal. This stricter caller contract does not change the
+public `searchengine.Similar` missing-index behavior.
 
 ## 7. Scope and limits
 
