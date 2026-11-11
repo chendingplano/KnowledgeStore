@@ -86,10 +86,10 @@ candidates that need human review before use as a benchmark.
 
 ### Purposes and targets
 
-The contract for this section is the OpenSpec change
-`ChenWeb/openspec/changes/question-generator-artifact-types/` (`proposal.md`, `design.md`,
-`tasks.md`, `specs/question-generator-artifact-types/spec.md`). Update that spec when
-changing this behaviour.
+The contract for this section is the spec
+`ChenWeb/openspec/specs/question-generator-artifact-types/spec.md`. Update that spec when
+changing this behaviour. The change that introduced it (proposal, design, tasks) is archived in
+`ChenWeb/openspec/changes/archive/2026-11-11-question-generator-artifact-types/`.
 
 | Purpose | Target type | Target source |
 |---|---|---|
@@ -526,6 +526,6 @@ reloader. The frontend may already have updated independently.
 ## Related documents
 
 - [Hybrid search](../../../Capsules/coding-capsules/llm-wiki/hybrid-search.md)
-- OpenSpec change `ChenWeb/openspec/changes/question-generator-artifact-types/` (purposes, registry targets, Mix)
+- Spec `ChenWeb/openspec/specs/question-generator-artifact-types/spec.md` and archived change `ChenWeb/openspec/changes/archive/2026-11-11-question-generator-artifact-types/` (purposes, registry targets, Mix)
 - [Input and line-file management](../../../Capsules/coding-capsules/input-management/+CAPSULE.md)
 - [Implementation plan](../../../Capsules/coding-capsules/llm-wiki/question-generator-implementation.md)
