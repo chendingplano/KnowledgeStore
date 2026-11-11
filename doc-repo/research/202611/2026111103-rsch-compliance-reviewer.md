@@ -2,19 +2,19 @@
 
 **Date:** 2026-11-11 (America/Chicago) \
 **Status:** Research and design proposal; the proposed reviewer is not implemented. Formerly filed as `devdocs/202611/2026111103-devdoc-compliance-reviewer-research.md`. \
-**Scope:** Reviewing a document against applicable laws, regulations, standards, contracts, and organizational policies, including obligations the document never names. \
-**First iteration:** Ground sources are limited to the existing knowledge base, which is mostly Chinese standards, searched through the hybrid search engine. Other source types come in later iterations (decided 2026-11-11). \
+**Scope:** Detecting the activities a document describes that rules could govern, and grounding each one in the laws, regulations, standards, contracts, and policies the knowledge base holds, including obligations the document never names. \
+**Ground sources:** The knowledge base, whatever it holds, searched through the hybrid search engine. The reviewer’s algorithm does not depend on the knowledge base’s contents; a richer knowledge base gives better results. The first iteration runs on the existing production knowledge base, which is mostly Chinese standards; later iterations may add sources (decided 2026-11-11, §5.1). \
 **Code roots:** `ChenWeb/server/api/doc-reviews`, `ChenWeb/server/api/doc-processing`, `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/kbsearch`.
 
 ## 1. Summary
 
 A useful compliance reviewer must discover which rules might govern the activities described in a document, establish which rules actually apply, and compare their requirements with evidence in that document. Finding similar sentences is only one part of that work. A design sentence such as “Log user activities in a database table” can raise questions about auditability, personal information, access, retention, and deletion without naming a law or standard.
 
-The recommendation is a shared, evidence-grounded assessment engine, initially exposed as one new optional **Compliance Review** aspect. It should search in both directions: from described activities to potentially applicable requirements, and from a selected set of applicable requirements back into the document. The second direction catches omissions that sentence-by-sentence review cannot find.
+The recommendation is a shared, evidence-grounded assessment engine, initially exposed as one new optional **Compliance Review** aspect. It detects the activities a document describes, including the activity the document itself performs, such as specifying a product. It then searches the knowledge base for artifacts that could govern each activity, analyzes the ones it finds, and reports per activity. A requirement of a found artifact that the document never addresses is reported as a gap, which catches omissions that sentence-by-sentence review cannot find.
 
-Every assessment should distinguish applicability, document evidence, and execution completeness. “No contradiction found,” “requirement not documented,” “applicability unknown,” and “search failed” are different outcomes. The engine should report scoped document assessments, with source versions and evidence, rather than declare that an organization or deployed system is compliant.
+Every assessment should distinguish grounding, applicability, document evidence, and execution completeness. “No grounding artifact found,” “no contradiction found,” “requirement not documented,” “applicability unknown,” and “search failed” are different outcomes. The engine should report scoped document assessments, with source versions and evidence, rather than declare that an organization or deployed system is compliant.
 
-The first iteration grounds every source-side conclusion in one place: the existing knowledge base, which is mostly Chinese standards, searched through the server’s hybrid search engine (`searchengine`). Laws, regulations, company policies, contracts, and externally acquired sources come in later iterations. §5.1 sets out what that decision changes: binding force is read from a standard’s type and its adoption, modal wording separates requirements from recommendations, editions are selected by identity and date, and the logging example remains an illustration rather than the first profile.
+The knowledge base is the reviewer’s only source of grounding, and it is searched only through the server’s hybrid search engine (`searchengine`). How the reviewer detects activities, searches, analyzes, and reports does not depend on what the knowledge base contains; only the results do. With an empty knowledge base, the report lists every activity as “no grounding artifacts found.” With a knowledge base holding every potentially governing artifact, it lists the artifacts that govern each activity, or says none does. Today’s production knowledge base is mostly Chinese standards. Adding laws, regulations, company policies, or contracts later improves the results without changing the reviewer. §5.1 sets out the design rules that follow from this.
 
 The inspection also found two defects in the existing reviewers that make their results misleading today and do not depend on the new engine (§2.2): a failed model call becomes an empty, successful result, and the reference documents a user selects never reach the reviewers. Delivery phase 0 (§12) fixes them first.
 
@@ -22,18 +22,17 @@ This document records a source-code inspection and primary-source research. Exis
 
 ### 1.1 Decisions needed before delivery phase 1
 
-The design deliberately leaves these choices to the profile owner. Work on a profile cannot start until they are made.
+None of these choices changes the reviewer’s algorithm. They decide what the first version is tested on and who judges its results.
 
-| Decision | Why it blocks | Current position |
+| Decision | Why it matters | Current position |
 |---|---|---|
-| Source scope | Applicability, retrieval, and gold labels all depend on it | **Decided 2026-11-11:** the existing knowledge base, which is mostly Chinese standards, searched through the hybrid search engine; other source types in later iterations (§5.1) |
-| Subject of the first profile | A profile can only be checked against standards the knowledge base holds | Open. Pick a subject the production knowledge base covers densely, ideally a chain of a product or enterprise standard, the mandatory standard it must meet, and related industry or group standards (§5.1) |
-| Organization role and products or services in scope | Decides which standards govern, for example a manufacturer versus a service provider | Not supplied; must come from the owner |
-| Adopted recommended standards | Recommended, group, and enterprise standards bind only through adoption; the reviewed document’s normative references supply part of this | Not supplied; company policies are deferred to a later iteration |
-| Profile owner | Approved obligations need an accountable reviewer | Not decided |
+| Source scope | Retrieval and gold labels depend on it | **Decided 2026-11-11:** the knowledge base, whatever it holds, searched through the hybrid search engine; the algorithm does not depend on its contents (§5.1) |
+| Evaluation documents | Results can only be judged on concrete documents. A useful set has activities the knowledge base covers and activities it does not, because “no grounding artifacts found” must be tested too | Open; the production inventory below helps pick them |
+| Organization context for those documents | Applicability depends on organization role, products or services, territory, and adopted standards. A missing fact makes applicability `unknown`; it does not stop a run | Not supplied; must come from the adjudicator |
+| Adjudicator | Findings need an accountable person to judge them | Not decided |
 | Annotation budget | Sets the size of the gold set, and therefore which release gates in §11.3 can be measured | Not estimated |
 
-The first piece of work is an inventory of the production knowledge base, which is cheap. Count standards by type (mandatory, recommended, group, enterprise, local, industry), subject, and edition. Count how many are search-ready, with indexed provisions and original chunks, and how many have extracted references. Almost every production record carries a document number (over 99%), so the count can be made from identifiers. This research looked only at a development database, which is not representative of production. §7 explains why source coverage limits everything downstream.
+The first piece of work is an inventory of the production knowledge base, which is cheap. It is not a design input, since the reviewer runs on whatever the knowledge base holds. It is needed to choose evaluation documents and to read the results. “No grounding artifacts found” means one thing when the knowledge base holds no relevant source and another when it holds one that search missed; only the inventory and the gold labels can tell these apart. Count sources by type, subject, and edition, for example mandatory, recommended, group, enterprise, local, and industry standards. Count how many are search-ready, with indexed provisions and original chunks, and how many have extracted references. Almost every production record carries a document number (over 99%), so the count can be made from identifiers. This research looked only at a development database, which is not representative of production.
 
 ### 1.2 Terms used in this document
 
@@ -47,10 +46,12 @@ The first piece of work is an inventory of the production knowledge base, which 
 | Lexical search, BM25 | Keyword search; BM25 is the ranking formula it uses |
 | Semantic search, cosine | Search by embedding similarity; cosine is the similarity score |
 | Recall@K | The share of relevant items that appear in the top K results |
+| Activity | Something the document describes doing that a rule could govern, including what the document itself does, such as specifying a product |
+| Knowledge base | The searchable collection the reviewer may take grounding from: standards, laws, regulations, policies, contracts, or anything else added to it. Its contents change the results, not the algorithm |
+| Grounding artifact | A knowledge-base item, such as a standard clause, policy section, or law article, that analysis accepts as possibly governing an activity |
 | Mandatory, recommended standard | Chinese standard types: a mandatory standard (such as `GB`) must be implemented; a recommended one (such as `GB/T`) binds only when adopted |
-| Normative references | The list of documents a standard declares indispensable for applying it (规范性引用文件) |
-| Obligation | One assessable requirement taken from a governing source |
-| Profile | An approved, versioned set of obligations for one jurisdiction, organization role, and document type |
+| Normative references | The documents a document formally lists as indispensable for applying it, in a section for that purpose (规范性引用文件 in Chinese standards) |
+| Obligation | One assessable requirement taken from a grounding artifact |
 | Evidence boundary | The documents a review may look in: the reviewed document alone, or it plus named supporting documents |
 | ePHI | Electronic protected health information under the US HIPAA rules |
 | OSCAL | NIST's machine-readable format for security assessment records |
@@ -142,7 +143,7 @@ The [reference processor orientation](../../../Capsules/coding-capsules/doc-proc
 ### 3.1 Five separate questions
 
 1. **What activity does the document describe?** Identify actions, actors, data, affected people, products, location, timing, and conditions—even without “shall” or “must.”
-2. **Which authorities could govern it?** Discover candidate sources, including unmentioned requirements and company rules.
+2. **Which knowledge-base artifacts could govern it?** Search for candidate sources, including requirements and company rules the document never mentions. Finding none is a valid answer.
 3. **Which candidate obligations actually apply?** Resolve territory, regulated role, effective date, scope, thresholds, adoption, exceptions, and unknown facts.
 4. **What does the document establish?** Compare statements and referenced evidence with each applicable obligation; check the whole declared review boundary before asserting an omission.
 5. **What was successfully assessed?** Report source coverage, incomplete searches, missing inputs, processing failures, and unresolved questions.
@@ -157,11 +158,15 @@ The initial product should assess **documented alignment within a stated evidenc
 
 Implementation evidence—configuration, source code, audit events, test reports, interviews—can be a later evidence class. A document-only assessment must leave implementation unverified.
 
-### 3.3 Two directions of assessment
+### 3.3 Activities, including the document’s own
 
-The activity-led direction finds “logging” and asks which obligations could matter. The obligation-led direction starts from a curated, applicable control profile and asks where the document addresses each requirement. Without the second direction, a document that never mentions deletion might never be checked for a required deletion policy.
+The reviewer works from activities. It finds “logging” and searches for artifacts that could govern it. A grounding artifact usually carries more requirements than the sentence that led to it: a logging rule may also require retention, integrity protection, and deletion. Each requirement of a found artifact that the document never addresses is a gap, even though no sentence mentions it. That is how a document that never mentions deletion still gets checked for a required deletion policy.
 
-Both directions feed one assessment graph. Deduplicate at obligation and evidence scope, not by similar finding titles.
+Some obligations attach to no sentence at all. A rule may require every product specification of a certain kind to cover labelling, whatever the text says. To catch these, the reviewer treats the document itself as an activity: its type, its subject (a product, service, or process), and its purpose. The same search then finds artifacts that govern documents of that kind. For example, the development data contains an enterprise standard for automatic blood-pressure monitors. Its document-level activity, specifying a medical electrical device of that type, leads to the standard for automatic non-invasive sphygmomanometers (YY 9706.230—2023) when the knowledge base holds it, and to “no grounding artifacts found” when it does not.
+
+This replaces a hand-curated checklist of obligations (a “profile”) as the means of finding omissions. A curated checklist made the reviewer depend on the checklist rather than on the knowledge base. Where a checklist exists, such as a company’s logging policy, it is simply another knowledge-base artifact the same search can find.
+
+Deduplicate at obligation and evidence scope, not by similar finding titles.
 
 ## 4. Research findings and technology choices
 
@@ -186,7 +191,7 @@ This progression suggests a design combining stable source identity, explicit ap
 | Larger one-shot compliance prompt | Small implementation change; broad initial issue suggestions | Model memory substitutes for authority; unclear scope, versions, and coverage | Retain as a baseline and optional discovery assistant. |
 | Existing provision similarity | Already integrated; source-grounded peer comparison | Misses unextracted activities and unmentioned obligations; similar peers may not bind | Reuse context and comparison infrastructure, retain its separate purpose. |
 | Explicit citations only | Precise when document names an accessible source | Misses implicit obligations and undeclared frameworks | Make it one high-priority retrieval channel. |
-| Curated checklist/profile | Predictable source boundary and omission coverage | Maintenance cost; incomplete profiles can hide unknown rules | Foundation for the first release. |
+| Curated checklist/profile as a separate input | Predictable source boundary and omission coverage | Maintenance cost per subject; results depend on the checklist rather than the knowledge base; incomplete profiles can hide unknown rules | Not a separate input. Store a checklist as a knowledge-base artifact and find omissions through activities, including the document’s own (§3.3). |
 | Unrestricted web-search agent | Broad discovery and potentially current sources | Unstable evidence, wrong editions, confidentiality and authorization problems | Separate source-acquisition workflow; not the default assessment runtime. |
 | Hybrid retrieval plus applicability and evidence assessment | Combines existing search with explicit decision stages | Needs source governance, annotations, and stage-level diagnostics | Recommended architecture. |
 | Fully formal legal rule engine | Reproducible reasoning for curated conditions and priorities | Expensive encoding; broad interpretation still requires judgment | Use deterministic rules for selected predicates and thresholds, expand only where justified. |
@@ -201,45 +206,56 @@ The local engine should retain its native IDs and records. If an export format n
 
 ## 5. Proposed scope and product behavior
 
-### 5.1 Initial scope and ground sources
+### 5.1 Ground sources: the knowledge base, whatever it holds
 
-**Decision (2026-11-11).** The first iteration grounds every source-side conclusion in the existing knowledge base, which is mostly Chinese standards, and retrieves those sources only through the hybrid search engine (`ChenWeb/server/api/searchengine`). Laws, regulations, company policies, contracts, and externally acquired sources are added in later iterations. Until then, a requirement that would need one of them becomes an unresolved question naming the missing source, never a finding.
+**Decision (2026-11-11).** The reviewer takes grounding artifacts only from the knowledge base, and searches it only through the hybrid search engine (`ChenWeb/server/api/searchengine`). How the reviewer detects activities, searches, analyzes, and reports does not depend on what the knowledge base contains. The knowledge base’s richness decides how good the results are:
 
-That decision changes the design in seven ways.
+* **Empty knowledge base.** The reviewer still detects every activity and reports each one as “no grounding artifacts found.”
+* **Complete knowledge base**, holding every potentially governing artifact. The reviewer reports, for each activity, the artifacts that govern it (for example g1, g2, and g3), or that none does.
+* **Anything in between**, which is where the production knowledge base is. Results improve as artifacts are added, with no change to the reviewer.
 
-1. **The first profile comes from what the knowledge base covers.** The logging sentence remains this document’s running example because it exercises discovery, applicability, numeric retention, and conflicting purposes. Its governing sources (§8.3) are laws and foreign standards, outside the first iteration. Pick the first profile from a subject the production inventory (§1.1) shows is densely covered. A good shape is a chain the knowledge base already holds: a product or enterprise standard, the mandatory standard it must meet, and related industry or group standards. The development data, for example, contains an enterprise standard for automatic blood-pressure monitors alongside the medical electrical equipment standard for automatic non-invasive sphygmomanometers (YY 9706.230—2023). The profile must name its subject, organization role, document types, approved source standards, and effective editions.
+The first iteration runs on the existing production knowledge base, which is mostly Chinese standards. Later iterations may add sources such as laws, regulations, company policies, contracts, or externally acquired documents. They arrive as knowledge-base content, not as new reviewer logic.
 
-2. **Binding force comes from the standard’s type, then from adoption.** Article 2 of the Standardization Law (2017 revision) divides national standards into mandatory and recommended ones, makes industry and local standards recommended, requires mandatory standards to be implemented, and encourages adoption of recommended ones. Group and enterprise standards bind only through adoption, such as a contract or a product’s declared standard. The document number gives a first signal: `GB` (mandatory national), `GB/T` (recommended national), `GB/Z` (guidance), `T/` (group), `Q/` (enterprise), `DB` (local), and industry codes with or without `/T`. That signal proposes binding force; it does not decide it. Sector rules can override the default: published medical-device standard lists from the National Medical Products Administration mark many unsuffixed `YY` standards as mandatory, a legal basis this research did not verify. Record binding force per source together with its basis. Do not reuse `docAuthorityClass` for this decision: its pattern `GB/?T?` puts `GB` and `GB/T` in one class and does not recognise `GB/Z`, group, enterprise, or most industry prefixes.
+These design rules follow.
 
-3. **Normative references are the main adoption signal.** A recommended standard that the reviewed document lists under normative references (规范性引用文件) is adopted by that document for the clauses that cite it. `extract_references` already produces these lists and resolves them to held editions where it can. Its coverage of the production knowledge base belongs in the inventory.
+1. **Activity detection does not use the knowledge base.** It reads only the evidence boundary: the reviewed document and any named supporting documents. The activity list is therefore the same whatever the knowledge base holds. That is what lets an empty knowledge base still produce a useful report, and what makes runs against different knowledge-base states comparable.
 
-4. **Modal wording separates requirements from advice.** Chinese standards distinguish requirements (应, 不应: shall, shall not), recommendations (宜, 不宜), permissions (可, 不必), and capability or possibility (能, 可能). Only a requirement can ground an adverse finding; a 宜 clause produces advice. This follows the national drafting rules, GB/T 1.1-2020, whose exact clause was not consulted in this research; pin the mapping against an authorized copy before encoding it.
+2. **“No grounding artifacts found” is a result, not a failure, and is always relative to the searched scope.** It means a completed search of the recorded knowledge-base scope returned nothing that analysis accepted as possibly governing. It is distinct from a failed or truncated search, which is an execution state (§9.1). It never means the activity is unregulated, and the report always names the scope searched.
 
-5. **Editions are selected by identity and date.** Almost every production record carries a document number (over 99%), and the number includes the edition year, so retrieval results can be grouped by standard identity. When several editions are held, select the one in force on the assessment date, using the replacement statement (代替) in the foreword and the publication and implementation dates (发布, 实施). A superseded edition that ranks above the current one stays a candidate, never the governing text.
+3. **Model knowledge suggests searches, never grounding.** A model may know a law that governs logging. If that law is not in the knowledge base, the reviewer does not cite it, mention it as missing, or reason from it. Model knowledge may expand queries (§6.3), but every grounding artifact is a knowledge-base record the run retrieved and the verifier can check (§6.6).
 
-6. **The reviewed document is often a standard too.** In a standards knowledge base, other standards are both peers and candidate authorities. Exclude the reviewed record from source results, and treat another standard as governing only when its binding force or adoption is established; otherwise it remains comparison material for Provision Consistency.
+4. **One procedure reads every artifact; conventions are data.** Analysis reads each grounding artifact’s type, binding force, edition, and modal wording through one procedure. Conventions that differ by source type, jurisdiction, or language are recorded as data that procedure reads, such as a conventions table or prompt guidance. They are never a separate code path per source type, and never trigger words hard-coded into rules. Adding a source type to the knowledge base adds conventions, not reviewer logic. The current knowledge base needs these conventions first:
+   * *Binding force.* Article 2 of the Standardization Law (2017 revision) divides national standards into mandatory and recommended ones, makes industry and local standards recommended, requires mandatory standards to be implemented, and encourages adoption of recommended ones. Group and enterprise standards bind only through adoption, such as a contract or a product’s declared standard. The document number gives a first signal: `GB` (mandatory national), `GB/T` (recommended national), `GB/Z` (guidance), `T/` (group), `Q/` (enterprise), `DB` (local), and industry codes with or without `/T`. That signal proposes binding force; it does not decide it. Sector rules can override the default: published medical-device standard lists from the National Medical Products Administration mark many unsuffixed `YY` standards as mandatory, a legal basis this research did not verify. Record binding force per artifact together with its basis. Do not reuse `docAuthorityClass` for this: its pattern `GB/?T?` puts `GB` and `GB/T` in one class and does not recognise `GB/Z`, group, enterprise, or most industry prefixes.
+   * *Adoption.* A document’s normative references, the documents it formally lists as indispensable for applying it, adopt those documents for the clauses that cite them. This holds for standards in any language. `extract_references` already produces these lists and resolves them to held editions where it can.
+   * *Modal force.* Requirements, recommendations, permissions, and statements of capability are worded differently, for example “shall,” “should,” “may,” and “can” in ISO-style English standards and 应, 宜, 可, and 能 in Chinese ones. Only a requirement can ground an adverse finding; a recommendation produces advice. The Chinese wording follows the national drafting rules, GB/T 1.1-2020, whose exact clause this research did not consult; pin it against an authorized copy before recording it.
 
-7. **All source retrieval goes through `searchengine.Search`.**
-   * Bound the source set with `Filters.KnowledgeStoreID` and `Filters.DocumentGroup`, which apply before ranking, and exclude the reviewed record with `Filters.ExcludeRecordIDs`.
+5. **Editions are selected by identity and date.** Group retrieval results by artifact identity, such as a document number without its edition year. When several editions are held, select the one in force on the assessment date, using the replacement statement and the publication and implementation dates (in Chinese standards, 代替 in the foreword and the 发布 and 实施 dates). Almost every production record carries a document number (over 99%), so identity is usually available. A superseded edition that ranks above the current one stays a candidate, never the governing text for that date.
+
+6. **The reviewed document is excluded, and documents like it may be peers.** Exclude the reviewed record from results. A document of the same kind, such as another standard when the reviewed document is a standard, governs only when its binding force or adoption is established. Otherwise it remains comparison material for Provision Consistency.
+
+7. **All retrieval goes through `searchengine.Search`.**
+   * Bound the knowledge-base scope with `Filters.KnowledgeStoreID` and `Filters.DocumentGroup`, which apply before ranking, and exclude the reviewed record with `Filters.ExcludeRecordIDs`. Record the scope and its index state in the run manifest (§6.1), because results depend on them.
    * Request both `provision` and `chunk` artifacts, so a rule that provision extraction missed can still be found in the original text.
    * Leave `Criteria.MinCosine` unset for authority discovery (§2.3); use the per-list ranks the response reports instead.
    * Record the engine’s limits in the retrieval trace: the fused score is not comparable between queries, `total` counts keyword matches only, and each list returns at most 200 candidates. Treat that cap as truncation in coverage reports.
-   * Readiness requires the source set to be indexed: chunk search rows exist only after the [chunk backfill](../../devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md) has run for those records, and provision rows only after `extract_provisions` and indexing. The inventory counts both.
+   * Only indexed records can be found. Chunk search rows exist only after the [chunk backfill](../../devdocs/202611/2026111102-devdoc-chunk-hybrid-search.md) has run for those records, and provision rows only after `extract_provisions` and indexing. An unindexed record is effectively absent from the knowledge base for that run, so the coverage report states how much of the scope was indexed.
+   * The same filters let evaluation vary the knowledge base without changing code (§11.1).
 
-Most first-iteration sources are Chinese. Support English and Chinese source text and findings from the outset. Keep original quotes unchanged; translated queries and explanations are derived artifacts. An English benchmark does not establish Chinese-language performance.
+The current knowledge base is mostly Chinese. Support English and Chinese source text and findings from the outset. Keep original quotes unchanged; translated queries and explanations are derived artifacts. An English benchmark does not establish Chinese-language performance.
 
-The first release should support curated sources from the knowledge base, activity extraction from all source passages, profile-led omission checks, deterministic citation validation, and explicit uncertainty. Defer autonomous legal corpus crawling, broad case-law analysis, company-wide implementation certification, and automatic document corrections.
+The first release should support activity detection over all passages, including the document-level activity (§3.3); knowledge-base search and analysis per activity; per-activity reports; deterministic citation validation; and explicit uncertainty. Defer autonomous legal corpus crawling, broad case-law analysis, company-wide implementation certification, and automatic document corrections.
 
 ### 5.2 User workflow
 
 1. Select a document and **Compliance Review**.
-2. Select an approved profile and an assessment date. Confirm organization facts already known to the system; leave unavailable facts explicitly unknown.
+2. Set an assessment date. Confirm organization facts already known to the system; leave unavailable facts explicitly unknown.
 3. Select the evidence boundary: the document alone, or the document plus named accessible supporting documents.
-4. Run the assessment. Show progress by discovery, applicability, retrieval, evidence assessment, and verification.
-5. Read findings alongside coverage and unresolved questions. Open both the reviewed passage and governing passage.
-6. Accept, reject, or escalate a finding with a reason. Human disposition is versioned separately from the machine result.
+4. Optionally narrow the knowledge-base scope to a knowledge store or document group. The default is everything the requester may access.
+5. Run the assessment. Show progress by activity detection, search, applicability, evidence assessment, and verification.
+6. Read the per-activity results alongside coverage and unresolved questions. Open both the reviewed passage and each grounding passage.
+7. Accept, reject, or escalate a finding with a reason. Human disposition is versioned separately from the machine result.
 
-The summary should say, for example, “12 obligations assessed against profile X, version Y; 3 documented gaps; 2 applicability questions; 1 source unavailable.” It should not offer a green “compliant” badge merely because no findings were emitted.
+The summary should say, for example: “9 activities detected; 6 with grounding artifacts (14 artifacts, 3 documented gaps, 2 applicability questions); 3 with no grounding artifacts found in knowledge store X; 1 source unreadable.” It should not offer a green “compliant” badge merely because no findings were emitted, and it should never present “no grounding artifacts found” as a pass.
 
 ### 5.3 Relationship to existing checkboxes
 
@@ -251,22 +267,21 @@ Do not remove existing options until benchmark evidence and compatibility decisi
 
 ```mermaid
 flowchart TD
-    A[Document snapshot and review profile] --> B[Readiness and authorized source set]
-    B --> C[Activity and context discovery]
-    B --> D[Profile obligations]
-    C --> E[Multi-channel candidate retrieval]
-    D --> E
+    A[Document snapshot and review context] --> B[Readiness and recorded knowledge-base scope]
+    A --> C[Activity detection, including the document-level activity]
+    B --> E[Multi-channel knowledge-base search per activity]
+    C --> E
     E --> F[Applicability and exception assessment]
     F --> G[Retrieve original document evidence]
     G --> H[Requirement comparison]
     H --> I[Citation and result verification]
-    I --> J[Findings, coverage, unresolved questions]
+    I --> J[Per-activity report: grounding artifacts or none found, coverage, questions]
     I --> K[Versioned assessment record]
 ```
 
 ### 6.1 Freeze the review context
 
-Create an immutable run manifest: reviewed input ID, canonical file hash and generation, supporting-document versions, actor and authorized source scope, profile version, assessment date, model/prompt/parser versions, budgets, and available processors. Record both the legal effective date being assessed and the time the source was acquired; these answer different questions. Readiness also records image-only pages, OCR uncertainty, unparsed diagrams/tables, and broken references. The compact renderer omits image-path lines; their absence from a model payload is not evidence that those regions contain no relevant requirements.
+Create an immutable run manifest: reviewed input ID, canonical file hash and generation, supporting-document versions, actor, the knowledge-base scope searched (knowledge store, document group, exclusions) and its index state, assessment date, model/prompt/parser versions, budgets, and available processors. Because results depend on what the knowledge base held, two runs are comparable only when their scopes are recorded. Record both the legal effective date being assessed and the time the source was acquired; these answer different questions. Readiness also records image-only pages, OCR uncertainty, unparsed diagrams/tables, and broken references. The compact renderer omits image-path lines; their absence from a model payload is not evidence that those regions contain no relevant requirements.
 
 Use organization facts with provenance: operating territories, legal entities, regulated role, sectors, data categories, affected individuals, deployment region, contracts, and adopted standards. Each fact is asserted, inferred, disputed, or unknown. A document’s publication country is not an adequate substitute for these facts.
 
@@ -274,7 +289,9 @@ An unknown can trigger candidate discovery without triggering a definitive compl
 
 ### 6.2 Discover activities without a modal-word gate
 
-Process every substantive passage, including tables and declarative statements. Use lightweight lexical/concept triggers to prioritize work, then a constrained model extraction for activity candidates. Explicit provisions are additional seeds, not a prerequisite.
+Process every substantive passage, including tables and declarative statements. Use lightweight lexical/concept triggers to prioritize work, then a constrained model extraction for activity candidates. Explicit provisions are additional seeds, not a prerequisite. Detection reads only the evidence boundary, never the knowledge base (§5.1, rule 1).
+
+Also record one document-level activity (§3.3): the document’s type, its subject product, service, or process, and its purpose, each with the passages that establish it.
 
 An activity record should contain source spans, actor, action, object, purpose, data categories, affected people, destination, geography, duration, conditions, and uncertainty. All inferred fields identify their basis. The logging example yields a logging activity and database destination; identity fields, retention, geography, and sensitive data remain unknown unless surrounding text establishes them.
 
@@ -284,12 +301,12 @@ Do not silently drop low-scoring passages. Record which were screened out and sa
 
 ### 6.3 Discover candidate authorities through multiple channels
 
-In the first iteration every channel below runs through the hybrid search engine over the knowledge base (§5.1). Use a bounded union of:
+Every channel below runs through the hybrid search engine over the run’s knowledge-base scope (§5.1). For each activity, use a bounded union of:
 
 * Exact citations, document numbers, clause identifiers, and explicit policy references.
 * BM25/lexical queries over original chunks and extracted provisions.
-* Semantic queries based on the source passage and separate activity/issue expansions.
-* Approved activity-to-control mappings and selected profile obligations.
+* Semantic queries based on the source passage and separate activity/issue expansions. Model-proposed expansions are queries only, never grounding (§5.1, rule 3).
+* For the document-level activity, queries built from the document’s type, subject, and purpose.
 * Governed entity/object links and access-aware reference holdings.
 
 Keep lexical and semantic candidates independently eligible. An exact clause identifier should survive a low cosine score. Preserve retrieval channel, query, rank, and exclusion reason. Fused rank is a ranking signal, not a probability of relevance or legal applicability.
@@ -312,7 +329,7 @@ For each candidate obligation, resolve:
 | Document responsibility | Whether this document must state the requirement or may reference another controlled artifact |
 | Unknowns | Which missing facts prevent a decision and who can supply them |
 
-Use deterministic predicates for facts that have clear representations, such as effective intervals, approved profile membership, and numeric thresholds. Use models to propose interpretations of text, with evidence. Rules that need expert judgment remain unresolved or require human confirmation.
+Use deterministic predicates for facts that have clear representations, such as effective intervals and numeric thresholds. Use models to propose interpretations of text, with evidence. Rules that need expert judgment remain unresolved or require human confirmation.
 
 Do not hard-code a universal “law > regulation > standard > policy” conflict resolver. Instrument relationships depend on jurisdiction, incorporation, scope, and legal interpretation. An internal policy cannot simply authorize disregarding a legal duty, but the engine still needs a verified relationship before automatically resolving the concrete case.
 
@@ -335,7 +352,7 @@ Evaluate the document’s statements, not facts invented to complete the design.
 Perform mechanical validation after model reasoning:
 
 * Source and target quotes exactly match the pinned original versions; line, page, and table-row anchors exist.
-* The cited source is accessible and approved for this assessment, with a valid edition and obligation ID.
+* The cited source was retrieved by this run from its recorded knowledge-base scope, is accessible, and has a valid edition and obligation ID. A citation the run did not retrieve is rejected, however plausible.
 * A conclusive adverse result structurally links an applicability decision and evidence; a similarity score alone is insufficient.
 * Claims of omission include the screening ledger, searched document boundary, references checked, and completeness status.
 * Numeric deadlines, authorities, and exceptions link to supporting evidence records.
@@ -347,25 +364,23 @@ A second model or adversarial pass may inspect high-risk conclusions, but model 
 
 ## 7. Authority corpus and version governance
 
-Source quality is a product capability. A better reasoner cannot retrieve a rule that is missing from the accessible corpus.
+Source quality is a product capability. A better reasoner cannot retrieve a rule that is missing from the accessible corpus. Because the reviewer searches whatever the run’s knowledge-base scope holds (§5.1), governing what enters the knowledge base, and recording what it covers, is how results improve. The reviewer itself does not change as sources are added.
 
 Maintain approved source sets with an owner, jurisdiction/domain, coverage statement, acquisition method, update schedule, licensing, and effective editions. Official publications establish source authenticity; company policy owners establish internal approval and applicable organization scope. A source’s title or domain name alone is insufficient.
 
-In the first iteration the approved source set is a declared subset of the existing knowledge base, bounded by knowledge store and document group (§5.1). External acquisition waits for a later iteration.
-
 Reuse `kb.ref_resources` and `kb.ref_resource_versions` for identity where their actual interfaces fit. Add assessment-specific metadata or links rather than create a competing resource catalog. Distinguish publish date, effective date, applicability interval, retrieval time, language, translation status, and superseded edition. Preserve immutable source content or hashes plus retrievable snapshots.
 
-Normalized obligations need actor, modality, action, object, conditions, exceptions, parameters, temporal rules, source fragments, and approval state. Machine-extracted obligations begin as candidates. Approved profiles use reviewed obligations. A profile can intentionally include guidance, but labels it as advisory and prevents advice from becoming a statutory violation.
+Normalized obligations need actor, modality, action, object, conditions, exceptions, parameters, temporal rules, source fragments, and approval state. Machine-extracted obligations begin as candidates; a reviewed obligation takes precedence over a machine-extracted one for the same clause. Guidance stays labelled as advisory, so advice never becomes a statutory violation.
 
 Crosswalks between standards are candidate links, not equivalence proofs. NIST’s [SP 800-53 publication page](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final) explicitly cautions about treating mapped controls as equivalent. Retain the particular source requirement even when a shared control concept groups it with others.
 
-On a source update, calculate affected obligation/profile versions and mark dependent assessments as needing reassessment. Keep historical results reproducible under their original manifest. Do not silently replace an old citation with the latest source text.
+On a source update, calculate affected obligation versions and mark dependent assessments as needing reassessment. A source added to the knowledge base can also turn an earlier “no grounding artifacts found” into a finding, so record which activities were reported without grounding and against which scope. Keep historical results reproducible under their original manifest. Do not silently replace an old citation with the latest source text.
 
 External acquisition should be a separate, logged workflow that approves and versions sources before assessment use. Send public search queries containing generalized issues, never private document passages by default. Licensed standards require authorized holdings; a public abstract is insufficient for clause-level conclusions.
 
 ## 8. Worked example: “Log user activities in a database table”
 
-This example illustrates the general method. Its governing sources in §8.3 are laws and foreign standards, which are outside the first iteration’s ground sources (§5.1). In the first iteration they would appear as unresolved questions naming the missing source, not as findings.
+This example illustrates the method. §8.3 cites laws and foreign standards. Whether the reviewer reports them depends only on whether the knowledge base holds them (§5.1). Against a knowledge base that holds none of them, the logging activity is reported as “no grounding artifacts found” (§8.4). Against one that holds them, the same run reports them with the analysis below.
 
 ### 8.1 What can be concluded immediately
 
@@ -398,45 +413,44 @@ In the US health context, [45 CFR 164.312(b)](https://www.ecfr.gov/current/title
 
 For standards, [ISO’s explanation of their voluntary status and normative language](https://www.iso.org/foreword-supplementary-information.html) and [standards in regulation](https://www.iso.org/sites/ConsumersStandards/1_standards.html) illustrate another boundary: “shall” inside a standard does not by itself prove that this organization is legally bound. Record the incorporation, contract, certification scope, or internal adoption that makes the particular standard relevant.
 
-The important pattern is conditional branching: “If this logging activity falls within approved profile P, assess its selected obligations; if essential facts are missing, ask for those facts.” Do not attach every logging-related law in the corpus to every use of the word “log.”
+The important pattern is conditional branching: “If the knowledge base holds an artifact that could govern this logging activity, and its conditions are met, assess its requirements; if essential facts are missing, ask for those facts.” Do not attach every logging-related law in the corpus to every use of the word “log.”
 
-### 8.4 Example result without enough context
+### 8.4 Example result when the knowledge base holds no grounding artifact
 
 ```json
 {
   "activity": "record_user_activity",
-  "applicability": "unknown",
-  "evidence_status": "insufficient_evidence",
-  "execution_status": "completed",
   "source_text": "Log user activities in a database table",
-  "questions": [
-    "Which organization and operating territories are in scope?",
-    "Which events and personal information will be recorded?",
-    "Which approved logging and retention policies govern this design?"
-  ],
-  "conclusion": "The sentence alone does not establish compliance or noncompliance."
+  "knowledge_base_scope": {"knowledge_store_id": "<store>", "document_group": null, "indexed_share": "<share>"},
+  "grounding": "none_found",
+  "grounding_artifacts": [],
+  "execution_status": "completed",
+  "conclusion": "No grounding artifacts were found in the searched knowledge-base scope. This does not mean the activity is unregulated."
 }
 ```
 
-Illustrative only, not the existing API schema; a production payload adds real source anchors and the run manifest.
+Illustrative only, not the existing API schema; a production payload adds real source anchors and the run manifest. The result names no law, although a model could suggest several (§5.1, rule 3).
 
-### 8.5 Example after a company profile is supplied
+### 8.5 Example when the knowledge base holds a company logging policy
 
-Assume a **hypothetical** approved company policy requires actor, action, timestamp, result, restricted modification, and a defined retention schedule. If a complete detailed design contains only the example sentence, report those missing specifications as documentary gaps against that policy. If the design references a controlled logging specification that supplies them, include that evidence and avoid duplicate gaps.
+Assume the knowledge base holds a **hypothetical** approved company policy requiring actor, action, timestamp, result, restricted modification, and a defined retention schedule. The same run now reports the logging activity with that policy as its grounding artifact. If the organization facts needed to decide whether the policy covers this system are missing, its applicability is `unknown` and the result lists questions, such as which organization unit and which events are in scope.
+
+If a complete detailed design contains only the example sentence and the policy applies, report those missing specifications as documentary gaps against that policy. If the design references a controlled logging specification that supplies them, include that evidence and avoid duplicate gaps.
 
 Do not prescribe “append-only database table” as the sole legal solution unless the governing requirement actually mandates it. Suggest an outcome—document permitted modification paths and protection against unauthorized changes—and allow alternative implementations that satisfy the requirement.
 
 ## 9. Proposed result and storage model
 
-### 9.1 Separate three axes
+### 9.1 Separate four axes
 
 | Axis | Values | Meaning |
 |---|---|---|
+| Grounding (per activity) | `found`, `none_found` | Whether a completed search of the recorded knowledge-base scope produced any artifact that analysis accepted as possibly governing this activity. `none_found` is relative to that scope; a failed or truncated search is an execution state, not `none_found` |
 | Applicability | `applicable`, `not_applicable`, `unknown` | Whether this obligation governs this subject in this context |
 | Document evidence | `supported`, `contradicted`, `partially_supported`, `not_documented`, `insufficient_evidence`, `not_assessed` | What the reviewed evidence establishes; `supported` remains documentary support, not implementation certification |
 | Execution | `completed`, `partial`, `failed`, `stopped`, `skipped` | Whether the required assessment work ran successfully |
 
-`not_documented` requires a completed search over the declared boundary and a reason the document should cover the requirement. Use `insufficient_evidence` when sources, references, or context are missing. Never map `not_applicable`, `unknown`, and tool failures to the same empty finding list.
+`not_documented` requires a completed search over the declared boundary and a reason the document should cover the requirement. Use `insufficient_evidence` when sources, references, or context are missing. Never map `none_found`, `not_applicable`, `unknown`, and tool failures to the same empty finding list.
 
 Severity is a separate judgment about the consequence of a substantiated gap. Keep materiality, applicability certainty, and evidence confidence separate. Calibrate confidence on held-out annotations before using it to suppress findings; model-supplied decimals are not calibrated probabilities.
 
@@ -446,8 +460,8 @@ Proposed logical records, with physical names deliberately left to implementatio
 
 | Record | Important content |
 |---|---|
-| Assessment run | Manifest, scope, profile version, execution state, stage counts, budgets, requester |
-| Activity candidate | Original spans, normalized activity, extracted facts, uncertainty |
+| Assessment run | Manifest, evidence boundary, knowledge-base scope and index state, execution state, stage counts, budgets, requester |
+| Activity candidate | Original spans, normalized activity, whether it is the document-level activity, extracted facts, uncertainty, grounding outcome |
 | Authority/obligation link | Existing resource/version IDs, source fragments, approved normalized obligation |
 | Applicability decision | Subject, facts used, predicate results, exceptions, unresolved questions, disposition |
 | Retrieval trace | Queries/channels, candidate IDs/ranks, filters, reasons for exclusions, truncation |
@@ -461,9 +475,9 @@ Use table-owned identity primary keys and `shared/go/api/idmanager` for run/corr
 
 ### 9.3 Coverage report
 
-Track total substantive passages, screened passages, unreadable/image-only regions, activity candidates, profile obligations, retrieved candidates, applicability decisions, assessed obligations, unresolved cases, unavailable sources, truncated contexts, failed units, and skipped units. Keep denominators: “18/24 selected obligations assessed” is meaningful; “18 checks passed” can hide six missing checks. State parsing/OCR limitations in document coverage instead of counting only successfully extracted text.
+Track total substantive passages, screened passages, unreadable/image-only regions, activities detected, activities searched, activities with grounding found, activities with none found, retrieved candidates, applicability decisions, assessed obligations, unresolved cases, unavailable sources, truncated contexts, failed units, and skipped units. Keep denominators: “18/24 activities searched” is meaningful; “18 checks passed” can hide six missing checks. State parsing/OCR limitations in document coverage instead of counting only successfully extracted text.
 
-Report two kinds of coverage: **declared profile coverage**, which can be counted, and **open-ended discovery coverage**, which cannot honestly be declared exhaustive. The profile itself also has a documented source and jurisdiction coverage statement.
+Report two kinds of coverage. **Document coverage** can be counted: passages screened and activities searched. **Knowledge-base coverage** cannot honestly be declared exhaustive. The report states the scope searched and how much of it was indexed, so a reader can tell “none found” in a thin knowledge base from “none found” in a rich one.
 
 ## 10. Integration and reuse plan
 
@@ -488,7 +502,7 @@ The first integration should be a new on-demand reviewer within `review_document
 
 Ordinary submissions already use the request/run lifecycle and `kb.doc-review.start`; the controller directly invokes `ReviewProcessor.PostProcessIndex`. Its `HandleEvent` is a no-op. Reuse this lifecycle, adding frozen context and readiness at the controller seam, rather than interpreting the doc-processor Phase C method name (`PostProcessIndex`) as evidence that all preprocessing has run.
 
-Its readiness check requires a pinned canonical document and approved profile/source versions. Provision, entity, metric, reference, and semantic artifacts are optional accelerators unless the selected profile explicitly requires them. If missing, either run the authorized preprocessing step or use direct chunk discovery and record the limitation. Do not silently initiate all extraction processors or treat their absence as no obligations.
+Its readiness check requires a pinned canonical document and a recorded knowledge-base scope with its index state. Provision, entity, metric, reference, and semantic artifacts are optional accelerators. If missing, either run the authorized preprocessing step or use direct chunk discovery and record the limitation. Do not silently initiate all extraction processors or treat their absence as no obligations.
 
 If repeated activity discovery proves expensive, later propose a configurable activity-extraction processor using shared chunk batching. Only then add its processor spec, runtime registration, dependencies, status, indexing, deployment prompts, and capsule entry. This is a measured optimization, not a prerequisite.
 
@@ -500,9 +514,9 @@ The nine core review tools in `review-tools.go` are document-intrinsic. `search_
 
 The reference store’s `accessibleHoldings` provides a useful precedent: same user, same knowledge store, or an active grant. Its subject is the citing record’s owner. A review must explicitly decide whether access is evaluated for the initiating user, document owner, or approved service identity; never substitute one for another implicitly.
 
-Introduce narrow authorized operations: search approved authorities, retrieve a pinned clause with context, inspect applicability facts, and search the evidence boundary. Tools accept run-bound source scope rather than arbitrary store/record arguments chosen by the model. Validate authorization again when dereferencing results. Treat source text and tool content as untrusted data; instructions embedded in a document cannot change tool permissions or the review rubric.
+Introduce narrow authorized operations: search the run’s knowledge-base scope, retrieve a pinned clause with context, inspect applicability facts, and search the evidence boundary. Tools accept run-bound source scope rather than arbitrary store/record arguments chosen by the model. Validate authorization again when dereferencing results. Treat source text and tool content as untrusted data; instructions embedded in a document cannot change tool permissions or the review rubric.
 
-Use the current scheduler, cancellation, budgets, and usage accounting where possible. Delivery phase 0 gives `processChunk` an error return and makes the block path propagate unit errors (§2.2); the new reviewer builds on that so failures cannot disappear into a successful empty result. Budget exhaustion should preserve completed assessments and mark unassessed obligations; finding caps must not masquerade as full coverage.
+Use the current scheduler, cancellation, budgets, and usage accounting where possible. Delivery phase 0 gives `processChunk` an error return and makes the block path propagate unit errors (§2.2); the new reviewer builds on that so failures cannot disappear into a successful empty result. Budget exhaustion should preserve completed assessments and mark unsearched activities and unassessed obligations; finding caps must not masquerade as full coverage, and an unsearched activity must never be reported as “no grounding artifacts found.”
 
 Current status progression can mark a fully progressed aspect successful even when output limits caused work to be skipped. `GetRequestWithFindings` also exposes findings through completed effective runs. Design partial-run retrieval and reporting explicitly so an overall failure neither hides valid completed assessments nor presents them as complete coverage.
 
@@ -512,20 +526,22 @@ Keep prompts in versioned files following current ChenWeb naming rules, with sep
 
 Apply Paraglide to English/Chinese UI copy. Server-generated findings and reports use the existing language-aware paths, preserving original evidence text. Existing prompts’ Chinese-output behavior is a compatibility consideration, not a reason to hard-code the new product to one language.
 
-Extend the report to show the assessment profile, date, evidence boundary, unknowns, and coverage alongside findings. Reports must not reveal an inaccessible company policy through snippets, metadata, or existence leaks.
+Extend the report to list results per activity, and to show the knowledge-base scope searched, assessment date, evidence boundary, unknowns, and coverage alongside findings. Reports must not reveal an inaccessible company policy through snippets, metadata, or existence leaks.
 
 ## 11. Evaluation: establish accuracy before expanding scope
 
 ### 11.1 Build a local gold set
 
-Create an independently annotated corpus of document snapshots, organization contexts, approved authority editions, and expected assessments. Two annotators label applicability, obligations, target/source evidence, and outcomes; adjudicate disagreements and record genuine ambiguity. Legal/policy interpretation requires qualified domain owners. Existing provision extraction gold sets can help with source spans, but do not substitute for compliance labels.
+Create an independently annotated corpus of document snapshots, organization contexts, a frozen knowledge-base snapshot and scope, and expected assessments. Two annotators label applicability, obligations, target/source evidence, and outcomes; adjudicate disagreements and record genuine ambiguity. Legal/policy interpretation requires qualified domain owners. Existing provision extraction gold sets can help with source spans, but do not substitute for compliance labels.
 
 Include at least these slices:
 
 * Explicit references versus implicit activities; ordinary declarative statements without modal words.
-* Mandatory, recommended, group, enterprise, and local standards; requirement (应) versus recommendation (宜) clauses.
-* Standards the reviewed document lists as normative references versus related standards it does not cite.
-* Missing obligations with no triggering sentence.
+* Activities with no grounding artifact in the knowledge base. The expected result is “no grounding artifacts found,” with no invented citation and no near-neighbor artifact promoted to grounding.
+* The same documents run against different knowledge-base scopes: the full scope, the scope with the governing artifacts excluded through `Filters.ExcludeRecordIDs` or a narrower `Filters.DocumentGroup`, and an empty scope. The activity list must stay the same; only grounding may change, and only where the scope changed.
+* Each source type and modal convention the knowledge base holds; today that means mandatory, recommended, group, enterprise, and local standards, and requirement versus recommendation clauses.
+* Documents the reviewed document lists as normative references versus related ones it does not cite.
+* Missing obligations with no triggering sentence, found only through the document-level activity.
 * Applicable and deliberately inapplicable near-neighbor authorities.
 * Correct and superseded editions, future effective dates, transition periods, and historical review dates.
 * Definitions, exceptions, cross-references, tables, numeric boundaries, and multi-section support.
@@ -541,8 +557,10 @@ Split by document family, organization/policy family, and source edition lineage
 
 | Stage | Metric or test | Why it matters |
 |---|---|---|
-| Activity discovery | Recall/precision of activity spans and issue families | Establishes whether the example sentence is even considered |
+| Activity discovery | Recall/precision of activity spans and issue families, including the document-level activity | Establishes whether the example sentence is even considered |
+| Knowledge-base independence | Activity lists identical across knowledge-base scopes; grounding changes only where the scope changed | Tests the §5.1 decision directly |
 | Authority retrieval | Recall@K at obligation and source-span level; ranking by channel | Separates missing candidates from reasoning errors |
+| No grounding | Precision of “no grounding artifacts found” when the knowledge base lacks the artifact; share of those cases where it holds one that search missed | Separates knowledge-base gaps from retrieval misses |
 | Applicability | Per-class precision/recall and unknown handling | Finds false application of unrelated law |
 | Evidence retrieval | Supporting and qualifying span recall; exception coverage | Measures whether reasoning saw the necessary context |
 | Assessment | Confusion matrix over evidence states; per-obligation precision/recall | Prevents “not documented” from collapsing into “contradicted” |
@@ -553,19 +571,20 @@ Split by document family, organization/policy family, and source edition lineage
 
 For a gold set with no relevant obligation, retrieval recall has no denominator; score false positives and correct abstention instead. Label sets may be incomplete for open-ended discovery, so adjudicate novel findings rather than automatically calling every unlabelled finding false.
 
-Use paired comparisons on the same cases: current legal/policy prompts; current provision reviewer; curated profile only; proposed combined engine. Ablate activity expansion, chunk fallback, exact citations, applicability filtering, and exception retrieval. This identifies which additional complexity pays for itself.
+Use paired comparisons on the same cases: current legal/policy prompts; current provision reviewer; proposed engine. Ablate activity expansion, the document-level activity, chunk fallback, exact citations, applicability filtering, and exception retrieval. This identifies which additional complexity pays for itself.
 
 ### 11.3 Proposed release gates
 
 These are proposed engineering gates, not measured results or legal assurance thresholds:
 
 * Every published adverse finding has valid target/source anchors, a pinned source edition, and an applicability rationale.
-* No access-boundary leak in adversarial tests; no failed or skipped unit reported as a completed assessment.
-* Candidate obligation recall@50 at least 95% on the selected profile’s held-out set, reported separately by language and implicit/explicit cases.
+* No cited artifact that the run did not retrieve from its recorded knowledge-base scope.
+* No access-boundary leak in adversarial tests; no failed or skipped unit reported as a completed assessment, and no unsearched activity reported as “no grounding artifacts found.”
+* Candidate obligation recall@50 at least 95% on the held-out set, reported separately by language and implicit/explicit cases.
 * Expert-adjudicated precision at least 95% for high-severity findings in the pilot, with confidence intervals and denominators. Recall and abstention must be reported alongside precision.
 * No known error in edition selection or applicability in the release’s mandatory critical regression cases.
 
-A handful of successful examples cannot establish the statistical precision gate. Choose sample size from the desired uncertainty interval and expected error rate. For scale: if the gate means the point estimate must reach 95% with an interval of about ±5 points, roughly 75 adjudicated high-severity findings are needed when true precision is near 95%. If it means the lower bound of a one-sided 95% interval must reach 95%, even a run with zero errors needs about 60 findings, and each error raises that number substantially. Every finding is labelled twice and adjudicated (§11.1), so the OpenSpec proposal must say which reading applies and budget annotation accordingly. If a gate is missed, narrow the approved profile, improve the deficient stage, or expose the result as assisted triage with unresolved conclusions; do not hide hard cases by raising a model confidence cutoff.
+A handful of successful examples cannot establish the statistical precision gate. Choose sample size from the desired uncertainty interval and expected error rate. For scale: if the gate means the point estimate must reach 95% with an interval of about ±5 points, roughly 75 adjudicated high-severity findings are needed when true precision is near 95%. If it means the lower bound of a one-sided 95% interval must reach 95%, even a run with zero errors needs about 60 findings, and each error raises that number substantially. Every finding is labelled twice and adjudicated (§11.1), so the OpenSpec proposal must say which reading applies and budget annotation accordingly. If a gate is missed, narrow the claimed scope (document types or source types), improve the deficient stage, or expose the result as assisted triage with unresolved conclusions; do not hide hard cases by raising a model confidence cutoff.
 
 ## 12. Delivery sequence and decisions
 
@@ -574,12 +593,12 @@ Delivery phases are numbered to keep them distinct from the doc-processor’s Ph
 | Delivery phase | Concrete output | Exit evidence |
 |---|---|---|
 | 0: fix current defects | `processChunk` gains an error return across all twenty implementing reviewers; block-path and artifact-review unit errors propagate; a failed or partial unit marks the aspect partial or failed. Selected reference documents reach `ReviewProcessor`, or the UI stops offering the selection until they do. Correct the stale standards-reviewer tool comment. | Tests showing a failed model call yields a failed unit, not an empty success; a test showing selected references reach the reviewer |
-| 1: corpus inventory and thin slice | The decisions in §1.1; the production knowledge-base inventory; chunk backfill and provision indexing for the chosen source standards; one hand-curated profile of about 20 obligations drawn from held standards; profile-led omission checks on 10–15 documents, judged by the profile owner | Evidence that omission checks find gaps the current reviewers miss, at acceptable cost; a go/no-go decision for the full gold set |
-| 2: baseline and gold set | Snapshot current reviewers; approve the first profile’s source standards and organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
-| 3: discovery and applicability | Activity records, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics and adversarial access tests |
-| 4: assessment | Profile-led omission search, source-grounded comparisons, deterministic verifier, coverage records | Stage metrics, failure propagation, golden example cases |
+| 1: corpus inventory and thin slice | The decisions in §1.1; the production knowledge-base inventory; chunk backfill and provision indexing across the knowledge base; activity detection, knowledge-base search, and per-activity reports on 10–15 documents chosen to include activities the knowledge base covers and activities it does not; each run repeated with a narrowed scope; judged by the adjudicator | Per-activity grounding finds artifacts and gaps the current reviewers miss, at acceptable cost; activity lists unchanged across scopes; a go/no-go decision for the full gold set |
+| 2: baseline and gold set | Snapshot current reviewers; freeze a knowledge-base snapshot and scope for the gold set; record organization context; annotate gold cases | Reproducible baseline, known source coverage, adjudicated labels |
+| 3: discovery and applicability | Activity records including the document-level activity, multi-channel retrieval, source/version records, applicability decisions, questions | Retrieval/applicability metrics, knowledge-base independence tests, adversarial access tests |
+| 4: assessment | Per-artifact requirement comparison and whole-boundary omission screening, deterministic verifier, coverage records | Stage metrics, failure propagation, golden example cases |
 | 5: pilot | Optional new aspect, bilingual views/reporting, human dispositions; compare with existing reviewers | Held-out evaluation, precision/recall/abstention, operating cost |
-| 6: expansion | Additional source types (laws, regulations, company policies, contracts, external acquisition), organization/jurisdiction profiles, corpus change impact, selected formal predicates | New profile-specific evaluation; no assumed transfer from pilot |
+| 6: expansion | More sources in the knowledge base (laws, regulations, company policies, contracts) and an external acquisition workflow, none of which needs reviewer changes; organization and jurisdiction facts; corpus change impact; selected formal predicates | Evaluation on the new content; no assumed transfer from pilot |
 
 Phase 0 is ordinary bug fixing and needs no proposal. Phase 1 is small enough to run before the full annotation effort and shows whether that effort is worth funding. From phase 2 onward, implementation should begin with an OpenSpec proposal defining applicability, evidence states, source authorization, versioning, and failure semantics. This research is input to that proposal, not its approved contract. Estimates need a corpus inventory and annotation budget; a credible schedule cannot be inferred from the number of existing reviewer files.
 
@@ -588,15 +607,17 @@ Key decisions recommended now:
 1. Fix the two current reviewer defects (§2.2) before new engine work.
 2. Make the §1.1 decisions and run the corpus inventory before annotating a gold set.
 3. Build one common assessment engine and one initial optional aspect.
-4. Combine activity-led discovery with profile-led omission checks.
-5. Ground the first iteration in the existing knowledge base through the hybrid search engine (decided 2026-11-11); add other source types and external acquisition later.
-6. Keep applicability, evidence, and execution as distinct states.
+4. Find omissions through activities, including the document’s own, rather than through curated profiles.
+5. Ground every result in the knowledge base through the hybrid search engine, with an algorithm that does not depend on what the knowledge base holds (decided 2026-11-11). Adding sources improves results without changing the reviewer.
+6. Keep grounding, applicability, evidence, and execution as distinct states.
 7. Treat existing artifacts as accelerators, with original chunks as evidence fallback.
 8. Require measured local performance before broad legal or cross-jurisdiction claims.
 
 ## 13. Known limitations and outstanding choices
 
-The first iteration’s source scope is decided (§5.1), but no profile subject, organization role, product or service scope, or adopted standard list was supplied. The architecture accommodates them; the initial operational profile still needs its owner to select them, and §1.1 lists them as the decisions needed before delivery phase 1. The logging examples deliberately do not choose these facts for the user.
+The source scope is decided (§5.1): the knowledge base, whatever it holds. No evaluation documents, organization context, or adjudicator were supplied; §1.1 lists them as the decisions needed before delivery phase 1. A missing organization fact makes applicability `unknown`; it does not stop a run. The logging examples deliberately do not choose these facts for the user.
+
+Dropping curated profiles leaves omission coverage to the document-level activity (§3.3). Whether that finds untriggered obligations as reliably as a checklist would is untested; the gold set’s “no triggering sentence” slice measures it.
 
 This inspection describes the working-tree code, not a production deployment. It did not inventory the production knowledge base (§1.1 makes that the first piece of work; the development database is not representative), verify deployed prompt versions, run model-backed compliance tests, measure the deployed system, or inspect licensed standard clauses. It identifies code-level limits and proposes measurable remedies. Research examples are not a complete legal analysis of logging in every jurisdiction.
 
@@ -604,11 +625,11 @@ EUR-Lex exposed relevant GDPR material through search, but direct full-text retr
 
 Legal force, exceptions, and conflicts can remain ambiguous after retrieval. The engine must preserve uncertainty and support expert review. Human dispositions also need governance: acceptance of one finding is not automatically permission to rewrite the governing rule or retrain the model.
 
-Implementation choices still needing an explicit contract include profile ownership, supported jurisdictions, legal source update service levels, retention of assessment evidence, handling of revoked access to historical reports, and whether any external acquisition is permitted for confidential reviews.
+Implementation choices still needing an explicit contract include who decides the knowledge-base scope a review may search, supported jurisdictions, legal source update service levels, retention of assessment evidence, handling of revoked access to historical reports, and whether any external acquisition is permitted for confidential reviews.
 
 ## 14. Documentation impact
 
-**Knowledge added:** Current compliance reviewers assess independent chunks or blocks; provision comparison is source-grounded but begins from extracted provisions. Reliable compliance review requires separate discovery, applicability, evidence assessment, source governance, and coverage accounting. The first iteration grounds sources only in the existing Chinese standards-heavy knowledge base through the hybrid search engine (decided 2026-11-11), which makes standard type, adoption through normative references, modal wording, and edition selection central to applicability.
+**Knowledge added:** Current compliance reviewers assess independent chunks or blocks; provision comparison is source-grounded but begins from extracted provisions. Reliable compliance review requires separate discovery, applicability, evidence assessment, source governance, and coverage accounting. The reviewer grounds every result in the knowledge base through the hybrid search engine, and its algorithm does not depend on what the knowledge base holds (decided 2026-11-11): an empty knowledge base yields “no grounding artifacts found” for every activity, and a richer one yields better results with no reviewer change. Omissions are found through activities, including the document’s own, instead of curated profiles. Source-type conventions, such as Chinese standard types and modal wording, are data the one analysis procedure reads.
 
 **Documents/specs/tests affected by a future implementation:** The doc-processor capsule and document-review spec, existing document-review ADRs, reviewer configuration documentation, the provision reviewer’s boundary description, source/version and authorization contracts, report schema, user manual, module catalog, and stage/end-to-end tests described above.
 
