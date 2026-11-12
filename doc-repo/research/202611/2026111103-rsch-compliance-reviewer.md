@@ -1,7 +1,7 @@
 # Compliance reviewer — research, current implementation, and proposed design
 
 **Date:** 2026-11-11 (America/Chicago) \
-**Status:** Research and design proposal; the proposed reviewer is not implemented. Formerly filed as `devdocs/202611/2026111103-devdoc-compliance-reviewer-research.md`. \
+**Status:** Research and design proposal. Delivery phase 1 thin slice implemented 2026-11-12 (`ChenWeb/server/api/doc-reviews/review-compliance.go`, aspect `compliance`, per chunk): activity detection incl. the document-level activity, `searchengine.Search` over provisions and chunks, per-activity candidates / none-found rows. Retrieval results are reported as candidates, not analysis-accepted grounding; applicability, requirement comparison, gaps, verifier, run manifest and coverage report (phases 3-4) are not built. Formerly filed as `devdocs/202611/2026111103-devdoc-compliance-reviewer-research.md`. \
 **Scope:** Detecting the activities a document describes that rules could govern, and grounding each one in the laws, regulations, standards, contracts, and policies the knowledge base holds, including obligations the document never names. \
 **Ground sources:** The knowledge base, whatever it holds, searched through the hybrid search engine. The reviewer’s algorithm does not depend on the knowledge base’s contents; a richer knowledge base gives better results. The first iteration runs on the existing production knowledge base, which is mostly Chinese standards; later iterations may add sources (decided 2026-11-11, §5.1). \
 **Code roots:** `ChenWeb/server/api/doc-reviews`, `ChenWeb/server/api/doc-processing`, `ChenWeb/server/api/searchengine`, `ChenWeb/server/api/kbsearch`.
