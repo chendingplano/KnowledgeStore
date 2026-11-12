@@ -24,10 +24,18 @@ The first chunk also gets one extra step: the reviewer identifies what the docum
 
 ### Per-chunk procedure (`processChunk`)
 
-1. **Detect activities.** One JSON call with the configured prompt over the chunk lines. The reviewer never reads the knowledge base in this step, so the activity list does not depend on what the knowledge base holds. Expected output: `{"activities":[{activity, source_text, line_start, line_end, actor, action, object, purpose, search_queries[]}]}`. A missing or non-array `activities`, a non-object entry, or an entry without `activity` or `source_text` is an error. `search_queries` is capped at 3; if absent, `source_text` is the query.
+1. **Detect activities.** One JSON call with the configured prompt over the chunk lines. The reviewer never reads the knowledge base in this step, so the activity list does not depend on what the knowledge base holds. Expected output (minified): `{"activities":[{activity, line_start, line_end, object, search_queries[]}]}`; `actor`, `action`, `purpose` appear only when the text states them. The model does not repeat the quote: `source_text` is taken from the chunk lines `line_start..line_end` (capped at 400 characters), though a model-supplied `source_text` is still accepted. A missing or non-array `activities`, a non-object entry, or an entry without `activity` or any derivable `source_text` is an error. `search_queries` is capped at 3; if absent, `source_text` is the query.
 2. **Document-level activity (chunk index 0 only).** A second JSON call with the prompt named by `doc_activity_prompt`, same output shape (at most one activity, `object` is the document's subject). Its rows come first. If `doc_activity_prompt` is empty, chunk 0 fails with an error naming the key.
-3. **Search.** For every query of every activity, `searchengine.Search` with `ArtifactTypes = ["provision","chunk"]`, `ExcludeRecordIDs = [reviewed record]`, limit 10, and no `MinCosine`. Results are de-duplicated per activity by artifact type and id.
+3. **Search.** For every query of every activity, `searchengine.Search` with `ArtifactTypes = ["provision","chunk"]`, `ExcludeRecordIDs` = the reviewed record plus every record with the same `kb.inputs.md5` (a re-uploaded copy; looked up once per reviewed record), limit 10, and `MinCosine` from `min_cosine` (unset = no floor). Results are de-duplicated per activity by artifact type and id.
 4. **Report.** One row per activity (see below).
+
+### Token economy
+
+The compliance calls are the most expensive review calls, so both directions are trimmed (call `llm-e4d68706` on record 416: 8,990 input and 25,716 output tokens, of which 19,029 were reasoning).
+
+- **Reasoning off.** `thinking_type = "disabled"` in `[reviewers.compliance]` overrides the model profile for this reviewer only (`ReviewAspectConfig.ThinkingType`, `docprocessing.BuildReviewerLLMClientWithThinking`). Without it DeepSeek thinks by default.
+- **Compact input (shared by all document reviewers).** `docprocessing.RawLinesToCompactJSON` (aliased as `rawLinesToJSON` in `doc-reviews`) encodes the lines as a table: a first row naming the columns (`flag, line_number, page_number, line_type, content`) and one bare value array per line. No field is dropped, so the other reviewers' prompts, which refer to those fields by name, still hold; only the per-line keys go (for call `llm-e4d68706` the document part went from 21.6 KB to about 11 KB of JSON). Topic extraction and other processors keep `rawLinesToJSON`. Because every reviewer sends the same text, the document-first prefix is shared again. Artifact-window reviewers use their own `blockLinesToJSON` and are unchanged.
+- **Compact output.** Prompts `-v2`: minified JSON, no quote, empty fields omitted, flat bilingual keyword lists, at most 2 searches per activity, neighbouring lines merged into one activity.
 
 ### Result rows
 
@@ -35,8 +43,8 @@ All rows are `ReviewFinding` with `Pass="P5"`, `Aspect="compliance"`, `Severity=
 
 | `FindingType` | Meaning | Content |
 |---|---|---|
-| `compliance_grounding_candidates` | The search returned at least one artifact | Description lists each as `[type id] record N title: snippet`; `RelatedArtifactID`/`RelatedRecordID` hold the top hit |
-| `compliance_no_grounding` | The search completed and returned nothing | Fixed sentence stating this does not mean the activity is unregulated |
+| `compliance_grounding_candidates` | The search returned at least one artifact | Description lists each as `[type id] (cosine X) record N title: snippet` (cosine only when the search had a query vector); `RelatedArtifactID`/`RelatedRecordID` hold the top hit |
+| `compliance_no_grounding` | The search completed and returned nothing (with a floor: nothing at or above it) | Fixed sentence stating this does not mean the activity is unregulated |
 
 Titles are "Grounding candidates found: <activity>" and "Activity with no grounding candidates found: <activity>"; the document-level activity is labelled `document: <object>`. These titles and the fixed sentence are English only and are not yet passed through the finding translator or any locale path.
 
@@ -55,11 +63,13 @@ checked = false                 # not preselected in the UI
 group = "P5"
 input = "per-chunk"
 model = "deepseek-flash-processor"   # same profile name the other reviewers use
-prompt = "prompt-review-compliance-v1.md"
-doc_activity_prompt = "prompt-review-compliance-document-activity-v1.md"
+prompt = "prompt-review-compliance-v2.md"
+doc_activity_prompt = "prompt-review-compliance-document-activity-v2.md"
+thinking_type = "disabled"
+# min_cosine = 0.55            # optional relevance floor, 0..1 (rejected outside); unset = no floor
 ```
 
-`doc_activity_prompt` is a field of `ReviewAspectConfig` (`review-config.go`). Both prompts are in `ChenWeb/prompts/`; text is never in Go. Prompt files are read relative to the `ChenWeb` working directory (`loadPromptByRef`). The aspect is not in any tier list.
+`doc_activity_prompt` is a field of `ReviewAspectConfig` (`review-config.go`). Both prompts (v2; v1 is superseded) are in `ChenWeb/prompts/`; text is never in Go. Prompt files are read relative to the `ChenWeb` working directory (`loadPromptByRef`). The checkbox appears in the UI only when the aspect is listed in a tier, because the screen builds each level's list from the tier lists. `compliance` is listed under `review-regulated` in `config.local.toml` (gitignored, so repeat it on every deployment; the config is read at start, restart the API after changing it). Without that entry the aspect exists in `/aspects` but no level shows it.
 
 ### Tests
 
@@ -67,6 +77,7 @@ doc_activity_prompt = "prompt-review-compliance-document-activity-v1.md"
 
 ## Known limitations
 
+- Without `min_cosine` nothing is a "no grounding" case in practice: top-10 search always returns ten results (trial 2026-11-12, 151 of 151 activities got candidates, including near-miss topical neighbours). The floor value is not chosen yet; it needs the gold set (openspec `compliance-reviewer-phase2`). Only byte-identical copies are excluded; another edition or re-typeset file still appears.
 - Candidates are raw search results. Nothing yet decides whether a rule applies (territory, role, edition, effective date), compares requirements with the document, or reports requirements the document omits. Research phases 3 and 4 add these.
 - No run manifest or coverage report: the knowledge-base scope searched and how much of it is indexed are not recorded in the output. The search is not narrowed to a knowledge store or document group.
 - Only indexed records can be found. Chunk rows need the chunk backfill; provision rows need `extract_provisions`. An unindexed record is invisible to the reviewer without any warning.
