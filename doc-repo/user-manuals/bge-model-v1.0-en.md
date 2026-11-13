@@ -11,7 +11,7 @@
 | owner | Not specified |
 | audience | People evaluating or using semantic search and document retrieval |
 | create-time | 2026-11-13T10:20:24-06:00 |
-| last-modify-time | 2026-11-13T10:20:24-06:00 |
+| last-modify-time | 2026-11-13T10:22:45-06:00 |
 | keywords | BGE, BAAI, BGE-M3, embeddings, semantic search, multilingual search, retrieval, reranking |
 
 ## What BGE can help you do
@@ -54,6 +54,25 @@ A search system may combine approaches. Test the choices on your own questions a
 
 For BGE-M3, the published dense embedding has **1,024 dimensions**, and the model card lists a maximum sequence length of **8,192 tokens**. The application may impose a lower limit or truncate text. Other BGE models have different dimensions and limits. [BAAI's BGE-M3 model card](https://huggingface.co/BAAI/bge-m3) lists the variants and specifications.
 
+## Configuring BGE-M3 for search
+
+The model is normally configured by the person running the search application. The names and availability of settings depend on the software used; the choices below are a checklist, not a description of a particular settings screen.
+
+| Choice | Effect and guidance |
+| --- | --- |
+| Model and version | Select the exact model, such as `BAAI/bge-m3`, and record its revision. Use compatible query and document representations. Changing models or representation settings generally requires rebuilding the affected index. |
+| Retrieval outputs | Choose dense, sparse, multi-vector, or a supported combination. Enable only the outputs the search system can store and use. Hybrid search needs a way to combine or rank results. |
+| Maximum input length | Set a token limit appropriate for the text and available resources. BGE-M3 supports up to 8,192 tokens; a lower limit can speed encoding, but text beyond the configured limit may be truncated. Check how your application handles long inputs. |
+| Chunk size and overlap | Decide how the application divides documents and whether adjacent chunks share text. Smaller chunks can make passages easier to pinpoint; larger chunks preserve more context. Test with representative documents, and rebuild the index when chunking changes. |
+| Processing batch size | Decide how many inputs are encoded together. Larger batches may improve throughput but use more memory; reduce the batch size if processing runs out of memory. |
+| Hardware and numerical precision | Choose the available CPU or accelerator and a precision supported by the runtime. The official examples offer half precision (`use_fp16`); benchmark speed, memory use, and result quality on your hardware before adopting it. |
+| Search and reranking | Configure the number of candidates retrieved and, if available, the separate reranker and its candidate count. More candidates can improve coverage but add work and latency. |
+| Similarity and index | Use a similarity measure and index compatible with the embedding and normalization used by the application. Record the settings and validate ranking on your own queries. |
+
+For a starting setup, use BGE-M3 dense retrieval with document chunks that fit the configured token limit, then evaluate search results on a small set of representative questions. Add sparse retrieval or reranking if the application supports it and testing shows a benefit. There is no universal best chunk size, batch size, or relevance threshold.
+
+The [official BGE-M3 tutorial](https://bge-model.com/tutorial/1_Embedding/1.2.4.html) explains the model's outputs and input-length setting. Actual defaults, query and document limits, data storage, access controls, and deployment location are application-specific and need confirmation from the system administrator.
+
 ## Using a BGE-powered search
 
 Enter a clear question or short description of the information you need. Include distinctive terms, such as an equipment type or section number, when they matter. Review the returned passage and open its source to check the surrounding text, document version, and applicability. If a result is missing, try a synonym, a more specific query, or an exact identifier; available filters depend on the application.
@@ -88,4 +107,5 @@ Check the source document rather than treating a result as an authoritative answ
 
 | Version | Timestamp | Author | Reason and summary |
 | --- | --- | --- | --- |
+| 1.0 | 2026-11-13T10:22:45-06:00 | Codex | Added configuration choices and operational tradeoffs. |
 | 1.0 | 2026-11-13T10:20:24-06:00 | Codex | Initial manual explaining BGE and BGE-M3 for search users. |
