@@ -75,7 +75,9 @@ When product rows already exist, an ordinary run skips extraction for that docum
 
 ## Operator settings and troubleshooting
 
-The model, prompts, and operational settings are configured in the processor's environment. Operators should verify the configuration used by the running service, especially when comparing environments. Model references are resolved through `MODEL_DEF_FILE`.
+Administrators can configure product extraction in **System Admin → Doc Processing Pipeline → Configurations → Config Extract Products**. The page saves overrides alongside the pipeline defaults in `extract-products-config.json`. Blank fields inherit the processor launch environment and its defaults. Restart the document processor to apply saved changes; the web server and processor must resolve the same configuration directory. Unsaved edits are kept in the current browser tab when navigating away.
+
+The model, prompts, and operational settings are also configured in the processor's environment; saved page overrides take precedence. Operators should verify the configuration used by the running service, especially when comparing environments. Model references are resolved through `MODEL_DEF_FILE`.
 
 | Setting | Purpose |
 | --- | --- |
