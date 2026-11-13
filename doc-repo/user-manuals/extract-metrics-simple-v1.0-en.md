@@ -16,11 +16,17 @@
 
 ## What it does
 
-`extract_metrics_simple` finds measurable values in a document and stores them as metrics for review and further document processing. It is useful when a team wants to compare a lower-cost extraction method with `extract_metrics` and decide whether its quality is sufficient for a particular use.
+`extract_metrics_simple` finds measurable values in a document and stores 
+them as metrics for review and further document processing. It is a simplified 
+version of `extract_metrics`, aiming at reducing the cost of the extraction
+without sacrificing much quality.
 
 A metric describes a measurable property, its value, and any stated conditions. For example, “total arsenic must be no more than 15 mg/kg” describes a property, an upper limit, and a unit. Conditions such as a test environment or method can change how a value should be interpreted, so check them against the source document.
 
-As of the specification dated November 1, 2026, this processor is built and **opt-in**; it is not in the default processor list. Its availability in a particular installation depends on its configuration.
+Refer to the `Doc processing pipeline configuration` for how to configure this processor.
+
+**Note** If you select `extract_metrics_simple`, do not select `extract_metrics`. These
+two should be mutually exclusive.
 
 ## Choosing an extractor
 

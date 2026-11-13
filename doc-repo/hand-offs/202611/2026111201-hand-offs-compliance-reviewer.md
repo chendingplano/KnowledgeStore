@@ -34,5 +34,7 @@
 
 ## Gotchas
 
+- The checkbox was missing from the UI because `compliance` was not in any tier list. Added to `review-regulated` in `ChenWeb/config.local.toml` (gitignored, not committed) on 2026-11-12; needs an API restart and the same entry on production.
+
 - Prompt files are resolved relative to the `ChenWeb` directory; tests therefore inject the prompt loader.
 - `gofmt` also re-aligned about 30 lines of `review-config.go` when `doc_activity_prompt` was added; `review-document.go` and `aspects_test.go` were unformatted before this work and were left alone.
