@@ -9,8 +9,8 @@
 - **owner:** Not specified
 - **audience:** Document-processing users, reviewers, and operators
 - **create-time:** 2026-11-13T04:57:48-06:00
-- **last-modify-time:** 2026-11-13T05:19:26-06:00
-- **keywords:** extract_products, product extraction, product relations, document processing, evidence, product review, knowledge base
+- **last-modify-time:** 2026-11-13T05:42:13-06:00
+- **keywords:** extract_products, product extraction, product relations, document processing, evidence, product review, knowledge base, product catalog, categories, translation
 
 ## What Extract Products does
 
@@ -33,6 +33,12 @@ Each result represents a product and a relationship between that product and the
 
 For example, if a document defines a container and also states a storage requirement for it, the results may include separate relationships for the definition and the requirement. Review the evidence and the wording of each row in context; an empty field means no value was recorded and does not prove that the document contains none.
 
+### Product categories
+
+Categories come from the product-name catalog, not from an AI category guess. When a product name matches a catalog entry that has a category, the processor copies that category into the result. When no name matches, it proposes a name for review without a category. A result can also lack a category if its matched catalog entry has none or name resolution could not run. An empty category therefore does not mean that the product cannot be categorized.
+
+The `category_paths` field holds the catalog category when one is available. `category_paths_en` is left empty because the catalog does not provide English category labels. Translating product text does not translate categories.
+
 ## Processing phases
 
 Chunking must complete before product extraction. “Required” below describes the normal full extraction workflow; the testing-only first-pass mode stops early.
@@ -44,7 +50,7 @@ Chunking must complete before product extraction. “Required” below describes
 | Pass 2: relationship enrichment | Product–document relationships, summaries, evidence, requirements, conditions, exceptions, parameters and actors when found. | Required in the standard full workflow; replaced by the merged pass, or skipped in first-pass-only testing. | `ENRICH_PRODUCT_MENTION_PROMPT`, `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME` |
 | Merged pass | Product mentions and their relationships together, with evidence and other supported details. | Optional alternative to Pass 1, Step A and Pass 2. | `EXTRACT_PRODUCTS_MERGED_PASS`, `EXTRACT_PRODUCT_MERGED_PROMPT`, `EXTRACT_PRODUCT_MENTIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME` |
 | Step B: final deduplication | Removes duplicate product–relationship rows; no LLM call. | Runs after relationship extraction in a full standard or merged run. | `EXTRACT_PRODUCT_PASS_1_ONLY` skips it in testing mode. |
-| Pass 3a: translation | English versions of supported extracted text fields. | Optional; enabled when the translation prompt and a usable translation model are available. Individual failed batches or rows can remain untranslated. | `TRANSLATE_PRODUCTS_PROMPT`, `TRANSLATION_MODEL_NAME`, `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME`, `TRANSLATE_PRODUCTS_BATCH_SIZE`, `TRANSLATE_PRODUCTS_THINKING` |
+| Pass 3a: translation | English versions of supported extracted text fields. | On by default when the translation prompt and a usable translation model are available; can be switched off. Individual failed batches or rows can remain untranslated. | `EXTRACT_PRODUCT_TRANSLATION`, `TRANSLATE_PRODUCTS_PROMPT`, `TRANSLATION_MODEL_NAME`, `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME`, `TRANSLATE_PRODUCTS_BATCH_SIZE`, `TRANSLATE_PRODUCTS_THINKING` |
 | Pass 3b: name and category resolution | Matches names to the product catalog and copies available catalog categories; proposes unmatched names for review. No LLM call. | Runs in a full standard or merged run; skipped in first-pass-only testing. Unmatched names may have no category. | `EXTRACT_PRODUCTS_MAX_TASKS`; `CATEGORIZE_PRODUCTS_MODEL_NAME` is retired and is not used. |
 | Storage and indexing | Saves rows in `kb.products`, writes a `.products` artifact and updates product indexes. | Part of a normal completed full run. First-pass-only testing saves incomplete candidate rows. | `ARTIFACT_DIR` |
 
@@ -83,6 +89,7 @@ The model, prompts, and operational settings are configured in the processor's e
 | `EXTRACT_PRODUCTS_MERGED_PASS` | Enables the combined per-chunk extraction call; defaults to `false`. |
 | `EXTRACT_PRODUCTS_REASONING` | Controls provider-side thinking for mention, relation, merged and fallback extraction models. Default `true` preserves each model's configured thinking setting; `false` forces it off. It does not govern translation and can affect extraction quality. |
 | `EXTRACT_PRODUCTS_MAX_TASKS` | Maximum concurrent tasks for supported phases; default 1. |
+| `EXTRACT_PRODUCT_TRANSLATION` | Set to `on` to enable translation or `off` to skip it; default `on`. A usable prompt and translation model are also required. Restart the processor after changing it. Category resolution still runs when translation is off. |
 | `TRANSLATE_PRODUCTS_PROMPT` | Translation prompt; defaults to `prompt-translate-products-v2.md`. |
 | `TRANSLATION_MODEL_NAME` | Translation model; falls back to `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, then `EXTRACT_PRODUCT_MODEL_NAME`. |
 | `TRANSLATE_PRODUCTS_BATCH_SIZE` | Number of product rows per translation call; default 10. |
@@ -93,7 +100,7 @@ The model, prompts, and operational settings are configured in the processor's e
 
 For boolean values in `mise.local.toml`, use quoted strings such as `"false"`; a bare TOML `false` unsets the variable, which can cause the processor's default to apply. Prompt and model settings in the launch environment can override defaults.
 
-If no results appear, check that chunking succeeded, that the correct document was selected, and that the processor was included and completed. Existing results cause an ordinary run to skip extraction. If a run reports a model, prompt, or artifact error, an operator should check the service configuration and logs. If results lack relationships or categories, check whether the testing-only first-pass setting was enabled. Absence of a translated field may also reflect disabled translation or missing source content.
+If no results appear, check that chunking succeeded, that the correct document was selected, and that the processor was included and completed. Existing results cause an ordinary run to skip extraction. If a run reports a model, prompt, or artifact error, an operator should check the service configuration and logs. If results lack relationships or categories, check whether the testing-only first-pass setting was enabled. For missing categories in a full run, check the linked catalog entry and processor logs; newly proposed names have no category until curated. A translated field may be empty because translation is off, its prompt or model is unavailable, its batch or row failed, the source content is missing, or the source is already English.
 
 ## Further information
 
@@ -104,5 +111,6 @@ If no results appear, check that chunking succeeded, that the correct document w
 
 | Version | Timestamp | Author | Reason | Summary |
 | --- | --- | --- | --- | --- |
+| 1.0 | 2026-11-13T05:42:13-06:00 | Codex | Document translation control and clarify categories | Added the translation switch, catalog category behavior, and guidance for empty fields. |
 | 1.0 | 2026-11-13T05:19:26-06:00 | Codex | Clarify processing and configuration | Added phase requirements, merged-call behavior, and environment settings. |
 | 1.0 | 2026-11-13T04:57:48-06:00 | Codex | Initial manual | Described product extraction, reviewing results, reruns, and operator settings. |
