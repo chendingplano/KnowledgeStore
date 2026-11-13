@@ -6,7 +6,7 @@
 
 ## Summary
 
-The System Monitor shows recent runtime logs for nine workspace services in separate windows. An administrator can follow output, pause each window, search, set a time range, change its size, and hide or reopen it. Settings and scroll positions are retained while navigating away and back during the browser session.
+The System Monitor shows recent runtime logs for nine workspace services in separate windows. An administrator can follow output, pause each window, search, set a time range, change its size, and hide or reopen it. Windows can be moved independently and resized by their handles or keyboard; their initial arrangement flows in rows. The Windows menu closes on an outside click, and this view omits the site footer. Settings and scroll positions are retained while navigating away and back during the browser session.
 
 ## Details
 

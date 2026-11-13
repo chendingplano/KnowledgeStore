@@ -8,7 +8,7 @@ author: Not specified
 owner: Not specified
 audience: ChenWeb administrators monitoring workspace services
 create-time: 2026-11-13T08:56:57-06:00
-last-modify-time: 2026-11-13T08:56:57-06:00
+last-modify-time: 2026-11-13T10:12:42-06:00
 keywords: system monitor, runtime logs, live logs, service logs, streaming, pause, time filter, search, troubleshooting
 ---
 
@@ -51,9 +51,10 @@ Time filtering works only for timestamps the monitor recognizes, such as `2026-1
 
 ## Arrange the windows
 
-- Open **Windows** at the top of the page and select or clear a service's checkbox to show or hide its window.
+- Open **Windows** at the top of the page and select or clear a service's checkbox to show or hide its window. Click outside the menu to close it.
 - Select **×** on a window to hide it. To bring it back, select it again in **Windows**.
-- Change a window's **Width** and **Height** values to adjust its size. Windows flow into rows as space permits.
+- Drag the grip beside a window's name to move it. The windows start in rows and can overlap when moved.
+- Drag the grip at a window's lower-right corner to resize it, or change its **Width** and **Height** values. You can also focus either grip and use the arrow keys to move or resize the window.
 
 Your window choices, searches, filters, and other page state remain available when you navigate away through the menu and return during the same browser session. Closing a window hides it; it does not stop the service.
 
@@ -68,4 +69,5 @@ Your window choices, searches, filters, and other page state remain available wh
 
 | Version | Timestamp | Author | Reason and summary |
 | --- | --- | --- | --- |
+| 1.0 | 2026-11-13T10:12:42-06:00 | Not specified | Document menu dismissal and moving and resizing windows. |
 | 1.0 | 2026-11-13T08:56:57-06:00 | Not specified | Initial manual for the System Monitor and its log windows. |
