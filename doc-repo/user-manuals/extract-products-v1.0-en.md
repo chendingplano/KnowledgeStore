@@ -9,7 +9,7 @@
 - **owner:** Not specified
 - **audience:** Document-processing users, reviewers, and operators
 - **create-time:** 2026-11-13T04:57:48-06:00
-- **last-modify-time:** 2026-11-13T04:57:48-06:00
+- **last-modify-time:** 2026-11-13T05:19:26-06:00
 - **keywords:** extract_products, product extraction, product relations, document processing, evidence, product review, knowledge base
 
 ## What Extract Products does
@@ -33,11 +33,26 @@ Each result represents a product and a relationship between that product and the
 
 For example, if a document defines a container and also states a storage requirement for it, the results may include separate relationships for the definition and the requirement. Review the evidence and the wording of each row in context; an empty field means no value was recorded and does not prove that the document contains none.
 
-## How processing works
+## Processing phases
 
-The document must first be processed into chunks. In the standard workflow, the processor finds product mentions in those chunks, combines duplicate candidates, and then identifies their relationships to the document. It removes duplicate result rows, optionally translates fields, and resolves product names and categories against the product catalog. An alternative merged mode combines mention detection and relationship extraction into one step; its results still go through later processing.
+Chunking must complete before product extraction. “Required” below describes the normal full extraction workflow; the testing-only first-pass mode stops early.
 
-The resulting records are saved in `kb.products`. A normal completed run also writes a `.products` artifact and updates product indexes. Product names that do not match an existing catalog entry can be proposed for later catalog review; a proposed name is not the same as an approved catalog entry.
+| Phase | What it produces | Required or optional | Related environment variables |
+| --- | --- | --- | --- |
+| Pass 1: product mentions | Product names, type hints, evidence, and confidence from each document chunk. | Required in the standard workflow; replaced by the merged pass when enabled. | `EXTRACT_PRODUCT_MENTIONS_PROMPT`, `EXTRACT_PRODUCT_MENTIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME` |
+| Step A: merge mentions | Deduplicated product candidates assembled from the mentions; no LLM call. | Required in the standard workflow, including first-pass-only testing; replaced by the merged pass when enabled. | `EXTRACT_PRODUCTS_MERGED_PASS`, `EXTRACT_PRODUCT_PASS_1_ONLY` |
+| Pass 2: relationship enrichment | Product–document relationships, summaries, evidence, requirements, conditions, exceptions, parameters and actors when found. | Required in the standard full workflow; replaced by the merged pass, or skipped in first-pass-only testing. | `ENRICH_PRODUCT_MENTION_PROMPT`, `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME` |
+| Merged pass | Product mentions and their relationships together, with evidence and other supported details. | Optional alternative to Pass 1, Step A and Pass 2. | `EXTRACT_PRODUCTS_MERGED_PASS`, `EXTRACT_PRODUCT_MERGED_PROMPT`, `EXTRACT_PRODUCT_MENTIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME` |
+| Step B: final deduplication | Removes duplicate product–relationship rows; no LLM call. | Runs after relationship extraction in a full standard or merged run. | `EXTRACT_PRODUCT_PASS_1_ONLY` skips it in testing mode. |
+| Pass 3a: translation | English versions of supported extracted text fields. | Optional; enabled when the translation prompt and a usable translation model are available. Individual failed batches or rows can remain untranslated. | `TRANSLATE_PRODUCTS_PROMPT`, `TRANSLATION_MODEL_NAME`, `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, `EXTRACT_PRODUCT_MODEL_NAME`, `TRANSLATE_PRODUCTS_BATCH_SIZE`, `TRANSLATE_PRODUCTS_THINKING` |
+| Pass 3b: name and category resolution | Matches names to the product catalog and copies available catalog categories; proposes unmatched names for review. No LLM call. | Runs in a full standard or merged run; skipped in first-pass-only testing. Unmatched names may have no category. | `EXTRACT_PRODUCTS_MAX_TASKS`; `CATEGORIZE_PRODUCTS_MODEL_NAME` is retired and is not used. |
+| Storage and indexing | Saves rows in `kb.products`, writes a `.products` artifact and updates product indexes. | Part of a normal completed full run. First-pass-only testing saves incomplete candidate rows. | `ARTIFACT_DIR` |
+
+Yes: when `EXTRACT_PRODUCTS_MERGED_PASS=true`, one LLM call **per document chunk** detects products and extracts their relationships together. It replaces Pass 1, Step A and Pass 2, not the later deduplication, optional translation, catalog resolution or storage. Additional calls can occur for retries or translation. The merged pass uses the mention model and `EXTRACT_PRODUCT_MERGED_PROMPT`. With the flag unset or `false`, the standard separate passes run. If both merged and first-pass-only modes are enabled, merged mode takes precedence.
+
+`EXTRACT_PRODUCTS_MAX_TASKS` controls concurrency across extraction tasks and is also used in translation and catalog resolution. `EXTRACT_PRODUCTS_REASONING` and `EXTRACT_PRODUCT_MODEL_FALLBACK` apply to extraction calls as described below.
+
+The resulting records are saved in `kb.products`. A product name proposed for catalog review is not the same as an approved catalog entry.
 
 ## Run and review
 
@@ -54,15 +69,29 @@ When product rows already exist, an ordinary run skips extraction for that docum
 
 ## Operator settings and troubleshooting
 
-The model, prompts, and operational settings are configured in the processor's environment. Operators should verify the configuration used by the running service, especially when comparing environments. The main choices are:
+The model, prompts, and operational settings are configured in the processor's environment. Operators should verify the configuration used by the running service, especially when comparing environments. Model references are resolved through `MODEL_DEF_FILE`.
 
 | Setting | Purpose |
 | --- | --- |
-| `EXTRACT_PRODUCT_MENTIONS_MODEL_NAME` | Model used to find product mentions; `EXTRACT_PRODUCT_MODEL_NAME` is a fallback. |
-| `ENRICH_PRODUCT_RELATIONS_MODEL_NAME` | Model used to enrich product relationships; `EXTRACT_PRODUCT_MODEL_NAME` is a fallback. |
-| `EXTRACT_PRODUCTS_MAX_TASKS` | Maximum concurrent extraction tasks; the default is 1. |
-| `EXTRACT_PRODUCTS_MERGED_PASS` | When enabled, combines product detection and relationship extraction for each chunk. |
-| `EXTRACT_PRODUCT_PASS_1_ONLY` | Testing only: saves deduplicated mention candidates without relationship enrichment, translation, or name and category resolution. Default is `false`; do not enable in production. If merged mode is enabled, merged mode takes precedence and this setting is ignored. |
+| `EXTRACT_PRODUCT_MENTIONS_PROMPT` | Prompt for Pass 1; defaults to `prompt-extract-product-mentions-v2.md`. |
+| `EXTRACT_PRODUCT_MENTIONS_MODEL_NAME` | Model for Pass 1 and the merged pass; falls back to `EXTRACT_PRODUCT_MODEL_NAME`. |
+| `ENRICH_PRODUCT_MENTION_PROMPT` | Prompt for Pass 2; defaults to `prompt-enrich-product-mention-v4.md`. |
+| `ENRICH_PRODUCT_RELATIONS_MODEL_NAME` | Model for Pass 2; falls back to `EXTRACT_PRODUCT_MODEL_NAME`. It is also a translation-model fallback. |
+| `EXTRACT_PRODUCT_MODEL_NAME` | Common fallback model reference when a phase-specific mention or relation model is not set; also the last translation-model fallback. This is distinct from the retry model below. |
+| `EXTRACT_PRODUCT_MODEL_FALLBACK` | Optional retry model reference for extraction calls when the primary call fails. Some legacy empty-response cases are treated as empty results without a retry. |
+| `EXTRACT_PRODUCT_MERGED_PROMPT` | Prompt used in merged mode; defaults to `prompt-extract-products-merged-v3.md`. |
+| `EXTRACT_PRODUCTS_MERGED_PASS` | Enables the combined per-chunk extraction call; defaults to `false`. |
+| `EXTRACT_PRODUCTS_REASONING` | Controls provider-side thinking for mention, relation, merged and fallback extraction models. Default `true` preserves each model's configured thinking setting; `false` forces it off. It does not govern translation and can affect extraction quality. |
+| `EXTRACT_PRODUCTS_MAX_TASKS` | Maximum concurrent tasks for supported phases; default 1. |
+| `TRANSLATE_PRODUCTS_PROMPT` | Translation prompt; defaults to `prompt-translate-products-v2.md`. |
+| `TRANSLATION_MODEL_NAME` | Translation model; falls back to `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, then `EXTRACT_PRODUCT_MODEL_NAME`. |
+| `TRANSLATE_PRODUCTS_BATCH_SIZE` | Number of product rows per translation call; default 10. |
+| `TRANSLATE_PRODUCTS_THINKING` | Translation thinking setting, separate from extraction reasoning; defaults to disabled. |
+| `CATEGORIZE_PRODUCTS_MODEL_NAME` | Retired: this processor does not read it. Categories come from the product catalog, not an LLM categorization pass. |
+| `EXTRACT_PRODUCT_PASS_1_ONLY` | Testing only: saves deduplicated mention candidates without relationship enrichment, translation, or name and category resolution. Default `false`; do not enable in production. Merged mode takes precedence. |
+| `ARTIFACT_DIR` | Base directory for the normal `.products` output artifact. |
+
+For boolean values in `mise.local.toml`, use quoted strings such as `"false"`; a bare TOML `false` unsets the variable, which can cause the processor's default to apply. Prompt and model settings in the launch environment can override defaults.
 
 If no results appear, check that chunking succeeded, that the correct document was selected, and that the processor was included and completed. Existing results cause an ordinary run to skip extraction. If a run reports a model, prompt, or artifact error, an operator should check the service configuration and logs. If results lack relationships or categories, check whether the testing-only first-pass setting was enabled. Absence of a translated field may also reflect disabled translation or missing source content.
 
@@ -75,4 +104,5 @@ If no results appear, check that chunking succeeded, that the correct document w
 
 | Version | Timestamp | Author | Reason | Summary |
 | --- | --- | --- | --- | --- |
+| 1.0 | 2026-11-13T05:19:26-06:00 | Codex | Clarify processing and configuration | Added phase requirements, merged-call behavior, and environment settings. |
 | 1.0 | 2026-11-13T04:57:48-06:00 | Codex | Initial manual | Described product extraction, reviewing results, reruns, and operator settings. |
