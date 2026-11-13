@@ -525,6 +525,11 @@ condition beyond `canonical_name + relation_type`.
 
 If bilingual output is needed, use `TRANSLATION_MODEL_NAME` (falls back to `ENRICH_PRODUCT_RELATIONS_MODEL_NAME`, then `EXTRACT_PRODUCT_MODEL_NAME`) with `TRANSLATE_PRODUCTS_PROMPT` to generate the `_en` fields for the final draft rows.
 
+`EXTRACT_PRODUCT_TRANSLATION` controls this pass: `on` (the default) enables it,
+and `off` skips it. Translation also requires a valid translation prompt and model;
+when either is unavailable the pass is skipped. Category resolution still runs
+when translation is off. Changes take effect when the processor is restarted.
+
 **Thinking disabled (changed 2026-09-22).** `TranslateModelCfg.ThinkingType`
 is forced to `disabled` in `NewProductsProcessor` (override with
 `TRANSLATE_PRODUCTS_THINKING`; set it to `""` for endpoints that reject the
